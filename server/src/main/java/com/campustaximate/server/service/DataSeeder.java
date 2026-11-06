@@ -20,8 +20,6 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class DataSeeder implements ApplicationRunner {
 
-    /** 시연 계정의 비밀번호. demo 프로필에서만 만든다. */
-    public static final String DEMO_PASSWORD = "demo1234";
     public static final int DEMO_MEMBERS_PER_GENDER = 4;
 
     public record Dropoff(String name, double lat, double lon) {
@@ -41,7 +39,6 @@ public class DataSeeder implements ApplicationRunner {
     private final SchoolRepository schools;
     private final HubRepository hubs;
     private final MemberRepository members;
-    private final AuthService auth;
 
     @Value("${app.demo.enabled}")
     private boolean demo;
@@ -62,8 +59,9 @@ public class DataSeeder implements ApplicationRunner {
     }
 
     private void seedMember(School school, String id, String nickname, Gender gender) {
-        Member member = new Member(school, id + "@daejin.ac.kr", auth.encode(DEMO_PASSWORD), nickname, gender);
-        member.setVerified(true);
+        Member member = new Member(school, id + "@daejin.ac.kr");
+        member.setNickname(nickname);
+        member.setGender(gender);
         members.save(member);
     }
 }

@@ -18,6 +18,7 @@ import com.campustaximate.server.service.DemoService;
 import com.campustaximate.server.service.PartyService;
 import com.campustaximate.server.service.RideRequestService;
 import com.campustaximate.server.service.SettlementService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
@@ -27,6 +28,7 @@ import jakarta.validation.constraints.Size;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.FileSystemResource;
@@ -62,14 +64,16 @@ public class ApiController {
     private final RouteClient routes;
     private final AppClock clock;
 
-    public record SignupBody(@Email @NotBlank String email, @NotBlank @Size(min = 8, max = 64) String password,
-                             @NotBlank @Size(max = 20) String nickname, @NotNull Gender gender) {
+    public record CodeBody(@Email @NotBlank String email) {
     }
 
-    public record VerifyBody(@NotBlank String email, @NotBlank String code) {
+    public record LoginBody(@NotBlank String email, @NotBlank String code) {
     }
 
-    public record LoginBody(@NotBlank String email, @NotBlank String password) {
+    public record ProfileBody(@NotBlank @Size(max = 20) String nickname, @NotNull Gender gender) {
+    }
+
+    public record MeView(long id, String email, String nickname, Gender gender, boolean needsProfile) {
     }
 
     public record RequestBodyDto(@NotNull Long hubId, @NotNull Instant windowStart, @NotNull Instant windowEnd,
@@ -103,19 +107,24 @@ public class ApiController {
                 "sampleDropoffs", DataSeeder.SAMPLE_DROPOFFS);
     }
 
-    @PostMapping("/auth/signup")
-    public void signup(@Valid @RequestBody SignupBody body) {
-        auth.signup(body.email(), body.password(), body.nickname(), body.gender());
-    }
-
-    @PostMapping("/auth/verify")
-    public void verify(@Valid @RequestBody VerifyBody body) {
-        auth.verify(body.email(), body.code());
+    @PostMapping("/auth/code")
+    public Map<String, String> requestCode(@Valid @RequestBody CodeBody body) {
+        String code = auth.requestCode(body.email());
+        boolean showCode = demo.enabled() && DataSeeder.isSeededDemo(body.email().trim().toLowerCase(Locale.ROOT));
+        return showCode ? Map.of("demoCode", code) : Map.of();
     }
 
     @PostMapping("/auth/login")
-    public void login(@Valid @RequestBody LoginBody body, HttpSession session) {
-        session.setAttribute(SESSION_KEY, auth.login(body.email(), body.password()));
+    public void login(@Valid @RequestBody LoginBody body, HttpServletRequest request) {
+        long id = auth.login(body.email(), body.code());
+        HttpSession session = request.getSession();
+        request.changeSessionId();
+        session.setAttribute(SESSION_KEY, id);
+    }
+
+    @PostMapping("/auth/profile")
+    public void profile(@Valid @RequestBody ProfileBody body, HttpSession session) {
+        auth.completeProfile(memberId(session), body.nickname(), body.gender());
     }
 
     @PostMapping("/auth/logout")
@@ -124,11 +133,10 @@ public class ApiController {
     }
 
     @GetMapping("/me")
-    public Map<String, Object> me(HttpSession session) {
+    public MeView me(HttpSession session) {
         long id = memberId(session);
         Member member = members.findById(id).orElseThrow(ApiException::unauthorized);
-        return Map.of("id", id, "nickname", member.getNickname(), "email", member.getEmail(),
-                "gender", member.getGender());
+        return new MeView(id, member.getEmail(), member.getNickname(), member.getGender(), !member.hasProfile());
     }
 
     /** 화면이 주기적으로 읽는 내 상태. */

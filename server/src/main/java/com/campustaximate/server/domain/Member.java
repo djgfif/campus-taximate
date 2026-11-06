@@ -15,6 +15,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/** 비밀번호는 없다. 학교 메일로 받은 일회용 코드로 로그인한다. 닉네임과 성별은 첫 로그인 뒤에 넣는다. */
 @Entity
 @Getter
 @Setter
@@ -31,29 +32,27 @@ public class Member {
     @Column(nullable = false, unique = true)
     private String email;
 
-    @Column(nullable = false)
-    private String passwordHash;
-
-    @Column(nullable = false)
     private String nickname;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
     private Gender gender;
 
     private int noShowCount;
 
-    private boolean verified;
+    private String loginCode;
 
-    private String verificationCode;
+    private Instant loginCodeExpiresAt;
 
-    private Instant verificationExpiresAt;
+    private Instant loginCodeSentAt;
 
-    public Member(School school, String email, String passwordHash, String nickname, Gender gender) {
+    private int loginCodeFailures;
+
+    public Member(School school, String email) {
         this.school = school;
         this.email = email;
-        this.passwordHash = passwordHash;
-        this.nickname = nickname;
-        this.gender = gender;
+    }
+
+    public boolean hasProfile() {
+        return nickname != null && gender != null;
     }
 }

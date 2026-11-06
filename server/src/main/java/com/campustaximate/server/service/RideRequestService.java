@@ -61,6 +61,9 @@ public class RideRequestService {
 
     private GeoPoint validate(long memberId, NewRequest input) {
         Member member = members.findById(memberId).orElseThrow(ApiException::unauthorized);
+        if (!member.hasProfile()) {
+            throw ApiException.badRequest("PROFILE_REQUIRED", "닉네임과 성별을 먼저 입력해 주세요.");
+        }
         Hub hub = hubs.findById(input.hubId())
                 .filter(h -> h.getSchools().contains(member.getSchool()))
                 .orElseThrow(() -> ApiException.badRequest("HUB_NOT_FOUND", "없는 거점입니다."));

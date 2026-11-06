@@ -34,7 +34,7 @@ set -a; . ./.env; set +a
 SPRING_PROFILES_ACTIVE=demo java -jar server/target/server-0.1.0.jar
 ```
 
-`http://localhost:8080`에서 `demo-f1@daejin.ac.kr`, 비밀번호 `demo1234`로 로그인한다. 화면 아래 시연 모드로 진행한다.
+`http://localhost:8080`에서 `demo-f1@daejin.ac.kr`을 넣는다. 시연 계정은 코드가 자동으로 들어간다. 화면 아래 시연 모드로 진행한다.
 
 1. 탑승 요청을 넣고 샘플 요청 2개를 누른다.
 2. +5분을 누르면 일행이 확정된다.
@@ -50,7 +50,7 @@ docker compose up -d mysql
 KAKAO_REST_KEY=키 MAIL_HOST=메일서버 MAIL_USER=계정 MAIL_PASSWORD=비밀번호 java -jar server/target/server-0.1.0.jar
 ```
 
-키가 없으면 경로 조회가 실패해 요청을 저장하지 못한다. 메일 서버가 없으면 인증 코드는 서버 로그에 찍힌다.
+키가 없으면 경로 조회가 실패해 요청을 저장하지 못한다. 메일 서버가 없으면 로그인 코드는 서버 로그에 찍힌다. 실제 사용자는 메일 서버 없이 로그인할 수 없다.
 
 ## 테스트
 

@@ -228,26 +228,73 @@ class FlowTest {
         assertThat(state(sender).get("restricted").asBoolean()).isFalse();
     }
 
+    private org.springframework.test.web.servlet.ResultActions postJson(String path, String body, MockHttpSession session) throws Exception {
+        return mvc.perform(post(path).session(session).contentType(MediaType.APPLICATION_JSON).content(body));
+    }
+
     @Test
-    void signupRequiresSchoolMailAndCodeBeforeLogin() throws Exception {
+    void newMemberLogsInWithMailCodeThenFillsProfile() throws Exception {
         String email = "new" + System.nanoTime() + "@daejin.ac.kr";
-        String body = "{\"email\":\"%s\",\"password\":\"password1\",\"nickname\":\"새학생\",\"gender\":\"FEMALE\"}";
-        String login = "{\"email\":\"" + email + "\",\"password\":\"password1\"}";
+        MockHttpSession session = new MockHttpSession();
 
-        mvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                .content(body.formatted("a@gmail.com"))).andExpect(status().isBadRequest());
-        mvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                .content(body.formatted(email))).andExpect(status().isOk());
-        mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(login))
-                .andExpect(status().isForbidden());
+        postJson("/api/auth/code", "{\"email\":\"a@gmail.com\"}", session).andExpect(status().isBadRequest());
+        String response = postJson("/api/auth/code", "{\"email\":\"" + email + "\"}", session)
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(response).doesNotContain("demoCode");
 
-        String code = members.findByEmail(email).orElseThrow().getVerificationCode();
-        mvc.perform(post("/api/auth/verify").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"email\":\"" + email + "\",\"code\":\"000000x\"}")).andExpect(status().isBadRequest());
-        mvc.perform(post("/api/auth/verify").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"email\":\"" + email + "\",\"code\":\"" + code + "\"}")).andExpect(status().isOk());
-        mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(login))
+        String code = members.findByEmail(email).orElseThrow().getLoginCode();
+        postJson("/api/auth/login", "{\"email\":\"" + email + "\",\"code\":\"" + code + "\"}", session)
                 .andExpect(status().isOk());
+        assertThat(read(mvc.perform(get("/api/me").session(session)).andReturn().getResponse().getContentAsString())
+                .get("needsProfile").asBoolean()).isTrue();
+
+        createRequest(session, POINTS[0]).andExpect(status().isBadRequest());
+        postJson("/api/auth/profile", "{\"nickname\":\"새학생\",\"gender\":\"FEMALE\"}", session).andExpect(status().isOk());
+        createRequest(session, POINTS[0]).andExpect(status().isOk());
+        postJson("/api/auth/profile", "{\"nickname\":\"바꿈\",\"gender\":\"MALE\"}", session).andExpect(status().isConflict());
+    }
+
+    @Test
+    void codeIsSingleUseAndResendIsLimited() throws Exception {
+        String email = "once" + System.nanoTime() + "@daejin.ac.kr";
+        MockHttpSession session = new MockHttpSession();
+        postJson("/api/auth/code", "{\"email\":\"" + email + "\"}", session).andExpect(status().isOk());
+        postJson("/api/auth/code", "{\"email\":\"" + email + "\"}", session).andExpect(status().isTooManyRequests());
+        String code = members.findByEmail(email).orElseThrow().getLoginCode();
+        String body = "{\"email\":\"" + email + "\",\"code\":\"" + code + "\"}";
+
+        postJson("/api/auth/login", body, session).andExpect(status().isOk());
+        postJson("/api/auth/login", body, new MockHttpSession()).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void fiveWrongCodesInvalidateTheCode() throws Exception {
+        String email = "guess" + System.nanoTime() + "@daejin.ac.kr";
+        MockHttpSession session = new MockHttpSession();
+        postJson("/api/auth/code", "{\"email\":\"" + email + "\"}", session).andExpect(status().isOk());
+        String code = members.findByEmail(email).orElseThrow().getLoginCode();
+        String wrong = code.equals("000000") ? "000001" : "000000";
+
+        for (int i = 0; i < 5; i++) {
+            postJson("/api/auth/login", "{\"email\":\"" + email + "\",\"code\":\"" + wrong + "\"}", session)
+                    .andExpect(status().isBadRequest());
+        }
+
+        postJson("/api/auth/login", "{\"email\":\"" + email + "\",\"code\":\"" + code + "\"}", session)
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void codeExpiresAfterTenMinutes() throws Exception {
+        String email = "late" + System.nanoTime() + "@daejin.ac.kr";
+        MockHttpSession session = new MockHttpSession();
+        postJson("/api/auth/code", "{\"email\":\"" + email + "\"}", session).andExpect(status().isOk());
+        String code = members.findByEmail(email).orElseThrow().getLoginCode();
+
+        clock.moveTo(clock.now().plusSeconds(601));
+
+        postJson("/api/auth/login", "{\"email\":\"" + email + "\",\"code\":\"" + code + "\"}", session)
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -456,8 +503,11 @@ class FlowTest {
 
     private MockHttpSession login(String id) throws Exception {
         MockHttpSession session = new MockHttpSession();
-        mvc.perform(post("/api/auth/login").session(session).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"" + id + "@daejin.ac.kr\",\"password\":\"demo1234\"}"))
+        String email = id + "@daejin.ac.kr";
+        String response = postJson("/api/auth/code", "{\"email\":\"" + email + "\"}", session)
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String code = read(response).get("demoCode").asText();
+        postJson("/api/auth/login", "{\"email\":\"" + email + "\",\"code\":\"" + code + "\"}", session)
                 .andExpect(status().isOk());
         return session;
     }

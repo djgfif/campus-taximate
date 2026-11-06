@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from './api.js'
 import AuthScreen from './AuthScreen.jsx'
+import ProfileScreen from './ProfileScreen.jsx'
 import RequestForm from './RequestForm.jsx'
 import PartyCard from './PartyCard.jsx'
 import History from './History.jsx'
@@ -43,7 +44,7 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (!me) return undefined
+    if (!me || me.needsProfile) return undefined
     refresh()
     const timer = setInterval(refresh, POLL_MS)
     return () => clearInterval(timer)
@@ -69,6 +70,15 @@ export default function App() {
       <main className="app">
         <Header />
         <AuthScreen config={config} onLogin={() => api.me().then(setMe)} />
+      </main>
+    )
+  }
+
+  if (me.needsProfile) {
+    return (
+      <main className="app">
+        <Header onLogout={logout} />
+        <ProfileScreen onDone={() => api.me().then(setMe)} />
       </main>
     )
   }

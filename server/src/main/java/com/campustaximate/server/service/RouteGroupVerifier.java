@@ -5,7 +5,6 @@ import com.campustaximate.matching.GeoPoint;
 import com.campustaximate.matching.GroupVerifier;
 import com.campustaximate.matching.MatchRequest;
 import com.campustaximate.matching.Verdict;
-import com.campustaximate.server.domain.RideRequest;
 import com.campustaximate.server.route.RouteClient;
 import com.campustaximate.settlement.SettlementCalculator;
 import java.time.Duration;
@@ -15,7 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** 뽑힌 조합의 누적 시간과 요금을 조회해 15분, 10% 조건을 다시 검사한다. 슬롯 한 번만 쓴다. */
+/** 뽑힌 조합의 누적 값과 각자의 혼자 값을 같은 시점에 조회해 15분, 10% 조건을 다시 검사한다. 슬롯 한 번만 쓴다. */
 final class RouteGroupVerifier implements GroupVerifier {
 
     private static final int MAX_DELAY_SECONDS = 15 * 60;
@@ -23,15 +22,12 @@ final class RouteGroupVerifier implements GroupVerifier {
     private static final Duration REJECT_KEEP = Duration.ofMinutes(30);
 
     private final RouteClient routes;
-    private final Map<Long, RideRequest> snapshot;
     private final Map<List<Long>, Instant> rejected;
     private final Instant now;
     private final Map<List<Long>, List<Long>> cumulativeFares = new HashMap<>();
 
-    RouteGroupVerifier(RouteClient routes, Map<Long, RideRequest> snapshot, Map<List<Long>, Instant> rejected,
-                       Instant now) {
+    RouteGroupVerifier(RouteClient routes, Map<List<Long>, Instant> rejected, Instant now) {
         this.routes = routes;
-        this.snapshot = snapshot;
         this.rejected = rejected;
         this.now = now;
     }
@@ -59,12 +55,14 @@ final class RouteGroupVerifier implements GroupVerifier {
         List<GeoPoint> stops = new ArrayList<>();
         List<Long> fares = new ArrayList<>();
         List<Integer> seconds = new ArrayList<>();
+        List<RouteClient.Route> solo = new ArrayList<>();
         try {
             for (MatchRequest rider : order) {
                 stops.add(rider.dropoff());
                 RouteClient.Route route = routes.route(hub, List.copyOf(stops));
                 fares.add(route.fare());
                 seconds.add(route.seconds());
+                solo.add(stops.size() == 1 ? route : routes.route(hub, List.of(rider.dropoff())));
             }
         } catch (RouteClient.RouteUnavailableException e) {
             return Verdict.UNAVAILABLE;
@@ -76,10 +74,9 @@ final class RouteGroupVerifier implements GroupVerifier {
         }
         List<Long> units = SettlementCalculator.ratioUnits(fares);
         for (int i = 0; i < order.size(); i++) {
-            RideRequest rider = snapshot.get(order.get(i).id());
             double shareWon = units.get(i) / (double) SettlementCalculator.UNITS_PER_WON;
-            if (seconds.get(i) - rider.getSoloSeconds() > MAX_DELAY_SECONDS
-                    || shareWon > rider.getSoloFare() * (1 - MIN_SAVING_RATE)) {
+            if (seconds.get(i) - solo.get(i).seconds() > MAX_DELAY_SECONDS
+                    || shareWon > solo.get(i).fare() * (1 - MIN_SAVING_RATE)) {
                 return reject(candidate);
             }
         }

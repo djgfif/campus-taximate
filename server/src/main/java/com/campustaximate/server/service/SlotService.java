@@ -140,7 +140,7 @@ public class SlotService {
         Instant departure = slot.plusSeconds(LEAD_SECONDS);
         rejected.values().removeIf(until -> !until.isAfter(now));
         legStore.prepare(input.stream().filter(r -> r.canDepartAt(departure)).toList(), now);
-        RouteGroupVerifier verifier = new RouteGroupVerifier(routes, snapshot, rejected, now);
+        RouteGroupVerifier verifier = new RouteGroupVerifier(routes, rejected, now);
         RoundResult result = round.run(slot, input, legStore.provider(), verifier);
 
         Instant limit = AppClock.nextSlotAfter(slot);
