@@ -68,3 +68,6 @@ button.link { width: auto; min-height: 0; margin: 8px 0 0; padding: 0; backgroun
 .demo h3 { margin-top: 0; }
 .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .row button { margin: 0; font-size: 14px; }
+
+.field { margin: 0 0 4px; font-size: 14px; color: var(--muted); }
+.map { height: 260px; margin-bottom: 12px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; z-index: 0; }

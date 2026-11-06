@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { api } from './api.js'
 import { formatDateTime } from './format.js'
+import MapPicker from './MapPicker.jsx'
 
 const SLOT_MS = 5 * 60 * 1000
 const LEAD_MS = 30 * 60 * 1000
+const WINDOW_MINUTES = [60, 55, 50, 45, 40, 35, 30, 25, 20, 15, 10, 5]
 
 /** 지금 이후의 5분 단위 시각을 고를 수 있게 만든다. */
 function slotOptions(now) {
@@ -17,7 +19,8 @@ export default function RequestForm({ config, now, run }) {
   const options = useMemo(() => slotOptions(now), [Math.floor(new Date(now).getTime() / SLOT_MS)])
   const [start, setStart] = useState('')
   const [length, setLength] = useState(60)
-  const [dropoff, setDropoff] = useState(0)
+  const [point, setPoint] = useState(null)
+  const [name, setName] = useState('')
   const [memo, setMemo] = useState('')
 
   useEffect(() => {
@@ -27,10 +30,22 @@ export default function RequestForm({ config, now, run }) {
     })
   }, [])
 
+  const hub = hubs.find((item) => item.id === hubId)
   const windowStart = options.includes(start) ? start : options[0]
   const windowEnd = new Date(new Date(windowStart).getTime() + length * 60000).toISOString()
-  const dropoffs = config?.sampleDropoffs || []
-  const target = dropoffs[dropoff]
+  const samples = config?.sampleDropoffs || []
+
+  const pickOnMap = (lat, lon) => {
+    setPoint({ lat, lon })
+    setName((current) => current || '지도에서 고른 지점')
+  }
+
+  const pickSample = (event) => {
+    const sample = samples[Number(event.target.value)]
+    if (!sample) return
+    setPoint({ lat: sample.lat, lon: sample.lon })
+    setName(sample.name)
+  }
 
   const submit = (event) => {
     event.preventDefault()
@@ -39,9 +54,9 @@ export default function RequestForm({ config, now, run }) {
         hubId,
         windowStart,
         windowEnd,
-        dropoffName: target.name,
-        dropoffLat: target.lat,
-        dropoffLon: target.lon,
+        dropoffName: name,
+        dropoffLat: point.lat,
+        dropoffLon: point.lon,
         memo,
       }),
     )
@@ -53,13 +68,21 @@ export default function RequestForm({ config, now, run }) {
       <form onSubmit={submit}>
         <label>출발 거점
           <select value={hubId} onChange={(e) => setHubId(Number(e.target.value))}>
-            {hubs.map((hub) => <option key={hub.id} value={hub.id}>{hub.name}</option>)}
+            {hubs.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
         </label>
-        <label>하차 지점
-          <select value={dropoff} onChange={(e) => setDropoff(Number(e.target.value))}>
-            {dropoffs.map((item, index) => <option key={item.name} value={index}>{item.name}</option>)}
-          </select>
+        <p className="field">하차 지점 <span className="muted">지도를 눌러 고르세요</span></p>
+        <MapPicker hub={hub} value={point} onPick={pickOnMap} />
+        {config?.demo && (
+          <label>시연용 샘플 지점
+            <select defaultValue="" onChange={pickSample}>
+              <option value="" disabled>샘플에서 고르기</option>
+              {samples.map((item, index) => <option key={item.name} value={index}>{item.name}</option>)}
+            </select>
+          </label>
+        )}
+        <label>하차 지점 이름 (일행에게 보입니다)
+          <input required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} placeholder="예: 의정부역 1번 출구" />
         </label>
         <label>출발 가능 시작
           <select value={windowStart} onChange={(e) => setStart(e.target.value)}>
@@ -68,13 +91,13 @@ export default function RequestForm({ config, now, run }) {
         </label>
         <label>출발 가능 시간
           <select value={length} onChange={(e) => setLength(Number(e.target.value))}>
-            {[60, 55, 50, 45, 40, 35, 30, 25, 20, 15, 10, 5].map((minutes) => <option key={minutes} value={minutes}>{minutes}분</option>)}
+            {WINDOW_MINUTES.map((minutes) => <option key={minutes} value={minutes}>{minutes}분</option>)}
           </select>
         </label>
         <label>인상착의 메모 (일행에게만 보입니다)
           <input maxLength={100} value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="예: 회색 후드" />
         </label>
-        <button type="submit" disabled={!hubId || !target}>요청하기</button>
+        <button type="submit" disabled={!hubId || !point}>요청하기</button>
       </form>
     </section>
   )

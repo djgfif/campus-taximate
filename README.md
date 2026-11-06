@@ -9,9 +9,20 @@
 - `frontend/`: React 화면. 빌드하면 `server`의 정적 파일로 들어간다.
 - `docs/sample-confirmed-party.json`: 확정 일행 응답 샘플.
 
+## 키 설정
+
+저장소 최상위에 `.env`를 만든다. Git에는 올리지 않는다.
+
+```
+KAKAO_REST_KEY=REST API 키
+VITE_KAKAO_JS_KEY=JavaScript 키
+```
+
+JavaScript 키에는 카카오 콘솔에서 사이트 도메인(`http://localhost:8080`)을 등록해야 지도가 뜬다. 화면은 빌드할 때 키를 넣으므로 키를 바꾸면 다시 빌드한다.
+
 ## 시연 실행
 
-MySQL과 카카오 키 없이 돌아간다. 데이터는 재시작하면 사라지고, 경로와 요금은 모의 값이다.
+MySQL 없이 돌아가고 데이터는 재시작하면 사라진다. `KAKAO_REST_KEY`가 없으면 경로와 요금은 모의 값이다.
 
 ```bash
 cd frontend
@@ -19,6 +30,7 @@ npm install
 npm run build
 cd ..
 mvn package -DskipTests
+set -a; . ./.env; set +a
 SPRING_PROFILES_ACTIVE=demo java -jar server/target/server-0.1.0.jar
 ```
 
@@ -49,11 +61,11 @@ mvn test
 
 ## 아직 확인하지 못한 것
 
-- 카카오 응답 형식과 요금 값. 키가 없어 실제로 호출하지 않았다.
+- 심야, 시외 할증에서의 카카오 요금 값. 낮 시간대 호출만 확인했다.
 - 길찾기 값 저장 허용 여부.
 - MySQL 실행. 테스트는 H2의 MySQL 모드로만 돌렸다.
 - 거점과 하차 지점 좌표. 초기 데이터는 시연용 샘플이다.
 
 ## 아직 없는 것
 
-카카오 지도로 하차 지점 고르기, 신고, 관리 화면.
+장소 검색, 신고, 관리 화면.

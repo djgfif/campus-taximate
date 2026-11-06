@@ -28,10 +28,10 @@ public class DataSeeder implements ApplicationRunner {
     }
 
     public static final List<Dropoff> SAMPLE_DROPOFFS = List.of(
-            new Dropoff("샘플 지점 1 (10km)", 37.785, 127.105),
-            new Dropoff("샘플 지점 2 (15km)", 37.745, 127.075),
-            new Dropoff("샘플 지점 3 (20km)", 37.700, 127.050),
-            new Dropoff("샘플 지점 4 (25km)", 37.660, 127.030));
+            new Dropoff("샘플 지점 1", 37.81063, 127.13712),
+            new Dropoff("샘플 지점 2", 37.75913, 127.11929),
+            new Dropoff("샘플 지점 3", 37.72723, 127.07552),
+            new Dropoff("샘플 지점 4", 37.70101, 127.04730));
 
     /** 시드가 만든 시연 계정인지 메일로 판단한다. 가입으로는 같은 메일을 만들 수 없다. */
     public static boolean isSeededDemo(String email) {

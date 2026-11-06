@@ -98,7 +98,7 @@ public class ApiController {
         }
     }
 
-    public record HubView(long id, String name) {
+    public record HubView(long id, String name, double lat, double lon) {
     }
 
     @GetMapping("/config")
@@ -153,7 +153,7 @@ public class ApiController {
 
     private List<HubView> hubListOf(Member member) {
         return hubs.findBySchool(member.getSchool().getId()).stream()
-                .map((Hub h) -> new HubView(h.getId(), h.getName()))
+                .map((Hub h) -> new HubView(h.getId(), h.getName(), h.getLat(), h.getLon()))
                 .toList();
     }
 
