@@ -1,6 +1,8 @@
 package com.campustaximate.server.service;
 
 import com.campustaximate.server.common.ApiException;
+import com.campustaximate.matching.GeoPoint;
+import com.campustaximate.server.route.RouteClient;
 import com.campustaximate.server.common.AppClock;
 import com.campustaximate.server.domain.Party;
 import com.campustaximate.server.domain.PartyStatus;
@@ -30,9 +32,11 @@ public class PartyService {
     private final SettlementRepository settlements;
     private final TransferRequestRepository transfers;
     private final AppClock clock;
+    private final RoutePathStore paths;
 
     public record MemberView(long requestId, long memberId, String nickname, String memo, int dropoffOrder,
-                             String dropoffName, long expectedShare, boolean arrived) {
+                             String dropoffName, long expectedShare, boolean arrived,
+                             long soloFare, int soloSeconds, int sharedSeconds) {
     }
 
     public record TransferView(long id, long senderId, String senderNickname, long amount, TransferStatus status) {
@@ -90,6 +94,25 @@ public class PartyService {
         return settlements.findByParty(party).orElseThrow(() -> ApiException.notFound("정산이 없습니다."));
     }
 
+    public record RouteView(List<GeoPoint> shared, List<GeoPoint> solo) {
+    }
+
+    @Transactional(readOnly = true)
+    public RouteView routeView(long memberId, long partyId) {
+        Party party = parties.findById(partyId).orElseThrow(() -> ApiException.notFound("없는 일행입니다."));
+        List<RideRequest> riders = requests.findByPartyOrderByDropoffOrder(party);
+        RideRequest mine = riders.stream().filter(r -> r.getMember().getId() == memberId).findFirst()
+                .orElseThrow(() -> ApiException.forbidden("내 일행이 아닙니다."));
+        GeoPoint origin = new GeoPoint(party.getHub().getLat(), party.getHub().getLon());
+        List<GeoPoint> stops = riders.stream().map(r -> new GeoPoint(r.getDropoffLat(), r.getDropoffLon())).toList();
+        try {
+            return new RouteView(paths.coordinates(origin, stops),
+                    paths.coordinates(origin, List.of(new GeoPoint(mine.getDropoffLat(), mine.getDropoffLon()))));
+        } catch (RouteClient.RouteUnavailableException e) {
+            return new RouteView(List.of(), List.of());
+        }
+    }
+
     private PartyView toView(long memberId, Party party) {
         List<RideRequest> riders = requests.findByPartyOrderByDropoffOrder(party);
         RideRequest mine = riders.stream()
@@ -103,7 +126,8 @@ public class PartyService {
         SettlementView settlement = settlements.findByParty(party).map(s -> toView(s, party, payer)).orElse(null);
         List<MemberView> members = riders.stream()
                 .map(r -> new MemberView(r.getId(), r.getMember().getId(), r.getMember().getNickname(), r.getMemo(),
-                        r.getDropoffOrder(), r.getDropoffName(), r.getExpectedShare(), r.isArrived()))
+                        r.getDropoffOrder(), r.getDropoffName(), r.getExpectedShare(), r.isArrived(),
+                        r.getSoloFare(), r.getSoloSeconds(), r.getSharedSeconds()))
                 .toList();
         return new PartyView(party.getId(), party.getStatus(), party.getHub().getName(),
                 party.getHub().getMeetingPoint(), party.getDepartureAt(),

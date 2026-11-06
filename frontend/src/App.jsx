@@ -115,7 +115,7 @@ export default function App() {
               <h2>일행을 찾는 중</h2>
               <p>{latest.hubName} → {latest.dropoffName}</p>
               <p className="muted">출발 가능 {formatTime(latest.windowStart)} ~ {formatTime(latest.windowEnd)}</p>
-              <p className="muted">혼자 가면 예상 {latest.soloFare.toLocaleString()}원, {latest.soloMinutes}분</p>
+              <p className="muted">단독 이동 예상 {latest.soloFare.toLocaleString()}원, {latest.soloMinutes}분</p>
               <button className="secondary" onClick={() => run(() => api.cancelRequest(latest.id))}>요청 취소</button>
             </section>
           )}

@@ -25,7 +25,7 @@ public class KakaoRouteClient implements RouteClient {
                 .build();
     }
 
-    /** 혼자 경로는 일반 길찾기, 누적 경로는 다중 경유지를 쓴다. 두 API의 쿼터가 다르다. */
+    /** 단독 경로는 일반 길찾기, 누적 경로는 다중 경유지를 쓴다. 두 API의 쿼터가 다르다. */
     @Override
     public Route route(GeoPoint origin, List<GeoPoint> stops) {
         GeoPoint destination = stops.get(stops.size() - 1);
@@ -107,8 +107,17 @@ public class KakaoRouteClient implements RouteClient {
         if (!taxi.isNumber()) {
             throw new RouteUnavailableException("kakao taxi fare missing", null);
         }
+        List<GeoPoint> coordinates = new ArrayList<>();
+        for (JsonNode section : route.path("sections")) {
+            for (JsonNode road : section.path("roads")) {
+                JsonNode vertexes = road.path("vertexes");
+                for (int i = 0; i + 1 < vertexes.size(); i += 2) {
+                    coordinates.add(new GeoPoint(vertexes.get(i + 1).asDouble(), vertexes.get(i).asDouble()));
+                }
+            }
+        }
         return new Route(summary.path("distance").asDouble() / 1000.0,
-                summary.path("duration").asInt(), taxi.asLong() + summary.path("fare").path("toll").asLong());
+                summary.path("duration").asInt(), taxi.asLong() + summary.path("fare").path("toll").asLong(), coordinates);
     }
 
     private static Map<String, Double> point(GeoPoint p) {

@@ -22,7 +22,10 @@ public class SimulatedRouteClient implements RouteClient {
         }
         int seconds = (int) Math.round(km / SPEED_KMH * 3600);
         long fare = km <= 1.6 ? 4800 : 4800 + (long) Math.ceil((km - 1.6) / 0.131) * 100;
-        return new Route(km, seconds, fare);
+        List<GeoPoint> coordinates = new java.util.ArrayList<>();
+        coordinates.add(origin);
+        coordinates.addAll(stops);
+        return new Route(km, seconds, fare, coordinates);
     }
 
     @Override

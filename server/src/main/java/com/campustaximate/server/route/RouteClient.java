@@ -16,7 +16,14 @@ public interface RouteClient {
     /** 카카오가 아닌 모의 값이면 true. 화면에 표시한다. */
     boolean simulated();
 
-    record Route(double km, int seconds, long fare) {
+    record Route(double km, int seconds, long fare, List<GeoPoint> coordinates) {
+        public Route(double km, int seconds, long fare) {
+            this(km, seconds, fare, List.of());
+        }
+
+        public Route {
+            coordinates = List.copyOf(coordinates);
+        }
     }
 
     class RouteUnavailableException extends RuntimeException {

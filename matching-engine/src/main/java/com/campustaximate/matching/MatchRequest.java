@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.Objects;
 
-/** 묶기 대상 요청. 출발 가능 시간의 시작과 끝은 포함이다. 혼자 값은 실제 도로 값이다. */
+/** 매칭 대상 요청. 출발 가능 시간의 시작과 끝은 포함이다. 단독 값은 실제 도로 값이다. */
 public record MatchRequest(long id, long memberId, Hub hub, Gender gender,
                            Instant windowStart, Instant windowEnd, GeoPoint dropoff,
                            double soloKm, int soloSeconds) {

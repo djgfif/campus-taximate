@@ -25,6 +25,19 @@ class KakaoRouteClientTest {
     }
 
     @Test
+    void readsRoadVertexesAndUsesSummaryDuration() throws Exception {
+        var body = json.readTree("""
+                {"routes":[{"result_code":0,"summary":{"distance":1000,"duration":900,"fare":{"taxi":7000}},
+                 "sections":[{"duration":1,"roads":[{"vertexes":[127.1,37.1,127.2,37.2]}]},
+                             {"duration":2,"roads":[{"vertexes":[127.3,37.3]}]}]}]}
+                """);
+        var route = KakaoRouteClient.parse(body);
+        assertThat(route.seconds()).isEqualTo(900);
+        assertThat(route.coordinates()).containsExactly(new com.campustaximate.matching.GeoPoint(37.1, 127.1),
+                new com.campustaximate.matching.GeoPoint(37.2, 127.2), new com.campustaximate.matching.GeoPoint(37.3, 127.3));
+    }
+
+    @Test
     void readsMultiDestinationLegsAndSkipsFailedOnes() throws Exception {
         var body = json.readTree("""
                 {"routes":[{"result_code":0,"key":"7","summary":{"distance":4200,"duration":600}},

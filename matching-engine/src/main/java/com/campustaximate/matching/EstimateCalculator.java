@@ -21,10 +21,6 @@ public final class EstimateCalculator {
         MatchRequest first = order.get(0);
         double cumulativeKm = first.soloKm();
         int cumulativeSeconds = first.soloSeconds();
-        double shareKm = first.soloKm() / order.size();
-        if (!saves(first, shareKm)) {
-            return Optional.empty();
-        }
         for (int i = 1; i < order.size(); i++) {
             MatchRequest rider = order.get(i);
             Optional<RoadLeg> leg = legs.leg(order.get(i - 1), rider);
@@ -33,16 +29,16 @@ public final class EstimateCalculator {
             }
             cumulativeKm += leg.get().km();
             cumulativeSeconds += leg.get().seconds();
-            shareKm += leg.get().km() / (order.size() - i);
             int delaySeconds = cumulativeSeconds - rider.soloSeconds();
-            if (delaySeconds > settings.maxDelayMinutes() * 60 || !saves(rider, shareKm)) {
+            if (delaySeconds > settings.maxDelayMinutes() * 60) {
                 return Optional.empty();
             }
+        }
+        double soloKm = order.stream().mapToDouble(MatchRequest::soloKm).sum();
+        if (cumulativeKm > soloKm * (1 - settings.minSavingRate())) {
+            return Optional.empty();
         }
         return Optional.of(new Candidate(order, cumulativeKm));
     }
 
-    private boolean saves(MatchRequest rider, double shareKm) {
-        return shareKm <= rider.soloKm() * (1 - settings.minSavingRate());
-    }
 }

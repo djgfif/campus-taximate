@@ -6,7 +6,7 @@ const INITIAL_LEVEL = 9
 let sdk = null
 
 /** 카카오맵 SDK를 한 번만 불러온다. */
-function loadKakaoMaps() {
+export function loadKakaoMaps() {
   if (!sdk) {
     sdk = new Promise((resolve, reject) => {
       const script = document.createElement('script')

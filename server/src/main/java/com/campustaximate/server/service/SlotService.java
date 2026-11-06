@@ -38,7 +38,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** 5분 슬롯마다 출발 처리와 묶기를 한다. 스케줄러와 시연 버튼은 같은 잠금을 쓴다. */
+/** 5분 슬롯마다 출발 처리와 매칭를 한다. 스케줄러와 시연 버튼은 같은 잠금을 쓴다. */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -54,6 +54,7 @@ public class SlotService {
     private final SettlementService settlements;
     private final LoginTokenService loginTokens;
     private final RouteClient routes;
+    private final RoutePathStore paths;
     private final MailService mail;
     private final AppClock clock;
     private final PlatformTransactionManager transactionManager;
@@ -142,7 +143,7 @@ public class SlotService {
         Instant departure = slot.plusSeconds(LEAD_SECONDS);
         rejected.values().removeIf(until -> !until.isAfter(now));
         legStore.prepare(input.stream().filter(r -> r.canDepartAt(departure)).toList(), now);
-        RouteGroupVerifier verifier = new RouteGroupVerifier(routes, rejected, now);
+        RouteGroupVerifier verifier = new RouteGroupVerifier(routes, rejected, now, paths);
         RoundResult result = round.run(slot, input, legStore.provider(), verifier);
 
         Instant limit = AppClock.nextSlotAfter(slot);
@@ -152,7 +153,7 @@ public class SlotService {
                 return;
             }
             dropOnConflict(() -> tx.executeWithoutResult(
-                    status -> confirm(group, verifier.faresOf(group.dropoffOrder()), snapshot)));
+                    status -> confirm(group, verifier.routesOf(group.dropoffOrder()), snapshot)));
         }
         for (MatchRequest expired : result.expired()) {
             if (isLate(limit, slot)) {
@@ -179,7 +180,7 @@ public class SlotService {
         }
     }
 
-    private void confirm(ConfirmedGroup group, List<Long> fares, Map<Long, RideRequest> snapshot) {
+    private void confirm(ConfirmedGroup group, RouteGroupVerifier.VerifiedRoutes verified, Map<Long, RideRequest> snapshot) {
         List<RideRequest> riders = new ArrayList<>();
         for (MatchRequest m : group.dropoffOrder()) {
             RideRequest current = requests.findById(m.id()).orElseThrow();
@@ -190,13 +191,17 @@ public class SlotService {
             }
             riders.add(current);
         }
-        List<Long> units = SettlementCalculator.ratioUnits(fares);
-        long total = fares.get(fares.size() - 1);
+        List<Long> units = SettlementCalculator.ratioUnits(verified.solo().stream().map(RouteClient.Route::fare).toList());
+        long total = verified.cumulative().getLast().fare();
         List<Long> shares = SettlementCalculator.shares(total, units);
         RideRequest last = riders.get(riders.size() - 1);
         Party party = parties.save(new Party(last.getHub(), last.getMember(), group.departure(), total));
         for (int i = 0; i < riders.size(); i++) {
             RideRequest rider = riders.get(i);
+            rider.setSoloKm(verified.solo().get(i).km());
+            rider.setSoloSeconds(verified.solo().get(i).seconds());
+            rider.setSoloFare(verified.solo().get(i).fare());
+            rider.setSharedSeconds(verified.cumulative().get(i).seconds());
             rider.setStatus(RequestStatus.MATCHED);
             rider.setParty(party);
             rider.setDropoffOrder(i + 1);

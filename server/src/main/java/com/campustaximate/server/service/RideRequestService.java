@@ -94,7 +94,7 @@ public class RideRequestService {
         return requests.saveAndFlush(request);
     }
 
-    /** 대기 중이면 요청만 취소하고, 묶였으면 그 사람만 일행에서 뺀다. */
+    /** 대기 중이면 요청만 취소하고, 매칭됐으면 그 사람만 일행에서 뺀다. */
     public void cancel(long memberId, long requestId) {
         TransactionTemplate tx = new TransactionTemplate(transactionManager);
         Long partyId = tx.execute(status -> {

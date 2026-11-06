@@ -10,7 +10,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-/** 슬롯 한 번의 묶기를 실행한다. DB와 시계에 의존하지 않는다. */
+/** 슬롯 한 번의 매칭를 실행한다. DB와 시계에 의존하지 않는다. */
 public final class MatchingRound {
 
     private static final Comparator<MatchRequest> ANCHOR_ORDER = Comparator

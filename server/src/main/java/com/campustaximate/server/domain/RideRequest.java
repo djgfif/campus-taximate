@@ -15,7 +15,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** 탑승 요청. 일행, 하차 순서, 구간 비율, 몫, 도착 표시를 함께 갖는다. */
+/** 탑승 요청. 일행, 하차 순서, 단독 요금 비율, 분담금, 도착 표시를 함께 갖는다. */
 @Entity
 @Getter
 @Setter
@@ -57,6 +57,8 @@ public class RideRequest {
     private int soloSeconds;
 
     private long soloFare;
+
+    private int sharedSeconds;
 
     private String memo;
 

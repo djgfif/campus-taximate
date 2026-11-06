@@ -36,6 +36,7 @@ export const api = {
   logoutAll: () => json('POST', '/auth/logout-all'),
   createRequest: (body) => json('POST', '/requests', body),
   cancelRequest: (id) => request(`/requests/${id}`, { method: 'DELETE' }),
+  partyRoutes: (partyId) => request(`/parties/${partyId}/routes`),
   arrive: (partyId) => json('POST', `/parties/${partyId}/arrive`),
   submitSettlement: (partyId, amount, receipt) => {
     const form = new FormData()

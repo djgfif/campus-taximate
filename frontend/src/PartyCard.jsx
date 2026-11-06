@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import RouteComparison from './RouteComparison.jsx'
 import { api } from './api.js'
 import { TRANSFER_LABEL, formatDateTime, won } from './format.js'
 
@@ -25,6 +26,8 @@ export default function PartyCard({ party, myId, run }) {
         ))}
       </ol>
       <p className="muted">예상 금액입니다. 실제 결제 금액을 같은 비율로 나눕니다.</p>
+
+      {mine && <RouteComparison party={party} mine={mine} />}
 
       {party.canArrive && <button onClick={() => run(() => api.arrive(party.id))}>도착했어요</button>}
       {party.canCancel && (

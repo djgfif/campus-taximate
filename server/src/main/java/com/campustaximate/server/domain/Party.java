@@ -15,7 +15,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** 자동으로 묶인 일행. 결제자는 마지막 하차자다. */
+/** 자동으로 매칭된 일행. 결제자는 마지막 하차자다. */
 @Entity
 @Getter
 @Setter

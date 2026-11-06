@@ -39,6 +39,18 @@ class EstimateCalculatorTest {
                 .evaluate(List.of(firstA, firstB, secondA, secondB), LEGS).isEmpty());
     }
 
+    @Test
+    void groupDistanceBoundaryIgnoresIndividualSaving() {
+        var a = new MatchRequest(1, 101, Fixtures.HUB, Gender.FEMALE,
+                Fixtures.SLOT, Fixtures.SLOT.plusSeconds(3600), at(1, 0), 10, 100);
+        var b = new MatchRequest(2, 102, Fixtures.HUB, Gender.FEMALE,
+                Fixtures.SLOT, Fixtures.SLOT.plusSeconds(3600), at(2, 0), 10, 100);
+        assertTrue(calculator.evaluate(List.of(a, b), (x, y) ->
+                java.util.Optional.of(new RoadLeg(8, 100))).isPresent());
+        assertTrue(calculator.evaluate(List.of(a, b), (x, y) ->
+                java.util.Optional.of(new RoadLeg(8.001, 100))).isEmpty());
+    }
+
     private static MatchingSettings withMaxDelay(int minutes) {
         MatchingSettings d = MatchingSettings.defaults();
         return new MatchingSettings(minutes, d.minSavingRate(), d.maxCandidates(), d.maxGroupSize(),
@@ -46,7 +58,7 @@ class EstimateCalculatorTest {
     }
 
     @Test
-    void rejectsWhenSomeoneSavesLessThanTenPercent() {
+    void rejectsWhenGroupDistanceSavesLessThanTenPercent() {
         var east = request(1, at(1, 0));
         var west = request(2, at(-2, 0));
 

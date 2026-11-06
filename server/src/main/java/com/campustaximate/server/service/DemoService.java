@@ -14,7 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-/** 시연 모드. 시간 조작, 샘플 요청, 지금 묶기 실행. */
+/** 시연 모드. 시간 조작, 샘플 요청, 지금 매칭 실행. */
 @Service
 @RequiredArgsConstructor
 public class DemoService {

@@ -217,6 +217,11 @@ public class ApiController {
         return parties.view(memberId(session), id);
     }
 
+    @GetMapping("/parties/{id}/routes")
+    public PartyService.RouteView partyRoutes(@PathVariable long id, HttpSession session) {
+        return parties.routeView(memberId(session), id);
+    }
+
     @PostMapping("/parties/{id}/arrive")
     public void arrive(@PathVariable long id, HttpSession session) {
         parties.arrive(memberId(session), id);

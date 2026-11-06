@@ -3,51 +3,34 @@ package com.campustaximate.settlement;
 import java.util.ArrayList;
 import java.util.List;
 
-/** 구간 비율과 몫을 계산하는 순수 함수 모음. 금액 입력 방식을 모른다. */
+/** 단독 요금 비율과 분담금을 계산한다. */
 public final class SettlementCalculator {
-
-    /** 1~4명의 공배수. 비율을 정수로 저장하려고 금액에 곱한다. */
-    public static final long UNITS_PER_WON = 12;
 
     private static final long ROUND_UNIT = 100;
 
     private SettlementCalculator() {
     }
 
-    /**
-     * 하차 순서대로의 누적 요금에서 사람별 비율을 구한다.
-     * 구간 요금을 그 구간을 탄 사람 수로 나눠 더한 값이고, 단위는 원의 12분의 1이다.
-     */
-    public static List<Long> ratioUnits(List<Long> cumulativeFares) {
-        int riders = cumulativeFares.size();
-        if (riders < 1 || riders > UNITS_PER_WON) {
-            throw new IllegalArgumentException("riders out of range: " + riders);
+    /** 확인 시점의 단독 요금을 비율의 가중치로 쓴다. */
+    public static List<Long> ratioUnits(List<Long> soloFares) {
+        if (soloFares.isEmpty() || soloFares.size() > 4
+                || soloFares.stream().anyMatch(f -> f == null || f <= 0 || f > 10_000_000)) {
+            throw new IllegalArgumentException("invalid solo fares");
         }
-        List<Long> units = new ArrayList<>();
-        long previous = 0;
-        long accumulated = 0;
-        for (int i = 0; i < riders; i++) {
-            long segment = cumulativeFares.get(i) - previous;
-            if (segment < 0) {
-                throw new IllegalArgumentException("cumulative fare decreased at " + i);
-            }
-            accumulated += segment * UNITS_PER_WON / (riders - i);
-            units.add(accumulated);
-            previous = cumulativeFares.get(i);
-        }
-        return units;
+        return List.copyOf(soloFares);
     }
 
     /**
      * 결제 금액을 비율로 나눈다. 마지막 사람이 결제자이고 나머지를 부담한다.
      * 결제자 외는 100원 단위로 올린다.
      *
-     * @throws NegativeShareException 결제자 몫이 음수가 될 때
+     * @throws NegativeShareException 결제자 분담금이 음수가 될 때
      */
     public static List<Long> shares(long paidAmount, List<Long> ratioUnits) {
-        if (paidAmount <= 0) {
+        if (paidAmount <= 0 || paidAmount > 10_000_000) {
             throw new IllegalArgumentException("paidAmount must be positive");
         }
+        ratioUnits = ratioUnits(ratioUnits);
         long total = ratioUnits.stream().mapToLong(Long::longValue).sum();
         if (total <= 0) {
             throw new IllegalArgumentException("ratio total must be positive");

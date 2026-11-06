@@ -74,6 +74,23 @@ class FlowTest {
     }
 
     @Test
+    void memberCanCompareRoutesAndConfirmedMetrics() throws Exception {
+        List<MockHttpSession> users = threeRequests();
+        demo.advance(5);
+        JsonNode party = onlyParty(users.get(0));
+        long id = party.get("id").asLong();
+        JsonNode routes = read(mvc.perform(get("/api/parties/" + id + "/routes").session(users.get(0)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertThat(routes.get("shared")).hasSize(4);
+        assertThat(routes.get("solo")).hasSize(2);
+        for (JsonNode rider : party.get("members")) {
+            assertThat(rider.get("soloFare").asLong()).isPositive();
+            assertThat(rider.get("soloSeconds").asInt()).isPositive();
+            assertThat(rider.get("sharedSeconds").asInt()).isPositive();
+        }
+    }
+
+    @Test
     void fullFlowFromRequestToCompleted() throws Exception {
         List<MockHttpSession> users = threeRequests();
 
@@ -125,6 +142,12 @@ class FlowTest {
         assertThat(after.get("members")).hasSize(2);
         assertThat(after.get("members").get(0).get("dropoffOrder").asInt()).isEqualTo(1);
         assertThat(after.get("id").asLong()).isEqualTo(before.get("id").asLong());
+        var remaining = requests.findByPartyOrderByDropoffOrder(parties.findById(after.get("id").asLong()).orElseThrow());
+        var weights = remaining.stream().map(r -> r.getSoloFare()).toList();
+        var shares = com.campustaximate.settlement.SettlementCalculator.shares(after.get("expectedTotal").asLong(), weights);
+        assertThat(remaining.stream().map(r -> r.getRatioUnits()).toList()).isEqualTo(weights);
+        assertThat(remaining.stream().map(r -> r.getExpectedShare()).toList()).isEqualTo(shares);
+        assertThat(after.get("payerId").asLong()).isEqualTo(remaining.getLast().getMember().getId());
     }
 
     @Test
@@ -417,6 +440,8 @@ class FlowTest {
         JsonNode transfer = onlyParty(payer).get("settlement").get("transfers").get(0);
         MockHttpSession outsider = login("demo-m1");
 
+        mvc.perform(get("/api/parties/" + partyId + "/routes").session(outsider)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/parties/" + partyId + "/routes")).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/parties/" + partyId).session(outsider)).andExpect(status().isForbidden());
         mvc.perform(get("/api/parties/" + partyId + "/receipt").session(outsider)).andExpect(status().isForbidden());
         submit(partyId, 1000, outsider).andExpect(status().isForbidden());
