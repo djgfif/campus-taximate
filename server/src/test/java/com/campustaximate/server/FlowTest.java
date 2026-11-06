@@ -55,6 +55,7 @@ class FlowTest {
     @Autowired private SettlementRepository settlements;
     @Autowired private TransferRequestRepository transfers;
     @Autowired private com.campustaximate.server.repository.LoginTokenRepository loginTokens;
+    @org.springframework.boot.test.mock.mockito.SpyBean private com.campustaximate.server.route.RouteClient routes;
 
     private long hubId;
 
@@ -125,6 +126,32 @@ class FlowTest {
         }
         assertThat(state(payer).get("parties")).isEmpty();
         assertThat(state(payer).get("latestRequest").get("status").asText()).isEqualTo("COMPLETED");
+    }
+
+    @Test
+    void cancelDuringRouteLookupDoesNotUndoCompletedRide() throws Exception {
+        List<MockHttpSession> users = threeRequests();
+        demo.advance(5);
+        JsonNode party = onlyParty(users.get(0));
+        long partyId = party.get("id").asLong();
+        long requestId = party.get("myRequestId").asLong();
+        for (MockHttpSession user : users) {
+            mvc.perform(post("/api/parties/" + partyId + "/arrive").session(user)).andExpect(status().isOk());
+        }
+        var once = new java.util.concurrent.atomic.AtomicBoolean();
+        org.mockito.Mockito.doAnswer(call -> {
+            if (once.compareAndSet(false, true)) {
+                demo.advance(30);
+            }
+            return call.callRealMethod();
+        }).when(routes).route(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+
+        mvc.perform(delete("/api/requests/" + requestId).session(users.get(0))).andExpect(status().isConflict());
+
+        assertThat(once).isTrue();
+        var riders = requests.findByPartyOrderByDropoffOrder(parties.findById(partyId).orElseThrow());
+        assertThat(riders).hasSize(3);
+        assertThat(riders).allMatch(r -> r.getStatus() == com.campustaximate.server.domain.RequestStatus.COMPLETED);
     }
 
     @Test

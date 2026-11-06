@@ -1,6 +1,7 @@
 package com.campustaximate.server.service;
 
 import com.campustaximate.matching.GeoPoint;
+import com.campustaximate.server.common.AppClock;
 import com.campustaximate.server.common.ApiException;
 import com.campustaximate.server.domain.Party;
 import com.campustaximate.server.domain.RequestStatus;
@@ -33,6 +34,7 @@ public class PartyShrinker {
     private final RoutePathStore paths;
     private final MailService mail;
     private final PlatformTransactionManager transactionManager;
+    private final AppClock clock;
 
     private record Plan(long version, GeoPoint hub, List<GeoPoint> stops, List<Long> ids) {
     }
@@ -42,7 +44,7 @@ public class PartyShrinker {
         TransactionTemplate tx = new TransactionTemplate(transactionManager);
         Plan plan = tx.execute(status -> plan(partyId, leaving));
         if (plan.stops().size() < 2) {
-            cancel(tx, partyId, leaving, now);
+            cancel(tx, partyId, leaving, now, departed);
             return;
         }
         Recalculated result;
@@ -50,7 +52,7 @@ public class PartyShrinker {
             result = recalculate(plan);
         } catch (RouteClient.RouteUnavailableException | IllegalArgumentException
                  | SettlementCalculator.NegativeShareException e) {
-            cancel(tx, partyId, leaving, now);
+            cancel(tx, partyId, leaving, now, departed);
             return;
         }
         tx.executeWithoutResult(status -> apply(partyId, leaving, plan, result, departed));
@@ -105,9 +107,21 @@ public class PartyShrinker {
                 SettlementCalculator.shares(cumulative.getLast().fare(), units));
     }
 
-    private void cancel(TransactionTemplate tx, long partyId, Set<Long> leaving, Instant now) {
-        tx.executeWithoutResult(status ->
-                canceler.cancel(parties.findByIdForUpdate(partyId).orElseThrow(), leaving, now));
+    private void cancel(TransactionTemplate tx, long partyId, Set<Long> leaving, Instant now, boolean departed) {
+        tx.executeWithoutResult(status -> {
+            Party party = parties.findByIdForUpdate(partyId).orElseThrow();
+            requireOpen(party, departed);
+            canceler.cancel(party, leaving, now);
+        });
+    }
+
+    /** 경로를 조회하는 동안 출발 처리가 끝났으면 바꾸지 않는다. 출발 처리는 일행 버전을 올리지 않는다. */
+    private void requireOpen(Party party, boolean departed) {
+        boolean closed = requests.findByPartyOrderByDropoffOrder(party).stream()
+                .anyMatch(rider -> rider.getStatus() != RequestStatus.MATCHED);
+        if (closed || (!departed && !clock.now().isBefore(party.getDepartureAt()))) {
+            throw ApiException.conflict("DEPARTED", "출발 시각이 지나 취소할 수 없습니다.");
+        }
     }
 
     private void apply(long partyId, Set<Long> leaving, Plan plan, Recalculated result, boolean departed) {
@@ -115,6 +129,7 @@ public class PartyShrinker {
         if (party.getVersion() != plan.version()) {
             throw ApiException.conflict("CONFLICT", "일행이 바뀌었습니다. 다시 시도해 주세요.");
         }
+        requireOpen(party, departed);
         List<RideRequest> stay = new ArrayList<>();
         for (RideRequest rider : requests.findByPartyOrderByDropoffOrder(party)) {
             if (leaving.contains(rider.getId())) {
