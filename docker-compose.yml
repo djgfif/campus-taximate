@@ -1,0 +1,16 @@
+services:
+  mysql:
+    image: mysql:8.4.3
+    environment:
+      MYSQL_DATABASE: taximate
+      MYSQL_USER: taximate
+      MYSQL_PASSWORD: taximate
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+    ports:
+      - "3306:3306"
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - taximate-mysql:/var/lib/mysql
+
+volumes:
+  taximate-mysql:

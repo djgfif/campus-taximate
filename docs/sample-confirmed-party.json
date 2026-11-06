@@ -1,12 +1,16 @@
 {
-  "partyId": 1001,
-  "hubId": 1,
-  "hubName": "샘플 거점",
+  "id": 1001,
   "status": "CONFIRMED",
-  "version": 0,
-  "departureAt": "2026-11-20T18:00:00+09:00",
-  "payerMemberId": 103,
-  "cumulativeFares": [6000, 10500, 15000],
+  "hubName": "샘플 거점",
+  "departureAt": "2026-11-20T09:00:00Z",
+  "expectedTotal": 15000,
+  "payerId": 103,
+  "payerNickname": "C",
+  "payer": false,
+  "canArrive": true,
+  "canCancel": true,
+  "canSettle": false,
+  "myRequestId": 1,
   "members": [
     {
       "requestId": 1,
@@ -15,7 +19,6 @@
       "memo": "회색 후드",
       "dropoffOrder": 1,
       "dropoffName": "샘플 하차 지점 1",
-      "ratioAmount": 2000,
       "expectedShare": 2000,
       "arrived": false
     },
@@ -26,7 +29,6 @@
       "memo": "검은 가방",
       "dropoffOrder": 2,
       "dropoffName": "샘플 하차 지점 2",
-      "ratioAmount": 4250,
       "expectedShare": 4300,
       "arrived": false
     },
@@ -37,9 +39,9 @@
       "memo": "흰 운동화",
       "dropoffOrder": 3,
       "dropoffName": "샘플 하차 지점 3",
-      "ratioAmount": 8750,
       "expectedShare": 8700,
       "arrived": false
     }
-  ]
+  ],
+  "settlement": null
 }

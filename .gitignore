@@ -3,3 +3,6 @@ target/
 *.iml
 .vscode/
 .env
+node_modules/
+uploads/
+server/src/main/resources/static/
