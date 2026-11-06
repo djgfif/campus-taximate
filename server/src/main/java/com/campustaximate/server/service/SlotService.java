@@ -52,6 +52,7 @@ public class SlotService {
     private final PartyShrinker shrinker;
     private final RoadLegStore legStore;
     private final SettlementService settlements;
+    private final LoginTokenService loginTokens;
     private final RouteClient routes;
     private final MailService mail;
     private final AppClock clock;
@@ -85,6 +86,7 @@ public class SlotService {
         List<RideRequest> waiting = requests.findByStatus(RequestStatus.WAITING);
         settleDepartures(clock.now());
         settlements.purgeReceipts();
+        loginTokens.purgeExpired();
         matchWaiting(slot, waiting);
     }
 

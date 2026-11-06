@@ -39,7 +39,7 @@ export default function AuthScreen({ config, onLogin }) {
   return (
     <section className="card">
       <h2>학교 메일로 시작하기</h2>
-      <p className="muted">비밀번호 없이 메일로 받은 코드로 로그인합니다.</p>
+      <p className="muted">비밀번호 없이 메일로 받은 코드로 로그인합니다. 같은 기기에서는 다시 받지 않아도 됩니다.</p>
       {info && <p className="notice">{info}</p>}
       {error && <p className="error" role="alert">{error}</p>}
       {step === 'email' ? (

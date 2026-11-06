@@ -54,6 +54,7 @@ class FlowTest {
     @Autowired private PartyRepository parties;
     @Autowired private SettlementRepository settlements;
     @Autowired private TransferRequestRepository transfers;
+    @Autowired private com.campustaximate.server.repository.LoginTokenRepository loginTokens;
 
     private long hubId;
 
@@ -252,6 +253,53 @@ class FlowTest {
         postJson("/api/auth/profile", "{\"nickname\":\"새학생\",\"gender\":\"FEMALE\"}", session).andExpect(status().isOk());
         createRequest(session, POINTS[0]).andExpect(status().isOk());
         postJson("/api/auth/profile", "{\"nickname\":\"바꿈\",\"gender\":\"MALE\"}", session).andExpect(status().isConflict());
+    }
+
+    private jakarta.servlet.http.Cookie cookieFromLogin(String id) throws Exception {
+        String email = id + "@daejin.ac.kr";
+        MockHttpSession session = new MockHttpSession();
+        String code = read(postJson("/api/auth/code", "{\"email\":\"" + email + "\"}", session)
+                .andReturn().getResponse().getContentAsString()).get("demoCode").asText();
+        return postJson("/api/auth/login", "{\"email\":\"" + email + "\",\"code\":\"" + code + "\"}", session)
+                .andExpect(status().isOk()).andReturn().getResponse().getCookie("taximate_login");
+    }
+
+    @Test
+    void sameDeviceStaysLoggedInWithoutSessionAndOnlyHashIsStored() throws Exception {
+        jakarta.servlet.http.Cookie cookie = cookieFromLogin("demo-f1");
+
+        assertThat(cookie.isHttpOnly()).isTrue();
+        assertThat(cookie.getMaxAge()).isEqualTo(365 * 24 * 3600);
+        assertThat(loginTokens.findAll()).noneMatch(t -> t.getTokenHash().equals(cookie.getValue()));
+        // 새 세션은 서버 재시작 뒤 접속과 같다.
+        mvc.perform(get("/api/me").cookie(cookie)).andExpect(status().isOk());
+    }
+
+    @Test
+    void logoutEndsOnlyThisDeviceAndLogoutAllEndsEveryDevice() throws Exception {
+        jakarta.servlet.http.Cookie phone = cookieFromLogin("demo-f1");
+        jakarta.servlet.http.Cookie laptop = cookieFromLogin("demo-f1");
+        jakarta.servlet.http.Cookie tablet = cookieFromLogin("demo-f1");
+        MockHttpSession laptopSession = new MockHttpSession();
+        mvc.perform(get("/api/me").cookie(laptop).session(laptopSession)).andExpect(status().isOk());
+
+        mvc.perform(post("/api/auth/logout").cookie(phone).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/me").cookie(phone)).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/me").cookie(laptop).session(laptopSession)).andExpect(status().isOk());
+
+        mvc.perform(post("/api/auth/logout-all").cookie(tablet).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/me").cookie(laptop).session(laptopSession)).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void loginTokenExpiresAfterOneYear() throws Exception {
+        jakarta.servlet.http.Cookie cookie = cookieFromLogin("demo-f1");
+
+        clock.moveTo(clock.now().plusSeconds(365L * 24 * 3600 + 60));
+
+        mvc.perform(get("/api/me").cookie(cookie)).andExpect(status().isUnauthorized());
     }
 
     @Test

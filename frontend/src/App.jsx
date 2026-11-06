@@ -29,14 +29,16 @@ export default function App() {
     }
   }, [])
 
-  const logout = useCallback(async () => {
+  const signOut = useCallback(async (request) => {
     session.current += 1
     setState(null)
     setTab('home')
     setError('')
-    await api.logout()
+    await request()
     setMe(null)
   }, [])
+  const logout = useCallback(() => signOut(api.logout), [signOut])
+  const logoutAll = useCallback(() => signOut(api.logoutAll), [signOut])
 
   useEffect(() => {
     api.config().then(setConfig).catch(() => setError('서버에 연결하지 못했습니다.'))
@@ -98,7 +100,7 @@ export default function App() {
         <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>이용 내역</button>
       </nav>
 
-      {tab === 'history' && <History />}
+      {tab === 'history' && <History onLogoutAll={logoutAll} />}
 
       {tab === 'home' && state && (
         <>

@@ -15,10 +15,12 @@ import com.campustaximate.server.route.RouteClient;
 import com.campustaximate.server.service.AuthService;
 import com.campustaximate.server.service.DataSeeder;
 import com.campustaximate.server.service.DemoService;
+import com.campustaximate.server.service.LoginTokenService;
 import com.campustaximate.server.service.PartyService;
 import com.campustaximate.server.service.RideRequestService;
 import com.campustaximate.server.service.SettlementService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
@@ -26,14 +28,18 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -51,9 +57,10 @@ import org.springframework.web.multipart.MultipartFile;
 @RequiredArgsConstructor
 public class ApiController {
 
-    private static final String SESSION_KEY = "memberId";
+    private static final String SESSION_KEY = LoginTokenFilter.SESSION_KEY;
 
     private final AuthService auth;
+    private final LoginTokenService tokens;
     private final RideRequestService rideRequests;
     private final PartyService parties;
     private final SettlementService settlements;
@@ -63,6 +70,9 @@ public class ApiController {
     private final RideRequestRepository requests;
     private final RouteClient routes;
     private final AppClock clock;
+
+    @Value("${app.cookie-secure}")
+    private boolean secureCookie;
 
     public record CodeBody(@Email @NotBlank String email) {
     }
@@ -115,11 +125,12 @@ public class ApiController {
     }
 
     @PostMapping("/auth/login")
-    public void login(@Valid @RequestBody LoginBody body, HttpServletRequest request) {
+    public void login(@Valid @RequestBody LoginBody body, HttpServletRequest request, HttpServletResponse response) {
         long id = auth.login(body.email(), body.code());
         HttpSession session = request.getSession();
         request.changeSessionId();
         session.setAttribute(SESSION_KEY, id);
+        response.addHeader(HttpHeaders.SET_COOKIE, loginCookie(tokens.issue(id), LoginTokenService.VALID).toString());
     }
 
     @PostMapping("/auth/profile")
@@ -128,8 +139,30 @@ public class ApiController {
     }
 
     @PostMapping("/auth/logout")
-    public void logout(HttpSession session) {
+    public void logout(HttpServletRequest request, HttpServletResponse response, HttpSession session) {
+        LoginTokenFilter.tokenOf(request).ifPresent(tokens::revoke);
+        endSession(response, session);
+    }
+
+    @PostMapping("/auth/logout-all")
+    public void logoutAll(HttpServletResponse response, HttpSession session) {
+        tokens.revokeAll(memberId(session));
+        endSession(response, session);
+    }
+
+    private void endSession(HttpServletResponse response, HttpSession session) {
         session.invalidate();
+        response.addHeader(HttpHeaders.SET_COOKIE, loginCookie("", Duration.ZERO).toString());
+    }
+
+    private ResponseCookie loginCookie(String value, Duration maxAge) {
+        return ResponseCookie.from(LoginTokenFilter.COOKIE, value)
+                .httpOnly(true)
+                .secure(secureCookie)
+                .sameSite("Lax")
+                .path("/")
+                .maxAge(maxAge)
+                .build();
     }
 
     @GetMapping("/me")

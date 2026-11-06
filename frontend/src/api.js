@@ -33,6 +33,7 @@ export const api = {
   profile: (body) => json('POST', '/auth/profile', body),
   login: (body) => json('POST', '/auth/login', body),
   logout: () => json('POST', '/auth/logout'),
+  logoutAll: () => json('POST', '/auth/logout-all'),
   createRequest: (body) => json('POST', '/requests', body),
   cancelRequest: (id) => request(`/requests/${id}`, { method: 'DELETE' }),
   arrive: (partyId) => json('POST', `/parties/${partyId}/arrive`),
