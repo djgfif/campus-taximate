@@ -37,6 +37,7 @@ app:
     rest-key: ${KAKAO_REST_KEY:}
     base-url: https://apis-navi.kakaomobility.com
   mail-from: ${MAIL_FROM:noreply@taximate.local}
+  public-url: ${PUBLIC_URL:http://localhost:8080}
   upload-dir: ${UPLOAD_DIR:./uploads}
   demo:
     enabled: ${DEMO_ENABLED:false}

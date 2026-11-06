@@ -8,6 +8,7 @@ export default function PartyCard({ party, myId, run }) {
     <section className="card">
       <h2>{party.settlement ? '정산' : '일행 확정'}</h2>
       <p><strong>{formatDateTime(party.departureAt)}</strong> {party.hubName} 출발</p>
+      <p>탑승 위치: {party.meetingPoint}</p>
       <p className="muted">
         {party.payer ? '내가 택시를 잡고 결제합니다.' : `택시와 결제는 ${party.payerNickname}님이 맡습니다.`}
       </p>
@@ -28,7 +29,7 @@ export default function PartyCard({ party, myId, run }) {
       {party.canArrive && <button onClick={() => run(() => api.arrive(party.id))}>도착했어요</button>}
       {party.canCancel && (
         <button className="secondary" onClick={() => run(() => api.cancelRequest(party.myRequestId))}>
-          취소 (일행 전체가 취소됩니다)
+          내 탑승 취소
         </button>
       )}
       {mine && !mine.arrived && !party.canCancel && !party.settlement && (
@@ -53,9 +54,10 @@ function SettleForm({ party, run }) {
       <label>실제 결제 금액
         <input type="number" min="1" required inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value)} />
       </label>
-      <label>결제 내역 사진 (일행에게 공개됩니다)
-        <input type="file" accept="image/*" required onChange={(e) => setReceipt(e.target.files[0])} />
+      <label>결제 내역 사진
+        <input type="file" accept="image/jpeg,image/png,image/webp" required onChange={(e) => setReceipt(e.target.files[0])} />
       </label>
+      <p className="muted">일행에게 공개되고 7일 뒤 삭제됩니다. 카드번호, 승인번호는 가리고 올려 주세요.</p>
       <button type="submit">송금 요청 만들기</button>
     </form>
   )
@@ -64,11 +66,14 @@ function SettleForm({ party, run }) {
 function SettlementView({ party, myId, run }) {
   const { settlement } = party
   const [amount, setAmount] = useState('')
+  const [receipt, setReceipt] = useState(null)
   return (
     <div className="settlement">
       <h3>결제 금액 {won(settlement.paidAmount)}</h3>
       {settlement.warning && <p className="error">예상 {won(party.expectedTotal)}과 15% 넘게 다릅니다. 결제 내역 사진을 확인해 주세요.</p>}
-      <a href={`/api/parties/${party.id}/receipt`} target="_blank" rel="noreferrer">결제 내역 사진 보기</a>
+      {settlement.receiptAvailable
+        ? <a href={`/api/parties/${party.id}/receipt`} target="_blank" rel="noreferrer">결제 내역 사진 보기</a>
+        : <p className="muted">보관 기간이 지나 사진이 삭제됐습니다.</p>}
       <ul className="transfers">
         {settlement.transfers.map((t) => (
           <li key={t.id}>
@@ -85,9 +90,12 @@ function SettlementView({ party, myId, run }) {
       </ul>
       {!party.payer && <p className="muted">은행 앱으로 {party.payerNickname}님에게 보낸 뒤 눌러 주세요.</p>}
       {settlement.canCorrect && (
-        <form onSubmit={(e) => { e.preventDefault(); run(() => api.correctSettlement(party.id, Number(amount))) }}>
+        <form onSubmit={(e) => { e.preventDefault(); run(() => api.correctSettlement(party.id, Number(amount), receipt)) }}>
           <label>금액 고치기 (아무도 보내기 전까지)
             <input type="number" min="1" required value={amount} onChange={(e) => setAmount(e.target.value)} />
+          </label>
+          <label>새 결제 내역 사진
+            <input type="file" accept="image/jpeg,image/png,image/webp" required onChange={(e) => setReceipt(e.target.files[0])} />
           </label>
           <button type="submit" className="secondary">금액 고치기</button>
         </form>

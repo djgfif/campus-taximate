@@ -32,11 +32,11 @@ public final class CandidateRanker {
     }
 
     /** others는 기준자와 같은 거점, 같은 성별이고 이번 슬롯에 출발할 수 있는 요청이다. */
-    public List<Candidate> rank(MatchRequest anchor, List<MatchRequest> others, Instant slot) {
+    public List<Candidate> rank(MatchRequest anchor, List<MatchRequest> others, Instant slot, LegProvider legs) {
         List<MatchRequest> nearest = nearestByAngle(anchor, others);
         List<Candidate> result = new ArrayList<>();
         for (int size = settings.maxGroupSize(); size >= 2; size--) {
-            collect(anchor, nearest, size - 1, 0, new ArrayList<>(), slot, result);
+            collect(anchor, nearest, size - 1, 0, new ArrayList<>(), slot, legs, result);
         }
         result.sort(RANK);
         return result;
@@ -54,18 +54,18 @@ public final class CandidateRanker {
     }
 
     private void collect(MatchRequest anchor, List<MatchRequest> pool, int need, int start,
-                         List<MatchRequest> picked, Instant slot, List<Candidate> result) {
+                         List<MatchRequest> picked, Instant slot, LegProvider legs, List<Candidate> result) {
         if (need == 0) {
             List<MatchRequest> group = new ArrayList<>(picked);
             group.add(anchor);
             if (group.size() > 2 || isDeadline(group, slot)) {
-                calculator.evaluate(group).ifPresent(result::add);
+                calculator.evaluate(group, legs).ifPresent(result::add);
             }
             return;
         }
         for (int i = start; i <= pool.size() - need; i++) {
             picked.add(pool.get(i));
-            collect(anchor, pool, need - 1, i + 1, picked, slot, result);
+            collect(anchor, pool, need - 1, i + 1, picked, slot, legs, result);
             picked.remove(picked.size() - 1);
         }
     }

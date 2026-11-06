@@ -39,10 +39,11 @@ public class PartyService {
     }
 
     public record SettlementView(long paidAmount, int revision, boolean warning, boolean canCorrect,
-                                 List<TransferView> transfers) {
+                                 boolean receiptAvailable, List<TransferView> transfers) {
     }
 
-    public record PartyView(long id, PartyStatus status, String hubName, Instant departureAt, long expectedTotal,
+    public record PartyView(long id, PartyStatus status, String hubName, String meetingPoint, Instant departureAt,
+                            long expectedTotal,
                             long payerId, String payerNickname, boolean payer, boolean canArrive, boolean canCancel,
                             boolean canSettle, long myRequestId, List<MemberView> members,
                             SettlementView settlement) {
@@ -71,8 +72,8 @@ public class PartyService {
     public List<PartyView> openParties(long memberId) {
         return requests.findByMemberIdOrderByIdDesc(memberId).stream()
                 .map(RideRequest::getParty)
-                .filter(p -> p != null && p.getStatus() != PartyStatus.CANCELED
-                        && p.getStatus() != PartyStatus.COMPLETED)
+                .filter(p -> p != null && (p.getStatus() == PartyStatus.CONFIRMED
+                        || p.getStatus() == PartyStatus.SETTLING))
                 .map(p -> toView(memberId, p))
                 .toList();
     }
@@ -104,7 +105,8 @@ public class PartyService {
                 .map(r -> new MemberView(r.getId(), r.getMember().getId(), r.getMember().getNickname(), r.getMemo(),
                         r.getDropoffOrder(), r.getDropoffName(), r.getExpectedShare(), r.isArrived()))
                 .toList();
-        return new PartyView(party.getId(), party.getStatus(), party.getHub().getName(), party.getDepartureAt(),
+        return new PartyView(party.getId(), party.getStatus(), party.getHub().getName(),
+                party.getHub().getMeetingPoint(), party.getDepartureAt(),
                 party.getExpectedTotal(), party.getPayer().getId(), party.getPayer().getNickname(), payer,
                 matched && !mine.isArrived() && !clock.now().isAfter(party.getDepartureAt()), matched && beforeDeparture,
                 payer && boarded && settlement == null, mine.getId(), members, settlement);
@@ -119,6 +121,7 @@ public class PartyService {
                 .map(t -> new TransferView(t.getId(), t.getSender().getId(), t.getSender().getNickname(),
                         t.getAmount(), t.getStatus()))
                 .toList();
-        return new SettlementView(settlement.getPaidAmount(), settlement.getRevision(), warning, canCorrect, views);
+        return new SettlementView(settlement.getPaidAmount(), settlement.getRevision(), warning, canCorrect,
+                settlement.getReceiptPath() != null, views);
     }
 }

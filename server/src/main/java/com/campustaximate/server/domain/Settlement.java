@@ -27,7 +27,7 @@ public class Settlement {
 
     private long paidAmount;
 
-    @Column(nullable = false)
+    /** 보관 기간이 지나 파일을 지우면 null이다. */
     private String receiptPath;
 
     private String receiptContentType;

@@ -52,7 +52,7 @@ public class DataSeeder implements ApplicationRunner {
             return;
         }
         School school = schools.save(new School("대진대학교", "daejin.ac.kr"));
-        hubs.save(new Hub("샘플 거점 (학교 정문)", 37.875, 127.155, Set.of(school)));
+        hubs.save(new Hub("샘플 거점 (학교 정문)", "정문 앞 버스 정류장 (샘플)", 37.875, 127.155, Set.of(school)));
         if (demo) {
             for (int i = 1; i <= DEMO_MEMBERS_PER_GENDER; i++) {
                 seedMember(school, "demo-f" + i, "여학생" + i, Gender.FEMALE);

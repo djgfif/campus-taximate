@@ -1,5 +1,6 @@
 package com.campustaximate.matching;
 
+import static com.campustaximate.matching.Fixtures.LEGS;
 import static com.campustaximate.matching.Fixtures.SLOT;
 import static com.campustaximate.matching.Fixtures.at;
 import static com.campustaximate.matching.Fixtures.bearing;
@@ -23,7 +24,7 @@ class CandidateRankerTest {
         var c = request(3, at(7, 0));
         var d = request(4, at(9, 0));
 
-        List<Candidate> ranked = ranker.rank(anchor, List.of(b, c, d), SLOT);
+        List<Candidate> ranked = ranker.rank(anchor, List.of(b, c, d), SLOT, LEGS);
 
         assertEquals(4, ranked.get(0).size());
         assertEquals(List.of(1L, 2L, 3L), ranked.get(1).sortedIds());
@@ -34,7 +35,7 @@ class CandidateRankerTest {
         var anchor = request(1, at(3, 0), 30);
         var other = request(2, at(5, 0), 30);
 
-        assertTrue(ranker.rank(anchor, List.of(other), SLOT).isEmpty());
+        assertTrue(ranker.rank(anchor, List.of(other), SLOT, LEGS).isEmpty());
     }
 
     @Test
@@ -42,7 +43,7 @@ class CandidateRankerTest {
         var anchor = request(1, at(3, 0), 30);
         var other = request(2, at(5, 0), 0);
 
-        assertEquals(1, ranker.rank(anchor, List.of(other), SLOT).size());
+        assertEquals(1, ranker.rank(anchor, List.of(other), SLOT, LEGS).size());
     }
 
     @Test
@@ -55,7 +56,7 @@ class CandidateRankerTest {
         var outsideLimit = request(99, bearing(120, 6));
         others.add(outsideLimit);
 
-        List<Candidate> ranked = ranker.rank(anchor, others, SLOT);
+        List<Candidate> ranked = ranker.rank(anchor, others, SLOT, LEGS);
 
         assertFalse(ranked.isEmpty());
         assertTrue(ranked.stream().noneMatch(c -> c.dropoffOrder().contains(outsideLimit)));

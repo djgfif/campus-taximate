@@ -5,7 +5,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.campustaximate.server.common.AppClock;
@@ -111,20 +110,38 @@ class FlowTest {
     }
 
     @Test
-    void cancelBeforeDepartureCancelsPartyAndReturnsOthersToWaiting() throws Exception {
+    void cancelBeforeDepartureShrinksPartyAndRecalculates() throws Exception {
         List<MockHttpSession> users = threeRequests();
         demo.advance(5);
+        JsonNode before = onlyParty(users.get(1));
         long requestId = onlyParty(users.get(0)).get("myRequestId").asLong();
 
         mvc.perform(delete("/api/requests/" + requestId).session(users.get(0))).andExpect(status().isOk());
 
         assertThat(state(users.get(0)).get("latestRequest").get("status").asText()).isEqualTo("CANCELED");
-        assertThat(state(users.get(1)).get("parties")).isEmpty();
-        assertThat(state(users.get(1)).get("latestRequest").get("status").asText()).isEqualTo("WAITING");
+        assertThat(state(users.get(0)).get("parties")).isEmpty();
+        JsonNode after = onlyParty(users.get(1));
+        assertThat(after.get("members")).hasSize(2);
+        assertThat(after.get("members").get(0).get("dropoffOrder").asInt()).isEqualTo(1);
+        assertThat(after.get("id").asLong()).isEqualTo(before.get("id").asLong());
     }
 
     @Test
-    void noShowCancelsPartyAndIsCounted() throws Exception {
+    void lastTwoCannotShrinkSoPartyIsCanceled() throws Exception {
+        List<MockHttpSession> users = threeRequests();
+        demo.advance(5);
+        long first = onlyParty(users.get(0)).get("myRequestId").asLong();
+        long second = onlyParty(users.get(1)).get("myRequestId").asLong();
+
+        mvc.perform(delete("/api/requests/" + first).session(users.get(0))).andExpect(status().isOk());
+        mvc.perform(delete("/api/requests/" + second).session(users.get(1))).andExpect(status().isOk());
+
+        assertThat(state(users.get(2)).get("parties")).isEmpty();
+        assertThat(state(users.get(2)).get("latestRequest").get("status").asText()).isEqualTo("WAITING");
+    }
+
+    @Test
+    void noShowIsRemovedAndArrivedRidersBoardWithNewPayer() throws Exception {
         List<MockHttpSession> users = threeRequests();
         demo.advance(5);
         long partyId = onlyParty(users.get(0)).get("id").asLong();
@@ -136,7 +153,23 @@ class FlowTest {
         Member noShow = members.findByEmail("demo-f3@daejin.ac.kr").orElseThrow();
         assertThat(noShow.getNoShowCount()).isEqualTo(1);
         assertThat(state(users.get(2)).get("latestRequest").get("status").asText()).isEqualTo("CANCELED");
+        assertThat(state(users.get(2)).get("parties")).isEmpty();
+        JsonNode party = onlyParty(users.get(1));
+        assertThat(party.get("members")).hasSize(2);
+        assertThat(party.get("payer").asBoolean()).isTrue();
+        assertThat(party.get("canSettle").asBoolean()).isTrue();
+        assertThat(state(users.get(0)).get("latestRequest").get("status").asText()).isEqualTo("COMPLETED");
+    }
+
+    @Test
+    void unsubmittedSettlementEndsAfterTwentyFourHours() throws Exception {
+        List<MockHttpSession> users = departedParty();
+        assertThat(state(users.get(0)).get("parties")).hasSize(1);
+
+        demo.advance(24 * 60 + 5);
+
         assertThat(state(users.get(0)).get("parties")).isEmpty();
+        assertThat(state(users.get(0)).get("latestRequest").get("status").asText()).isEqualTo("COMPLETED");
     }
 
     @Test
@@ -215,6 +248,45 @@ class FlowTest {
                 .content("{\"email\":\"" + email + "\",\"code\":\"" + code + "\"}")).andExpect(status().isOk());
         mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(login))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void receiptFileIsDeletedAfterSevenDaysButSettlementRemains() throws Exception {
+        List<MockHttpSession> users = departedParty();
+        MockHttpSession payer = payerOf(users);
+        JsonNode party = onlyParty(payer);
+        long partyId = party.get("id").asLong();
+        long total = party.get("expectedTotal").asLong();
+        submit(partyId, total, payer).andExpect(status().isOk());
+        mvc.perform(get("/api/parties/" + partyId + "/receipt").session(payer)).andExpect(status().isOk());
+        String path = settlements.findAll().get(0).getReceiptPath();
+        assertThat(java.nio.file.Path.of(path)).exists();
+
+        clock.moveTo(clock.now().plusSeconds(7 * 24 * 3600L + 60));
+        demo.runNow();
+
+        assertThat(java.nio.file.Path.of(path)).doesNotExist();
+        mvc.perform(get("/api/parties/" + partyId + "/receipt").session(payer)).andExpect(status().isNotFound());
+        JsonNode settlement = onlyParty(payer).get("settlement");
+        assertThat(settlement.get("receiptAvailable").asBoolean()).isFalse();
+        assertThat(settlement.get("paidAmount").asLong()).isEqualTo(total);
+    }
+
+    @Test
+    void correctionReplacesReceiptFile() throws Exception {
+        List<MockHttpSession> users = departedParty();
+        MockHttpSession payer = payerOf(users);
+        JsonNode party = onlyParty(payer);
+        long partyId = party.get("id").asLong();
+        submit(partyId, party.get("expectedTotal").asLong(), payer).andExpect(status().isOk());
+        String oldPath = settlements.findAll().get(0).getReceiptPath();
+
+        correct(partyId, party.get("expectedTotal").asLong() + 500, payer).andExpect(status().isOk());
+
+        String newPath = settlements.findAll().get(0).getReceiptPath();
+        assertThat(newPath).isNotEqualTo(oldPath);
+        assertThat(java.nio.file.Path.of(oldPath)).doesNotExist();
+        assertThat(java.nio.file.Path.of(newPath)).exists();
     }
 
     @Test
@@ -372,8 +444,9 @@ class FlowTest {
     }
 
     private org.springframework.test.web.servlet.ResultActions correct(long partyId, long amount, MockHttpSession user) throws Exception {
-        return mvc.perform(put("/api/parties/" + partyId + "/settlement").session(user)
-                .contentType(MediaType.APPLICATION_JSON).content("{\"amount\":" + amount + "}"));
+        MockMultipartFile receipt = new MockMultipartFile("receipt", "n.png", "image/png", new byte[] {4, 5, 6});
+        return mvc.perform(multipart("/api/parties/" + partyId + "/settlement/correction").file(receipt)
+                .param("amount", String.valueOf(amount)).session(user));
     }
 
     private org.springframework.test.web.servlet.ResultActions sent(JsonNode transfer, int revision, MockHttpSession user) throws Exception {

@@ -19,6 +19,8 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -36,6 +38,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class SettlementService {
 
     private static final long MAX_AMOUNT = 10_000_000;
+    private static final Duration RECEIPT_KEEP = Duration.ofDays(7);
     private static final Set<String> RECEIPT_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
 
     private final PartyRepository parties;
@@ -66,7 +69,7 @@ public class SettlementService {
     }
 
     @Transactional
-    public void correct(long memberId, long partyId, long amount) {
+    public void correct(long memberId, long partyId, long amount, MultipartFile receipt) {
         Party party = lockAsPayer(memberId, partyId);
         Settlement settlement = settlements.findByParty(party)
                 .orElseThrow(() -> ApiException.notFound("정산이 없습니다."));
@@ -83,8 +86,33 @@ public class SettlementService {
                 }
             }
         }
+        String oldPath = settlement.getReceiptPath();
+        settlement.setReceiptPath(store(receipt));
+        settlement.setReceiptContentType(receipt.getContentType());
         settlement.setPaidAmount(amount);
         settlement.setRevision(settlement.getRevision() + 1);
+        deleteFile(oldPath);
+    }
+
+    /** 보관 기간이 지난 사진 파일을 지운다. 금액과 정산 기록은 남긴다. */
+    @Transactional
+    public void purgeReceipts() {
+        Instant limit = clock.now().minus(RECEIPT_KEEP);
+        for (Settlement settlement : settlements.findByReceiptPathIsNotNullAndRequestedAtLessThanEqual(limit)) {
+            deleteFile(settlement.getReceiptPath());
+            settlement.setReceiptPath(null);
+        }
+    }
+
+    private void deleteFile(String path) {
+        if (path == null) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(Path.of(path));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /** 일행 잠금을 트랜잭션의 첫 읽기로 잡아야 최신 값을 본다. 그래서 일행 번호는 트랜잭션 밖에서 찾는다. */

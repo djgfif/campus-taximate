@@ -25,6 +25,10 @@ public class Hub {
     @Column(nullable = false)
     private String name;
 
+    /** 일행이 만나는 정확한 위치 문구. */
+    @Column(nullable = false)
+    private String meetingPoint;
+
     private double lat;
 
     private double lon;
@@ -35,8 +39,9 @@ public class Hub {
             inverseJoinColumns = @JoinColumn(name = "school_id"))
     private Set<School> schools = new HashSet<>();
 
-    public Hub(String name, double lat, double lon, Set<School> schools) {
+    public Hub(String name, String meetingPoint, double lat, double lon, Set<School> schools) {
         this.name = name;
+        this.meetingPoint = meetingPoint;
         this.lat = lat;
         this.lon = lon;
         this.schools = schools;

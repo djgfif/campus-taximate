@@ -1,11 +1,10 @@
 package com.campustaximate.matching;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
-/** 카카오 호출 없이 거리로 15분, 10% 조건을 거른다. */
+/** 도로 값으로 15분, 10% 조건을 거른다. 요금 대신 거리로 절약을 본다. */
 public final class EstimateCalculator {
 
     private final MatchingSettings settings;
@@ -15,32 +14,35 @@ public final class EstimateCalculator {
     }
 
     /** 가까운 곳부터 내리는 순서로 시험해 조건을 통과하면 조합을 돌려준다. */
-    public Optional<Candidate> evaluate(List<MatchRequest> group) {
-        GeoPoint hub = group.get(0).hub().location();
+    public Optional<Candidate> evaluate(List<MatchRequest> group, LegProvider legs) {
         List<MatchRequest> order = new ArrayList<>(group);
-        order.sort(Comparator.<MatchRequest>comparingDouble(r -> hub.distanceKm(r.dropoff()))
-                .thenComparingLong(MatchRequest::id));
+        order.sort(MatchRequest.DROPOFF_ORDER);
 
-        GeoPoint previous = hub;
-        double cumulativeKm = 0;
-        double shareKm = 0;
-        for (int i = 0; i < order.size(); i++) {
+        MatchRequest first = order.get(0);
+        double cumulativeKm = first.soloKm();
+        int cumulativeSeconds = first.soloSeconds();
+        double shareKm = first.soloKm() / order.size();
+        if (!saves(first, shareKm)) {
+            return Optional.empty();
+        }
+        for (int i = 1; i < order.size(); i++) {
             MatchRequest rider = order.get(i);
-            double segmentKm = roadKm(previous, rider.dropoff());
-            cumulativeKm += segmentKm;
-            shareKm += segmentKm / (order.size() - i);
-            double soloKm = roadKm(hub, rider.dropoff());
-            double delayMinutes = (cumulativeKm - soloKm) / settings.speedKmh() * 60;
-            if (delayMinutes > settings.maxDelayMinutes()
-                    || shareKm > soloKm * (1 - settings.minSavingRate())) {
+            Optional<RoadLeg> leg = legs.leg(order.get(i - 1), rider);
+            if (leg.isEmpty()) {
                 return Optional.empty();
             }
-            previous = rider.dropoff();
+            cumulativeKm += leg.get().km();
+            cumulativeSeconds += leg.get().seconds();
+            shareKm += leg.get().km() / (order.size() - i);
+            int delaySeconds = cumulativeSeconds - rider.soloSeconds();
+            if (delaySeconds > settings.maxDelayMinutes() * 60 || !saves(rider, shareKm)) {
+                return Optional.empty();
+            }
         }
         return Optional.of(new Candidate(order, cumulativeKm));
     }
 
-    private double roadKm(GeoPoint from, GeoPoint to) {
-        return from.distanceKm(to) * settings.roadFactor();
+    private boolean saves(MatchRequest rider, double shareKm) {
+        return shareKm <= rider.soloKm() * (1 - settings.minSavingRate());
     }
 }

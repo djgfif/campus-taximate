@@ -1,5 +1,6 @@
 package com.campustaximate.matching;
 
+import static com.campustaximate.matching.Fixtures.LEGS;
 import static com.campustaximate.matching.Fixtures.at;
 import static com.campustaximate.matching.Fixtures.request;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -19,7 +20,7 @@ class EstimateCalculatorTest {
         var near = request(2, at(3, 0));
         var middle = request(3, at(5, 0));
 
-        Candidate candidate = calculator.evaluate(List.of(far, near, middle)).orElseThrow();
+        Candidate candidate = calculator.evaluate(List.of(far, near, middle), LEGS).orElseThrow();
 
         assertEquals(List.of(near, middle, far), candidate.dropoffOrder());
         assertEquals(7 * 1.3, candidate.totalKm(), 0.05);
@@ -33,15 +34,15 @@ class EstimateCalculatorTest {
         var secondA = request(3, at(9, -1));
         var secondB = request(4, at(9, -1));
 
-        assertTrue(calculator.evaluate(List.of(firstA, firstB, secondA, secondB)).isEmpty());
+        assertTrue(calculator.evaluate(List.of(firstA, firstB, secondA, secondB), LEGS).isEmpty());
         assertFalse(new EstimateCalculator(withMaxDelay(30))
-                .evaluate(List.of(firstA, firstB, secondA, secondB)).isEmpty());
+                .evaluate(List.of(firstA, firstB, secondA, secondB), LEGS).isEmpty());
     }
 
     private static MatchingSettings withMaxDelay(int minutes) {
         MatchingSettings d = MatchingSettings.defaults();
-        return new MatchingSettings(d.roadFactor(), d.speedKmh(), minutes, d.minSavingRate(),
-                d.maxCandidates(), d.maxGroupSize(), d.maxVerifications(), d.leadMinutes(), d.slotMinutes());
+        return new MatchingSettings(minutes, d.minSavingRate(), d.maxCandidates(), d.maxGroupSize(),
+                d.maxVerifications(), d.leadMinutes(), d.slotMinutes());
     }
 
     @Test
@@ -49,7 +50,24 @@ class EstimateCalculatorTest {
         var east = request(1, at(1, 0));
         var west = request(2, at(-2, 0));
 
-        assertTrue(calculator.evaluate(List.of(east, west)).isEmpty());
+        assertTrue(calculator.evaluate(List.of(east, west), LEGS).isEmpty());
+    }
+
+    @Test
+    void rejectsGroupWhenRoadLegIsUnknown() {
+        var near = request(1, at(3, 0));
+        var far = request(2, at(5, 0));
+
+        assertTrue(calculator.evaluate(List.of(near, far), (a, b) -> java.util.Optional.empty()).isEmpty());
+    }
+
+    @Test
+    void realRoadDetourRejectsGroupThatLooksFineInStraightLine() {
+        var near = request(1, at(3, 0));
+        var far = request(2, at(5, 0));
+
+        assertTrue(calculator.evaluate(List.of(near, far), (a, b) ->
+                java.util.Optional.of(new RoadLeg(3, 30 * 60))).isEmpty());
     }
 
     @Test
@@ -57,6 +75,6 @@ class EstimateCalculatorTest {
         var near = request(1, at(10, 0));
         var offRoute = request(2, at(10, 2));
 
-        assertFalse(calculator.evaluate(List.of(near, offRoute)).isEmpty());
+        assertFalse(calculator.evaluate(List.of(near, offRoute), LEGS).isEmpty());
     }
 }

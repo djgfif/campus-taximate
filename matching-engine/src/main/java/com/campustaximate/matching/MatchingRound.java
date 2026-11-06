@@ -31,7 +31,7 @@ public final class MatchingRound {
      * requests는 슬롯이 시작될 때 대기 중인 요청이다.
      * 엔진은 시계를 모르고 저장도 하지 않는다. 다음 슬롯까지 끝나지 않은 결과는 호출하는 스케줄러가 버린다.
      */
-    public RoundResult run(Instant slot, List<MatchRequest> requests, GroupVerifier verifier) {
+    public RoundResult run(Instant slot, List<MatchRequest> requests, LegProvider legs, GroupVerifier verifier) {
         requireAligned(slot);
         Instant departure = slot.plusSeconds(settings.leadMinutes() * 60L);
 
@@ -48,7 +48,7 @@ public final class MatchingRound {
             List<MatchRequest> remaining = new ArrayList<>(pool);
             while (remaining.size() >= 2) {
                 MatchRequest anchor = remaining.remove(0);
-                Optional<Candidate> found = firstVerified(anchor, remaining, slot, verifier);
+                Optional<Candidate> found = firstVerified(anchor, remaining, slot, legs, verifier);
                 if (found.isPresent()) {
                     List<MatchRequest> order = found.get().dropoffOrder();
                     confirmed.add(new ConfirmedGroup(order, departure));
@@ -67,9 +67,12 @@ public final class MatchingRound {
     }
 
     private Optional<Candidate> firstVerified(MatchRequest anchor, List<MatchRequest> others,
-                                              Instant slot, GroupVerifier verifier) {
+                                              Instant slot, LegProvider legs, GroupVerifier verifier) {
         int checks = 0;
-        for (Candidate candidate : ranker.rank(anchor, others, slot)) {
+        for (Candidate candidate : ranker.rank(anchor, others, slot, legs)) {
+            if (verifier.recentlyRejected(candidate)) {
+                continue;
+            }
             if (checks == settings.maxVerifications()) {
                 break;
             }

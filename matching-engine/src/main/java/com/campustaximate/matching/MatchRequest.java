@@ -1,11 +1,17 @@
 package com.campustaximate.matching;
 
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.Objects;
 
-/** 묶기 대상 요청. 출발 가능 시간의 시작과 끝은 포함이다. */
+/** 묶기 대상 요청. 출발 가능 시간의 시작과 끝은 포함이다. 혼자 값은 실제 도로 값이다. */
 public record MatchRequest(long id, long memberId, Hub hub, Gender gender,
-                           Instant windowStart, Instant windowEnd, GeoPoint dropoff) {
+                           Instant windowStart, Instant windowEnd, GeoPoint dropoff,
+                           double soloKm, int soloSeconds) {
+
+    /** 가까운 곳부터 내리는 순서. */
+    public static final Comparator<MatchRequest> DROPOFF_ORDER = Comparator
+            .comparingDouble(MatchRequest::soloKm).thenComparingLong(MatchRequest::id);
 
     public MatchRequest {
         Objects.requireNonNull(hub);

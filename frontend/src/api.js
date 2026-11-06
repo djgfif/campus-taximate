@@ -42,7 +42,12 @@ export const api = {
     form.append('receipt', receipt)
     return request(`/parties/${partyId}/settlement`, { method: 'POST', body: form })
   },
-  correctSettlement: (partyId, amount) => json('PUT', `/parties/${partyId}/settlement`, { amount }),
+  correctSettlement: (partyId, amount, receipt) => {
+    const form = new FormData()
+    form.append('amount', amount)
+    form.append('receipt', receipt)
+    return request(`/parties/${partyId}/settlement/correction`, { method: 'POST', body: form })
+  },
   sent: (transferId, revision) => json('POST', `/transfers/${transferId}/sent`, { revision }),
   received: (transferId) => json('POST', `/transfers/${transferId}/received`),
   demoRun: () => json('POST', '/demo/run'),

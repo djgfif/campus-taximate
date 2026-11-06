@@ -1,7 +1,9 @@
 package com.campustaximate.server.route;
 
 import com.campustaximate.matching.GeoPoint;
+import com.campustaximate.matching.RoadLeg;
 import java.util.List;
+import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -27,6 +29,11 @@ public class RouteConfig {
         return new RouteClient() {
             @Override
             public Route route(GeoPoint origin, List<GeoPoint> stops) {
+                throw new RouteUnavailableException("KAKAO_REST_KEY is not set", null);
+            }
+
+            @Override
+            public Map<String, RoadLeg> legs(GeoPoint origin, Map<String, GeoPoint> destinations) {
                 throw new RouteUnavailableException("KAKAO_REST_KEY is not set", null);
             }
 

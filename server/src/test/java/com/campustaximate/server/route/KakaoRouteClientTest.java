@@ -14,14 +14,28 @@ class KakaoRouteClientTest {
     @Test
     void readsDistanceDurationAndTaxiFare() throws Exception {
         var body = json.readTree("""
-                {"routes":[{"result_code":0,"summary":{"distance":12500,"duration":1830,"fare":{"taxi":15000,"toll":0}}}]}
+                {"routes":[{"result_code":0,"summary":{"distance":12500,"duration":1830,"fare":{"taxi":15000,"toll":1800}}}]}
                 """);
 
         RouteClient.Route route = KakaoRouteClient.parse(body);
 
         assertThat(route.km()).isEqualTo(12.5);
         assertThat(route.seconds()).isEqualTo(1830);
-        assertThat(route.fare()).isEqualTo(15000);
+        assertThat(route.fare()).isEqualTo(16800);
+    }
+
+    @Test
+    void readsMultiDestinationLegsAndSkipsFailedOnes() throws Exception {
+        var body = json.readTree("""
+                {"routes":[{"result_code":0,"key":"7","summary":{"distance":4200,"duration":600}},
+                           {"result_code":104,"key":"8"}]}
+                """);
+
+        var legs = KakaoRouteClient.parseLegs(body);
+
+        assertThat(legs).containsOnlyKeys("7");
+        assertThat(legs.get("7").km()).isEqualTo(4.2);
+        assertThat(legs.get("7").seconds()).isEqualTo(600);
     }
 
     @Test

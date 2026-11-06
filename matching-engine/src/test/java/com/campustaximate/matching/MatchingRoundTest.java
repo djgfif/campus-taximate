@@ -1,6 +1,7 @@
 package com.campustaximate.matching;
 
 import static com.campustaximate.matching.Fixtures.HUB;
+import static com.campustaximate.matching.Fixtures.LEGS;
 import static com.campustaximate.matching.Fixtures.SLOT;
 import static com.campustaximate.matching.Fixtures.at;
 import static com.campustaximate.matching.Fixtures.bearing;
@@ -43,7 +44,7 @@ class MatchingRoundTest {
         var b = request(2, at(5, 0));
         var c = request(3, at(7, 0));
 
-        RoundResult result = round.run(SLOT, List.of(c, a, b), PASS);
+        RoundResult result = round.run(SLOT, List.of(c, a, b), LEGS, PASS);
 
         assertEquals(1, result.confirmed().size());
         ConfirmedGroup group = result.confirmed().get(0);
@@ -57,19 +58,19 @@ class MatchingRoundTest {
         var a = request(1, at(3, 0), 30);
         var b = request(2, at(5, 0), 30);
 
-        assertTrue(round.run(SLOT, List.of(a, b), PASS).confirmed().isEmpty());
-        assertEquals(1, round.run(SLOT.plusSeconds(1800), List.of(a, b), PASS).confirmed().size());
+        assertTrue(round.run(SLOT, List.of(a, b), LEGS, PASS).confirmed().isEmpty());
+        assertEquals(1, round.run(SLOT.plusSeconds(1800), List.of(a, b), LEGS, PASS).confirmed().size());
     }
 
     @Test
     void differentGenderOrHubAreNotGrouped() {
         var a = request(1, at(3, 0));
         var b = request(2, at(5, 0));
-        var otherGender = new MatchRequest(3, 103, HUB, Gender.MALE, a.windowStart(), a.windowEnd(), at(7, 0));
-        var otherHub = new MatchRequest(4, 104, new Hub(2, HUB.location()), Gender.FEMALE,
+        var otherGender = Fixtures.of(3, 103, HUB, Gender.MALE, a.windowStart(), a.windowEnd(), at(7, 0));
+        var otherHub = Fixtures.of(4, 104, new Hub(2, HUB.location()), Gender.FEMALE,
                 a.windowStart(), a.windowEnd(), at(7, 0));
 
-        assertTrue(round.run(SLOT, List.of(a, b, otherGender, otherHub), PASS).confirmed().isEmpty());
+        assertTrue(round.run(SLOT, List.of(a, b, otherGender, otherHub), LEGS, PASS).confirmed().isEmpty());
     }
 
     @Test
@@ -77,10 +78,10 @@ class MatchingRoundTest {
         var a = request(1, at(3, 0));
         var b = request(2, at(5, 0));
         Instant departure = SLOT.plusSeconds(1800);
-        var later = new MatchRequest(3, 103, HUB, Gender.FEMALE, departure.plusSeconds(300),
+        var later = Fixtures.of(3, 103, HUB, Gender.FEMALE, departure.plusSeconds(300),
                 departure.plusSeconds(3600), at(7, 0));
 
-        RoundResult result = round.run(SLOT, List.of(a, b, later), PASS);
+        RoundResult result = round.run(SLOT, List.of(a, b, later), LEGS, PASS);
 
         assertTrue(result.confirmed().isEmpty());
         assertTrue(result.expired().isEmpty());
@@ -101,10 +102,36 @@ class MatchingRoundTest {
             return Verdict.PASS;
         };
 
-        RoundResult result = round.run(SLOT, requests, failFirstAnchor);
+        RoundResult result = round.run(SLOT, requests, LEGS, failFirstAnchor);
 
         assertEquals(3, firstAnchorChecks.get());
         assertTrue(result.confirmed().stream().noneMatch(g -> g.dropoffOrder().contains(requests.get(0))));
+    }
+
+    @Test
+    void recentlyRejectedCandidateDoesNotUseUpChecks() {
+        var a = request(1, at(3, 0));
+        var b = request(2, at(5, 0));
+        var c = request(3, at(7, 0));
+        var d = request(4, at(9, 0));
+        AtomicInteger checks = new AtomicInteger();
+        GroupVerifier skipFour = new GroupVerifier() {
+            @Override
+            public Verdict verify(Candidate candidate) {
+                checks.incrementAndGet();
+                return Verdict.PASS;
+            }
+
+            @Override
+            public boolean recentlyRejected(Candidate candidate) {
+                return candidate.size() == 4;
+            }
+        };
+
+        RoundResult result = round.run(SLOT, List.of(a, b, c, d), LEGS, skipFour);
+
+        assertEquals(1, checks.get());
+        assertEquals(3, result.confirmed().get(0).dropoffOrder().size());
     }
 
     @Test
@@ -115,7 +142,7 @@ class MatchingRoundTest {
         var d = request(4, at(9, 0));
         GroupVerifier rejectFour = cand -> cand.size() == 4 ? Verdict.FAIL : Verdict.PASS;
 
-        RoundResult result = round.run(SLOT, List.of(a, b, c, d), rejectFour);
+        RoundResult result = round.run(SLOT, List.of(a, b, c, d), LEGS, rejectFour);
 
         assertEquals(3, result.confirmed().get(0).dropoffOrder().size());
     }
@@ -128,7 +155,7 @@ class MatchingRoundTest {
         var d = request(4, at(9, 0));
         AtomicInteger calls = new AtomicInteger();
 
-        RoundResult result = round.run(SLOT, List.of(a, b, c, d), cand -> {
+        RoundResult result = round.run(SLOT, List.of(a, b, c, d), LEGS, cand -> {
             calls.incrementAndGet();
             return Verdict.UNAVAILABLE;
         });
@@ -143,13 +170,13 @@ class MatchingRoundTest {
     void unmatchedRequestExpiresOnlyAtLastSlot() {
         var alone = request(1, at(3, 0), 5);
 
-        assertTrue(round.run(SLOT, List.of(alone), PASS).expired().isEmpty());
-        assertEquals(List.of(alone), round.run(SLOT.plusSeconds(300), List.of(alone), PASS).expired());
+        assertTrue(round.run(SLOT, List.of(alone), LEGS, PASS).expired().isEmpty());
+        assertEquals(List.of(alone), round.run(SLOT.plusSeconds(300), List.of(alone), LEGS, PASS).expired());
     }
 
     @Test
     void noRequestIsAssignedTwice() {
-        RoundResult result = round.run(SLOT, randomRequests(20261106, 40), PASS);
+        RoundResult result = round.run(SLOT, randomRequests(20261106, 40), LEGS, PASS);
 
         Set<Long> seen = new HashSet<>();
         result.confirmed().forEach(g -> g.dropoffOrder().forEach(r -> assertTrue(seen.add(r.id()))));
@@ -163,28 +190,28 @@ class MatchingRoundTest {
         List<MatchRequest> shuffled = new ArrayList<>(requests);
         Collections.shuffle(shuffled, new Random(1));
 
-        assertEquals(round.run(SLOT, requests, PASS), round.run(SLOT, shuffled, PASS));
+        assertEquals(round.run(SLOT, requests, LEGS, PASS), round.run(SLOT, shuffled, LEGS, PASS));
     }
 
     @Test
     void expiredOrderDoesNotDependOnInputOrder() {
-        var first = new MatchRequest(1, 101, HUB, Gender.FEMALE, SLOT, SLOT.plusSeconds(1800), at(3, 0));
-        var second = new MatchRequest(2, 102, new Hub(2, HUB.location()), Gender.FEMALE,
+        var first = Fixtures.of(1, 101, HUB, Gender.FEMALE, SLOT, SLOT.plusSeconds(1800), at(3, 0));
+        var second = Fixtures.of(2, 102, new Hub(2, HUB.location()), Gender.FEMALE,
                 SLOT, SLOT.plusSeconds(1800), at(3, 0));
 
-        assertEquals(List.of(first, second), round.run(SLOT, List.of(second, first), PASS).expired());
+        assertEquals(List.of(first, second), round.run(SLOT, List.of(second, first), LEGS, PASS).expired());
     }
 
     @Test
     void hundredRequestsFinishWithinTwoSeconds() {
         List<MatchRequest> requests = randomRequests(100, 100);
 
-        assertTimeout(Duration.ofSeconds(2), () -> round.run(SLOT, requests, FAIL));
+        assertTimeout(Duration.ofSeconds(2), () -> round.run(SLOT, requests, LEGS, FAIL));
     }
 
     @Test
     void rejectsUnalignedSlot() {
         assertThrows(IllegalArgumentException.class,
-                () -> round.run(SLOT.plusSeconds(60), List.of(), PASS));
+                () -> round.run(SLOT.plusSeconds(60), List.of(), LEGS, PASS));
     }
 }

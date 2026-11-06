@@ -7,6 +7,7 @@ import com.campustaximate.matching.MatchRequest;
 import com.campustaximate.matching.MatchingRound;
 import com.campustaximate.matching.MatchingSettings;
 import com.campustaximate.matching.RoundResult;
+import com.campustaximate.server.common.ApiException;
 import com.campustaximate.server.common.AppClock;
 import com.campustaximate.server.domain.Member;
 import com.campustaximate.server.domain.Party;
@@ -17,6 +18,7 @@ import com.campustaximate.server.repository.PartyRepository;
 import com.campustaximate.server.repository.RideRequestRepository;
 import com.campustaximate.server.route.RouteClient;
 import com.campustaximate.settlement.SettlementCalculator;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -24,10 +26,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -40,14 +44,23 @@ import org.springframework.transaction.support.TransactionTemplate;
 @RequiredArgsConstructor
 public class SlotService {
 
+    private static final long LEAD_SECONDS = 30 * 60L;
+    private static final Duration SETTLEMENT_LIMIT = Duration.ofHours(24);
+
     private final RideRequestRepository requests;
     private final PartyRepository parties;
-    private final PartyCanceler canceler;
+    private final PartyShrinker shrinker;
+    private final RoadLegStore legStore;
+    private final SettlementService settlements;
     private final RouteClient routes;
     private final MailService mail;
     private final AppClock clock;
     private final PlatformTransactionManager transactionManager;
     private final ReentrantLock lock = new ReentrantLock();
+    private final Map<List<Long>, Instant> rejected = new ConcurrentHashMap<>();
+    @Value("${app.public-url}")
+    private String publicUrl;
+
     private final MatchingRound round = new MatchingRound(MatchingSettings.defaults());
 
     @Scheduled(cron = "0 */5 * * * *")
@@ -71,34 +84,49 @@ public class SlotService {
     public void process(Instant slot) {
         List<RideRequest> waiting = requests.findByStatus(RequestStatus.WAITING);
         settleDepartures(clock.now());
+        settlements.purgeReceipts();
         matchWaiting(slot, waiting);
     }
 
     private void settleDepartures(Instant now) {
         TransactionTemplate tx = new TransactionTemplate(transactionManager);
         for (Party candidate : parties.findByStatusAndDepartureAtLessThanEqual(PartyStatus.CONFIRMED, now)) {
-            tx.executeWithoutResult(status -> {
-                Party party = parties.findByIdForUpdate(candidate.getId()).orElseThrow();
-                List<RideRequest> riders = requests.findByPartyOrderByDropoffOrder(party);
-                if (party.getStatus() != PartyStatus.CONFIRMED
-                        || riders.stream().noneMatch(r -> r.getStatus() == RequestStatus.MATCHED)) {
-                    return;
+            Set<Long> noShows = tx.execute(status -> closeOrCountNoShows(candidate.getId(), now));
+            if (noShows != null && !noShows.isEmpty()) {
+                try {
+                    shrinker.remove(candidate.getId(), noShows, now, true);
+                } catch (ApiException | OptimisticLockingFailureException e) {
+                    log.warn("일행 {} 출발 처리를 다음 슬롯으로 넘깁니다.", candidate.getId());
                 }
-                Set<Long> noShows = new HashSet<>();
-                for (RideRequest rider : riders) {
-                    if (!rider.isArrived()) {
-                        noShows.add(rider.getId());
-                        Member member = rider.getMember();
-                        member.setNoShowCount(member.getNoShowCount() + 1);
-                    }
-                }
-                if (noShows.isEmpty()) {
-                    riders.forEach(r -> r.finish(RequestStatus.COMPLETED));
-                } else {
-                    canceler.cancel(party, noShows, now);
-                }
-            });
+            }
         }
+    }
+
+    /** 전원 도착이면 탑승 완료로 끝내고, 노쇼가 있으면 기록한 뒤 그 요청 번호를 돌려준다. */
+    private Set<Long> closeOrCountNoShows(long partyId, Instant now) {
+        Party party = parties.findByIdForUpdate(partyId).orElseThrow();
+        List<RideRequest> riders = requests.findByPartyOrderByDropoffOrder(party);
+        if (party.getStatus() != PartyStatus.CONFIRMED) {
+            return Set.of();
+        }
+        if (riders.stream().noneMatch(r -> r.getStatus() == RequestStatus.MATCHED)) {
+            if (!party.getDepartureAt().plus(SETTLEMENT_LIMIT).isAfter(now)) {
+                party.setStatus(PartyStatus.UNSETTLED);
+            }
+            return Set.of();
+        }
+        Set<Long> noShows = new HashSet<>();
+        for (RideRequest rider : riders) {
+            if (!rider.isArrived()) {
+                noShows.add(rider.getId());
+                Member member = rider.getMember();
+                member.setNoShowCount(member.getNoShowCount() + 1);
+            }
+        }
+        if (noShows.isEmpty()) {
+            riders.forEach(r -> r.finish(RequestStatus.COMPLETED));
+        }
+        return noShows;
     }
 
     private void matchWaiting(Instant slot, List<RideRequest> waiting) {
@@ -108,8 +136,12 @@ public class SlotService {
             snapshot.put(r.getId(), r);
             input.add(toEngine(r));
         }
-        RouteGroupVerifier verifier = new RouteGroupVerifier(routes, snapshot);
-        RoundResult result = round.run(slot, input, verifier);
+        Instant now = clock.now();
+        Instant departure = slot.plusSeconds(LEAD_SECONDS);
+        rejected.values().removeIf(until -> !until.isAfter(now));
+        legStore.prepare(input.stream().filter(r -> r.canDepartAt(departure)).toList(), now);
+        RouteGroupVerifier verifier = new RouteGroupVerifier(routes, snapshot, rejected, now);
+        RoundResult result = round.run(slot, input, legStore.provider(), verifier);
 
         Instant limit = AppClock.nextSlotAfter(slot);
         TransactionTemplate tx = new TransactionTemplate(transactionManager);
@@ -169,7 +201,7 @@ public class SlotService {
             rider.setRatioUnits(units.get(i));
             rider.setExpectedShare(shares.get(i));
             mail.send(rider.getMember().getEmail(), "[캠퍼스 택시메이트] 일행 확정",
-                    "일행이 확정됐습니다. 앱에서 출발 시각과 일행을 확인해 주세요.");
+                    "일행이 확정됐습니다. 출발 시각과 탑승 위치를 확인해 주세요: " + publicUrl);
         }
     }
 
@@ -187,6 +219,7 @@ public class SlotService {
     private static MatchRequest toEngine(RideRequest r) {
         Hub hub = new Hub(r.getHub().getId(), new GeoPoint(r.getHub().getLat(), r.getHub().getLon()));
         return new MatchRequest(r.getId(), r.getMember().getId(), hub, r.getMember().getGender(),
-                r.getWindowStart(), r.getWindowEnd(), new GeoPoint(r.getDropoffLat(), r.getDropoffLon()));
+                r.getWindowStart(), r.getWindowEnd(), new GeoPoint(r.getDropoffLat(), r.getDropoffLon()),
+                r.getSoloKm(), r.getSoloSeconds());
     }
 }

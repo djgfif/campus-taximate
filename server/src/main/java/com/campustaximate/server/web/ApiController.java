@@ -37,7 +37,6 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -76,9 +75,6 @@ public class ApiController {
     public record RequestBodyDto(@NotNull Long hubId, @NotNull Instant windowStart, @NotNull Instant windowEnd,
                                  @NotBlank @Size(max = 100) String dropoffName, @NotNull Double dropoffLat,
                                  @NotNull Double dropoffLon, @Size(max = 100) String memo) {
-    }
-
-    public record AmountBody(@NotNull Long amount) {
     }
 
     public record SentBody(@NotNull Integer revision) {
@@ -191,14 +187,18 @@ public class ApiController {
         settlements.submit(memberId(session), id, amount, receipt);
     }
 
-    @PutMapping("/parties/{id}/settlement")
-    public void correctSettlement(@PathVariable long id, @Valid @RequestBody AmountBody body, HttpSession session) {
-        settlements.correct(memberId(session), id, body.amount());
+    @PostMapping(value = "/parties/{id}/settlement/correction", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public void correctSettlement(@PathVariable long id, @RequestParam long amount,
+                                  @RequestPart("receipt") MultipartFile receipt, HttpSession session) {
+        settlements.correct(memberId(session), id, amount, receipt);
     }
 
     @GetMapping("/parties/{id}/receipt")
     public ResponseEntity<Resource> receipt(@PathVariable long id, HttpSession session) {
         Settlement settlement = parties.receiptOf(memberId(session), id);
+        if (settlement.getReceiptPath() == null) {
+            throw ApiException.notFound("보관 기간이 지나 사진이 삭제됐습니다.");
+        }
         return ResponseEntity.ok()
                 .header("X-Content-Type-Options", "nosniff")
                 .contentType(MediaType.parseMediaType(settlement.getReceiptContentType()))

@@ -8,6 +8,8 @@ import com.campustaximate.matching.Verdict;
 import com.campustaximate.server.domain.RideRequest;
 import com.campustaximate.server.route.RouteClient;
 import com.campustaximate.settlement.SettlementCalculator;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -18,14 +20,31 @@ final class RouteGroupVerifier implements GroupVerifier {
 
     private static final int MAX_DELAY_SECONDS = 15 * 60;
     private static final double MIN_SAVING_RATE = 0.10;
+    private static final Duration REJECT_KEEP = Duration.ofMinutes(30);
 
     private final RouteClient routes;
     private final Map<Long, RideRequest> snapshot;
+    private final Map<List<Long>, Instant> rejected;
+    private final Instant now;
     private final Map<List<Long>, List<Long>> cumulativeFares = new HashMap<>();
 
-    RouteGroupVerifier(RouteClient routes, Map<Long, RideRequest> snapshot) {
+    RouteGroupVerifier(RouteClient routes, Map<Long, RideRequest> snapshot, Map<List<Long>, Instant> rejected,
+                       Instant now) {
         this.routes = routes;
         this.snapshot = snapshot;
+        this.rejected = rejected;
+        this.now = now;
+    }
+
+    @Override
+    public boolean recentlyRejected(Candidate candidate) {
+        Instant until = rejected.get(candidate.sortedIds());
+        return until != null && now.isBefore(until);
+    }
+
+    private Verdict reject(Candidate candidate) {
+        rejected.put(candidate.sortedIds(), now.plus(REJECT_KEEP));
+        return Verdict.FAIL;
     }
 
     /** 통과한 조합의 누적 요금. 하차 순서와 같다. */
@@ -52,7 +71,7 @@ final class RouteGroupVerifier implements GroupVerifier {
         }
         for (int i = 1; i < order.size(); i++) {
             if (fares.get(i) < fares.get(i - 1) || seconds.get(i) < seconds.get(i - 1)) {
-                return Verdict.FAIL;
+                return reject(candidate);
             }
         }
         List<Long> units = SettlementCalculator.ratioUnits(fares);
@@ -61,7 +80,7 @@ final class RouteGroupVerifier implements GroupVerifier {
             double shareWon = units.get(i) / (double) SettlementCalculator.UNITS_PER_WON;
             if (seconds.get(i) - rider.getSoloSeconds() > MAX_DELAY_SECONDS
                     || shareWon > rider.getSoloFare() * (1 - MIN_SAVING_RATE)) {
-                return Verdict.FAIL;
+                return reject(candidate);
             }
         }
         cumulativeFares.put(order.stream().map(MatchRequest::id).toList(), fares);
