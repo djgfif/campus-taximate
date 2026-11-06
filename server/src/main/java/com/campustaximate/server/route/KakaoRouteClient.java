@@ -3,12 +3,14 @@ package com.campustaximate.server.route;
 import com.campustaximate.matching.GeoPoint;
 import com.campustaximate.matching.RoadLeg;
 import com.fasterxml.jackson.databind.JsonNode;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
@@ -16,11 +18,20 @@ import org.springframework.web.client.RestClientException;
 public class KakaoRouteClient implements RouteClient {
 
     private static final int RADIUS_METERS = 10_000;
+    private static final Duration TIMEOUT = Duration.ofSeconds(5);
 
     private final RestClient client;
 
     public KakaoRouteClient(RestClient.Builder builder, String baseUrl, String restKey) {
-        this.client = builder.baseUrl(baseUrl)
+        this(builder, baseUrl, restKey, TIMEOUT);
+    }
+
+    /** 슬롯 잠금 안에서 호출되므로 응답을 무한정 기다리지 않는다. */
+    KakaoRouteClient(RestClient.Builder builder, String baseUrl, String restKey, Duration timeout) {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout((int) timeout.toMillis());
+        factory.setReadTimeout((int) timeout.toMillis());
+        this.client = builder.requestFactory(factory).baseUrl(baseUrl)
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "KakaoAK " + restKey)
                 .build();
     }

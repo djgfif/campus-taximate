@@ -60,6 +60,31 @@ class KakaoRouteClientTest {
     }
 
     @Test
+    void slowKakaoResponseBecomesUnavailable() throws Exception {
+        var server = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", exchange -> {
+            try {
+                Thread.sleep(1500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            exchange.close();
+        });
+        server.setExecutor(java.util.concurrent.Executors.newCachedThreadPool());
+        server.start();
+        try {
+            var client = new KakaoRouteClient(org.springframework.web.client.RestClient.builder(),
+                    "http://127.0.0.1:" + server.getAddress().getPort(), "key", java.time.Duration.ofMillis(200));
+            var hub = new com.campustaximate.matching.GeoPoint(37.0, 127.0);
+            var stop = new com.campustaximate.matching.GeoPoint(37.01, 127.0);
+            assertThatThrownBy(() -> client.route(hub, java.util.List.of(stop)))
+                    .isInstanceOf(RouteClient.RouteUnavailableException.class);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void failedRouteIsUnavailable() throws Exception {
         var body = json.readTree("{\"routes\":[{\"result_code\":104,\"result_msg\":\"no route\"}]}");
 
