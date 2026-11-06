@@ -52,6 +52,14 @@ class KakaoRouteClientTest {
     }
 
     @Test
+    void nearbyStopsInARowBecomeOneStop() {
+        var a = new com.campustaximate.matching.GeoPoint(37.0, 127.0);
+        var near = new com.campustaximate.matching.GeoPoint(37.0003, 127.0);
+        var far = new com.campustaximate.matching.GeoPoint(37.002, 127.0);
+        assertThat(KakaoRouteClient.mergeStops(java.util.List.of(a, a, near, far))).containsExactly(a, far);
+    }
+
+    @Test
     void failedRouteIsUnavailable() throws Exception {
         var body = json.readTree("{\"routes\":[{\"result_code\":104,\"result_msg\":\"no route\"}]}");
 

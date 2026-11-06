@@ -67,8 +67,9 @@ final class RouteGroupVerifier implements GroupVerifier {
         List<RouteClient.Route> solo = new ArrayList<>();
         try {
             for (MatchRequest rider : order) {
+                boolean sameStop = !stops.isEmpty() && stops.getLast().isSameStop(rider.dropoff());
                 stops.add(rider.dropoff());
-                RouteClient.Route route = routes.route(hub, List.copyOf(stops));
+                RouteClient.Route route = sameStop ? cumulative.getLast() : routes.route(hub, List.copyOf(stops));
                 cumulative.add(route);
                 seconds.add(route.seconds());
                 RouteClient.Route alone = stops.size() == 1 ? route : routes.route(hub, List.of(rider.dropoff()));

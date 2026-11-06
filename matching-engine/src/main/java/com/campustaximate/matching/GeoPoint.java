@@ -4,6 +4,12 @@ package com.campustaximate.matching;
 public record GeoPoint(double lat, double lon) {
 
     private static final double EARTH_RADIUS_KM = 6371.0;
+    private static final double SAME_STOP_KM = 0.05;
+
+    /** 50m 안이면 한 번만 정차한다. 같은 곳을 경유지로 넣으면 유턴 경로가 나올 수 있다. */
+    public boolean isSameStop(GeoPoint other) {
+        return distanceKm(other) <= SAME_STOP_KM;
+    }
 
     /** 두 지점의 직선 거리(km). */
     public double distanceKm(GeoPoint other) {

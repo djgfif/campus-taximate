@@ -69,6 +69,31 @@ class RouteGroupVerifierTest {
                 .isEqualTo(Verdict.PASS);
     }
 
+    private Candidate sameDropoff(int size) {
+        return new Candidate(java.util.stream.IntStream.rangeClosed(1, size)
+                .mapToObj(i -> new MatchRequest(i, i, hub, Gender.FEMALE, now, now.plusSeconds(3600),
+                        new GeoPoint(37.01, 127), 5, 100)).toList(), 5);
+    }
+
+    @Test
+    void sameDropoffSharesOneRouteAndPayerFareStaysSolo() {
+        when(routes.route(any(), any())).thenReturn(new RouteClient.Route(5, 100, 10000));
+        var groupVerifier = new RouteGroupVerifier(routes, new HashMap<>(), now);
+        Candidate c = sameDropoff(3);
+        assertThat(groupVerifier.verify(c)).isEqualTo(Verdict.PASS);
+        verify(routes, times(3)).route(any(), any());
+        assertThat(groupVerifier.routesOf(c.dropoffOrder()).cumulative().getLast().fare()).isEqualTo(10000);
+    }
+
+    @Test
+    void sameDropoffLegNeedsNoCall() {
+        var requests = sameDropoff(2).dropoffOrder();
+        var store = new RoadLegStore(routes);
+        store.prepare(requests, now);
+        assertThat(store.provider().leg(requests.get(0), requests.get(1))).contains(new RoadLeg(0, 0));
+        org.mockito.Mockito.verifyNoInteractions(routes);
+    }
+
     @Test
     void fourRidersRequireOnlySevenCalls() {
         when(routes.route(any(), any())).thenReturn(new RouteClient.Route(5, 100, 10000));

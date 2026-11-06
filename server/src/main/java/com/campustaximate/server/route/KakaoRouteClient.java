@@ -27,7 +27,8 @@ public class KakaoRouteClient implements RouteClient {
 
     /** 단독 경로는 일반 길찾기, 누적 경로는 다중 경유지를 쓴다. 두 API의 쿼터가 다르다. */
     @Override
-    public Route route(GeoPoint origin, List<GeoPoint> stops) {
+    public Route route(GeoPoint origin, List<GeoPoint> requested) {
+        List<GeoPoint> stops = mergeStops(requested);
         GeoPoint destination = stops.get(stops.size() - 1);
         try {
             if (stops.size() == 1) {
@@ -51,6 +52,17 @@ public class KakaoRouteClient implements RouteClient {
         } catch (RestClientException e) {
             throw new RouteUnavailableException("kakao call failed", e);
         }
+    }
+
+    /** 이어지는 같은 정차 지점은 한 번만 넣는다. */
+    static List<GeoPoint> mergeStops(List<GeoPoint> stops) {
+        List<GeoPoint> merged = new ArrayList<>();
+        for (GeoPoint stop : stops) {
+            if (merged.isEmpty() || !merged.getLast().isSameStop(stop)) {
+                merged.add(stop);
+            }
+        }
+        return merged;
     }
 
     @Override

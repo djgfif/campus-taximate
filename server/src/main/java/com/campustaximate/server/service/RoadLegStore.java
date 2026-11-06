@@ -55,7 +55,9 @@ public class RoadLegStore {
     }
 
     public LegProvider provider() {
-        return (from, to) -> Optional.ofNullable(legs.get(new Key(from.id(), to.id()))).map(Entry::leg);
+        return (from, to) -> from.dropoff().isSameStop(to.dropoff())
+                ? Optional.of(new RoadLeg(0, 0))
+                : Optional.ofNullable(legs.get(new Key(from.id(), to.id()))).map(Entry::leg);
     }
 
     private boolean needsLeg(MatchRequest from, MatchRequest to, Instant now) {
@@ -63,6 +65,7 @@ public class RoadLegStore {
                 && from.hub().id() == to.hub().id()
                 && from.gender() == to.gender()
                 && MatchRequest.DROPOFF_ORDER.compare(from, to) < 0
+                && !from.dropoff().isSameStop(to.dropoff())
                 && from.dropoff().distanceKm(to.dropoff()) <= RADIUS_KM
                 && !legs.containsKey(new Key(from.id(), to.id()));
     }

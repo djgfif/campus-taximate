@@ -91,8 +91,10 @@ public class PartyShrinker {
         List<RouteClient.Route> cumulative = new ArrayList<>();
         List<Long> ids = new ArrayList<>();
         for (int i : order) {
+            boolean sameStop = !stops.isEmpty() && stops.getLast().isSameStop(plan.stops().get(i));
             stops.add(plan.stops().get(i));
-            RouteClient.Route route = stops.size() == 1 ? alone.get(i) : routes.route(plan.hub(), List.copyOf(stops));
+            RouteClient.Route route = stops.size() == 1 ? alone.get(i)
+                    : sameStop ? cumulative.getLast() : routes.route(plan.hub(), List.copyOf(stops));
             paths.remember(plan.hub(), stops, route);
             cumulative.add(route);
             solo.add(alone.get(i));
