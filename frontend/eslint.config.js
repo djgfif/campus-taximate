@@ -25,7 +25,7 @@ export default [
     },
   },
   {
-    files: ['playwright.config.js', 'e2e/**', 'public/sw.js'],
+    files: ['playwright*.config.js', 'e2e/**', 'public/sw.js'],
     languageOptions: { globals: { ...globals.node, ...globals.serviceworker } },
   },
 ]
