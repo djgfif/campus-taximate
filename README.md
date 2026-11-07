@@ -35,6 +35,21 @@ SPRING_PROFILES_ACTIVE=demo java -jar server/target/server-0.1.0.jar
 
 `http://localhost:8080`에서 `demo-f1@daejin.ac.kr`로 로그인합니다. 시연 계정은 코드가 자동으로 들어갑니다. 요청을 만든 뒤 상단의 시연 메뉴에서 일행 만들기를 누르면 일행이 정해집니다.
 
+### MySQL로 시연하기
+
+설치된 MySQL 8 프로그램으로 이 프로젝트 전용 MySQL을 관리자 권한 없이 3307 포트에 띄웁니다. 기존 MySQL 서비스와 데이터는 건드리지 않습니다.
+
+```powershell
+./scripts/local-mysql.ps1
+```
+
+```bash
+set -a; . ./.env; set +a
+SPRING_PROFILES_ACTIVE=demo,mysql java -jar server/target/server-0.1.0.jar
+```
+
+Flyway가 DB 구조를 만들고, 시연은 시계를 앞으로 돌리므로 실행할 때마다 DB를 비우고 시작합니다. 비우는 것은 시연 모드이면서 DB 주소가 이 컴퓨터일 때뿐입니다.
+
 API 문서는 시연 실행 중 `http://localhost:8080/swagger-ui.html`에서 볼 수 있습니다.
 
 ## 운영 실행

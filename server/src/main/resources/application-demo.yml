@@ -8,6 +8,8 @@ server:
 spring:
   flyway:
     enabled: false
+    # demo,mysql로 켤 때 실행마다 비우기 위해 연다. 지우는 조건은 DemoDatabaseReset에 있다.
+    clean-disabled: false
   datasource:
     url: jdbc:h2:mem:taximate;MODE=MySQL;DB_CLOSE_DELAY=-1
     username: sa
