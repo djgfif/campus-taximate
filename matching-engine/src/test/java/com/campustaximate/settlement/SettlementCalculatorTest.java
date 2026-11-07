@@ -48,9 +48,9 @@ class SettlementCalculatorTest {
 
     @Test
     void deckExampleGivesSameRateToEveryone() {
-        List<Long> shares = SettlementCalculator.shares(15000, SettlementCalculator.ratioUnits(List.of(6000L, 10500L, 15000L)), 2);
+        List<Long> shares = SettlementCalculator.shares(16800, SettlementCalculator.ratioUnits(List.of(6000L, 10500L, 15000L)), 2);
 
-        assertEquals(List.of(2857L, 5000L, 7143L), shares);
+        assertEquals(List.of(3200L, 5600L, 8000L), shares);
     }
 
     @Test
