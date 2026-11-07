@@ -5,7 +5,7 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import globals from 'globals'
 
 export default [
-  { ignores: ['dist', 'node_modules'] },
+  { ignores: ['dist', 'node_modules', 'test-results', 'playwright-report'] },
   js.configs.recommended,
   react.configs.flat.recommended,
   jsxA11y.flatConfigs.recommended,
@@ -23,5 +23,9 @@ export default [
       ...reactHooks.configs.recommended.rules,
       'react/prop-types': 'off',
     },
+  },
+  {
+    files: ['playwright.config.js', 'e2e/**', 'public/sw.js'],
+    languageOptions: { globals: { ...globals.node, ...globals.serviceworker } },
   },
 ]

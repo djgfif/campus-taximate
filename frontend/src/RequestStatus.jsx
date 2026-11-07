@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import MapView from './MapView.jsx'
 import { api } from './api.js'
+import { pushUndecided } from './push.js'
 import { formatDateTime, formatTime, routeLabel, won } from './format.js'
 import { Btn, Confirm, Meter, Rail, Rows, Say, Screen, TopBar } from './ui.jsx'
 
@@ -35,7 +36,7 @@ function Situation({ insight }) {
   }
 }
 
-export function Waiting({ latest, config, run, onMenu }) {
+export function Waiting({ latest, config, run, onMenu, onPush }) {
   const [asking, setAsking] = useState(false)
   const toSchool = latest.direction === 'TO_SCHOOL'
   return (
@@ -46,6 +47,12 @@ export function Waiting({ latest, config, run, onMenu }) {
       </Meter>
       <div className="block">
         <Situation insight={latest.insight} />
+        {onPush && pushUndecided() && (
+          <Say tone="calm" title="화면을 닫아도 결과를 받으려면">
+            알림을 켜면 일행 확정과 승차 10분 전 안내가 이 기기로 옵니다.
+            <Btn className="small line push-on" onClick={onPush}>알림 켜기</Btn>
+          </Say>
+        )}
         <Rail items={toSchool ? [
           { key: 'me', pin: '승', name: latest.pointName, me: true },
           { key: 'end', pin: '학', name: latest.anchorName, end: true },

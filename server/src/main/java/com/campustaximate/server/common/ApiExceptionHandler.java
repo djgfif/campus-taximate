@@ -38,6 +38,10 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Object> handle(Exception e) {
+        if (clientGone(e)) {
+            log.debug("브라우저가 연결을 끊었습니다.");
+            return null;
+        }
         log.error("처리하지 못한 오류", e);
         return body(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "잠시 문제가 생겼습니다. 다시 시도해 주세요.");
     }
@@ -64,6 +68,16 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         }
         return ResponseEntity.status(status).headers(headers)
                 .body(Map.of("code", status.is4xxClientError() ? "BAD_REQUEST" : "INTERNAL_ERROR", "message", "요청을 처리하지 못했습니다."));
+    }
+
+    /** 실시간 연결을 브라우저가 닫은 경우다. 응답을 쓸 곳이 없으니 오류로 남기지 않는다. */
+    private static boolean clientGone(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof java.io.IOException || t instanceof org.springframework.web.context.request.async.AsyncRequestNotUsableException) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private ResponseEntity<Object> body(HttpStatusCode status, String code, String message) {

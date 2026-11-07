@@ -34,10 +34,16 @@ public class BoardingMonitor {
     private final PartyRepository parties;
     private final RideRequestRepository requests;
     private final PartyShrinker shrinker;
-    private final MailService mail;
+    private final NotificationService notifications;
     private final PlatformTransactionManager transactionManager;
+    private final ReminderService reminders;
 
     public void check(Instant now) {
+        try {
+            reminders.remind(now);
+        } catch (RuntimeException e) {
+            log.warn("승차 안내를 다음 판정으로 넘깁니다.", e);
+        }
         TransactionTemplate tx = new TransactionTemplate(transactionManager);
         for (Party candidate : parties.findByDirectionAndStatusAndDepartureAtLessThanEqual(
                 Direction.TO_SCHOOL, PartyStatus.CONFIRMED, now)) {
@@ -94,7 +100,7 @@ public class BoardingMonitor {
         }
         riders.stream().filter(r -> !r.isNoShow()).findFirst().ifPresent(next -> {
             party.setPayer(next.getMember());
-            mail.send(next.getMember().getEmail(), "[캠퍼스 택시메이트] 결제자 변경",
+            notifications.toMember(next.getMember(), "[캠퍼스 택시메이트] 결제자 변경",
                     "앞 승차자가 오지 않아 이제 내가 택시를 잡고 결제합니다. 앱에서 확인해 주세요.");
         });
     }

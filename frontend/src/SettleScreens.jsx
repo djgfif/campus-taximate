@@ -50,6 +50,7 @@ export function PayerInput({ party, run, onDone, onLater }) {
       closed = true
       clearTimeout(timer)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 금액이 바뀔 때만 다시 계산한다
   }, [value])
 
   const difference = value ? (value - party.expectedTotal) / party.expectedTotal : 0

@@ -69,6 +69,7 @@ function PlaceField({ title, hint, center, value, config, onChange, mapTitle, pl
       closed = true
       clearTimeout(timer)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 시각 선택지와 검색은 정해진 값이 바뀔 때만 다시 계산한다
   }, [value.name, value.point])
 
   const choose = (place) => {
@@ -157,6 +158,7 @@ export function HomeRequest({ initial, config, now, run, onClose }) {
   const [hubs, setHubs] = useState([])
   const [hubId, setHubId] = useState(initial?.hubId || null)
   const [place, setPlace] = useState(initialPlace(initial))
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 시각 선택지와 검색은 정해진 값이 바뀔 때만 다시 계산한다
   const options = useMemo(() => startOptions(now), [Math.floor(new Date(now).getTime() / SLOT_MS)])
   const [start, setStart] = useState('')
   const [choice, setChoice] = useState('first')
@@ -243,8 +245,11 @@ export function HomeRequest({ initial, config, now, run, onClose }) {
 export function SchoolRequest({ initial, config, now, run, onClose }) {
   const [school, setSchool] = useState(null)
   const [place, setPlace] = useState(initialPlace(initial))
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 시각 선택지와 검색은 정해진 값이 바뀔 때만 다시 계산한다
   const nine = useMemo(() => nextClock(now, 9, 0), [])
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 시각 선택지와 검색은 정해진 값이 바뀔 때만 다시 계산한다
   const tenThirty = useMemo(() => nextClock(now, 10, 30), [])
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 시각 선택지와 검색은 정해진 값이 바뀔 때만 다시 계산한다
   const options = useMemo(() => arrivalOptions(now), [])
   const [choice, setChoice] = useState(nine)
   const [other, setOther] = useState(options[0])

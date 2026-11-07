@@ -73,6 +73,7 @@ export default function MapPicker({ center: origin, value, title, onPick, onClos
     return () => {
       closed = true
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 지도는 처음 위치로 한 번만 만든다
   }, [origin?.lat, origin?.lon])
 
   const pick = () => onPick({ name: spot.name || '지도에서 고른 지점', lat: spot.lat, lon: spot.lon })

@@ -36,7 +36,7 @@ public class PartyShrinker {
     private final PartyCanceler canceler;
     private final RouteClient routes;
     private final RoutePathStore paths;
-    private final MailService mail;
+    private final NotificationService notifications;
     private final PlatformTransactionManager transactionManager;
     private final AppClock clock;
 
@@ -228,7 +228,7 @@ public class PartyShrinker {
             if (departed) {
                 rider.finish(RequestStatus.COMPLETED);
             }
-            mail.send(rider.getMember().getEmail(), "[캠퍼스 택시메이트] 일행 변경",
+            notifications.toMember(rider.getMember(), "[캠퍼스 택시메이트] 일행 변경",
                     "일행 중 한 명이 빠져 분담금과 결제자가 다시 계산됐습니다. 앱에서 확인해 주세요.");
         }
         party.setExpectedTotal(result.total());

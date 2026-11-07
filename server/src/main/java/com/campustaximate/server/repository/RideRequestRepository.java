@@ -1,5 +1,6 @@
 package com.campustaximate.server.repository;
 
+import java.time.Instant;
 import com.campustaximate.matching.Direction;
 import com.campustaximate.server.domain.PartyStatus;
 import java.util.Collection;
@@ -38,6 +39,12 @@ public interface RideRequestRepository extends JpaRepository<RideRequest, Long> 
     @Query("select r from RideRequest r join fetch r.party p where r.member.id = :memberId and r.noShow = false "
             + "and p.status in :statuses order by r.id desc")
     List<RideRequest> findOpenByMember(long memberId, Collection<PartyStatus> statuses);
+
+    @Query("select r from RideRequest r join fetch r.party p join fetch r.member left join fetch r.hub h "
+            + "where r.status = com.campustaximate.server.domain.RequestStatus.MATCHED and r.noShow = false and r.remindedAt is null "
+            + "and p.status = com.campustaximate.server.domain.PartyStatus.CONFIRMED "
+            + "and coalesce(r.boardAt, p.departureAt) > :now and coalesce(r.boardAt, p.departureAt) <= :until")
+    List<RideRequest> findDueReminders(Instant now, Instant until);
 
     @Query("select r.member.id from RideRequest r where r.party.id = :partyId")
     List<Long> findMemberIdsByPartyId(long partyId);

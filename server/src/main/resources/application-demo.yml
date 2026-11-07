@@ -21,6 +21,9 @@ app:
   account-key: demo-only-account-key
   demo:
     enabled: true
+  # 시연 계정을 자주 바꾸므로 인증 상한을 높인다.
+  rate-limit:
+    auth-per-minute: 300
 
 springdoc:
   api-docs:

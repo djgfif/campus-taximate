@@ -1,9 +1,9 @@
-import React, { useState } from 'react'
-import { Check } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
+import { Check, Copy, X } from 'lucide-react'
 import RouteComparison, { RouteSide } from './RouteComparison.jsx'
 import { api } from './api.js'
 import { formatTime, remaining, won } from './format.js'
-import { BackBar, Btn, Confirm, Item, Meter, Rail, Rows, Say, Screen, TopBar, useWide } from './ui.jsx'
+import { BackBar, Btn, Confirm, Item, Meter, Rail, Rows, Say, Screen, TopBar, toast, useWide } from './ui.jsx'
 
 const REAL_NAME = '송금할 때 서로의 실명이 표시될 수 있습니다.'
 
@@ -29,6 +29,46 @@ function CancelSheet({ party, run, onClose }) {
   )
 }
 
+/** 결제자가 기사님께 보여 주는 화면. 일반호출은 경유를 넣을 수 없어 들를 곳을 순서대로 크게 보여 준다. */
+export function DriverView({ party, onClose }) {
+  const toSchool = party.direction === 'TO_SCHOOL'
+  const stops = party.members.filter((m) => !m.noShow).sort((a, b) => a.rideOrder - b.rideOrder)
+  const pickups = toSchool ? stops.filter((m) => m.memberId !== party.payerId) : stops
+  const callTo = pickups[0]?.pointName || party.anchorName
+  useEffect(() => {
+    const key = (event) => event.key === 'Escape' && onClose()
+    window.addEventListener('keydown', key)
+    return () => window.removeEventListener('keydown', key)
+  }, [onClose])
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(callTo)
+      toast('호출 목적지를 복사했어요')
+    } catch {
+      toast('복사하지 못했습니다. 직접 입력해 주세요.', 'bad')
+    }
+  }
+  return (
+    <div className="driver" role="dialog" aria-modal="true" aria-label="기사님께 보여 줄 화면">
+      <header>
+        <b>{toSchool ? '이 순서로 태워 주세요' : '이 순서로 내려 주세요'}</b>
+        <button type="button" className="icon-btn" aria-label="닫기" onClick={onClose}><X size={28} /></button>
+      </header>
+      <ol>
+        {pickups.map((m, i) => (
+          <li key={m.requestId}><span>{i + 1}</span><b>{m.pointName}</b></li>
+        ))}
+        {toSchool && <li className="end"><span>학</span><b>{party.anchorName}</b><small>모두 내림</small></li>}
+      </ol>
+      <div className="driver-call">
+        <small>호출 목적지로 먼저 넣을 곳</small>
+        <b>{callTo}</b>
+        <Btn className="small line" onClick={copy}><Copy size={16} aria-hidden="true" />복사</Btn>
+      </div>
+    </div>
+  )
+}
+
 const shareRows = (party) => [
   ['내 예상 분담금', won(party.myShare), 'big'],
   ['혼자 탈 때보다', `${won(party.mySoloFare - party.myShare)} 절약`, 'save'],
@@ -36,6 +76,7 @@ const shareRows = (party) => [
 
 function HomeParty({ party, now, myId, run, onDetail, onHome, onMenu }) {
   const [asking, setAsking] = useState(false)
+  const [driver, setDriver] = useState(false)
   const leaving = !party.canArrive && !party.canCancel
   const mine = party.members.find((m) => m.requestId === party.myRequestId)
   const primary = party.canArrive
@@ -70,15 +111,20 @@ function HomeParty({ party, now, myId, run, onDetail, onHome, onMenu }) {
       <div className="band" />
       <div className="block">
         <Rows items={shareRows(party)} />
-        <div className="list"><Item title="일행과 경로 자세히" onClick={onDetail} /></div>
+        <div className="list">
+          {party.payer && <Item title="기사님께 보여 줄 화면" detail="내릴 곳을 큰 글씨로 보여 드려요" onClick={() => setDriver(true)} />}
+          <Item title="일행과 경로 자세히" onClick={onDetail} />
+        </div>
       </div>
       {asking && <CancelSheet party={party} run={run} onClose={() => setAsking(false)} />}
+      {driver && <DriverView party={party} onClose={() => setDriver(false)} />}
     </Screen>
   )
 }
 
 function SchoolPayer({ party, now, myId, run, onDetail, onHome, onMenu }) {
   const [asking, setAsking] = useState(false)
+  const [driver, setDriver] = useState(false)
   const boarded = party.boardedAt != null
   const handedOver = party.members.some((m) => m.noShow)
   const mine = party.members.find((m) => m.requestId === party.myRequestId)
@@ -110,9 +156,13 @@ function SchoolPayer({ party, now, myId, run, onDetail, onHome, onMenu }) {
       </div>
       <div className="band" />
       <div className="block">
-        <div className="list"><Item title="분담금과 경로 자세히" detail={won(party.myShare)} onClick={onDetail} /></div>
+        <div className="list">
+          <Item title="기사님께 보여 줄 화면" detail="들를 곳을 큰 글씨로 보여 드려요" onClick={() => setDriver(true)} />
+          <Item title="분담금과 경로 자세히" detail={won(party.myShare)} onClick={onDetail} />
+        </div>
       </div>
       {asking && <CancelSheet party={party} run={run} onClose={() => setAsking(false)} />}
+      {driver && <DriverView party={party} onClose={() => setDriver(false)} />}
     </Screen>
   )
 }

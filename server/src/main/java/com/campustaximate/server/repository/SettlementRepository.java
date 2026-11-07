@@ -11,6 +11,10 @@ import org.springframework.data.jpa.repository.Query;
 public interface SettlementRepository extends JpaRepository<Settlement, Long> {
     Optional<Settlement> findByParty(Party party);
 
+    /** 실제 결제 금액과 예상 동승 요금 쌍. */
+    @Query("select s.paidAmount, s.party.expectedTotal from Settlement s")
+    List<Object[]> findPaidAndExpected();
+
     /** 보관 기간이 지났는데 사진이나 계좌가 남은 정산. */
     @Query("""
             select s from Settlement s

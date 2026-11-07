@@ -6,3 +6,5 @@ target/
 node_modules/
 uploads/
 server/src/main/resources/static/
+frontend/test-results/
+frontend/playwright-report/

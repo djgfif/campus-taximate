@@ -52,6 +52,10 @@ app:
   account-key: ${ACCOUNT_KEY:}
   demo:
     enabled: ${DEMO_ENABLED:false}
+  push:
+    public-key: ${PUSH_PUBLIC_KEY:}
+    private-key: ${PUSH_PRIVATE_KEY:}
+    subject: ${PUSH_SUBJECT:mailto:noreply@taximate.local}
   rate-limit:
     enabled: ${RATE_LIMIT_ENABLED:true}
     auth-per-minute: 30

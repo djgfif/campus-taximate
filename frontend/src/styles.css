@@ -303,6 +303,21 @@ button.item:active { opacity: 0.6; }
 .demo-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
 .demo-grid .wide { grid-column: 1 / -1; }
 
+/* 기사님께 보여 주는 화면: 차 안에서 멀리서도 읽히게 크게 */
+.driver { position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; gap: 20px; padding: calc(16px + var(--safe-t)) 24px calc(24px + var(--safe-b)); background: var(--paper); overflow-y: auto; }
+.driver header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.driver header b { font-size: 24px; font-weight: 800; letter-spacing: -0.03em; }
+.driver ol { display: flex; flex-direction: column; gap: 14px; }
+.driver li { display: flex; align-items: center; gap: 16px; }
+.driver li span { width: 48px; height: 48px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--amber); font-size: 22px; font-weight: 800; }
+.driver li.end span { background: var(--ink); color: #fff; }
+.driver li b { min-width: 0; font-size: 30px; font-weight: 800; line-height: 1.25; letter-spacing: -0.03em; overflow-wrap: anywhere; }
+.driver li small { margin-left: auto; color: var(--road); font-size: 16px; white-space: nowrap; }
+.driver-call { margin-top: auto; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 16px; border-radius: 16px; background: var(--mist); }
+.driver-call small { color: var(--road); font-size: 14px; }
+.driver-call b { font-size: 22px; font-weight: 800; }
+.say .push-on { margin-top: 8px; }
+
 /* 경로 지도는 바탕을 낮춰 선이 먼저 보이게 한다. */
 .map-canvas.muted img { filter: grayscale(0.85) brightness(1.04) contrast(0.92); }
 

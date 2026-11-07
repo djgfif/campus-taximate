@@ -59,6 +59,7 @@ export default function MapView({ points = [], lines = [], edge = 48, right = 0,
       observer?.disconnect()
       drawn.forEach((item) => item.setMap(null))
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 그릴 내용은 key 문자열로 비교한다
   }, [key])
 
   if (failed) return fallback

@@ -1,5 +1,7 @@
 package com.campustaximate.server.web;
 
+import com.campustaximate.server.service.PushService;
+import com.campustaximate.server.service.FareAccuracyService;
 import com.campustaximate.server.service.ChangeBus;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
@@ -84,6 +86,8 @@ public class ApiController {
     private final RouteClient routes;
     private final AppClock clock;
     private final ChangeBus changes;
+    private final PushService push;
+    private final FareAccuracyService accuracy;
 
     @Value("${app.cookie-secure}")
     private boolean secureCookie;
@@ -222,6 +226,33 @@ public class ApiController {
     @GetMapping(path = "/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter events(HttpSession session) {
         return changes.subscribe(memberId(session));
+    }
+
+    public record PushBody(@NotBlank @Size(max = 500) String endpoint, @NotNull PushKeys keys) {
+    }
+
+    public record PushKeys(@NotBlank @Size(max = 200) String p256dh, @NotBlank @Size(max = 100) String auth) {
+    }
+
+    @GetMapping("/push/key")
+    public Map<String, Object> pushKey() {
+        return push.enabled() ? Map.of("publicKey", push.publicKey()) : Map.of();
+    }
+
+    @PostMapping("/push/subscription")
+    public void subscribe(@Valid @RequestBody PushBody body, HttpSession session) {
+        push.subscribe(memberId(session), body.endpoint(), body.keys().p256dh(), body.keys().auth());
+    }
+
+    @DeleteMapping("/push/subscription")
+    public void unsubscribe(@Valid @RequestBody PushBody body, HttpSession session) {
+        push.unsubscribe(memberId(session), body.endpoint());
+    }
+
+    /** 정산이 들어온 일행 전체에서 예상 요금이 15% 이내였던 비율. */
+    @GetMapping("/stats/fare-accuracy")
+    public FareAccuracyService.Accuracy fareAccuracy() {
+        return accuracy.measure();
     }
 
     /** 화면이 읽는 내 상태. */

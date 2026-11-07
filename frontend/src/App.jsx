@@ -12,6 +12,7 @@ import { Collect, Done, PayerInput, Transfer } from './SettleScreens.jsx'
 import { NoShow, Unmatched, Waiting } from './RequestStatus.jsx'
 import { Brand, Btn, Confirm, Item, LoadingScreen, Say, Sheet, Toaster, toast, useWide } from './ui.jsx'
 import { User } from 'lucide-react'
+import { disablePush, enablePush, pushGranted, pushSupported } from './push.js'
 
 const POLL_MS = 5000
 const LIVE_POLL_MS = 30000
@@ -123,6 +124,29 @@ export default function App() {
   )
 
   const openMenu = useCallback(() => setMenu(true), [])
+  const [pushOn, setPushOn] = useState(false)
+
+  // 이미 허용한 기기는 다시 묻지 않고 등록을 맞춘다. 시연 서버는 실행마다 키가 바뀐다.
+  useEffect(() => {
+    if (!me || me.needsProfile || !pushGranted()) return
+    enablePush({ ask: false }).then(() => setPushOn(true)).catch(() => setPushOn(false))
+  }, [me])
+
+  const togglePush = async () => {
+    try {
+      if (pushOn) {
+        await disablePush()
+        setPushOn(false)
+        toast('알림을 껐어요')
+      } else {
+        await enablePush()
+        setPushOn(true)
+        toast('이 기기로 알림을 보내 드려요')
+      }
+    } catch (e) {
+      toast(e.message, 'bad')
+    }
+  }
 
   return (
     <main className="app">
@@ -144,7 +168,7 @@ export default function App() {
           {tab === 'history' && <History onBack={() => setTab('home')} />}
           {tab === 'home' && !state && <LoadingScreen />}
           {tab === 'home' && state && (
-            <Flow state={state} config={config} myId={me.id} run={run} onMenu={openMenu} onHistory={() => setTab('history')} />
+            <Flow state={state} config={config} myId={me.id} run={run} onMenu={openMenu} onPush={togglePush} pushOn={pushOn} onHistory={() => setTab('history')} />
           )}
           {config?.demo && <DemoBar now={state?.now} run={run} />}
           {menu && (
@@ -152,6 +176,7 @@ export default function App() {
               <p className="sub">{me.email}</p>
               <div className="list">
                 <Item title="이용 내역" onClick={() => { setMenu(false); setTab('history') }} />
+                {pushSupported() && <Item title={pushOn ? '알림 끄기' : '알림 받기'} detail="앱을 닫아도 확정과 승차 안내를 받아요" onClick={togglePush} />}
                 <Item title="로그아웃" onClick={() => signOut(api.logout)} />
                 <Item title="모든 기기에서 로그아웃" danger onClick={() => setLeaving(true)} />
               </div>
@@ -170,7 +195,7 @@ export default function App() {
 }
 
 /** 서버 상태에서 지금 보여 줄 한 화면을 고른다. */
-function Flow({ state, config, myId, run, onMenu, onHistory }) {
+function Flow({ state, config, myId, run, onMenu, onHistory, onPush, pushOn }) {
   const location = useLocation()
   const navigate = useNavigate()
   const [hidden, setHidden] = useState([])
@@ -204,7 +229,7 @@ function Flow({ state, config, myId, run, onMenu, onHistory }) {
     }
     return <PartyScreen party={party} now={state.now} myId={myId} run={run} onMenu={onMenu} onDetail={() => navigate(`/parties/${party.id}`)} onHome={() => hide(party.id)} />
   }
-  if (latest?.status === 'WAITING') return <Waiting latest={latest} config={config} run={run} onMenu={onMenu} />
+  if (latest?.status === 'WAITING') return <Waiting latest={latest} config={config} run={run} onMenu={onMenu} onPush={pushOn ? null : onPush} />
   if (draft) {
     const Request = draft.direction === 'TO_SCHOOL' ? SchoolRequest : HomeRequest
     return <Request initial={draft.initial} config={config} now={state.now} run={run} onClose={() => navigate('/', { replace: true })} />

@@ -21,7 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class PartyCanceler {
 
     private final RideRequestRepository requests;
-    private final MailService mail;
+    private final NotificationService notifications;
 
     @Transactional(propagation = Propagation.MANDATORY)
     public void cancel(Party party, Set<Long> leavingRequestIds, Instant now) {
@@ -42,7 +42,7 @@ public class PartyCanceler {
             } else {
                 rider.backToWaiting();
             }
-            mail.send(rider.getMember().getEmail(), "[캠퍼스 택시메이트] 일행 취소",
+            notifications.toMember(rider.getMember(), "[캠퍼스 택시메이트] 일행 취소",
                     "일행 중 한 명이 빠져 일행이 취소됐습니다. 앱에서 상태를 확인해 주세요.");
         }
     }

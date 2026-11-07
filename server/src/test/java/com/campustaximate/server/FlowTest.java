@@ -285,6 +285,39 @@ class FlowTest {
     }
 
     @Test
+    void reminderGoesOnceTenMinutesBeforeBoarding() throws Exception {
+        List<MockHttpSession> users = threeRequests();
+        org.mockito.Mockito.clearInvocations(mail);
+        demo.advance(5);
+        long partyId = onlyParty(users.get(0)).get("id").asLong();
+        Instant departure = parties.findById(partyId).orElseThrow().getDepartureAt();
+        long minutes = java.time.Duration.between(clock.now(), departure).toMinutes() - 1;
+        if (minutes > 0) {
+            demo.advance((int) minutes);
+        }
+        org.mockito.Mockito.verify(mail, org.mockito.Mockito.times(users.size()))
+                .send(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq("[캠퍼스 택시메이트] 곧 승차 시각"),
+                        org.mockito.ArgumentMatchers.anyString());
+        demo.advance(1);
+        org.mockito.Mockito.verify(mail, org.mockito.Mockito.times(users.size()))
+                .send(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq("[캠퍼스 택시메이트] 곧 승차 시각"),
+                        org.mockito.ArgumentMatchers.anyString());
+    }
+
+    @Test
+    void pushSubscriptionRejectsUnknownHostAndAccuracyIsReadable() throws Exception {
+        MockHttpSession me = login("demo-f1");
+        postJson("/api/push/subscription", "{\"endpoint\":\"https://evil.example/x\",\"keys\":{\"p256dh\":\"a\",\"auth\":\"b\"}}", me)
+                .andExpect(status().isBadRequest());
+        postJson("/api/push/subscription", "{\"endpoint\":\"https://fcm.googleapis.com/fcm/send/x\",\"keys\":{\"p256dh\":\"a\",\"auth\":\"b\"}}", me)
+                .andExpect(status().isOk());
+        assertThat(read(mvc.perform(get("/api/push/key").session(me)).andReturn().getResponse().getContentAsString())
+                .get("publicKey").asText()).isNotBlank();
+        assertThat(read(mvc.perform(get("/api/stats/fare-accuracy").session(me)).andReturn().getResponse().getContentAsString())
+                .has("settled")).isTrue();
+    }
+
+    @Test
     void newMemberLogsInWithMailCodeThenFillsProfile() throws Exception {
         String email = "new" + System.nanoTime() + "@daejin.ac.kr";
         MockHttpSession session = new MockHttpSession();

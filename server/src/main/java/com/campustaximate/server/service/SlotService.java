@@ -57,7 +57,7 @@ public class SlotService {
     private final LoginTokenService loginTokens;
     private final RouteClient routes;
     private final RoutePathStore paths;
-    private final MailService mail;
+    private final NotificationService notifications;
     private final AppClock clock;
     private final PlatformTransactionManager transactionManager;
     private final ReentrantLock lock = new ReentrantLock();
@@ -242,7 +242,7 @@ public class SlotService {
             rider.setRideOrder(i + 1);
             rider.setRatioUnits(units.get(i));
             rider.setExpectedShare(shares.get(i));
-            mail.send(rider.getMember().getEmail(), "[캠퍼스 택시메이트] 일행 확정",
+            notifications.toMember(rider.getMember(), "[캠퍼스 택시메이트] 일행 확정",
                     "일행이 확정됐습니다. 출발 시각과 탑승 위치를 확인해 주세요: " + publicUrl);
         }
     }
@@ -254,7 +254,7 @@ public class SlotService {
             return;
         }
         current.finish(RequestStatus.UNMATCHED);
-        mail.send(current.getMember().getEmail(), "[캠퍼스 택시메이트] 미성사",
+        notifications.toMember(current.getMember(), "[캠퍼스 택시메이트] 미성사",
                 "이번 요청은 같이 탈 일행을 찾지 못했습니다.");
     }
 

@@ -115,6 +115,9 @@ public class RideRequest {
     @Enumerated(EnumType.STRING)
     private EndReason endReason;
 
+    /** 승차 10분 전 안내를 보낸 시각. 두 번 보내지 않는다. */
+    private Instant remindedAt;
+
     public GeoPoint point() {
         return new GeoPoint(pointLat, pointLon);
     }

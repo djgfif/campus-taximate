@@ -49,9 +49,11 @@ function Detail({ item }) {
 export default function History({ onBack }) {
   const [items, setItems] = useState(null)
   const [selectedId, setSelectedId] = useState(null)
+  const [accuracy, setAccuracy] = useState(null)
   const wide = useWide()
   useEffect(() => {
     api.history().then(setItems).catch(() => setItems([]))
+    api.fareAccuracy().then(setAccuracy).catch(() => setAccuracy(null))
   }, [])
   const saved = savedTotal(items || [])
   const selected = items?.find((item) => item.id === selectedId) || items?.[0]
@@ -69,6 +71,9 @@ export default function History({ onBack }) {
       {items?.length > 0 && (
         <div className="block">
           {saved > 0 && <p className="sub">지금까지 {won(saved)} 아꼈어요</p>}
+          {accuracy?.settled > 0 && (
+            <p className="note">전체 정산 {accuracy.settled}건 중 {accuracy.within}건이 예상 요금의 15% 이내였어요.</p>
+          )}
           <div className="list">
             {items.map((item) => (
               <Row key={item.id} item={item} selected={item.id === selected?.id}
