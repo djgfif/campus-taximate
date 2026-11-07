@@ -32,6 +32,7 @@ final class RouteGroupVerifier implements GroupVerifier {
     private final Instant now;
     private final Map<List<Long>, VerifiedRoutes> verified = new HashMap<>();
     private final RoutePathStore paths;
+    private final Map<Long, Long> requestFares;
 
     /** rideSeconds는 각자 차 안에 있는 시간이다. departure와 boardAt은 등교만 값이 있다. */
     record VerifiedRoutes(List<RouteClient.Route> solo, List<Integer> rideSeconds, long total,
@@ -43,6 +44,13 @@ final class RouteGroupVerifier implements GroupVerifier {
     }
 
     RouteGroupVerifier(RouteClient routes, Map<List<Long>, Instant> rejected, Instant now, RoutePathStore paths) {
+        this(routes, rejected, now, paths, Map.of());
+    }
+
+    /** requestFares는 요청할 때 보여 준 단독 요금이다. 시간만 같은 시점으로 다시 조회한다. */
+    RouteGroupVerifier(RouteClient routes, Map<List<Long>, Instant> rejected, Instant now, RoutePathStore paths,
+                       Map<Long, Long> requestFares) {
+        this.requestFares = requestFares;
         this.paths = paths;
         this.routes = routes;
         this.rejected = rejected;
@@ -86,7 +94,7 @@ final class RouteGroupVerifier implements GroupVerifier {
                 cumulative.add(route);
                 seconds.add(route.seconds());
                 RouteClient.Route alone = stops.size() == 1 ? route : routes.route(hub, List.of(rider.own()));
-                solo.add(alone);
+                solo.add(shownFare(rider, alone));
                 if (paths != null) {
                     paths.remember(hub, stops, route);
                     paths.remember(hub, List.of(rider.own()), alone);
@@ -159,13 +167,18 @@ final class RouteGroupVerifier implements GroupVerifier {
                     paths.remember(alonePath.origin(), alonePath.stops(), alone);
                 }
                 boardAt.add(board);
-                solo.add(alone);
+                solo.add(shownFare(rider, alone));
                 rides.add(index == merged.size() - 2 ? alone.seconds() : secondsAfter(legs, index));
             }
         } catch (RouteClient.RouteUnavailableException e) {
             return Verdict.UNAVAILABLE;
         }
         return finish(candidate, new VerifiedRoutes(solo, rides, full.fare(), departure, boardAt));
+    }
+
+    private RouteClient.Route shownFare(MatchRequest rider, RouteClient.Route alone) {
+        Long fare = requestFares.get(rider.id());
+        return fare == null ? alone : alone.withFare(fare);
     }
 
     /** 구간 시간이 없으면 한 구간뿐일 때만 전체 시간을 쓴다. */

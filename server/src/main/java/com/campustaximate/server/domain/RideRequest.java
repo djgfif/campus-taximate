@@ -103,6 +103,9 @@ public class RideRequest {
     /** 등교에서 승차 시각 3분 뒤까지 도착 표시가 없었다. 마지막 판정 때 일행에서 빠진다. */
     private boolean noShow;
 
+    @Enumerated(EnumType.STRING)
+    private EndReason endReason;
+
     public GeoPoint point() {
         return new GeoPoint(pointLat, pointLon);
     }
@@ -128,6 +131,12 @@ public class RideRequest {
         return status == RequestStatus.MATCHED && now.isBefore(startAt()) && !boardedPayer;
     }
 
+    /** 노쇼는 일행 재계산 전이라도 새 요청을 막지 않는다. 일행에서는 마지막 판정 때 빠진다. */
+    public void markNoShow() {
+        noShow = true;
+        activeMemberId = null;
+    }
+
     /** 일행 정보를 지우고 대기로 되돌린다. */
     public void backToWaiting() {
         clearParty();
@@ -140,6 +149,9 @@ public class RideRequest {
     }
 
     public void clearParty() {
+        if (noShow) {
+            endReason = EndReason.NO_SHOW;
+        }
         party = null;
         rideOrder = null;
         boardAt = null;

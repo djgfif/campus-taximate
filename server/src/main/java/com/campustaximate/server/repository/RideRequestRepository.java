@@ -16,10 +16,11 @@ public interface RideRequestRepository extends JpaRepository<RideRequest, Long> 
     @EntityGraph(attributePaths = {"member"})
     List<RideRequest> findByPartyOrderByRideOrder(Party party);
 
+    @EntityGraph(attributePaths = {"hub", "school"})
     Optional<RideRequest> findByActiveMemberId(Long memberId);
 
     Optional<RideRequest> findFirstByMemberIdAndPartyIsNotNullOrderByIdDesc(Long memberId);
 
-    @EntityGraph(attributePaths = {"hub", "school"})
+    @EntityGraph(attributePaths = {"hub", "school", "party"})
     List<RideRequest> findByMemberIdOrderByIdDesc(Long memberId);
 }

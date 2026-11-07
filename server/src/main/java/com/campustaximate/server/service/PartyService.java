@@ -116,6 +116,7 @@ public class PartyService {
     @Transactional(readOnly = true)
     public List<PartyView> openParties(long memberId) {
         return requests.findByMemberIdOrderByIdDesc(memberId).stream()
+                .filter(r -> !r.isNoShow())
                 .map(RideRequest::getParty)
                 .filter(p -> p != null && (p.getStatus() == PartyStatus.CONFIRMED
                         || p.getStatus() == PartyStatus.SETTLING))

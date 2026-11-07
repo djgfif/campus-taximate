@@ -36,6 +36,20 @@ class RouteGroupVerifierTest {
     }
 
     @Test
+    void soloFareStaysAsShownAtRequestEvenIfRouteQuoteChanges() {
+        Candidate c = candidate(3);
+        when(routes.route(any(), any())).thenAnswer(call -> {
+            List<GeoPoint> stops = call.getArgument(1);
+            return new RouteClient.Route(5, 1200, stops.size() == 3 ? 20000 : 10000);
+        });
+        var fares = new HashMap<Long, Long>();
+        c.order().forEach(rider -> fares.put(rider.id(), 12000L));
+        var groupVerifier = new RouteGroupVerifier(routes, new HashMap<>(), now, null, fares);
+        assertThat(groupVerifier.verify(c)).isEqualTo(Verdict.PASS);
+        assertThat(groupVerifier.routesOf(c.order()).solo()).allMatch(route -> route.fare() == 12000);
+    }
+
+    @Test
     void totalFareAtNinetyPercentPassesEvenWithoutIndividualSaving() {
         assertThat(check(27000, 1200)).isEqualTo(Verdict.PASS);
     }

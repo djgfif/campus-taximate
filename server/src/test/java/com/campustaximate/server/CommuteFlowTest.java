@@ -220,6 +220,30 @@ class CommuteFlowTest {
 
         assertThat(state(users.get(2)).get("parties")).isEmpty();
         assertThat(state(users.get(2)).get("latestRequest").get("status").asText()).isEqualTo("UNMATCHED");
+        assertThat(state(users.get(2)).get("latestRequest").get("endReason").asText()).isEqualTo("LEFT_ALONE");
+        assertThat(history(users.get(2)).get(0).get("stage").asText()).isEqualTo("LEFT_ALONE");
+        assertThat(history(users.get(0)).get(0).get("stage").asText()).isEqualTo("NO_SHOW");
+    }
+
+    @Test
+    void noShowRiderLeavesScreenAndCanRequestAgainBeforeFinalCheck() throws Exception {
+        List<MockHttpSession> users = threeRequests();
+        demo.advance(5);
+        JsonNode party = onlyParty(users.get(2));
+        long partyId = party.get("id").asLong();
+        boarded(partyId, users.get(2)).andExpect(status().isOk());
+        arrive(partyId, users.get(0)).andExpect(status().isOk());
+        moveTo(Instant.parse(party.get("members").get(1).get("arriveDeadline").asText()).plusSeconds(60));
+
+        JsonNode state = state(users.get(1));
+        assertThat(state.get("parties")).isEmpty();
+        assertThat(state.get("latestRequest").get("endReason").asText()).isEqualTo("NO_SHOW");
+        createRequest(users.get(1), POINTS[1], arriveBy.plus(Duration.ofDays(1))).andExpect(status().isOk());
+
+        passAllBoardings(party);
+
+        assertThat(onlyParty(users.get(2)).get("members")).hasSize(2);
+        assertThat(history(users.get(1)).get(1).get("stage").asText()).isEqualTo("NO_SHOW");
     }
 
     @Test
@@ -554,6 +578,11 @@ class CommuteFlowTest {
 
     private JsonNode state(MockHttpSession user) throws Exception {
         return read(mvc.perform(get("/api/state").session(user)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString());
+    }
+
+    private JsonNode history(MockHttpSession user) throws Exception {
+        return read(mvc.perform(get("/api/history").session(user)).andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString());
     }
 

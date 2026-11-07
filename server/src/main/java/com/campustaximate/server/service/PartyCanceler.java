@@ -1,6 +1,7 @@
 package com.campustaximate.server.service;
 
 import com.campustaximate.server.common.AppClock;
+import com.campustaximate.server.domain.EndReason;
 import com.campustaximate.server.domain.Party;
 import com.campustaximate.server.domain.PartyStatus;
 import com.campustaximate.server.domain.RequestStatus;
@@ -26,6 +27,7 @@ public class PartyCanceler {
     public void cancel(Party party, Set<Long> leavingRequestIds, Instant now) {
         List<RideRequest> riders = requests.findByPartyOrderByRideOrder(party);
         party.setStatus(PartyStatus.CANCELED);
+        EndReason survivor = party.getBoardedAt() != null ? EndReason.LEFT_ALONE : EndReason.PARTY_CANCELED;
         Instant nextSlot = AppClock.nextSlotAfter(now);
         for (RideRequest rider : riders) {
             Instant lastSlot = rider.resultBy();
@@ -35,6 +37,7 @@ public class PartyCanceler {
                 continue;
             }
             if (nextSlot.isAfter(lastSlot)) {
+                rider.setEndReason(survivor);
                 rider.finish(RequestStatus.UNMATCHED);
             } else {
                 rider.backToWaiting();

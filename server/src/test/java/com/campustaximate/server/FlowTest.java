@@ -569,6 +569,68 @@ class FlowTest {
         assertThat(members.findByEmail("demo-f3@daejin.ac.kr").orElseThrow().getNoShowCount()).isEqualTo(1);
     }
 
+    @Test
+    void waitingScreenExplainsWhyNoPartyYet() throws Exception {
+        MockHttpSession me = login("demo-f1");
+        createRequest(me, POINTS[0]).andExpect(status().isOk());
+        assertThat(state(me).get("latestRequest").get("insight").get("stage").asText()).isEqualTo("ALONE");
+
+        createRequest(login("demo-f2"), new double[] {37.95, 127.25}).andExpect(status().isOk());
+        JsonNode other = state(me).get("latestRequest").get("insight");
+        assertThat(other.get("stage").asText()).isEqualTo("OTHER_DIRECTION");
+        assertThat(other.get("peers").asInt()).isEqualTo(1);
+
+        createRequest(login("demo-f3"), POINTS[1]).andExpect(status().isOk());
+        JsonNode candidates = state(me).get("latestRequest").get("insight");
+        assertThat(candidates.get("stage").asText()).isEqualTo("CANDIDATES");
+        assertThat(candidates.get("sameDirection").asInt()).isEqualTo(1);
+
+        MockHttpSession early = login("demo-f4");
+        Instant later = AppClock.nextSlotAfter(clock.now()).plusSeconds(7200);
+        postRequest(early, later, later.plusSeconds(3600), POINTS[2]).andExpect(status().isOk());
+        assertThat(state(early).get("latestRequest").get("insight").get("stage").asText()).isEqualTo("NOT_STARTED");
+    }
+
+    @Test
+    void historyShowsSettlementStageAndWhatIPaid() throws Exception {
+        List<MockHttpSession> users = departedParty();
+        long partyId = onlyParty(users.get(0)).get("id").asLong();
+        MockHttpSession rider = users.get(0);
+        assertThat(history(rider).get("stage").asText()).isEqualTo("AWAITING_AMOUNT");
+
+        submit(partyId, 15000, users.get(2)).andExpect(status().isOk());
+
+        JsonNode mine = history(rider);
+        assertThat(mine.get("stage").asText()).isEqualTo("SETTLING");
+        assertThat(mine.get("paid").asLong()).isPositive();
+        assertThat(mine.get("partyPaid").asLong()).isEqualTo(15000);
+        assertThat(mine.get("partySize").asInt()).isEqualTo(3);
+        assertThat(mine.get("anchorLat").asDouble()).isNotZero();
+        long sum = 0;
+        for (MockHttpSession user : users) {
+            sum += history(user).get("paid").asLong();
+        }
+        assertThat(sum).isEqualTo(15000);
+    }
+
+    @Test
+    void demoMatchPutsSamplesOnMyRouteAndBuildsParty() throws Exception {
+        MockHttpSession me = login("demo-f1");
+        mvc.perform(post("/api/demo/match").session(me)).andExpect(status().isConflict());
+        createRequest(me, POINTS[2]).andExpect(status().isOk());
+
+        JsonNode outcome = read(mvc.perform(post("/api/demo/match").session(me)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString());
+
+        assertThat(outcome.get("status").asText()).isEqualTo("MATCHED");
+        assertThat(onlyParty(me).get("members")).hasSize(3);
+    }
+
+    private JsonNode history(MockHttpSession user) throws Exception {
+        return read(mvc.perform(get("/api/history").session(user)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString()).get(0);
+    }
+
     private List<MockHttpSession> departedParty() throws Exception {
         List<MockHttpSession> users = threeRequests();
         demo.advance(5);

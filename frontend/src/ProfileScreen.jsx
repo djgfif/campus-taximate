@@ -1,39 +1,37 @@
 import React, { useState } from 'react'
 import { api } from './api.js'
+import { Brand, Btn, Chips, Screen, toast } from './ui.jsx'
 
 /** 첫 로그인 뒤 한 번만 입력한다. */
 export default function ProfileScreen({ onDone }) {
   const [nickname, setNickname] = useState('')
   const [gender, setGender] = useState('FEMALE')
-  const [error, setError] = useState('')
 
-  const submit = async (event) => {
-    event.preventDefault()
-    setError('')
+  const submit = async () => {
     try {
       await api.profile({ nickname, gender })
-      onDone()
+      await onDone()
     } catch (e) {
-      setError(e.message)
+      toast(e.message, 'bad')
     }
   }
 
   return (
-    <section className="card">
-      <h2>처음 오셨네요</h2>
-      {error && <p className="error" role="alert">{error}</p>}
-      <form onSubmit={submit}>
-        <label>닉네임 (일행에게 보입니다)
-          <input required maxLength={20} value={nickname} onChange={(e) => setNickname(e.target.value)} />
+    <Screen foot={<Btn disabled={!nickname.trim()} onClick={submit}>시작하기</Btn>}>
+      <header className="bar"><Brand /></header>
+      <div className="pad">
+        <h1 className="head">일행에게 보일<br />이름을 정해 주세요</h1>
+        <label className="field">닉네임
+          <input maxLength={20} value={nickname} onChange={(e) => setNickname(e.target.value)} />
         </label>
-        <label>성별 (동성끼리만 매칭됩니다)
-          <select value={gender} onChange={(e) => setGender(e.target.value)}>
-            <option value="FEMALE">여성</option>
-            <option value="MALE">남성</option>
-          </select>
-        </label>
-        <button type="submit">시작하기</button>
-      </form>
-    </section>
+        <div className="field">성별
+          <Chips label="성별" value={gender} onChange={setGender} options={[
+            { value: 'FEMALE', label: '여성' },
+            { value: 'MALE', label: '남성' },
+          ]} />
+        </div>
+        <p className="note">동성끼리만 매칭됩니다.</p>
+      </div>
+    </Screen>
   )
 }

@@ -1,10 +1,12 @@
 package com.campustaximate.server.service;
 
 import com.campustaximate.matching.Direction;
+import com.campustaximate.matching.GeoPoint;
 import com.campustaximate.server.common.ApiException;
 import com.campustaximate.server.common.AppClock;
 import com.campustaximate.server.domain.Hub;
 import com.campustaximate.server.domain.Member;
+import com.campustaximate.server.domain.RequestStatus;
 import com.campustaximate.server.domain.RideRequest;
 import com.campustaximate.server.domain.TransferStatus;
 import com.campustaximate.server.repository.HubRepository;
@@ -16,10 +18,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-/** 시연 모드. 시간 조작, 샘플 요청, 지금 매칭 실행. */
+/** 시연 모드. 시간 조작, 샘플 요청, 일행 만들기. */
 @Service
 @RequiredArgsConstructor
 public class DemoService {
+
+    private static final int MAX_MATCH_SLOTS = 600;
+    private static final List<String> SAMPLE_MEMOS = List.of("흰 모자", "회색 후드", "검은 백팩");
+    private static final List<Double> SAMPLE_RATIOS = List.of(0.45, 0.72, 0.3);
 
     private final SlotService slots;
     private final AppClock clock;
@@ -29,12 +35,36 @@ public class DemoService {
     private final HubRepository hubs;
     private final PartyService partyService;
     private final SettlementService settlementService;
+    private final WaitingInsightService insights;
 
     @Value("${app.demo.enabled}")
     private boolean enabled;
 
     public boolean enabled() {
         return enabled;
+    }
+
+    public record MatchOutcome(RequestStatus status, String message) {
+    }
+
+    /** 내 요청에 맞는 샘플을 만들고, 일행이 정해질 때까지 슬롯을 차례로 돌린다. */
+    public MatchOutcome matchNow(long memberId) {
+        requireEnabled();
+        RideRequest mine = requests.findByActiveMemberId(memberId)
+                .filter(r -> r.getStatus() == RequestStatus.WAITING)
+                .orElseThrow(() -> ApiException.conflict("NO_WAITING_REQUEST", "탑승 요청을 먼저 만들어 주세요."));
+        if (insights.of(mine.getId()).sameDirection() == 0) {
+            addSamples(memberId, 2);
+        }
+        for (int i = 0; i < MAX_MATCH_SLOTS; i++) {
+            advance(5);
+            RequestStatus status = requests.findById(mine.getId()).orElseThrow().getStatus();
+            if (status != RequestStatus.WAITING) {
+                return new MatchOutcome(status, status == RequestStatus.MATCHED
+                        ? "일행이 만들어졌습니다." : "조건이 맞는 일행이 없어 미성사로 끝났습니다.");
+            }
+        }
+        return new MatchOutcome(RequestStatus.WAITING, "아직 일행이 정해지지 않았습니다.");
     }
 
     public void runNow() {
@@ -73,20 +103,45 @@ public class DemoService {
         RideRequest mine = requests.findByActiveMemberId(memberId).orElse(null);
         Direction direction = mine == null ? Direction.FROM_HUB : mine.getDirection();
         Instant arriveBy = mine == null ? null : mine.getArriveBy();
-        Instant start = AppClock.nextSlotAfter(clock.now()).plusSeconds(30 * 60L);
-        Instant end = start.plusSeconds(60 * 60L);
+        boolean sameWindow = mine != null && mine.getWindowStart() != null;
+        Instant start = sameWindow ? mine.getWindowStart() : AppClock.nextSlotAfter(clock.now()).plusSeconds(30 * 60L);
+        Instant end = sameWindow ? mine.getWindowEnd() : start.plusSeconds(60 * 60L);
         List<Member> samples = members.findAll().stream()
                 .filter(m -> DataSeeder.isSeededDemo(m.getEmail()))
                 .filter(m -> m.getGender() == me.getGender() && !m.getId().equals(memberId))
                 .filter(m -> requests.findByActiveMemberId(m.getId()).isEmpty())
+                .filter(m -> !rideRequests.isRestricted(m.getId()))
                 .limit(count)
                 .toList();
         for (int i = 0; i < samples.size(); i++) {
             DataSeeder.Dropoff dropoff = DataSeeder.SAMPLE_DROPOFFS.get(i % DataSeeder.SAMPLE_DROPOFFS.size());
-            rideRequests.create(samples.get(i).getId(), new RideRequestService.NewRequest(direction, hub.getId(),
-                    start, end, arriveBy, dropoff.name(), dropoff.lat(), dropoff.lon(), "샘플 요청"));
+            String memo = SAMPLE_MEMOS.get(i % SAMPLE_MEMOS.size());
+            GeoPoint onTheWay = onTheWay(mine, hub, SAMPLE_RATIOS.get(i % SAMPLE_RATIOS.size()));
+            long id = samples.get(i).getId();
+            try {
+                rideRequests.create(id, new RideRequestService.NewRequest(direction, hub.getId(), start, end, arriveBy,
+                        dropoff.name(), onTheWay == null ? dropoff.lat() : onTheWay.lat(),
+                        onTheWay == null ? dropoff.lon() : onTheWay.lon(), memo));
+            } catch (ApiException e) {
+                if (onTheWay == null) {
+                    throw e;
+                }
+                rideRequests.create(id, new RideRequestService.NewRequest(direction, hub.getId(), start, end, arriveBy,
+                        dropoff.name(), dropoff.lat(), dropoff.lon(), memo));
+            }
         }
         return samples.size();
+    }
+
+    /** 샘플은 내 경로 위에 둔다. 다른 방향에 두면 시연에서 일행이 만들어지지 않는다. */
+    private static GeoPoint onTheWay(RideRequest mine, Hub hub, double ratio) {
+        if (mine == null) {
+            return null;
+        }
+        GeoPoint to = mine.point();
+        double fromLat = mine.getHub() != null ? hub.getLat() : mine.getSchool().getLat();
+        double fromLon = mine.getHub() != null ? hub.getLon() : mine.getSchool().getLon();
+        return new GeoPoint(fromLat + (to.lat() - fromLat) * ratio, fromLon + (to.lon() - fromLon) * ratio);
     }
 
     /** 내 일행의 샘플 계정을 도착, 승차, 결제, 보냄으로 표시한다. 일반 회원과 같은 경로를 탄다. */

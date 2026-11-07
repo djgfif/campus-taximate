@@ -4,6 +4,7 @@ import com.campustaximate.matching.Direction;
 import com.campustaximate.matching.Gender;
 import com.campustaximate.server.common.ApiException;
 import com.campustaximate.server.common.AppClock;
+import com.campustaximate.server.domain.EndReason;
 import com.campustaximate.server.domain.Hub;
 import com.campustaximate.server.domain.Member;
 import com.campustaximate.server.domain.RequestStatus;
@@ -17,6 +18,8 @@ import com.campustaximate.server.route.RouteClient;
 import com.campustaximate.server.service.AuthService;
 import com.campustaximate.server.service.DataSeeder;
 import com.campustaximate.server.service.DemoService;
+import com.campustaximate.server.service.RideHistoryService;
+import com.campustaximate.server.service.WaitingInsightService;
 import com.campustaximate.server.service.LoginTokenService;
 import com.campustaximate.server.service.MailService;
 import com.campustaximate.server.service.PartyService;
@@ -68,6 +71,8 @@ public class ApiController {
     private final PartyService parties;
     private final SettlementService settlements;
     private final DemoService demo;
+    private final WaitingInsightService insights;
+    private final RideHistoryService history;
     private final MailService mail;
     private final MemberRepository members;
     private final HubRepository hubs;
@@ -111,13 +116,32 @@ public class ApiController {
     public record RequestView(long id, RequestStatus status, Direction direction, Long hubId, String anchorName,
                               Instant windowStart, Instant windowEnd, Instant arriveBy, Instant resultBy,
                               String pointName, double pointLat, double pointLon, long soloFare, int soloMinutes,
-                              String memo) {
+                              String memo, WaitingInsightService.Insight insight,
+                              RideHistoryService.Stage stage, Long paid, EndReason endReason,
+                              double anchorLat, double anchorLon, Long partyPaid, Integer partySize) {
         static RequestView of(RideRequest r) {
+            return of(r, null, null, null);
+        }
+
+        static RequestView of(RideHistoryService.Entry e) {
+            return of(e.request(), null, e.stage(), e.paid(), e.partyPaid(), e.partySize());
+        }
+
+        static RequestView of(RideRequest r, WaitingInsightService.Insight insight,
+                              RideHistoryService.Stage stage, Long paid) {
+            return of(r, insight, stage, paid, null, null);
+        }
+
+        private static RequestView of(RideRequest r, WaitingInsightService.Insight insight,
+                                      RideHistoryService.Stage stage, Long paid, Long partyPaid, Integer partySize) {
             String anchor = r.getHub() != null ? r.getHub().getName() : r.getSchool().getGateName();
             return new RequestView(r.getId(), r.getStatus(), r.getDirection(),
                     r.getHub() == null ? null : r.getHub().getId(), anchor, r.getWindowStart(), r.getWindowEnd(),
                     r.getArriveBy(), r.resultBy(), r.getPointName(), r.getPointLat(), r.getPointLon(),
-                    r.getSoloFare(), (r.getSoloSeconds() + 59) / 60, r.getMemo());
+                    r.getSoloFare(), (r.getSoloSeconds() + 59) / 60, r.getMemo(), insight, stage, paid,
+                    r.isNoShow() ? EndReason.NO_SHOW : r.getEndReason(),
+                    r.getHub() != null ? r.getHub().getLat() : r.getSchool().getLat(),
+                    r.getHub() != null ? r.getHub().getLon() : r.getSchool().getLon(), partyPaid, partySize);
         }
     }
 
@@ -193,7 +217,7 @@ public class ApiController {
     public Map<String, Object> state(HttpSession session) {
         long id = memberId(session);
         List<RideRequest> mine = requests.findByMemberIdOrderByIdDesc(id);
-        Object latest = mine.isEmpty() ? "" : RequestView.of(mine.get(0));
+        Object latest = mine.isEmpty() ? "" : RequestView.of(mine.get(0), insights.of(mine.get(0).getId()), null, null);
         return Map.of("now", clock.now(), "latestRequest", latest, "parties", parties.openParties(id),
                 "restricted", rideRequests.isRestricted(id));
     }
@@ -235,7 +259,8 @@ public class ApiController {
 
     @GetMapping("/history")
     public List<RequestView> history(HttpSession session) {
-        return requests.findByMemberIdOrderByIdDesc(memberId(session)).stream().map(RequestView::of).toList();
+        return history.of(memberId(session)).stream()
+                .map(RequestView::of).toList();
     }
 
     @GetMapping("/parties/{id}")
@@ -306,6 +331,11 @@ public class ApiController {
     public void demoRun(HttpSession session) {
         memberId(session);
         demo.runNow();
+    }
+
+    @PostMapping("/demo/match")
+    public DemoService.MatchOutcome demoMatch(HttpSession session) {
+        return demo.matchNow(memberId(session));
     }
 
     @PostMapping("/demo/advance")

@@ -57,7 +57,7 @@ export const api = {
     request(`/parties/${partyId}/settlement/correction`, { method: 'POST', body: settlementForm(fields) }),
   sent: (transferId, revision) => json('POST', `/transfers/${transferId}/sent`, { revision }),
   received: (transferId) => json('POST', `/transfers/${transferId}/received`),
-  demoRun: () => json('POST', '/demo/run'),
+  demoMatch: () => json('POST', '/demo/match'),
   demoAdvance: (minutes) => json('POST', '/demo/advance', { minutes }),
   demoSamples: (count) => json('POST', '/demo/samples', { count }),
   demoAct: () => json('POST', '/demo/act'),

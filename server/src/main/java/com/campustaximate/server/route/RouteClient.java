@@ -32,6 +32,10 @@ public interface RouteClient {
             this(km, seconds, fare, coordinates, List.of());
         }
 
+        public Route withFare(long fixedFare) {
+            return new Route(km, seconds, fixedFare, coordinates, legSeconds);
+        }
+
         public Route {
             coordinates = List.copyOf(coordinates);
             legSeconds = List.copyOf(legSeconds);

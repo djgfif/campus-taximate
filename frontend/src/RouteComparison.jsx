@@ -1,59 +1,122 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useState } from 'react'
+import MapView from './MapView.jsx'
 import { api } from './api.js'
-import { loadKakaoMaps } from './MapPicker.jsx'
-import { formatDateTime, won } from './format.js'
+import { formatTime, won } from './format.js'
+import { Paper, Rows, Say, SidePlain } from './ui.jsx'
 
-export default function RouteComparison({ party, mine }) {
-  const container = useRef(null)
-  const [unavailable, setUnavailable] = useState(false)
+const CARD_WIDTH = 232
+const LEGEND = '검은 실선은 같이 가는 경로, 파란 점선은 혼자 가는 경로입니다.'
+
+/** 같이 가는 경로와 혼자 가는 경로를 함께 받는다. 일행이 바뀌면 다시 읽는다. */
+function useRoutes(party) {
+  const [routes, setRoutes] = useState(null)
+  const [failed, setFailed] = useState(false)
   const itinerary = party.members.map((m) => m.requestId).join(',')
-
   useEffect(() => {
     let closed = false
-    const lines = []
-    setUnavailable(false)
-    async function draw() {
-      try {
-        const routes = await api.partyRoutes(party.id)
-        if (!routes.shared?.length || !routes.solo?.length || !import.meta.env.VITE_KAKAO_JS_KEY) {
-          throw new Error('경로 없음')
-        }
-        const maps = await loadKakaoMaps()
+    setFailed(false)
+    api.partyRoutes(party.id)
+      .then((data) => {
         if (closed) return
-        const bounds = new maps.LatLngBounds()
-        const map = new maps.Map(container.current, {
-          center: new maps.LatLng(routes.shared[0].lat, routes.shared[0].lon), level: 9,
-        })
-        for (const [coordinates, strokeStyle, strokeColor] of [
-          [routes.shared, 'solid', '#4a5166'], [routes.solo, 'dash', '#d18a00'],
-        ]) {
-          const path = coordinates.map((p) => new maps.LatLng(p.lat, p.lon))
-          path.forEach((p) => bounds.extend(p))
-          lines.push(new maps.Polyline({ map, path, strokeWeight: 5, strokeColor, strokeStyle }))
-        }
-        map.setBounds(bounds)
-      } catch {
-        if (!closed) setUnavailable(true)
-      }
-    }
-    draw()
+        if (data.shared?.length && data.solo?.length) setRoutes(data)
+        else setFailed(true)
+      })
+      .catch(() => !closed && setFailed(true))
     return () => {
       closed = true
-      lines.forEach((line) => line.setMap(null))
-      if (container.current) container.current.innerHTML = ''
     }
   }, [party.id, itinerary])
+  return { routes, failed, fail: () => setFailed(true) }
+}
 
-  const delay = Math.max(0, Math.ceil((mine.sharedSeconds - mine.soloSeconds) / 60))
+const toLines = (routes) => [
+  { path: routes.shared, style: 'solid', color: '#161a23' },
+  { path: routes.solo, style: 'shortdash', color: '#1f6feb' },
+]
+
+/** 학교나 거점, 내 지점, 경로 끝의 일행 지점을 표시한다. 좌표는 경로에 있는 값만 쓴다. */
+function stopsOf(party, mine, routes) {
+  const toSchool = party.direction === 'TO_SCHOOL'
+  const { solo, shared } = routes
+  const anchor = toSchool ? solo[solo.length - 1] : solo[0]
+  const me = toSchool ? solo[0] : solo[solo.length - 1]
+  const far = toSchool ? shared[0] : shared[shared.length - 1]
+  const farOrder = toSchool ? 1 : party.members.length
+  const stops = [
+    { ...anchor, label: toSchool ? '학' : '출', tone: 'end' },
+    { ...me, label: mine.rideOrder, tone: 'me' },
+  ]
+  if (mine.rideOrder !== farOrder) stops.push({ ...far, label: farOrder })
+  return stops
+}
+
+function figures(mine) {
+  const solo = Math.ceil(mine.soloSeconds / 60)
+  const shared = Math.ceil(mine.sharedSeconds / 60)
+  return {
+    solo,
+    shared,
+    delay: Math.max(0, shared - solo),
+    saved: mine.soloFare - mine.expectedShare,
+  }
+}
+
+function FullRows({ party, mine }) {
+  const f = figures(mine)
   return (
-    <div>
-      <h3>경로 비교</h3>
-      <p>단독: {Math.ceil(mine.soloSeconds / 60)}분 · {won(mine.soloFare)}</p>
-      <p>일행: {Math.ceil(mine.sharedSeconds / 60)}분 · {formatDateTime(party.arrivalAt)} 도착 · {won(mine.expectedShare)}</p>
-      <p>지연: {delay}분, 기준 15분 이내</p>
-      <p className="muted">실선: 동승 경로 · 점선: 단독 경로</p>
-      {unavailable && <p className="muted">지도를 불러오지 못했습니다. 시간과 금액을 확인해 주세요.</p>}
-      <div ref={container} className="map" hidden={unavailable} role="application" aria-label="동승 경로와 단독 경로 비교" />
+    <Rows items={[
+      ['혼자 타면', `${f.solo}분, ${won(mine.soloFare)}`],
+      ['같이 타면', `${f.shared}분, ${won(mine.expectedShare)}`, 'big'],
+      ['아끼는 돈', won(f.saved), 'save'],
+      ['늘어나는 시간', `${f.delay}분 (기준 15분 이내)`],
+      ['도착 예정', formatTime(party.arrivalAt)],
+    ]} />
+  )
+}
+
+export default function RouteComparison({ party, mine }) {
+  const { routes, failed, fail } = useRoutes(party)
+  return (
+    <div className="block">
+      <h2 className="block-title">경로 비교</h2>
+      <FullRows party={party} mine={mine} />
+      {failed
+        ? <p className="note">지도를 불러오지 못했습니다. 시간과 금액을 확인해 주세요.</p>
+        : <p className="note">{LEGEND}</p>}
+      {!failed && routes && (
+        <div className="map"><MapView lines={toLines(routes)} points={stopsOf(party, mine, routes)} edge={32} onFail={fail} /></div>
+      )}
     </div>
+  )
+}
+
+/** 넓은 화면의 오른쪽 패널. 지도를 못 그리면 같은 값을 표로 보여 준다. */
+export function RouteSide({ party, mine }) {
+  const { routes, failed, fail } = useRoutes(party)
+  if (failed) {
+    return (
+      <SidePlain>
+        <Paper>
+          <Say tone="calm" title="지도를 불러오지 못했습니다">시간과 금액을 확인해 주세요.</Say>
+          <FullRows party={party} mine={mine} />
+        </Paper>
+      </SidePlain>
+    )
+  }
+  const f = figures(mine)
+  return (
+    <>
+      {routes && <MapView lines={toLines(routes)} points={stopsOf(party, mine, routes)} right={CARD_WIDTH} onFail={fail} />}
+      <div className="map-legend">
+        <span><i className="both" aria-hidden="true" />같이 가는 경로</span>
+        <span><i className="alone" aria-hidden="true" />혼자 가는 경로</span>
+      </div>
+      <div className="figures">
+        <div><small>혼자 타면</small><b>{won(mine.soloFare)}</b></div>
+        <div><small>같이 타면</small><b>{won(mine.expectedShare)}</b></div>
+        <div><small>아끼는 돈</small><b className="save">{won(f.saved)}</b></div>
+        <div><small>늘어나는 시간</small><b>{f.delay}분</b><small>기준 15분 이내</small></div>
+      </div>
+    </>
   )
 }

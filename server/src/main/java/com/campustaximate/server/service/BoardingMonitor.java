@@ -67,7 +67,7 @@ public class BoardingMonitor {
         }
         for (RideRequest rider : riders) {
             if (!rider.isArrived() && !rider.isNoShow() && now.isAfter(rider.arriveDeadline())) {
-                rider.setNoShow(true);
+                rider.markNoShow();
                 Member member = rider.getMember();
                 member.setNoShowCount(member.getNoShowCount() + 1);
             }

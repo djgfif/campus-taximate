@@ -140,8 +140,12 @@ public class PartyShrinker {
         long total = trip.reordersOnShrink()
                 ? cumulativeRides(plan.anchor(), stays, solo, rides)
                 : fixedRides(trip, plan.anchor(), stays, rides);
-        List<Long> units = SettlementCalculator.ratioUnits(solo.stream().map(RouteClient.Route::fare).toList());
-        return new Recalculated(stays.stream().map(Stay::id).toList(), solo, rides, total,
+        List<RouteClient.Route> shown = new ArrayList<>();
+        for (int i = 0; i < solo.size(); i++) {
+            shown.add(solo.get(i).withFare(stays.get(i).soloFare()));
+        }
+        List<Long> units = SettlementCalculator.ratioUnits(shown.stream().map(RouteClient.Route::fare).toList());
+        return new Recalculated(stays.stream().map(Stay::id).toList(), shown, rides, total,
                 SettlementCalculator.shares(total, units, trip.payerIndex(stays.size())));
     }
 

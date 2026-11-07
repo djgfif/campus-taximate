@@ -150,7 +150,7 @@ public class SlotService {
             if (!rider.isArrived()) {
                 noShows.add(rider.getId());
                 if (!rider.isNoShow()) {
-                    rider.setNoShow(true);
+                    rider.markNoShow();
                     Member member = rider.getMember();
                     member.setNoShowCount(member.getNoShowCount() + 1);
                 }
@@ -172,7 +172,9 @@ public class SlotService {
         Instant now = clock.now();
         rejected.values().removeIf(until -> !until.isAfter(now));
         legStore.prepare(input.stream().filter(r -> TripPlan.of(r.direction()).eligible(r, slot)).toList(), now);
-        RouteGroupVerifier verifier = new RouteGroupVerifier(routes, rejected, now, paths);
+        Map<Long, Long> requestFares = new LinkedHashMap<>();
+        snapshot.forEach((id, r) -> requestFares.put(id, r.getSoloFare()));
+        RouteGroupVerifier verifier = new RouteGroupVerifier(routes, rejected, now, paths, requestFares);
         RoundResult result = round.run(slot, input, legStore.provider(), verifier);
 
         Instant limit = AppClock.nextSlotAfter(slot);

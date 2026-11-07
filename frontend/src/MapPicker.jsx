@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { ChevronLeft, MapPin } from 'lucide-react'
+import { Btn } from './ui.jsx'
 
 const APP_KEY = import.meta.env.VITE_KAKAO_JS_KEY
-const INITIAL_LEVEL = 9
+const INITIAL_LEVEL = 6
 
 let sdk = null
 
@@ -19,63 +21,90 @@ export function loadKakaoMaps() {
   return sdk
 }
 
-function dot(maps, map, position, color, size) {
-  const content = document.createElement('span')
-  content.style.cssText = `display:block;width:${size}px;height:${size}px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.35)`
-  return new maps.CustomOverlay({ map, position, content, xAnchor: 0.5, yAnchor: 0.5, clickable: false })
+/** 좌표의 도로명이나 지번 주소. 못 찾으면 빈 문자열이다. */
+function addressOf(maps, lat, lon) {
+  return new Promise((resolve) => {
+    new maps.services.Geocoder().coord2Address(lon, lat, (data, status) => {
+      if (status !== maps.services.Status.OK || !data[0]) {
+        resolve('')
+        return
+      }
+      const { road_address: road, address } = data[0]
+      resolve(road?.building_name || road?.address_name || address?.address_name || '')
+    })
+  })
 }
 
-/** 지도를 눌러 지점을 고른다. center는 거점이나 학교다. */
-export default function MapPicker({ center: origin, value, onPick, label }) {
+/** 지도를 움직여 가운데 핀으로 고른다. 터치 기기에서도 지도 클릭에 기대지 않는다. */
+export default function MapPicker({ center: origin, value, title, onPick, onClose, embedded }) {
   const container = useRef(null)
-  const view = useRef(null)
-  const marker = useRef(null)
-  const pick = useRef(onPick)
-  const [error, setError] = useState(APP_KEY ? '' : '카카오 JavaScript 키가 없어 지도를 표시할 수 없습니다.')
-  const [ready, setReady] = useState(0)
-  pick.current = onPick
+  const [error, setError] = useState(APP_KEY ? '' : '지도 키가 없어 지도를 표시할 수 없습니다. 주소 검색을 이용해 주세요.')
+  const [spot, setSpot] = useState(null)
 
   useEffect(() => {
     if (!origin || !APP_KEY) return undefined
     let closed = false
+    let ask = 0
     loadKakaoMaps()
       .then((maps) => {
         if (closed) return
-        const center = new maps.LatLng(origin.lat, origin.lon)
-        const map = new maps.Map(container.current, { center, level: INITIAL_LEVEL })
-        map.addControl(new maps.ZoomControl(), maps.ControlPosition.RIGHT)
-        dot(maps, map, center, '#4a5166', 16)
-        maps.event.addListener(map, 'click', (event) => {
-          pick.current(event.latLng.getLat(), event.latLng.getLng())
-        })
-        view.current = { maps, map }
-        setReady((n) => n + 1)
+        const start = value || origin
+        const map = new maps.Map(container.current, { center: new maps.LatLng(start.lat, start.lon), level: INITIAL_LEVEL })
+        const update = async () => {
+          const position = map.getCenter()
+          const lat = position.getLat()
+          const lon = position.getLng()
+          ask += 1
+          const mine = ask
+          setSpot({ lat, lon, name: '' })
+          const name = await addressOf(maps, lat, lon)
+          if (!closed && mine === ask) setSpot({ lat, lon, name })
+        }
+        maps.event.addListener(map, 'idle', update)
+        update()
       })
       .catch((e) => setError(e.message))
     return () => {
       closed = true
-      view.current = null
-      marker.current = null
-      if (container.current) container.current.innerHTML = ''
     }
   }, [origin?.lat, origin?.lon])
 
-  useEffect(() => {
-    if (!view.current) return
-    const { maps, map } = view.current
-    if (marker.current) {
-      marker.current.setMap(null)
-      marker.current = null
-    }
-    if (value) {
-      const position = new maps.LatLng(value.lat, value.lon)
-      marker.current = dot(maps, map, position, '#e8a317', 18)
-      map.panTo(position)
-    }
-  }, [value?.lat, value?.lon, ready])
+  const pick = () => onPick({ name: spot.name || '지도에서 고른 지점', lat: spot.lat, lon: spot.lon })
 
-  if (error) return <p className="error">{error}</p>
-  return <div ref={container} className="map" role="application" aria-label={label} />
+  if (embedded) {
+    return (
+      <>
+        <div ref={container} className="map-canvas" role="application" aria-label="지도를 움직여 위치를 맞춰 주세요" />
+        <span className="map-pin"><MapPin size={44} fill="#f5b301" strokeWidth={1.6} aria-hidden="true" /></span>
+        <div className="floater">
+          <div className="addr"><b>{error || spot?.name || '위치를 확인하는 중'}</b><small>지도를 움직여 핀을 맞춰 주세요</small></div>
+          <Btn disabled={!spot || !!error} onClick={pick}>이 위치로 정하기</Btn>
+        </div>
+      </>
+    )
+  }
+
+  return (
+    <div className="mapsheet" role="dialog" aria-modal="true" aria-label={title}>
+      <header className="bar back">
+        <div className="bar-left">
+          <button type="button" className="icon-btn" aria-label="닫기" onClick={onClose}><ChevronLeft size={26} /></button>
+          <span className="bar-title">{title}</span>
+        </div>
+      </header>
+      <div className="map-full">
+        <div ref={container} className="map-canvas" role="application" aria-label="지도를 움직여 위치를 맞춰 주세요" />
+        <span className="map-pin"><MapPin size={40} fill="#f5b301" strokeWidth={1.6} aria-hidden="true" /></span>
+      </div>
+      <div className="picked">
+        <b>{error || spot?.name || '위치를 확인하는 중'}</b>
+        <small>지도를 움직여 핀을 맞춰 주세요</small>
+      </div>
+      <div className="foot">
+        <Btn disabled={!spot || !!error} onClick={pick}>이 위치로 정하기</Btn>
+      </div>
+    </div>
+  )
 }
 
 /** 카카오 장소 검색. 키가 없으면 빈 목록을 돌려준다. */
