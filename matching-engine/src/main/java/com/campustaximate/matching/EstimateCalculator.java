@@ -13,32 +13,31 @@ public final class EstimateCalculator {
         this.settings = settings;
     }
 
-    /** 가까운 곳부터 내리는 순서로 시험해 조건을 통과하면 조합을 돌려준다. */
+    /** 방향의 승하차 순서로 시험해 조건을 통과하면 조합을 돌려준다. */
     public Optional<Candidate> evaluate(List<MatchRequest> group, LegProvider legs) {
-        List<MatchRequest> order = new ArrayList<>(group);
-        order.sort(MatchRequest.DROPOFF_ORDER);
+        TripPlan plan = TripPlan.of(group.get(0).direction(), settings);
+        List<MatchRequest> order = plan.order(group);
 
-        MatchRequest first = order.get(0);
-        double cumulativeKm = first.soloKm();
-        int cumulativeSeconds = first.soloSeconds();
+        List<RoadLeg> roads = new ArrayList<>();
         for (int i = 1; i < order.size(); i++) {
-            MatchRequest rider = order.get(i);
-            Optional<RoadLeg> leg = legs.leg(order.get(i - 1), rider);
+            Optional<RoadLeg> leg = legs.leg(order.get(i - 1), order.get(i));
             if (leg.isEmpty()) {
                 return Optional.empty();
             }
-            cumulativeKm += leg.get().km();
-            cumulativeSeconds += leg.get().seconds();
-            int delaySeconds = cumulativeSeconds - rider.soloSeconds();
-            if (delaySeconds > settings.maxDelayMinutes() * 60) {
+            roads.add(leg.get());
+        }
+        List<Integer> rides = plan.rideSeconds(order, roads);
+        for (int i = 0; i < order.size(); i++) {
+            if (rides.get(i) - order.get(i).soloSeconds() > settings.maxDelayMinutes() * 60) {
                 return Optional.empty();
             }
         }
+        double totalKm = plan.totalKm(order, roads);
         double soloKm = order.stream().mapToDouble(MatchRequest::soloKm).sum();
-        if (cumulativeKm > soloKm * (1 - settings.minSavingRate())) {
+        if (totalKm > soloKm * (1 - settings.minSavingRate())) {
             return Optional.empty();
         }
-        return Optional.of(new Candidate(order, cumulativeKm));
+        return Optional.of(new Candidate(order, totalKm));
     }
 
 }

@@ -1,9 +1,11 @@
 package com.campustaximate.server.service;
 
+import com.campustaximate.matching.Direction;
 import com.campustaximate.server.common.ApiException;
 import com.campustaximate.server.common.AppClock;
 import com.campustaximate.server.domain.Hub;
 import com.campustaximate.server.domain.Member;
+import com.campustaximate.server.domain.RideRequest;
 import com.campustaximate.server.domain.TransferStatus;
 import com.campustaximate.server.repository.HubRepository;
 import com.campustaximate.server.repository.MemberRepository;
@@ -58,6 +60,7 @@ public class DemoService {
                 slot = AppClock.nextSlotAfter(slot);
             }
             clock.moveTo(target);
+            slots.checkBoarding();
             return null;
         });
     }
@@ -67,6 +70,9 @@ public class DemoService {
         requireEnabled();
         Member me = members.findById(memberId).orElseThrow(ApiException::unauthorized);
         Hub hub = hubs.findBySchool(me.getSchool().getId()).get(0);
+        RideRequest mine = requests.findByActiveMemberId(memberId).orElse(null);
+        Direction direction = mine == null ? Direction.FROM_HUB : mine.getDirection();
+        Instant arriveBy = mine == null ? null : mine.getArriveBy();
         Instant start = AppClock.nextSlotAfter(clock.now()).plusSeconds(30 * 60L);
         Instant end = start.plusSeconds(60 * 60L);
         List<Member> samples = members.findAll().stream()
@@ -77,29 +83,46 @@ public class DemoService {
                 .toList();
         for (int i = 0; i < samples.size(); i++) {
             DataSeeder.Dropoff dropoff = DataSeeder.SAMPLE_DROPOFFS.get(i % DataSeeder.SAMPLE_DROPOFFS.size());
-            rideRequests.create(samples.get(i).getId(), new RideRequestService.NewRequest(hub.getId(), start, end,
-                    dropoff.name(), dropoff.lat(), dropoff.lon(), "샘플 요청"));
+            rideRequests.create(samples.get(i).getId(), new RideRequestService.NewRequest(direction, hub.getId(),
+                    start, end, arriveBy, dropoff.name(), dropoff.lat(), dropoff.lon(), "샘플 요청"));
         }
         return samples.size();
     }
 
-    /** 내 일행의 샘플 계정을 도착과 보냄으로 표시한다. 일반 회원과 같은 경로를 탄다. */
+    /** 내 일행의 샘플 계정을 도착, 승차, 결제, 보냄으로 표시한다. 일반 회원과 같은 경로를 탄다. */
     public void actAsSamples(long memberId) {
         requireEnabled();
         for (PartyService.PartyView party : partyService.openParties(memberId)) {
             for (PartyService.MemberView rider : party.members()) {
-                if (isSample(rider.memberId(), memberId) && !rider.arrived() && party.settlement() == null
-                        && !clock.now().isAfter(party.departureAt())) {
+                if (!isSample(rider.memberId(), memberId) || rider.arrived() || party.settlement() != null
+                        || rider.noShow() || clock.now().isAfter(rider.arriveDeadline())) {
+                    continue;
+                }
+                if (party.direction() == Direction.TO_SCHOOL && rider.memberId() == party.payerId()) {
+                    partyService.board(rider.memberId(), party.id());
+                } else {
                     partyService.arrive(rider.memberId(), party.id());
                 }
             }
-            if (party.settlement() == null) {
+            PartyService.PartyView payerView = isSample(party.payerId(), memberId)
+                    ? partyService.view(party.payerId(), party.id()) : null;
+            if (payerView != null && payerView.canSettle()) {
+                settlementService.submitForDemo(party.payerId(), party.id(), party.expectedTotal(),
+                        "OO은행", "000-0000-0000");
+            }
+            PartyService.PartyView current = partyService.view(memberId, party.id());
+            if (current.settlement() == null) {
                 continue;
             }
-            for (PartyService.TransferView transfer : party.settlement().transfers()) {
+            for (PartyService.TransferView transfer : current.settlement().transfers()) {
                 if (isSample(transfer.senderId(), memberId) && transfer.status() == TransferStatus.REQUESTED) {
-                    settlementService.markSent(transfer.senderId(), transfer.id(), party.settlement().revision());
+                    settlementService.markSent(transfer.senderId(), transfer.id(), current.settlement().revision());
                 }
+            }
+            if (isSample(party.payerId(), memberId)) {
+                partyService.view(party.payerId(), party.id()).settlement().transfers().stream()
+                        .filter(transfer -> transfer.status() == TransferStatus.SENT)
+                        .forEach(transfer -> settlementService.markReceived(party.payerId(), transfer.id()));
             }
         }
     }

@@ -25,6 +25,11 @@ public class MailService {
     @Value("${app.mail-from}")
     private String from;
 
+    /** 메일 서버가 연결돼 있어야 화면을 닫아도 알림이 간다. */
+    public boolean enabled() {
+        return host != null && !host.isBlank();
+    }
+
     /** 트랜잭션 안이면 커밋이 끝난 뒤에 보낸다. */
     public void send(String to, String subject, String text) {
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
@@ -40,7 +45,7 @@ public class MailService {
     }
 
     private void deliver(String to, String subject, String text) {
-        if (host == null || host.isBlank()) {
+        if (!enabled()) {
             log.info("메일 서버 없음. to={} subject={} text={}", to, subject, text);
             return;
         }

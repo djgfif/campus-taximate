@@ -40,5 +40,6 @@ app:
   public-url: ${PUBLIC_URL:http://localhost:8080}
   cookie-secure: ${COOKIE_SECURE:false}
   upload-dir: ${UPLOAD_DIR:./uploads}
+  account-key: ${ACCOUNT_KEY:}
   demo:
     enabled: ${DEMO_ENABLED:false}

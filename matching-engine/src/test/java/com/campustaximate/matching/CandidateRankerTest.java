@@ -59,6 +59,6 @@ class CandidateRankerTest {
         List<Candidate> ranked = ranker.rank(anchor, others, SLOT, LEGS);
 
         assertFalse(ranked.isEmpty());
-        assertTrue(ranked.stream().noneMatch(c -> c.dropoffOrder().contains(outsideLimit)));
+        assertTrue(ranked.stream().noneMatch(c -> c.order().contains(outsideLimit)));
     }
 }

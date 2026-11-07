@@ -33,7 +33,7 @@ final class Fixtures {
 
     /** 테스트용 도로 값. 직선 거리의 1.3배, 시속 24km. */
     static final LegProvider LEGS = (from, to) -> {
-        double km = from.dropoff().distanceKm(to.dropoff()) * ROAD;
+        double km = from.own().distanceKm(to.own()) * ROAD;
         return Optional.of(new RoadLeg(km, seconds(km)));
     };
 

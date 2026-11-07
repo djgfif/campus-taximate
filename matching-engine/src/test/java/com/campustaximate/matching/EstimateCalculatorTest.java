@@ -22,7 +22,7 @@ class EstimateCalculatorTest {
 
         Candidate candidate = calculator.evaluate(List.of(far, near, middle), LEGS).orElseThrow();
 
-        assertEquals(List.of(near, middle, far), candidate.dropoffOrder());
+        assertEquals(List.of(near, middle, far), candidate.order());
         assertEquals(7 * 1.3, candidate.totalKm(), 0.05);
     }
 

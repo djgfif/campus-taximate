@@ -1,5 +1,6 @@
 package com.campustaximate.server.web;
 
+import com.campustaximate.matching.Direction;
 import com.campustaximate.matching.Gender;
 import com.campustaximate.server.common.ApiException;
 import com.campustaximate.server.common.AppClock;
@@ -7,6 +8,7 @@ import com.campustaximate.server.domain.Hub;
 import com.campustaximate.server.domain.Member;
 import com.campustaximate.server.domain.RequestStatus;
 import com.campustaximate.server.domain.RideRequest;
+import com.campustaximate.server.domain.School;
 import com.campustaximate.server.domain.Settlement;
 import com.campustaximate.server.repository.HubRepository;
 import com.campustaximate.server.repository.MemberRepository;
@@ -16,6 +18,7 @@ import com.campustaximate.server.service.AuthService;
 import com.campustaximate.server.service.DataSeeder;
 import com.campustaximate.server.service.DemoService;
 import com.campustaximate.server.service.LoginTokenService;
+import com.campustaximate.server.service.MailService;
 import com.campustaximate.server.service.PartyService;
 import com.campustaximate.server.service.RideRequestService;
 import com.campustaximate.server.service.SettlementService;
@@ -65,6 +68,7 @@ public class ApiController {
     private final PartyService parties;
     private final SettlementService settlements;
     private final DemoService demo;
+    private final MailService mail;
     private final MemberRepository members;
     private final HubRepository hubs;
     private final RideRequestRepository requests;
@@ -86,9 +90,13 @@ public class ApiController {
     public record MeView(long id, String email, String nickname, Gender gender, boolean needsProfile) {
     }
 
-    public record RequestBodyDto(@NotNull Long hubId, @NotNull Instant windowStart, @NotNull Instant windowEnd,
-                                 @NotBlank @Size(max = 100) String dropoffName, @NotNull Double dropoffLat,
-                                 @NotNull Double dropoffLon, @Size(max = 100) String memo) {
+    public record RequestBodyDto(@NotNull Direction direction, Long hubId, Instant windowStart, Instant windowEnd,
+                                 Instant arriveBy, @NotBlank @Size(max = 100) String pointName,
+                                 @NotNull Double pointLat, @NotNull Double pointLon, @Size(max = 100) String memo) {
+        RideRequestService.NewRequest toInput() {
+            return new RideRequestService.NewRequest(direction, hubId, windowStart, windowEnd, arriveBy, pointName,
+                    pointLat, pointLon, memo);
+        }
     }
 
     public record SentBody(@NotNull Integer revision) {
@@ -100,12 +108,20 @@ public class ApiController {
     public record SampleBody(Integer count) {
     }
 
-    public record RequestView(long id, RequestStatus status, String hubName, Instant windowStart, Instant windowEnd,
-                              String dropoffName, long soloFare, int soloMinutes, String memo) {
+    public record RequestView(long id, RequestStatus status, Direction direction, Long hubId, String anchorName,
+                              Instant windowStart, Instant windowEnd, Instant arriveBy, Instant resultBy,
+                              String pointName, double pointLat, double pointLon, long soloFare, int soloMinutes,
+                              String memo) {
         static RequestView of(RideRequest r) {
-            return new RequestView(r.getId(), r.getStatus(), r.getHub().getName(), r.getWindowStart(),
-                    r.getWindowEnd(), r.getDropoffName(), r.getSoloFare(), (r.getSoloSeconds() + 59) / 60, r.getMemo());
+            String anchor = r.getHub() != null ? r.getHub().getName() : r.getSchool().getGateName();
+            return new RequestView(r.getId(), r.getStatus(), r.getDirection(),
+                    r.getHub() == null ? null : r.getHub().getId(), anchor, r.getWindowStart(), r.getWindowEnd(),
+                    r.getArriveBy(), r.resultBy(), r.getPointName(), r.getPointLat(), r.getPointLon(),
+                    r.getSoloFare(), (r.getSoloSeconds() + 59) / 60, r.getMemo());
         }
+    }
+
+    public record SchoolView(long id, String name, String gateName, double lat, double lon) {
     }
 
     public record HubView(long id, String name, double lat, double lon) {
@@ -114,7 +130,7 @@ public class ApiController {
     @GetMapping("/config")
     public Map<String, Object> config() {
         return Map.of("demo", demo.enabled(), "simulatedRoute", routes.simulated(), "now", clock.now(),
-                "sampleDropoffs", DataSeeder.SAMPLE_DROPOFFS);
+                "mailEnabled", mail.enabled(), "sampleDropoffs", DataSeeder.SAMPLE_DROPOFFS);
     }
 
     @PostMapping("/auth/code")
@@ -188,6 +204,13 @@ public class ApiController {
         return hubListOf(member);
     }
 
+    @GetMapping("/school")
+    public SchoolView school(HttpSession session) {
+        Member member = members.findWithSchoolById(memberId(session)).orElseThrow(ApiException::unauthorized);
+        School school = member.getSchool();
+        return new SchoolView(school.getId(), school.getName(), school.getGateName(), school.getLat(), school.getLon());
+    }
+
     private List<HubView> hubListOf(Member member) {
         return hubs.findBySchool(member.getSchool().getId()).stream()
                 .map((Hub h) -> new HubView(h.getId(), h.getName(), h.getLat(), h.getLon()))
@@ -196,10 +219,13 @@ public class ApiController {
 
     @PostMapping("/requests")
     public Map<String, Long> createRequest(@Valid @RequestBody RequestBodyDto body, HttpSession session) {
-        RideRequest created = rideRequests.create(memberId(session), new RideRequestService.NewRequest(body.hubId(),
-                body.windowStart(), body.windowEnd(), body.dropoffName(), body.dropoffLat(), body.dropoffLon(),
-                body.memo()));
+        RideRequest created = rideRequests.create(memberId(session), body.toInput());
         return Map.of("id", created.getId());
+    }
+
+    @PostMapping("/requests/preview")
+    public RideRequestService.Preview previewRequest(@Valid @RequestBody RequestBodyDto body, HttpSession session) {
+        return rideRequests.preview(memberId(session), body.toInput());
     }
 
     @DeleteMapping("/requests/{id}")
@@ -219,7 +245,7 @@ public class ApiController {
 
     @GetMapping("/parties/{id}/routes")
     public PartyService.RouteView partyRoutes(@PathVariable long id, HttpSession session) {
-        return parties.routeView(memberId(session), id);
+        return parties.routeView(parties.routePlan(memberId(session), id));
     }
 
     @PostMapping("/parties/{id}/arrive")
@@ -227,16 +253,31 @@ public class ApiController {
         parties.arrive(memberId(session), id);
     }
 
+    @PostMapping("/parties/{id}/boarded")
+    public void boarded(@PathVariable long id, HttpSession session) {
+        parties.board(memberId(session), id);
+    }
+
+    @GetMapping("/parties/{id}/settlement/preview")
+    public List<SettlementService.ShareView> previewSettlement(@PathVariable long id, @RequestParam long amount,
+                                                               HttpSession session) {
+        return settlements.preview(memberId(session), id, amount);
+    }
+
     @PostMapping(value = "/parties/{id}/settlement", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public void submitSettlement(@PathVariable long id, @RequestParam long amount,
+                                 @RequestParam(required = false) String bankName,
+                                 @RequestParam(required = false) String accountNumber,
                                  @RequestPart("receipt") MultipartFile receipt, HttpSession session) {
-        settlements.submit(memberId(session), id, amount, receipt);
+        settlements.submit(memberId(session), id, amount, receipt, bankName, accountNumber);
     }
 
     @PostMapping(value = "/parties/{id}/settlement/correction", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public void correctSettlement(@PathVariable long id, @RequestParam long amount,
+                                  @RequestParam(required = false) String bankName,
+                                  @RequestParam(required = false) String accountNumber,
                                   @RequestPart("receipt") MultipartFile receipt, HttpSession session) {
-        settlements.correct(memberId(session), id, amount, receipt);
+        settlements.correct(memberId(session), id, amount, receipt, bankName, accountNumber);
     }
 
     @GetMapping("/parties/{id}/receipt")

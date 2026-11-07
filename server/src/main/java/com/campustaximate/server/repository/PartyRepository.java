@@ -1,5 +1,6 @@
 package com.campustaximate.server.repository;
 
+import com.campustaximate.matching.Direction;
 import com.campustaximate.server.domain.Party;
 import com.campustaximate.server.domain.PartyStatus;
 import jakarta.persistence.LockModeType;
@@ -17,5 +18,5 @@ public interface PartyRepository extends JpaRepository<Party, Long> {
     @Query("select p from Party p where p.id = :id")
     Optional<Party> findByIdForUpdate(Long id);
 
-    List<Party> findByStatusAndDepartureAtLessThanEqual(PartyStatus status, Instant time);
+    List<Party> findByDirectionAndStatusAndDepartureAtLessThanEqual(Direction direction, PartyStatus status, Instant time);
 }

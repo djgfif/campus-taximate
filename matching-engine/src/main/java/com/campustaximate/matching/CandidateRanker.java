@@ -31,7 +31,7 @@ public final class CandidateRanker {
         this.calculator = new EstimateCalculator(settings);
     }
 
-    /** others는 기준자와 같은 거점, 같은 성별이고 이번 슬롯에 출발할 수 있는 요청이다. */
+    /** others는 기준자와 같은 풀이고 이번 슬롯에 들어온 요청이다. */
     public List<Candidate> rank(MatchRequest anchor, List<MatchRequest> others, Instant slot, LegProvider legs) {
         List<MatchRequest> nearest = nearestByAngle(anchor, others);
         List<Candidate> result = new ArrayList<>();
@@ -43,11 +43,11 @@ public final class CandidateRanker {
     }
 
     private List<MatchRequest> nearestByAngle(MatchRequest anchor, List<MatchRequest> others) {
-        GeoPoint hub = anchor.hub().location();
-        double anchorBearing = hub.bearingTo(anchor.dropoff());
+        GeoPoint center = anchor.anchor();
+        double anchorBearing = center.bearingTo(anchor.own());
         return others.stream()
                 .sorted(Comparator.<MatchRequest>comparingDouble(
-                                r -> angleGap(anchorBearing, hub.bearingTo(r.dropoff())))
+                                r -> angleGap(anchorBearing, center.bearingTo(r.own())))
                         .thenComparingLong(MatchRequest::id))
                 .limit(settings.maxCandidates() - 1L)
                 .toList();
@@ -58,7 +58,7 @@ public final class CandidateRanker {
         if (need == 0) {
             List<MatchRequest> group = new ArrayList<>(picked);
             group.add(anchor);
-            if (group.size() > 2 || isDeadline(group, slot)) {
+            if (group.size() > 2 || TripPlan.of(anchor.direction(), settings).isDeadline(group, slot)) {
                 calculator.evaluate(group, legs).ifPresent(result::add);
             }
             return;
@@ -68,12 +68,6 @@ public final class CandidateRanker {
             collect(anchor, pool, need - 1, i + 1, picked, slot, legs, result);
             picked.remove(picked.size() - 1);
         }
-    }
-
-    /** 2명 조합의 기한은 가장 이른 끝 시각의 30분 전이고 그 슬롯을 포함한다. */
-    private boolean isDeadline(List<MatchRequest> group, Instant slot) {
-        Instant earliestEnd = group.stream().map(MatchRequest::windowEnd).min(Instant::compareTo).orElseThrow();
-        return !slot.isBefore(earliestEnd.minusSeconds(settings.leadMinutes() * 60L));
     }
 
     private static double angleGap(double a, double b) {

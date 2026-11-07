@@ -10,16 +10,16 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface RideRequestRepository extends JpaRepository<RideRequest, Long> {
 
-    @EntityGraph(attributePaths = {"member", "hub"})
+    @EntityGraph(attributePaths = {"member", "hub", "school"})
     List<RideRequest> findByStatus(RequestStatus status);
 
     @EntityGraph(attributePaths = {"member"})
-    List<RideRequest> findByPartyOrderByDropoffOrder(Party party);
+    List<RideRequest> findByPartyOrderByRideOrder(Party party);
 
     Optional<RideRequest> findByActiveMemberId(Long memberId);
 
     Optional<RideRequest> findFirstByMemberIdAndPartyIsNotNullOrderByIdDesc(Long memberId);
 
-    @EntityGraph(attributePaths = {"hub"})
+    @EntityGraph(attributePaths = {"hub", "school"})
     List<RideRequest> findByMemberIdOrderByIdDesc(Long memberId);
 }

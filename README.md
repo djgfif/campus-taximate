@@ -47,7 +47,7 @@ SPRING_PROFILES_ACTIVE=demo java -jar server/target/server-0.1.0.jar
 
 ```bash
 docker compose up -d mysql
-KAKAO_REST_KEY=키 MAIL_HOST=메일서버 MAIL_USER=계정 MAIL_PASSWORD=비밀번호 java -jar server/target/server-0.1.0.jar
+KAKAO_REST_KEY=키 ACCOUNT_KEY=계좌암호화키 MAIL_HOST=메일서버 MAIL_USER=계정 MAIL_PASSWORD=비밀번호 java -jar server/target/server-0.1.0.jar
 ```
 
 키가 없으면 경로 조회가 실패해 요청을 저장하지 못한다. 메일 서버가 없으면 로그인 코드는 서버 로그에 찍힌다. 실제 사용자는 메일 서버 없이 로그인할 수 없다.

@@ -13,18 +13,19 @@ import java.util.Set;
 /** 슬롯 한 번의 매칭를 실행한다. DB와 시계에 의존하지 않는다. */
 public final class MatchingRound {
 
-    private static final Comparator<MatchRequest> ANCHOR_ORDER = Comparator
-            .comparing(MatchRequest::windowEnd).thenComparingLong(MatchRequest::id);
-
-    private record PoolKey(long hubId, Gender gender) {
-    }
-
     private final MatchingSettings settings;
     private final CandidateRanker ranker;
+    private final Comparator<MatchRequest> anchorOrder;
 
     public MatchingRound(MatchingSettings settings) {
         this.settings = settings;
         this.ranker = new CandidateRanker(settings);
+        this.anchorOrder = Comparator.<MatchRequest, Instant>comparing(r -> plan(r).urgency(r))
+                .thenComparingLong(MatchRequest::id);
+    }
+
+    private TripPlan plan(MatchRequest request) {
+        return TripPlan.of(request.direction(), settings);
     }
 
     /**
@@ -33,14 +34,12 @@ public final class MatchingRound {
      */
     public RoundResult run(Instant slot, List<MatchRequest> requests, LegProvider legs, GroupVerifier verifier) {
         requireAligned(slot);
-        Instant departure = slot.plusSeconds(settings.leadMinutes() * 60L);
 
-        Map<PoolKey, List<MatchRequest>> pools = new LinkedHashMap<>();
+        Map<MatchRequest.PoolKey, List<MatchRequest>> pools = new LinkedHashMap<>();
         requests.stream()
-                .filter(r -> r.canDepartAt(departure))
-                .sorted(ANCHOR_ORDER)
-                .forEach(r -> pools.computeIfAbsent(new PoolKey(r.hub().id(), r.gender()),
-                        k -> new ArrayList<>()).add(r));
+                .filter(r -> plan(r).eligible(r, slot))
+                .sorted(anchorOrder)
+                .forEach(r -> pools.computeIfAbsent(r.poolKey(), k -> new ArrayList<>()).add(r));
 
         List<ConfirmedGroup> confirmed = new ArrayList<>();
         Set<Long> matched = new HashSet<>();
@@ -50,8 +49,9 @@ public final class MatchingRound {
                 MatchRequest anchor = remaining.remove(0);
                 Optional<Candidate> found = firstVerified(anchor, remaining, slot, legs, verifier);
                 if (found.isPresent()) {
-                    List<MatchRequest> order = found.get().dropoffOrder();
-                    confirmed.add(new ConfirmedGroup(order, departure));
+                    List<MatchRequest> order = found.get().order();
+                    TripPlan plan = plan(anchor);
+                    confirmed.add(new ConfirmedGroup(order, plan.payer(order), plan.departure(slot).orElse(null)));
                     order.forEach(r -> matched.add(r.id()));
                     remaining.removeAll(order);
                 }
@@ -60,8 +60,8 @@ public final class MatchingRound {
 
         List<MatchRequest> expired = requests.stream()
                 .filter(r -> !matched.contains(r.id()))
-                .filter(r -> !departure.isBefore(r.windowEnd()))
-                .sorted(ANCHOR_ORDER)
+                .filter(r -> plan(r).expired(r, slot))
+                .sorted(anchorOrder)
                 .toList();
         return new RoundResult(confirmed, expired);
     }

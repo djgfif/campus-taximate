@@ -23,11 +23,21 @@ const json = (method, path, body) =>
     body: JSON.stringify(body ?? {}),
   })
 
+function settlementForm({ amount, receipt, bankName, accountNumber }) {
+  const form = new FormData()
+  form.append('amount', amount)
+  form.append('receipt', receipt)
+  form.append('bankName', bankName)
+  form.append('accountNumber', accountNumber)
+  return form
+}
+
 export const api = {
   config: () => request('/config'),
   me: () => request('/me'),
   state: () => request('/state'),
   hubs: () => request('/hubs'),
+  school: () => request('/school'),
   history: () => request('/history'),
   requestCode: (body) => json('POST', '/auth/code', body),
   profile: (body) => json('POST', '/auth/profile', body),
@@ -35,21 +45,16 @@ export const api = {
   logout: () => json('POST', '/auth/logout'),
   logoutAll: () => json('POST', '/auth/logout-all'),
   createRequest: (body) => json('POST', '/requests', body),
+  previewRequest: (body) => json('POST', '/requests/preview', body),
   cancelRequest: (id) => request(`/requests/${id}`, { method: 'DELETE' }),
   partyRoutes: (partyId) => request(`/parties/${partyId}/routes`),
   arrive: (partyId) => json('POST', `/parties/${partyId}/arrive`),
-  submitSettlement: (partyId, amount, receipt) => {
-    const form = new FormData()
-    form.append('amount', amount)
-    form.append('receipt', receipt)
-    return request(`/parties/${partyId}/settlement`, { method: 'POST', body: form })
-  },
-  correctSettlement: (partyId, amount, receipt) => {
-    const form = new FormData()
-    form.append('amount', amount)
-    form.append('receipt', receipt)
-    return request(`/parties/${partyId}/settlement/correction`, { method: 'POST', body: form })
-  },
+  boarded: (partyId) => json('POST', `/parties/${partyId}/boarded`),
+  settlementPreview: (partyId, amount) => request(`/parties/${partyId}/settlement/preview?amount=${amount}`),
+  submitSettlement: (partyId, fields) =>
+    request(`/parties/${partyId}/settlement`, { method: 'POST', body: settlementForm(fields) }),
+  correctSettlement: (partyId, fields) =>
+    request(`/parties/${partyId}/settlement/correction`, { method: 'POST', body: settlementForm(fields) }),
   sent: (transferId, revision) => json('POST', `/transfers/${transferId}/sent`, { revision }),
   received: (transferId) => json('POST', `/transfers/${transferId}/received`),
   demoRun: () => json('POST', '/demo/run'),

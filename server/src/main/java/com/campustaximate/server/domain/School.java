@@ -23,8 +23,19 @@ public class School {
     @Column(nullable = false, unique = true)
     private String emailDomain;
 
-    public School(String name, String emailDomain) {
+    /** 등교 택시가 내려 주는 곳. */
+    @Column(nullable = false)
+    private String gateName;
+
+    private double lat;
+
+    private double lon;
+
+    public School(String name, String emailDomain, String gateName, double lat, double lon) {
         this.name = name;
         this.emailDomain = emailDomain;
+        this.gateName = gateName;
+        this.lat = lat;
+        this.lon = lon;
     }
 }

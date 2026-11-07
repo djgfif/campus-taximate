@@ -16,16 +16,19 @@ public class SimulatedRouteClient implements RouteClient {
     public Route route(GeoPoint origin, List<GeoPoint> stops) {
         double km = 0;
         GeoPoint previous = origin;
+        List<Integer> legSeconds = new java.util.ArrayList<>();
         for (GeoPoint stop : stops) {
-            km += previous.distanceKm(stop) * ROAD_FACTOR;
+            double legKm = previous.distanceKm(stop) * ROAD_FACTOR;
+            km += legKm;
+            legSeconds.add((int) Math.round(legKm / SPEED_KMH * 3600));
             previous = stop;
         }
-        int seconds = (int) Math.round(km / SPEED_KMH * 3600);
+        int seconds = legSeconds.stream().mapToInt(Integer::intValue).sum();
         long fare = km <= 1.6 ? 4800 : 4800 + (long) Math.ceil((km - 1.6) / 0.131) * 100;
         List<GeoPoint> coordinates = new java.util.ArrayList<>();
         coordinates.add(origin);
         coordinates.addAll(stops);
-        return new Route(km, seconds, fare, coordinates);
+        return new Route(km, seconds, fare, coordinates, legSeconds);
     }
 
     @Override

@@ -51,25 +51,76 @@ public class SettlementService {
     @Value("${app.upload-dir}")
     private String uploadDir;
 
+    public record ShareView(long memberId, String nickname, long amount, boolean payer) {
+    }
+
     @Transactional
-    public void submit(long memberId, long partyId, long amount, MultipartFile receipt) {
+    public void submit(long memberId, long partyId, long amount, MultipartFile receipt,
+                       String bankName, String accountNumber) {
         Party party = lockAsPayer(memberId, partyId);
-        List<RideRequest> riders = requests.findByPartyOrderByDropoffOrder(party);
-        if (party.getStatus() != PartyStatus.CONFIRMED
-                || riders.stream().anyMatch(r -> r.getStatus() != RequestStatus.COMPLETED)) {
-            throw ApiException.conflict("NOT_DEPARTED", "출발 처리가 끝난 뒤에 입력할 수 있습니다.");
-        }
-        List<Long> shares = shares(amount, riders);
-        Settlement settlement = settlements.save(new Settlement(party, amount, store(receipt),
-                receipt.getContentType(), clock.now()));
-        for (int i = 0; i < riders.size() - 1; i++) {
-            transfers.save(new TransferRequest(settlement, riders.get(i).getMember(), shares.get(i)));
+        List<RideRequest> riders = requests.findByPartyOrderByRideOrder(party);
+        requireDeparted(party, riders);
+        requireAccount(bankName, accountNumber);
+        List<Long> shares = shares(amount, riders, party);
+        create(party, riders, shares, amount, store(receipt), receipt.getContentType(), bankName, accountNumber);
+    }
+
+    /** 시연의 샘플 결제자 전용. 사진 없이 정산을 만든다. */
+    @Transactional
+    public void submitForDemo(long memberId, long partyId, long amount, String bankName, String accountNumber) {
+        Party party = lockAsPayer(memberId, partyId);
+        List<RideRequest> riders = requests.findByPartyOrderByRideOrder(party);
+        requireDeparted(party, riders);
+        create(party, riders, shares(amount, riders, party), amount, null, null, bankName, accountNumber);
+    }
+
+    private void create(Party party, List<RideRequest> riders, List<Long> shares, long amount, String receiptPath,
+                        String contentType, String bankName, String accountNumber) {
+        Settlement settlement = settlements.save(new Settlement(party, amount, receiptPath, contentType,
+                bankName.trim(), accountNumber.trim(), clock.now()));
+        for (int i = 0; i < riders.size(); i++) {
+            if (!riders.get(i).getMember().getId().equals(party.getPayer().getId())) {
+                transfers.save(new TransferRequest(settlement, riders.get(i).getMember(), shares.get(i)));
+            }
         }
         party.setStatus(PartyStatus.SETTLING);
     }
 
+    private void requireDeparted(Party party, List<RideRequest> riders) {
+        if (party.getStatus() != PartyStatus.CONFIRMED
+                || riders.stream().anyMatch(r -> r.getStatus() != RequestStatus.COMPLETED)) {
+            throw ApiException.conflict("NOT_DEPARTED", "출발 처리가 끝난 뒤에 입력할 수 있습니다.");
+        }
+    }
+
+    private static void requireAccount(String bankName, String accountNumber) {
+        if (bankName == null || bankName.isBlank() || bankName.length() > 30
+                || accountNumber == null || !accountNumber.trim().matches("[0-9][0-9-]{4,38}[0-9]")) {
+            throw ApiException.badRequest("ACCOUNT_REQUIRED", "은행과 계좌번호를 확인해 주세요.");
+        }
+    }
+
+    /** 금액을 넣기 전에 결제자가 사람별 금액을 미리 본다. */
+    @Transactional(readOnly = true)
+    public List<ShareView> preview(long memberId, long partyId, long amount) {
+        Party party = parties.findById(partyId).orElseThrow(() -> ApiException.notFound("없는 일행입니다."));
+        if (!party.getPayer().getId().equals(memberId)) {
+            throw ApiException.forbidden("결제자만 볼 수 있습니다.");
+        }
+        List<RideRequest> riders = requests.findByPartyOrderByRideOrder(party);
+        List<Long> shares = shares(amount, riders, party);
+        List<ShareView> views = new ArrayList<>();
+        for (int i = 0; i < riders.size(); i++) {
+            Member member = riders.get(i).getMember();
+            views.add(new ShareView(member.getId(), member.getNickname(), shares.get(i),
+                    member.getId().equals(memberId)));
+        }
+        return views;
+    }
+
     @Transactional
-    public void correct(long memberId, long partyId, long amount, MultipartFile receipt) {
+    public void correct(long memberId, long partyId, long amount, MultipartFile receipt,
+                        String bankName, String accountNumber) {
         Party party = lockAsPayer(memberId, partyId);
         Settlement settlement = settlements.findByParty(party)
                 .orElseThrow(() -> ApiException.notFound("정산이 없습니다."));
@@ -77,10 +128,11 @@ public class SettlementService {
         if (current.stream().anyMatch(t -> t.getStatus() != TransferStatus.REQUESTED)) {
             throw ApiException.conflict("ALREADY_SENT", "누군가 이미 보내 금액을 고칠 수 없습니다.");
         }
-        List<RideRequest> riders = requests.findByPartyOrderByDropoffOrder(party);
-        List<Long> shares = shares(amount, riders);
+        requireAccount(bankName, accountNumber);
+        List<RideRequest> riders = requests.findByPartyOrderByRideOrder(party);
+        List<Long> shares = shares(amount, riders, party);
         for (TransferRequest transfer : current) {
-            for (int i = 0; i < riders.size() - 1; i++) {
+            for (int i = 0; i < riders.size(); i++) {
                 if (riders.get(i).getMember().getId().equals(transfer.getSender().getId())) {
                     transfer.setAmount(shares.get(i));
                 }
@@ -89,18 +141,22 @@ public class SettlementService {
         String oldPath = settlement.getReceiptPath();
         settlement.setReceiptPath(store(receipt));
         settlement.setReceiptContentType(receipt.getContentType());
+        settlement.setBankName(bankName.trim());
+        settlement.setAccountNumber(accountNumber.trim());
         settlement.setPaidAmount(amount);
         settlement.setRevision(settlement.getRevision() + 1);
+        settlement.setStoredAt(clock.now());
         deleteFile(oldPath);
     }
 
-    /** 보관 기간이 지난 사진 파일을 지운다. 금액과 정산 기록은 남긴다. */
+    /** 보관 기간이 지난 사진과 계좌를 지운다. 금액과 정산 기록은 남긴다. */
     @Transactional
     public void purgeReceipts() {
         Instant limit = clock.now().minus(RECEIPT_KEEP);
-        for (Settlement settlement : settlements.findByReceiptPathIsNotNullAndRequestedAtLessThanEqual(limit)) {
+        for (Settlement settlement : settlements.findExpired(limit)) {
             deleteFile(settlement.getReceiptPath());
             settlement.setReceiptPath(null);
+            settlement.clearAccount();
         }
     }
 
@@ -150,6 +206,7 @@ public class SettlementService {
                     .allMatch(t -> t.getStatus() == TransferStatus.RECEIVED);
             if (allReceived) {
                 party.setStatus(PartyStatus.COMPLETED);
+                transfer.getSettlement().clearAccount();
             }
         });
     }
@@ -167,14 +224,20 @@ public class SettlementService {
         return party;
     }
 
-    private List<Long> shares(long amount, List<RideRequest> riders) {
+    private List<Long> shares(long amount, List<RideRequest> riders, Party party) {
         if (amount <= 0 || amount > MAX_AMOUNT) {
             throw ApiException.badRequest("INVALID_AMOUNT", "금액을 다시 확인해 주세요.");
         }
         List<Long> units = new ArrayList<>();
-        riders.forEach(r -> units.add(r.getRatioUnits()));
+        int payerIndex = -1;
+        for (int i = 0; i < riders.size(); i++) {
+            units.add(riders.get(i).getRatioUnits());
+            if (riders.get(i).getMember().getId().equals(party.getPayer().getId())) {
+                payerIndex = i;
+            }
+        }
         try {
-            return SettlementCalculator.shares(amount, units);
+            return SettlementCalculator.shares(amount, units, payerIndex);
         } catch (SettlementCalculator.NegativeShareException e) {
             throw ApiException.badRequest("INVALID_AMOUNT", "금액이 너무 작습니다. 다시 확인해 주세요.");
         }

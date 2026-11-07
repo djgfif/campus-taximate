@@ -2,11 +2,13 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from './api.js'
 import AuthScreen from './AuthScreen.jsx'
 import ProfileScreen from './ProfileScreen.jsx'
-import RequestForm from './RequestForm.jsx'
-import PartyCard from './PartyCard.jsx'
 import History from './History.jsx'
 import DemoBar from './DemoBar.jsx'
-import { REQUEST_LABEL, formatTime } from './format.js'
+import Home from './Home.jsx'
+import { HomeRequest, SchoolRequest } from './RequestFlow.jsx'
+import { PartyDetail, PartyScreen } from './PartyScreens.jsx'
+import { Collect, Done, PayerInput, Transfer } from './SettleScreens.jsx'
+import { Unmatched, Waiting } from './RequestStatus.jsx'
 
 const POLL_MS = 5000
 
@@ -85,49 +87,66 @@ export default function App() {
     )
   }
 
-  const latest = state?.latestRequest || null
-  const waiting = latest?.status === 'WAITING'
-  const inParty = latest?.status === 'MATCHED'
-  const canRequest = state && !waiting && !inParty
-
   return (
     <main className="app">
       <Header nickname={me.nickname} onLogout={logout} />
+      {config?.demo && <DemoBar now={state?.now} run={run} />}
       {config?.simulatedRoute && <p className="notice">모의 경로로 동작 중입니다. 금액과 시간은 실제 값이 아닙니다.</p>}
       {error && <p className="error" role="alert">{error}</p>}
-      <nav className="tabs">
-        <button className={tab === 'home' ? 'active' : ''} onClick={() => setTab('home')}>내 탑승</button>
-        <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>이용 내역</button>
-      </nav>
-
-      {tab === 'history' && <History onLogoutAll={logoutAll} />}
-
-      {tab === 'home' && state && (
-        <>
-          {state.restricted && (
-            <p className="error">24시간이 지나도 보내지 않은 송금이 있어 새 요청을 할 수 없습니다. 보낸 뒤 보냄을 눌러 주세요.</p>
-          )}
-          {state.parties.map((party) => (
-            <PartyCard key={party.id} party={party} myId={me.id} run={run} />
-          ))}
-          {waiting && (
-            <section className="card">
-              <h2>일행을 찾는 중</h2>
-              <p>{latest.hubName} → {latest.dropoffName}</p>
-              <p className="muted">출발 가능 {formatTime(latest.windowStart)} ~ {formatTime(latest.windowEnd)}</p>
-              <p className="muted">단독 이동 예상 {latest.soloFare.toLocaleString()}원, {latest.soloMinutes}분</p>
-              <button className="secondary" onClick={() => run(() => api.cancelRequest(latest.id))}>요청 취소</button>
-            </section>
-          )}
-          {canRequest && latest && latest.status !== 'COMPLETED' && (
-            <p className="notice">지난 요청: {REQUEST_LABEL[latest.status]}</p>
-          )}
-          {canRequest && !state.restricted && <RequestForm config={config} now={state.now} run={run} />}
-        </>
-      )}
-
-      {config?.demo && <DemoBar now={state?.now} run={run} />}
+      {tab === 'history' && <History onBack={() => setTab('home')} onLogoutAll={logoutAll} />}
+      {tab === 'home' && state && <Flow state={state} config={config} myId={me.id} run={run} onHistory={() => setTab('history')} />}
     </main>
+  )
+}
+
+/** 서버 상태에서 지금 보여 줄 한 화면을 고른다. */
+function Flow({ state, config, myId, run, onHistory }) {
+  const [draft, setDraft] = useState(null)
+  const [hidden, setHidden] = useState([])
+  const [seenRequest, setSeenRequest] = useState(null)
+  const [detailId, setDetailId] = useState(null)
+  const [correctingId, setCorrectingId] = useState(null)
+
+  const party = state.parties.find((p) => !hidden.includes(p.id))
+  const hide = (id) => setHidden((list) => [...list, id])
+  const latest = state.latestRequest || null
+
+  if (party) {
+    if (detailId === party.id) return <PartyDetail party={party} myId={myId} onBack={() => setDetailId(null)} />
+    if (party.canSettle || (correctingId === party.id && party.settlement?.canCorrect)) {
+      return (
+        <PayerInput party={party} run={run} onDone={() => setCorrectingId(null)}
+          onLater={() => (party.canSettle ? hide(party.id) : setCorrectingId(null))} />
+      )
+    }
+    if (party.settlement) {
+      if (party.payer) {
+        return <Collect party={party} run={run} onCorrect={() => setCorrectingId(party.id)} onHome={() => hide(party.id)} />
+      }
+      const transfer = party.settlement.transfers.find((t) => t.senderId === myId)
+      return transfer.status === 'REQUESTED'
+        ? <Transfer party={party} transfer={transfer} run={run} onHome={() => hide(party.id)} />
+        : <Done party={party} transfer={transfer} onHome={() => hide(party.id)} />
+    }
+    return <PartyScreen party={party} now={state.now} myId={myId} run={run} onDetail={() => setDetailId(party.id)} onHome={() => hide(party.id)} />
+  }
+  if (latest?.status === 'WAITING') return <Waiting latest={latest} config={config} run={run} />
+  if (draft) {
+    const Request = draft.direction === 'TO_SCHOOL' ? SchoolRequest : HomeRequest
+    return <Request initial={draft.initial} config={config} now={state.now} run={run} onClose={() => setDraft(null)} />
+  }
+  if (latest?.status === 'UNMATCHED' && seenRequest !== latest.id) {
+    return (
+      <Unmatched latest={latest} onHome={() => setSeenRequest(latest.id)}
+        onRetry={() => {
+          setSeenRequest(latest.id)
+          setDraft({ direction: latest.direction, initial: latest })
+        }} />
+    )
+  }
+  return (
+    <Home state={state} onStart={setDraft} onHistory={onHistory}
+      onReopen={(id) => setHidden((list) => list.filter((item) => item !== id))} />
   )
 }
 

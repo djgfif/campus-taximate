@@ -3,14 +3,10 @@ package com.campustaximate.matching;
 import java.time.Instant;
 import java.util.List;
 
-/** 확정된 일행. 결제자는 마지막 하차자다. */
-public record ConfirmedGroup(List<MatchRequest> dropoffOrder, Instant departure) {
+/** 확정된 일행. departure는 슬롯으로 정해지는 방향만 값이 있다. 등교는 경로 확인 단계가 구한다. */
+public record ConfirmedGroup(List<MatchRequest> order, MatchRequest payer, Instant departure) {
 
     public ConfirmedGroup {
-        dropoffOrder = List.copyOf(dropoffOrder);
-    }
-
-    public MatchRequest payer() {
-        return dropoffOrder.get(dropoffOrder.size() - 1);
+        order = List.copyOf(order);
     }
 }

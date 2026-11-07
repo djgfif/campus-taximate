@@ -1,0 +1,583 @@
+package com.campustaximate.server;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.campustaximate.server.common.AppClock;
+import com.campustaximate.server.repository.MemberRepository;
+import com.campustaximate.server.repository.PartyRepository;
+import com.campustaximate.server.repository.RideRequestRepository;
+import com.campustaximate.server.repository.SettlementRepository;
+import com.campustaximate.server.repository.TransferRequestRepository;
+import com.campustaximate.server.service.DemoService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.web.MockHttpSession;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles("demo")
+@TestPropertySource(properties = "app.upload-dir=target/test-uploads")
+class CommuteFlowTest {
+
+    /** 학교에서 가까운 순서. */
+    private static final double[][] POINTS = {{37.785, 127.105}, {37.745, 127.075}, {37.700, 127.050}};
+
+    @Autowired private MockMvc mvc;
+    @Autowired private ObjectMapper json;
+    @Autowired private AppClock clock;
+    @Autowired private DemoService demo;
+    @Autowired private MemberRepository members;
+    @Autowired private RideRequestRepository requests;
+    @Autowired private PartyRepository parties;
+    @Autowired private SettlementRepository settlements;
+    @Autowired private TransferRequestRepository transfers;
+    @Autowired private JdbcTemplate jdbc;
+    @org.springframework.boot.test.mock.mockito.SpyBean private com.campustaximate.server.route.RouteClient routes;
+
+    private Instant arriveBy;
+
+    @BeforeEach
+    void reset() {
+        transfers.deleteAll();
+        settlements.deleteAll();
+        requests.deleteAll();
+        parties.deleteAll();
+        members.findAll().forEach(m -> {
+            m.setNoShowCount(0);
+            members.save(m);
+        });
+        clock.moveTo(AppClock.slotOf(Instant.now()).plusSeconds(60));
+        arriveBy = AppClock.slotOf(clock.now()).plus(Duration.ofHours(6));
+    }
+
+    @Test
+    void farthestRiderBoardsFirstAndPaysAndEveryoneElseSends() throws Exception {
+        List<MockHttpSession> users = threeRequests();
+        demo.advance(5);
+
+        MockHttpSession farthest = users.get(2);
+        JsonNode party = onlyParty(farthest);
+        long partyId = party.get("id").asLong();
+        assertThat(party.get("direction").asText()).isEqualTo("TO_SCHOOL");
+        assertThat(party.get("payer").asBoolean()).isTrue();
+        assertThat(party.get("canBoard").asBoolean()).isTrue();
+        assertThat(party.get("canArrive").asBoolean()).isTrue();
+
+        JsonNode riders = party.get("members");
+        assertThat(riders).hasSize(3);
+        Instant previous = null;
+        for (JsonNode rider : riders) {
+            Instant board = Instant.parse(rider.get("boardAt").asText());
+            if (previous != null) {
+                assertThat(board).isAfter(previous);
+            }
+            previous = board;
+        }
+        Instant first = Instant.parse(riders.get(0).get("boardAt").asText());
+        assertThat(Instant.parse(party.get("departureAt").asText())).isEqualTo(first);
+        assertThat(Instant.parse(party.get("callAt").asText())).isEqualTo(first.minus(Duration.ofMinutes(10)));
+        assertThat(Instant.parse(party.get("arrivalAt").asText())).isBeforeOrEqualTo(arriveBy);
+        assertThat(onlyParty(users.get(0)).get("canBoard").asBoolean()).isFalse();
+
+        boarded(partyId, farthest).andExpect(status().isOk());
+        assertThat(onlyParty(users.get(0)).get("boardedAt").isNull()).isFalse();
+        assertThat(onlyParty(farthest).get("members").get(0).get("arrived").asBoolean()).isTrue();
+        arrive(partyId, users.get(0)).andExpect(status().isOk());
+        arrive(partyId, users.get(1)).andExpect(status().isOk());
+        passAllBoardings(party);
+
+        assertThat(onlyParty(farthest).get("canSettle").asBoolean()).isTrue();
+        long total = onlyParty(farthest).get("expectedTotal").asLong();
+        submit(partyId, total, "OO은행", "123-456-789", farthest).andExpect(status().isOk());
+
+        JsonNode settlement = onlyParty(users.get(0)).get("settlement");
+        assertThat(settlement.get("bankName").asText()).isEqualTo("OO은행");
+        assertThat(settlement.get("accountNumber").asText()).isEqualTo("123-456-789");
+        assertThat(settlement.get("transfers")).hasSize(2);
+        long sent = 0;
+        long payerId = onlyParty(farthest).get("payerId").asLong();
+        for (JsonNode transfer : settlement.get("transfers")) {
+            assertThat(transfer.get("senderId").asLong()).isNotEqualTo(payerId);
+            sent += transfer.get("amount").asLong();
+        }
+        assertThat(sent).isLessThan(total);
+        assertThat(total - sent).isGreaterThan(sent / 2);
+
+        for (JsonNode transfer : settlement.get("transfers")) {
+            MockHttpSession sender = sessionOf(users, transfer.get("senderId").asLong());
+            mvc.perform(post("/api/transfers/" + transfer.get("id").asLong() + "/sent").session(sender)
+                    .contentType(MediaType.APPLICATION_JSON).content("{\"revision\":0}")).andExpect(status().isOk());
+            mvc.perform(post("/api/transfers/" + transfer.get("id").asLong() + "/received").session(farthest))
+                    .andExpect(status().isOk());
+        }
+        assertThat(state(farthest).get("parties")).isEmpty();
+        var stored = settlements.findAll().get(0);
+        assertThat(stored.getBankName()).isNull();
+        assertThat(stored.getAccountNumber()).isNull();
+        assertThat(stored.getPaidAmount()).isEqualTo(total);
+    }
+
+    @Test
+    void laterRiderIsNotNoShowAtFirstBoardingTime() throws Exception {
+        List<MockHttpSession> users = threeRequests();
+        demo.advance(5);
+        JsonNode party = onlyParty(users.get(2));
+        long partyId = party.get("id").asLong();
+        boarded(partyId, users.get(2)).andExpect(status().isOk());
+
+        moveTo(Instant.parse(party.get("members").get(0).get("arriveDeadline").asText()).plusSeconds(60));
+
+        JsonNode after = onlyParty(users.get(0));
+        assertThat(after.get("members")).hasSize(3);
+        assertThat(after.get("members").get(1).get("noShow").asBoolean()).isFalse();
+        assertThat(after.get("members").get(2).get("noShow").asBoolean()).isFalse();
+        assertThat(after.get("canArrive").asBoolean()).isTrue();
+    }
+
+    @Test
+    void middleNoShowLeavesAtFinalCheckAndKeepsBoardingTimes() throws Exception {
+        List<MockHttpSession> users = threeRequests();
+        demo.advance(5);
+        JsonNode party = onlyParty(users.get(2));
+        long partyId = party.get("id").asLong();
+        Instant lastBoard = Instant.parse(party.get("members").get(2).get("boardAt").asText());
+        boarded(partyId, users.get(2)).andExpect(status().isOk());
+        arrive(partyId, users.get(0)).andExpect(status().isOk());
+
+        moveTo(Instant.parse(party.get("members").get(1).get("arriveDeadline").asText()).plusSeconds(60));
+        assertThat(onlyParty(users.get(0)).get("members").get(1).get("noShow").asBoolean()).isTrue();
+        arrive(partyId, users.get(1)).andExpect(status().isConflict());
+
+        passAllBoardings(party);
+
+        JsonNode after = onlyParty(users.get(2));
+        assertThat(after.get("members")).hasSize(2);
+        assertThat(Instant.parse(after.get("members").get(1).get("boardAt").asText())).isEqualTo(lastBoard);
+        assertThat(after.get("payer").asBoolean()).isTrue();
+        assertThat(after.get("canSettle").asBoolean()).isTrue();
+        assertThat(state(users.get(1)).get("parties")).isEmpty();
+        assertThat(members.findByEmail("demo-f2@daejin.ac.kr").orElseThrow().getNoShowCount()).isEqualTo(1);
+    }
+
+    @Test
+    void firstRiderNoShowHandsPayerToNextRider() throws Exception {
+        List<MockHttpSession> users = threeRequests();
+        demo.advance(5);
+        JsonNode party = onlyParty(users.get(2));
+        long partyId = party.get("id").asLong();
+        arrive(partyId, users.get(1)).andExpect(status().isOk());
+        arrive(partyId, users.get(0)).andExpect(status().isOk());
+
+        moveTo(Instant.parse(party.get("members").get(0).get("arriveDeadline").asText()).plusSeconds(60));
+
+        JsonNode next = onlyParty(users.get(1));
+        assertThat(next.get("payer").asBoolean()).isTrue();
+        assertThat(next.get("canBoard").asBoolean()).isTrue();
+        boarded(partyId, users.get(2)).andExpect(status().isForbidden());
+        boarded(partyId, users.get(1)).andExpect(status().isOk());
+
+        passAllBoardings(party);
+
+        JsonNode after = onlyParty(users.get(1));
+        assertThat(after.get("members")).hasSize(2);
+        assertThat(after.get("canSettle").asBoolean()).isTrue();
+        submit(partyId, after.get("expectedTotal").asLong(), "OO은행", "123-456-789", users.get(1))
+                .andExpect(status().isOk());
+        JsonNode transfersView = onlyParty(users.get(0)).get("settlement").get("transfers");
+        assertThat(transfersView).hasSize(1);
+        assertThat(transfersView.get(0).get("senderId").asLong()).isEqualTo(idOf(users.get(0)));
+    }
+
+    @Test
+    void onlyOneRiderLeftCancelsParty() throws Exception {
+        List<MockHttpSession> users = threeRequests();
+        demo.advance(5);
+        JsonNode party = onlyParty(users.get(2));
+        boarded(party.get("id").asLong(), users.get(2)).andExpect(status().isOk());
+
+        passAllBoardings(party);
+
+        assertThat(state(users.get(2)).get("parties")).isEmpty();
+        assertThat(state(users.get(2)).get("latestRequest").get("status").asText()).isEqualTo("UNMATCHED");
+    }
+
+    @Test
+    void cancelBeforeDepartureShrinksAndNextRiderBecomesFirst() throws Exception {
+        List<MockHttpSession> users = threeRequests();
+        demo.advance(5);
+        JsonNode party = onlyParty(users.get(2));
+        long requestId = party.get("myRequestId").asLong();
+
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .delete("/api/requests/" + requestId).session(users.get(2))).andExpect(status().isOk());
+
+        JsonNode after = onlyParty(users.get(1));
+        assertThat(after.get("members")).hasSize(2);
+        assertThat(after.get("payer").asBoolean()).isTrue();
+        assertThat(after.get("departureAt").asText()).isEqualTo(after.get("members").get(0).get("boardAt").asText());
+    }
+
+    @Test
+    void laterRiderCanCancelAfterFirstBoardingUntilOwnBoardingTime() throws Exception {
+        List<MockHttpSession> users = threeRequests();
+        demo.advance(5);
+        JsonNode party = onlyParty(users.get(2));
+        long partyId = party.get("id").asLong();
+        boarded(partyId, users.get(2)).andExpect(status().isOk());
+        moveTo(Instant.parse(party.get("departureAt").asText()).plusSeconds(60));
+
+        JsonNode mine = onlyParty(users.get(0));
+        assertThat(mine.get("canCancel").asBoolean()).isTrue();
+        assertThat(onlyParty(users.get(2)).get("canCancel").asBoolean()).isFalse();
+        cancel(mine.get("myRequestId").asLong(), users.get(0)).andExpect(status().isOk());
+
+        JsonNode after = onlyParty(users.get(2));
+        assertThat(after.get("members")).hasSize(2);
+        assertThat(after.get("payer").asBoolean()).isTrue();
+        assertThat(state(users.get(0)).get("parties")).isEmpty();
+        assertThat(members.findByEmail("demo-f1@daejin.ac.kr").orElseThrow().getNoShowCount()).isZero();
+    }
+
+    @Test
+    void cancelAfterOwnBoardingTimeIsRefused() throws Exception {
+        List<MockHttpSession> users = threeRequests();
+        demo.advance(5);
+        JsonNode party = onlyParty(users.get(1));
+        moveTo(Instant.parse(party.get("myBoardAt").asText()).plusSeconds(1));
+
+        assertThat(onlyParty(users.get(1)).get("canCancel").asBoolean()).isFalse();
+        cancel(party.get("myRequestId").asLong(), users.get(1)).andExpect(status().isConflict());
+    }
+
+    @Test
+    void boardedPayerCannotCancelEvenBeforeBoardingTime() throws Exception {
+        List<MockHttpSession> users = threeRequests();
+        demo.advance(5);
+        JsonNode party = onlyParty(users.get(2));
+        boarded(party.get("id").asLong(), users.get(2)).andExpect(status().isOk());
+
+        cancel(party.get("myRequestId").asLong(), users.get(2)).andExpect(status().isConflict());
+    }
+
+    @Test
+    void cancelDoesNotHandPayerBackToNoShowRider() throws Exception {
+        List<MockHttpSession> users = threeRequests();
+        users.add(login("demo-f4"));
+        createRequest(users.get(3), new double[] {37.810, 127.120}, arriveBy).andExpect(status().isOk());
+        demo.advance(5);
+        JsonNode party = onlyParty(users.get(2));
+        assertThat(party.get("members")).hasSize(4);
+        JsonNode riders = party.get("members");
+        moveTo(Instant.parse(riders.get(0).get("arriveDeadline").asText()).plusSeconds(60));
+
+        MockHttpSession next = sessionOf(users, riders.get(1).get("memberId").asLong());
+        MockHttpSession last = sessionOf(users, riders.get(3).get("memberId").asLong());
+        assertThat(onlyParty(next).get("payer").asBoolean()).isTrue();
+        cancel(onlyParty(last).get("myRequestId").asLong(), last).andExpect(status().isOk());
+
+        JsonNode after = onlyParty(next);
+        assertThat(after.get("payer").asBoolean()).isTrue();
+        assertThat(after.get("members")).hasSize(2);
+        assertThat(state(users.get(2)).get("parties")).isEmpty();
+    }
+
+    @Test
+    void routeFailureAtFinalCheckKeepsBoardedPartyAndSettlement() throws Exception {
+        List<MockHttpSession> users = threeRequests();
+        demo.advance(5);
+        JsonNode party = onlyParty(users.get(2));
+        long partyId = party.get("id").asLong();
+        long total = party.get("expectedTotal").asLong();
+        boarded(partyId, users.get(2)).andExpect(status().isOk());
+        arrive(partyId, users.get(1)).andExpect(status().isOk());
+        org.mockito.Mockito.doThrow(new com.campustaximate.server.route.RouteClient.RouteUnavailableException("x", null))
+                .when(routes).route(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+
+        passAllBoardings(party);
+        org.mockito.Mockito.reset(routes);
+
+        JsonNode after = onlyParty(users.get(2));
+        assertThat(after.get("members")).hasSize(2);
+        assertThat(after.get("expectedTotal").asLong()).isEqualTo(total);
+        assertThat(after.get("canSettle").asBoolean()).isTrue();
+        submit(partyId, total, "OO은행", "123-456-789", users.get(2)).andExpect(status().isOk());
+    }
+
+    @Test
+    void reuploadRestartsTheSevenDayKeep() throws Exception {
+        List<MockHttpSession> users = settledReady();
+        MockHttpSession payer = users.get(2);
+        JsonNode party = onlyParty(payer);
+        long partyId = party.get("id").asLong();
+        long total = party.get("expectedTotal").asLong();
+        submit(partyId, total, "OO은행", "123-456-789", payer).andExpect(status().isOk());
+        demo.advance(48 * 60);
+        demo.advance(48 * 60);
+        demo.advance(48 * 60);
+        demo.advance(25 * 60);
+        assertThat(onlyParty(users.get(0)).get("settlement").get("accountNumber").isNull()).isTrue();
+
+        MockMultipartFile receipt = new MockMultipartFile("receipt", "n.png", "image/png", new byte[] {4, 5, 6});
+        mvc.perform(multipart("/api/parties/" + partyId + "/settlement/correction").file(receipt)
+                .param("amount", String.valueOf(total)).param("bankName", "OO은행")
+                .param("accountNumber", "123-456-789").session(payer)).andExpect(status().isOk());
+        demo.advance(10);
+
+        assertThat(onlyParty(users.get(0)).get("settlement").get("accountNumber").asText()).isEqualTo("123-456-789");
+    }
+
+    @Test
+    void differentArrivalTimesAreNotMatched() throws Exception {
+        MockHttpSession a = login("demo-f1");
+        MockHttpSession b = login("demo-f2");
+        MockHttpSession c = login("demo-f3");
+        createRequest(a, POINTS[0], arriveBy).andExpect(status().isOk());
+        createRequest(b, POINTS[1], arriveBy).andExpect(status().isOk());
+        createRequest(c, POINTS[2], arriveBy.plusSeconds(300)).andExpect(status().isOk());
+        demo.advance(5);
+        assertThat(state(a).get("parties")).isEmpty();
+        assertThat(state(c).get("parties")).isEmpty();
+    }
+
+    @Test
+    void twoRidersWaitForDeadlineSlotThenConfirm() throws Exception {
+        MockHttpSession a = login("demo-f1");
+        MockHttpSession b = login("demo-f2");
+        createRequest(a, POINTS[0], arriveBy).andExpect(status().isOk());
+        createRequest(b, POINTS[1], arriveBy).andExpect(status().isOk());
+        Instant resultA = Instant.parse(state(a).get("latestRequest").get("resultBy").asText());
+        Instant resultB = Instant.parse(state(b).get("latestRequest").get("resultBy").asText());
+        Instant earliest = resultA.isBefore(resultB) ? resultA : resultB;
+
+        moveTo(earliest.minusSeconds(300));
+        assertThat(state(a).get("parties")).isEmpty();
+
+        moveTo(earliest.plusSeconds(1));
+        assertThat(state(a).get("parties")).hasSize(1);
+    }
+
+    @Test
+    void loneRequestIsUnmatchedAfterDeadlineSlot() throws Exception {
+        MockHttpSession a = login("demo-f1");
+        createRequest(a, POINTS[0], arriveBy).andExpect(status().isOk());
+        Instant resultBy = Instant.parse(state(a).get("latestRequest").get("resultBy").asText());
+
+        moveTo(resultBy.minusSeconds(300));
+        assertThat(state(a).get("latestRequest").get("status").asText()).isEqualTo("WAITING");
+
+        moveTo(resultBy.plusSeconds(1));
+        assertThat(state(a).get("latestRequest").get("status").asText()).isEqualTo("UNMATCHED");
+    }
+
+    @Test
+    void requestTooCloseToArrivalIsRejected() throws Exception {
+        MockHttpSession a = login("demo-f1");
+        createRequest(a, POINTS[0], AppClock.slotOf(clock.now()).plus(Duration.ofMinutes(90)))
+                .andExpect(status().isBadRequest());
+        createRequest(a, POINTS[0], arriveBy.plusSeconds(60)).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void previewShowsSoloFareAndResultTimeWithoutSaving() throws Exception {
+        MockHttpSession a = login("demo-f1");
+        JsonNode preview = read(mvc.perform(post("/api/requests/preview").session(a)
+                        .contentType(MediaType.APPLICATION_JSON).content(body(POINTS[0], arriveBy)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertThat(preview.get("soloFare").asLong()).isPositive();
+        assertThat(preview.get("soloMinutes").asInt()).isPositive();
+        assertThat(Instant.parse(preview.get("resultBy").asText())).isBefore(arriveBy);
+        assertThat(requests.count()).isZero();
+    }
+
+    @Test
+    void settlementPreviewIsForPayerOnly() throws Exception {
+        List<MockHttpSession> users = threeRequests();
+        demo.advance(5);
+        long partyId = onlyParty(users.get(2)).get("id").asLong();
+
+        JsonNode shares = read(mvc.perform(get("/api/parties/" + partyId + "/settlement/preview")
+                        .param("amount", "15000").session(users.get(2)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        long sum = 0;
+        for (JsonNode share : shares) {
+            sum += share.get("amount").asLong();
+        }
+        assertThat(sum).isEqualTo(15000);
+        assertThat(shares.get(0).get("payer").asBoolean()).isTrue();
+        mvc.perform(get("/api/parties/" + partyId + "/settlement/preview").param("amount", "15000")
+                .session(users.get(0))).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void accountIsRequiredEncryptedHiddenFromOutsidersAndDeletedAfterSevenDays() throws Exception {
+        List<MockHttpSession> users = settledReady();
+        MockHttpSession payer = users.get(2);
+        long partyId = onlyParty(payer).get("id").asLong();
+        long total = onlyParty(payer).get("expectedTotal").asLong();
+
+        submit(partyId, total, "", "123-456-789", payer).andExpect(status().isBadRequest());
+        submit(partyId, total, "OO은행", "계좌", payer).andExpect(status().isBadRequest());
+        submit(partyId, total, "OO은행", "123-456-789", payer).andExpect(status().isOk());
+
+        String raw = jdbc.queryForObject("select account_number from settlement", String.class);
+        assertThat(raw).isNotNull().doesNotContain("123-456-789");
+
+        MockHttpSession outsider = login("demo-f4");
+        mvc.perform(get("/api/parties/" + partyId).session(outsider)).andExpect(status().isForbidden());
+
+        demo.advance(48 * 60);
+        demo.advance(48 * 60);
+        demo.advance(48 * 60);
+        demo.advance(25 * 60);
+        var stored = settlements.findAll().get(0);
+        assertThat(stored.getAccountNumber()).isNull();
+        assertThat(stored.getBankName()).isNull();
+        assertThat(stored.getPaidAmount()).isEqualTo(total);
+    }
+
+    @Test
+    void demoSamplesFollowMyArrivalTimeAndActThroughTheFlow() throws Exception {
+        MockHttpSession me = login("demo-f1");
+        createRequest(me, POINTS[0], arriveBy).andExpect(status().isOk());
+        demo.addSamples(idOf(me), 2);
+        demo.advance(5);
+        JsonNode party = onlyParty(me);
+        assertThat(party.get("direction").asText()).isEqualTo("TO_SCHOOL");
+        arrive(party.get("id").asLong(), me).andExpect(status().isOk());
+        demo.actAsSamples(idOf(me));
+        passAllBoardings(party);
+        demo.actAsSamples(idOf(me));
+        JsonNode settled = onlyParty(me);
+        if (!settled.get("payer").asBoolean()) {
+            assertThat(settled.get("settlement").get("accountNumber").asText()).isNotBlank();
+        }
+    }
+
+    private List<MockHttpSession> settledReady() throws Exception {
+        List<MockHttpSession> users = threeRequests();
+        demo.advance(5);
+        JsonNode party = onlyParty(users.get(2));
+        long partyId = party.get("id").asLong();
+        boarded(partyId, users.get(2)).andExpect(status().isOk());
+        arrive(partyId, users.get(0)).andExpect(status().isOk());
+        arrive(partyId, users.get(1)).andExpect(status().isOk());
+        passAllBoardings(party);
+        return users;
+    }
+
+    private void passAllBoardings(JsonNode party) throws Exception {
+        JsonNode riders = party.get("members");
+        moveTo(Instant.parse(riders.get(riders.size() - 1).get("arriveDeadline").asText()).plusSeconds(60));
+    }
+
+    private void moveTo(Instant target) {
+        long seconds = Duration.between(clock.now(), target).getSeconds();
+        if (seconds > 0) {
+            demo.advance((int) ((seconds + 59) / 60));
+        }
+    }
+
+    private List<MockHttpSession> threeRequests() throws Exception {
+        List<MockHttpSession> users = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            MockHttpSession user = login("demo-f" + (i + 1));
+            createRequest(user, POINTS[i], arriveBy).andExpect(status().isOk());
+            users.add(user);
+        }
+        return users;
+    }
+
+    private String body(double[] point, Instant arrival) throws Exception {
+        return json.writeValueAsString(Map.of("direction", "TO_SCHOOL", "arriveBy", arrival.toString(),
+                "pointName", "샘플", "pointLat", point[0], "pointLon", point[1]));
+    }
+
+    private ResultActions createRequest(MockHttpSession user, double[] point, Instant arrival) throws Exception {
+        return mvc.perform(post("/api/requests").session(user).contentType(MediaType.APPLICATION_JSON)
+                .content(body(point, arrival)));
+    }
+
+    private ResultActions cancel(long requestId, MockHttpSession user) throws Exception {
+        return mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .delete("/api/requests/" + requestId).session(user));
+    }
+
+    private ResultActions arrive(long partyId, MockHttpSession user) throws Exception {
+        return mvc.perform(post("/api/parties/" + partyId + "/arrive").session(user));
+    }
+
+    private ResultActions boarded(long partyId, MockHttpSession user) throws Exception {
+        return mvc.perform(post("/api/parties/" + partyId + "/boarded").session(user));
+    }
+
+    private ResultActions submit(long partyId, long amount, String bank, String account, MockHttpSession user)
+            throws Exception {
+        MockMultipartFile receipt = new MockMultipartFile("receipt", "r.png", "image/png", new byte[] {1, 2, 3});
+        return mvc.perform(multipart("/api/parties/" + partyId + "/settlement").file(receipt)
+                .param("amount", String.valueOf(amount)).param("bankName", bank).param("accountNumber", account)
+                .session(user));
+    }
+
+    private MockHttpSession login(String id) throws Exception {
+        MockHttpSession session = new MockHttpSession();
+        String email = id + "@daejin.ac.kr";
+        String response = mvc.perform(post("/api/auth/code").session(session).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"" + email + "\"}"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String code = read(response).get("demoCode").asText();
+        mvc.perform(post("/api/auth/login").session(session).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"" + email + "\",\"code\":\"" + code + "\"}"))
+                .andExpect(status().isOk());
+        return session;
+    }
+
+    private JsonNode state(MockHttpSession user) throws Exception {
+        return read(mvc.perform(get("/api/state").session(user)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString());
+    }
+
+    private JsonNode onlyParty(MockHttpSession user) throws Exception {
+        JsonNode list = state(user).get("parties");
+        assertThat(list).hasSize(1);
+        return list.get(0);
+    }
+
+    private long idOf(MockHttpSession user) throws Exception {
+        return read(mvc.perform(get("/api/me").session(user)).andReturn().getResponse().getContentAsString())
+                .get("id").asLong();
+    }
+
+    private MockHttpSession sessionOf(List<MockHttpSession> users, long memberId) throws Exception {
+        for (MockHttpSession user : users) {
+            if (idOf(user) == memberId) {
+                return user;
+            }
+        }
+        throw new AssertionError("no session");
+    }
+
+    private JsonNode read(String body) throws Exception {
+        return json.readTree(body);
+    }
+}

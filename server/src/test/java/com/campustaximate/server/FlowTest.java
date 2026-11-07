@@ -149,7 +149,7 @@ class FlowTest {
         mvc.perform(delete("/api/requests/" + requestId).session(users.get(0))).andExpect(status().isConflict());
 
         assertThat(once).isTrue();
-        var riders = requests.findByPartyOrderByDropoffOrder(parties.findById(partyId).orElseThrow());
+        var riders = requests.findByPartyOrderByRideOrder(parties.findById(partyId).orElseThrow());
         assertThat(riders).hasSize(3);
         assertThat(riders).allMatch(r -> r.getStatus() == com.campustaximate.server.domain.RequestStatus.COMPLETED);
     }
@@ -167,11 +167,11 @@ class FlowTest {
         assertThat(state(users.get(0)).get("parties")).isEmpty();
         JsonNode after = onlyParty(users.get(1));
         assertThat(after.get("members")).hasSize(2);
-        assertThat(after.get("members").get(0).get("dropoffOrder").asInt()).isEqualTo(1);
+        assertThat(after.get("members").get(0).get("rideOrder").asInt()).isEqualTo(1);
         assertThat(after.get("id").asLong()).isEqualTo(before.get("id").asLong());
-        var remaining = requests.findByPartyOrderByDropoffOrder(parties.findById(after.get("id").asLong()).orElseThrow());
+        var remaining = requests.findByPartyOrderByRideOrder(parties.findById(after.get("id").asLong()).orElseThrow());
         var weights = remaining.stream().map(r -> r.getSoloFare()).toList();
-        var shares = com.campustaximate.settlement.SettlementCalculator.shares(after.get("expectedTotal").asLong(), weights);
+        var shares = com.campustaximate.settlement.SettlementCalculator.shares(after.get("expectedTotal").asLong(), weights, weights.size() - 1);
         assertThat(remaining.stream().map(r -> r.getRatioUnits()).toList()).isEqualTo(weights);
         assertThat(remaining.stream().map(r -> r.getExpectedShare()).toList()).isEqualTo(shares);
         assertThat(after.get("payerId").asLong()).isEqualTo(remaining.getLast().getMember().getId());
@@ -442,7 +442,7 @@ class FlowTest {
         MockMultipartFile svg = new MockMultipartFile("receipt", "r.svg", "image/svg+xml", "<svg/>".getBytes());
 
         mvc.perform(multipart("/api/parties/" + partyId + "/settlement").file(svg)
-                .param("amount", "20000").session(payer)).andExpect(status().isBadRequest());
+                .param("amount", "20000").param("bankName", "OO은행").param("accountNumber", "000-0000-0000").session(payer)).andExpect(status().isBadRequest());
         submit(partyId, 1_000_000_000_000_000L, payer).andExpect(status().isBadRequest());
     }
 
@@ -552,6 +552,23 @@ class FlowTest {
         }
     }
 
+    @Test
+    void repeatedDepartureCheckCountsNoShowOnce() throws Exception {
+        List<MockHttpSession> users = threeRequests();
+        demo.advance(5);
+        long partyId = onlyParty(users.get(0)).get("id").asLong();
+        mvc.perform(post("/api/parties/" + partyId + "/arrive").session(users.get(0))).andExpect(status().isOk());
+        mvc.perform(post("/api/parties/" + partyId + "/arrive").session(users.get(1))).andExpect(status().isOk());
+        org.mockito.Mockito.doThrow(new org.springframework.dao.OptimisticLockingFailureException("x"))
+                .when(routes).route(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+
+        demo.advance(40);
+        org.mockito.Mockito.reset(routes);
+        demo.advance(5);
+
+        assertThat(members.findByEmail("demo-f3@daejin.ac.kr").orElseThrow().getNoShowCount()).isEqualTo(1);
+    }
+
     private List<MockHttpSession> departedParty() throws Exception {
         List<MockHttpSession> users = threeRequests();
         demo.advance(5);
@@ -580,20 +597,20 @@ class FlowTest {
 
     private org.springframework.test.web.servlet.ResultActions postRequest(MockHttpSession user, Instant start, Instant end, double[] point) throws Exception {
         String body = json.writeValueAsString(Map.of("hubId", hubId, "windowStart", start.toString(),
-                "windowEnd", end.toString(), "dropoffName", "샘플", "dropoffLat", point[0], "dropoffLon", point[1]));
+                "windowEnd", end.toString(), "direction", "FROM_HUB", "pointName", "샘플", "pointLat", point[0], "pointLon", point[1]));
         return mvc.perform(post("/api/requests").session(user).contentType(MediaType.APPLICATION_JSON).content(body));
     }
 
     private org.springframework.test.web.servlet.ResultActions submit(long partyId, long amount, MockHttpSession user) throws Exception {
         MockMultipartFile receipt = new MockMultipartFile("receipt", "r.png", "image/png", new byte[] {1, 2, 3});
         return mvc.perform(multipart("/api/parties/" + partyId + "/settlement").file(receipt)
-                .param("amount", String.valueOf(amount)).session(user));
+                .param("amount", String.valueOf(amount)).param("bankName", "OO은행").param("accountNumber", "000-0000-0000").session(user));
     }
 
     private org.springframework.test.web.servlet.ResultActions correct(long partyId, long amount, MockHttpSession user) throws Exception {
         MockMultipartFile receipt = new MockMultipartFile("receipt", "n.png", "image/png", new byte[] {4, 5, 6});
         return mvc.perform(multipart("/api/parties/" + partyId + "/settlement/correction").file(receipt)
-                .param("amount", String.valueOf(amount)).session(user));
+                .param("amount", String.valueOf(amount)).param("bankName", "OO은행").param("accountNumber", "000-0000-0000").session(user));
     }
 
     private org.springframework.test.web.servlet.ResultActions sent(JsonNode transfer, int revision, MockHttpSession user) throws Exception {

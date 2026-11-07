@@ -1,5 +1,7 @@
 package com.campustaximate.server.domain;
 
+import com.campustaximate.matching.Direction;
+import com.campustaximate.matching.GeoPoint;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -10,17 +12,21 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Version;
+import java.time.Duration;
 import java.time.Instant;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** 탑승 요청. 일행, 하차 순서, 단독 요금 비율, 분담금, 도착 표시를 함께 갖는다. */
+/** 탑승 요청. 일행, 승하차 순서, 단독 요금 비율, 분담금, 도착 표시를 함께 갖는다. */
 @Entity
 @Getter
 @Setter
 @NoArgsConstructor
 public class RideRequest {
+
+    private static final Duration LEAD = Duration.ofMinutes(30);
+    private static final Duration BOARD_GRACE = Duration.ofMinutes(3);
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -36,21 +42,38 @@ public class RideRequest {
     @Column(unique = true)
     private Long activeMemberId;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Direction direction;
+
+    /** 하교만 값이 있다. */
+    @ManyToOne(fetch = FetchType.LAZY)
     private Hub hub;
 
-    @Column(nullable = false)
+    /** 등교만 값이 있다. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    private School school;
+
     private Instant windowStart;
 
-    @Column(nullable = false)
     private Instant windowEnd;
 
+    /** 등교의 도착 희망 시각. */
+    private Instant arriveBy;
+
+    /** 등교의 마지막 매칭 슬롯. */
+    private Instant deadlineSlot;
+
+    /** 등교 확정 때 정해지는 내 승차 시각. */
+    private Instant boardAt;
+
+    /** 하교의 하차 지점이나 등교의 승차 지점. */
     @Column(nullable = false)
-    private String dropoffName;
+    private String pointName;
 
-    private double dropoffLat;
+    private double pointLat;
 
-    private double dropoffLon;
+    private double pointLon;
 
     private double soloKm;
 
@@ -69,13 +92,41 @@ public class RideRequest {
     @ManyToOne(fetch = FetchType.LAZY)
     private Party party;
 
-    private Integer dropoffOrder;
+    private Integer rideOrder;
 
     private Long ratioUnits;
 
     private Long expectedShare;
 
     private boolean arrived;
+
+    /** 등교에서 승차 시각 3분 뒤까지 도착 표시가 없었다. 마지막 판정 때 일행에서 빠진다. */
+    private boolean noShow;
+
+    public GeoPoint point() {
+        return new GeoPoint(pointLat, pointLon);
+    }
+
+    /** 결과를 늦어도 언제 알 수 있는지. 이 슬롯이 마지막 매칭 기회다. */
+    public Instant resultBy() {
+        return deadlineSlot != null ? deadlineSlot : windowEnd.minus(LEAD);
+    }
+
+    /** 이 시각까지 도착을 표시해야 한다. 하교는 출발 시각, 등교는 내 승차 시각 3분 뒤다. */
+    public Instant arriveDeadline() {
+        return boardAt != null ? boardAt.plus(BOARD_GRACE) : party.getDepartureAt();
+    }
+
+    /** 내가 타는 시각. 하교는 일행 출발, 등교는 내 승차 시각이다. */
+    public Instant startAt() {
+        return boardAt != null ? boardAt : party.getDepartureAt();
+    }
+
+    /** 내가 타기 전까지만 뺄 수 있다. 택시에 탄 결제자는 뺄 수 없다. */
+    public boolean canCancelAt(Instant now) {
+        boolean boardedPayer = party.getBoardedAt() != null && party.getPayer().getId().equals(member.getId());
+        return status == RequestStatus.MATCHED && now.isBefore(startAt()) && !boardedPayer;
+    }
 
     /** 일행 정보를 지우고 대기로 되돌린다. */
     public void backToWaiting() {
@@ -90,9 +141,11 @@ public class RideRequest {
 
     public void clearParty() {
         party = null;
-        dropoffOrder = null;
+        rideOrder = null;
+        boardAt = null;
         ratioUnits = null;
         expectedShare = null;
         arrived = false;
+        noShow = false;
     }
 }

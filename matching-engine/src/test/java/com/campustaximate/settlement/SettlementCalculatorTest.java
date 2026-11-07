@@ -20,12 +20,12 @@ class SettlementCalculatorTest {
 
     @Test
     void sharesFollowSoloFareExample() {
-        assertEquals(List.of(3300L, 5200L, 6500L), SettlementCalculator.shares(15000, EXAMPLE));
+        assertEquals(List.of(3300L, 5200L, 6500L), SettlementCalculator.shares(15000, EXAMPLE, EXAMPLE.size() - 1));
     }
 
     @Test
     void ratioIsKeptWhenPaidAmountChanges() {
-        assertEquals(List.of(3500L, 5500L, 7000L), SettlementCalculator.shares(16000, EXAMPLE));
+        assertEquals(List.of(3500L, 5500L, 7000L), SettlementCalculator.shares(16000, EXAMPLE, EXAMPLE.size() - 1));
     }
 
     @Test
@@ -43,7 +43,7 @@ class SettlementCalculatorTest {
 
     @Test
     void rejectsNonPositiveAmount() {
-        assertThrows(IllegalArgumentException.class, () -> SettlementCalculator.shares(0, EXAMPLE));
+        assertThrows(IllegalArgumentException.class, () -> SettlementCalculator.shares(0, EXAMPLE, EXAMPLE.size() - 1));
     }
 
     @Test
@@ -51,15 +51,15 @@ class SettlementCalculatorTest {
         List<Long> units = SettlementCalculator.ratioUnits(List.of(5000L, 8000L, 11000L, 14000L));
 
         assertThrows(SettlementCalculator.NegativeShareException.class,
-                () -> SettlementCalculator.shares(100, units));
+                () -> SettlementCalculator.shares(100, units, units.size() - 1));
     }
 
     @Test
     void rejectsInvalidWeightsAndAmountsAboveLimit() {
         assertThrows(IllegalArgumentException.class, () -> SettlementCalculator.ratioUnits(List.of(0L, 9000L)));
         assertThrows(IllegalArgumentException.class, () -> SettlementCalculator.ratioUnits(List.of(-1L, 9000L)));
-        assertThrows(IllegalArgumentException.class, () -> SettlementCalculator.shares(10_000_001, EXAMPLE));
-        assertEquals(10_000_000L, SettlementCalculator.shares(10_000_000, EXAMPLE).stream().mapToLong(Long::longValue).sum());
+        assertThrows(IllegalArgumentException.class, () -> SettlementCalculator.shares(10_000_001, EXAMPLE, EXAMPLE.size() - 1));
+        assertEquals(10_000_000L, SettlementCalculator.shares(10_000_000, EXAMPLE, EXAMPLE.size() - 1).stream().mapToLong(Long::longValue).sum());
     }
 
     @Test
@@ -75,7 +75,7 @@ class SettlementCalculatorTest {
             }
             long paid = fare + 100L * (random.nextInt(21) - 10);
 
-            List<Long> shares = SettlementCalculator.shares(paid, SettlementCalculator.ratioUnits(soloFares));
+            List<Long> shares = SettlementCalculator.shares(paid, SettlementCalculator.ratioUnits(soloFares), soloFares.size() - 1);
 
             assertEquals(paid, shares.stream().mapToLong(Long::longValue).sum());
             assertTrue(shares.stream().allMatch(s -> s >= 0));

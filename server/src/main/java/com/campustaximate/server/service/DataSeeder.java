@@ -26,10 +26,10 @@ public class DataSeeder implements ApplicationRunner {
     }
 
     public static final List<Dropoff> SAMPLE_DROPOFFS = List.of(
-            new Dropoff("샘플 지점 1", 37.81063, 127.13712),
-            new Dropoff("샘플 지점 2", 37.75913, 127.11929),
-            new Dropoff("샘플 지점 3", 37.72723, 127.07552),
-            new Dropoff("샘플 지점 4", 37.70101, 127.04730));
+            new Dropoff("샘플 지점 1", 37.8430, 127.1500),
+            new Dropoff("샘플 지점 2", 37.8330, 127.1460),
+            new Dropoff("샘플 지점 3", 37.8240, 127.1425),
+            new Dropoff("샘플 지점 4", 37.8150, 127.1390));
 
     /** 시드가 만든 시연 계정인지 메일로 판단한다. 가입으로는 같은 메일을 만들 수 없다. */
     public static boolean isSeededDemo(String email) {
@@ -48,7 +48,7 @@ public class DataSeeder implements ApplicationRunner {
         if (schools.count() > 0) {
             return;
         }
-        School school = schools.save(new School("대진대학교", "daejin.ac.kr"));
+        School school = schools.save(new School("대진대학교", "daejin.ac.kr", "학교 정문", 37.875, 127.155));
         hubs.save(new Hub("샘플 거점 (학교 정문)", "정문 앞 버스 정류장 (샘플)", 37.875, 127.155, Set.of(school)));
         if (demo) {
             for (int i = 1; i <= DEMO_MEMBERS_PER_GENDER; i++) {

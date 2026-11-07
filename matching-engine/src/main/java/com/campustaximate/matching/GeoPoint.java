@@ -1,5 +1,8 @@
 package com.campustaximate.matching;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /** 위도와 경도. */
 public record GeoPoint(double lat, double lon) {
 
@@ -9,6 +12,17 @@ public record GeoPoint(double lat, double lon) {
     /** 50m 안이면 한 번만 정차한다. 같은 곳을 경유지로 넣으면 유턴 경로가 나올 수 있다. */
     public boolean isSameStop(GeoPoint other) {
         return distanceKm(other) <= SAME_STOP_KM;
+    }
+
+    /** 이어지는 같은 정차 지점은 한 번만 남긴다. */
+    public static List<GeoPoint> mergeStops(List<GeoPoint> stops) {
+        List<GeoPoint> merged = new ArrayList<>();
+        for (GeoPoint stop : stops) {
+            if (merged.isEmpty() || !merged.getLast().isSameStop(stop)) {
+                merged.add(stop);
+            }
+        }
+        return merged;
     }
 
     /** 두 지점의 직선 거리(km). */

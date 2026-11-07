@@ -44,12 +44,13 @@ export default function RouteComparison({ party, mine }) {
     }
   }, [party.id, itinerary])
 
-  const arrival = new Date(new Date(party.departureAt).getTime() + mine.sharedSeconds * 1000).toISOString()
+  const delay = Math.max(0, Math.ceil((mine.sharedSeconds - mine.soloSeconds) / 60))
   return (
     <div>
-      <h3>내 경로 비교</h3>
+      <h3>경로 비교</h3>
       <p>단독: {Math.ceil(mine.soloSeconds / 60)}분 · {won(mine.soloFare)}</p>
-      <p>동승: 내 하차까지 {Math.ceil(mine.sharedSeconds / 60)}분 · 도착 {formatDateTime(arrival)} · 내 예상 분담금 {won(mine.expectedShare)}</p>
+      <p>일행: {Math.ceil(mine.sharedSeconds / 60)}분 · {formatDateTime(party.arrivalAt)} 도착 · {won(mine.expectedShare)}</p>
+      <p>지연: {delay}분, 기준 15분 이내</p>
       <p className="muted">실선: 동승 경로 · 점선: 단독 경로</p>
       {unavailable && <p className="muted">지도를 불러오지 못했습니다. 시간과 금액을 확인해 주세요.</p>}
       <div ref={container} className="map" hidden={unavailable} role="application" aria-label="동승 경로와 단독 경로 비교" />

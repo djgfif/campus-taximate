@@ -1,12 +1,16 @@
 package com.campustaximate.server.service;
 
+import com.campustaximate.matching.Direction;
 import com.campustaximate.matching.GeoPoint;
+import com.campustaximate.matching.TripPath;
+import com.campustaximate.matching.TripPlan;
 import com.campustaximate.server.common.ApiException;
 import com.campustaximate.server.common.AppClock;
 import com.campustaximate.server.domain.Hub;
 import com.campustaximate.server.domain.Member;
 import com.campustaximate.server.domain.RequestStatus;
 import com.campustaximate.server.domain.RideRequest;
+import com.campustaximate.server.domain.School;
 import com.campustaximate.server.domain.TransferStatus;
 import com.campustaximate.server.repository.HubRepository;
 import com.campustaximate.server.repository.MemberRepository;
@@ -18,6 +22,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -32,61 +37,126 @@ public class RideRequestService {
     private static final Duration MAX_WINDOW = Duration.ofMinutes(60);
     private static final Duration LEAD = Duration.ofMinutes(30);
     private static final Duration OVERDUE = Duration.ofHours(24);
+    private static final Duration DEPARTURE_MARGIN = Duration.ofMinutes(15);
+    private static final Duration CONFIRM_BEFORE = Duration.ofMinutes(60);
+    private static final Duration SOLO_LOOKUP_BEFORE = Duration.ofMinutes(60);
 
     private final RideRequestRepository requests;
     private final MemberRepository members;
     private final HubRepository hubs;
     private final TransferRequestRepository transfers;
-    private final RouteClient routes;
+    private final SoloRouteLookup soloRoutes;
     private final PartyShrinker shrinker;
     private final PlatformTransactionManager transactionManager;
     private final AppClock clock;
 
-    public record NewRequest(long hubId, Instant windowStart, Instant windowEnd, String dropoffName,
-                             double dropoffLat, double dropoffLon, String memo) {
+    /** 하교는 hubId, windowStart, windowEnd를, 등교는 arriveBy를 쓴다. 등교의 학교는 회원의 학교다. */
+    public record NewRequest(Direction direction, Long hubId, Instant windowStart, Instant windowEnd, Instant arriveBy,
+                             String pointName, double pointLat, double pointLon, String memo) {
+        GeoPoint point() {
+            return new GeoPoint(pointLat, pointLon);
+        }
+    }
+
+    public record Preview(long soloFare, int soloMinutes, Instant resultBy) {
     }
 
     /** 카카오 호출은 트랜잭션 밖에서 한다. 회원당 1개는 저장할 때 유일 제약이 다시 막는다. */
     public RideRequest create(long memberId, NewRequest input) {
         TransactionTemplate tx = new TransactionTemplate(transactionManager);
-        GeoPoint hubPoint = tx.execute(status -> validate(memberId, input));
-        RouteClient.Route solo;
+        GeoPoint anchor = tx.execute(status -> {
+            GeoPoint point = validateTrip(memberId, input);
+            if (isRestricted(memberId)) {
+                throw ApiException.conflict("TRANSFER_OVERDUE", "24시간이 지나도 보내지 않은 송금이 있어 새 요청을 할 수 없습니다.");
+            }
+            if (requests.findByActiveMemberId(memberId).isPresent()) {
+                throw ApiException.conflict("ACTIVE_REQUEST", "이미 진행 중인 요청이 있습니다.");
+            }
+            return point;
+        });
+        RouteClient.Route solo = soloRoute(input, () -> soloRoutes.route(soloPath(anchor, input), lookupTime(input)));
+        Instant deadlineSlot = deadlineSlot(input, solo);
+        return tx.execute(status -> save(memberId, input, solo, deadlineSlot));
+    }
+
+    /** 요청 전에 단독 요금과 결과 안내 시각을 보여 준다. 저장하지 않는다. */
+    public Preview preview(long memberId, NewRequest input) {
+        GeoPoint anchor = new TransactionTemplate(transactionManager).execute(status -> validateTrip(memberId, input));
+        RouteClient.Route solo = soloRoute(input,
+                () -> soloRoutes.preview(memberId, soloPath(anchor, input), lookupTime(input)));
+        Instant deadlineSlot = deadlineSlot(input, solo);
+        Instant resultBy = deadlineSlot != null ? deadlineSlot : input.windowEnd().minus(LEAD);
+        return new Preview(solo.fare(), (solo.seconds() + 59) / 60, resultBy);
+    }
+
+    private static TripPath soloPath(GeoPoint anchor, NewRequest input) {
+        return TripPlan.of(input.direction()).soloPath(anchor, input.point());
+    }
+
+    private static Instant lookupTime(NewRequest input) {
+        return input.arriveBy() == null ? null : input.arriveBy().minus(SOLO_LOOKUP_BEFORE);
+    }
+
+    private RouteClient.Route soloRoute(NewRequest input, Supplier<RouteClient.Route> lookup) {
         try {
-            solo = routes.route(hubPoint, List.of(new GeoPoint(input.dropoffLat(), input.dropoffLon())));
+            return lookup.get();
         } catch (RouteClient.RouteUnavailableException e) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "ROUTE_UNAVAILABLE", "경로를 조회하지 못했습니다. 잠시 뒤 다시 시도해 주세요.");
         }
-        return tx.execute(status -> save(memberId, input, solo));
     }
 
-    private GeoPoint validate(long memberId, NewRequest input) {
+    /** 예상 출발 60분 전을 넘지 않는 마지막 슬롯. 하교는 없다. 이미 지났으면 요청을 받지 않는다. */
+    private Instant deadlineSlot(NewRequest input, RouteClient.Route solo) {
+        if (input.direction() != Direction.TO_SCHOOL) {
+            return null;
+        }
+        Instant expected = input.arriveBy().minusSeconds(solo.seconds()).minus(DEPARTURE_MARGIN);
+        Instant slot = AppClock.slotOf(expected.minus(CONFIRM_BEFORE));
+        if (slot.isBefore(AppClock.nextSlotAfter(clock.now()))) {
+            throw ApiException.badRequest("TOO_LATE", "도착 희망 시각이 너무 가까워 일행을 찾을 시간이 없습니다.");
+        }
+        return slot;
+    }
+
+    /** 공통 지점을 돌려준다. */
+    private GeoPoint validateTrip(long memberId, NewRequest input) {
         Member member = members.findById(memberId).orElseThrow(ApiException::unauthorized);
         if (!member.hasProfile()) {
             throw ApiException.badRequest("PROFILE_REQUIRED", "닉네임과 성별을 먼저 입력해 주세요.");
         }
-        Hub hub = hubs.findById(input.hubId())
+        if (input.direction() == Direction.TO_SCHOOL) {
+            validateArrival(input.arriveBy());
+            School school = member.getSchool();
+            return new GeoPoint(school.getLat(), school.getLon());
+        }
+        Hub hub = input.hubId() == null ? null : hubs.findById(input.hubId())
                 .filter(h -> h.getSchools().contains(member.getSchool()))
-                .orElseThrow(() -> ApiException.badRequest("HUB_NOT_FOUND", "없는 거점입니다."));
+                .orElse(null);
+        if (hub == null) {
+            throw ApiException.badRequest("HUB_NOT_FOUND", "없는 거점입니다.");
+        }
         validateWindow(input.windowStart(), input.windowEnd());
-        if (isRestricted(memberId)) {
-            throw ApiException.conflict("TRANSFER_OVERDUE", "24시간이 지나도 보내지 않은 송금이 있어 새 요청을 할 수 없습니다.");
-        }
-        if (requests.findByActiveMemberId(memberId).isPresent()) {
-            throw ApiException.conflict("ACTIVE_REQUEST", "이미 진행 중인 요청이 있습니다.");
-        }
         return new GeoPoint(hub.getLat(), hub.getLon());
     }
 
-    private RideRequest save(long memberId, NewRequest input, RouteClient.Route solo) {
+    private RideRequest save(long memberId, NewRequest input, RouteClient.Route solo, Instant deadlineSlot) {
+        Member member = members.findById(memberId).orElseThrow(ApiException::unauthorized);
         RideRequest request = new RideRequest();
-        request.setMember(members.getReferenceById(memberId));
+        request.setMember(member);
         request.setActiveMemberId(memberId);
-        request.setHub(hubs.getReferenceById(input.hubId()));
-        request.setWindowStart(input.windowStart());
-        request.setWindowEnd(input.windowEnd());
-        request.setDropoffName(input.dropoffName());
-        request.setDropoffLat(input.dropoffLat());
-        request.setDropoffLon(input.dropoffLon());
+        request.setDirection(input.direction());
+        if (input.direction() == Direction.TO_SCHOOL) {
+            request.setSchool(member.getSchool());
+            request.setArriveBy(input.arriveBy());
+            request.setDeadlineSlot(deadlineSlot);
+        } else {
+            request.setHub(hubs.getReferenceById(input.hubId()));
+            request.setWindowStart(input.windowStart());
+            request.setWindowEnd(input.windowEnd());
+        }
+        request.setPointName(input.pointName());
+        request.setPointLat(input.pointLat());
+        request.setPointLon(input.pointLon());
         request.setMemo(input.memo());
         request.setSoloKm(solo.km());
         request.setSoloSeconds(solo.seconds());
@@ -108,7 +178,7 @@ public class RideRequestService {
             if (request.getStatus() != RequestStatus.MATCHED) {
                 throw ApiException.conflict("CANNOT_CANCEL", "취소할 수 없는 상태입니다.");
             }
-            if (!clock.now().isBefore(request.getParty().getDepartureAt())) {
+            if (!request.canCancelAt(clock.now())) {
                 throw ApiException.conflict("DEPARTED", "출발 시각이 지나 취소할 수 없습니다.");
             }
             return request.getParty().getId();
@@ -123,7 +193,19 @@ public class RideRequestService {
         return transfers.existsOverdue(memberId, TransferStatus.REQUESTED, clock.now().minus(OVERDUE));
     }
 
+    private void validateArrival(Instant arriveBy) {
+        if (arriveBy == null || !isFiveMinuteUnit(arriveBy)) {
+            throw ApiException.badRequest("INVALID_ARRIVAL", "도착 희망 시각은 5분 단위로만 고를 수 있습니다.");
+        }
+        if (!clock.now().isBefore(arriveBy)) {
+            throw ApiException.badRequest("TOO_LATE", "이미 지난 시각입니다.");
+        }
+    }
+
     private void validateWindow(Instant start, Instant end) {
+        if (start == null || end == null) {
+            throw ApiException.badRequest("INVALID_WINDOW", "출발 가능 시간을 입력해 주세요.");
+        }
         if (!isFiveMinuteUnit(start) || !isFiveMinuteUnit(end)) {
             throw ApiException.badRequest("INVALID_WINDOW", "출발 가능 시간은 5분 단위로만 고를 수 있습니다.");
         }

@@ -19,23 +19,22 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class PartyCanceler {
 
-    private static final long LEAD_SECONDS = 30 * 60L;
-
     private final RideRequestRepository requests;
     private final MailService mail;
 
     @Transactional(propagation = Propagation.MANDATORY)
     public void cancel(Party party, Set<Long> leavingRequestIds, Instant now) {
-        List<RideRequest> riders = requests.findByPartyOrderByDropoffOrder(party);
+        List<RideRequest> riders = requests.findByPartyOrderByRideOrder(party);
         party.setStatus(PartyStatus.CANCELED);
-        Instant nextDeparture = AppClock.nextSlotAfter(now).plusSeconds(LEAD_SECONDS);
+        Instant nextSlot = AppClock.nextSlotAfter(now);
         for (RideRequest rider : riders) {
+            Instant lastSlot = rider.resultBy();
             rider.clearParty();
             if (leavingRequestIds.contains(rider.getId())) {
                 rider.finish(RequestStatus.CANCELED);
                 continue;
             }
-            if (nextDeparture.isAfter(rider.getWindowEnd())) {
+            if (nextSlot.isAfter(lastSlot)) {
                 rider.finish(RequestStatus.UNMATCHED);
             } else {
                 rider.backToWaiting();

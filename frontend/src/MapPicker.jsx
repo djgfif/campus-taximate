@@ -10,7 +10,7 @@ export function loadKakaoMaps() {
   if (!sdk) {
     sdk = new Promise((resolve, reject) => {
       const script = document.createElement('script')
-      script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${APP_KEY}&autoload=false`
+      script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${APP_KEY}&libraries=services&autoload=false`
       script.onload = () => window.kakao.maps.load(() => resolve(window.kakao.maps))
       script.onerror = () => reject(new Error('카카오맵을 불러오지 못했습니다.'))
       document.head.appendChild(script)
@@ -25,8 +25,8 @@ function dot(maps, map, position, color, size) {
   return new maps.CustomOverlay({ map, position, content, xAnchor: 0.5, yAnchor: 0.5, clickable: false })
 }
 
-/** 지도를 눌러 하차 지점을 고른다. */
-export default function MapPicker({ hub, value, onPick }) {
+/** 지도를 눌러 지점을 고른다. center는 거점이나 학교다. */
+export default function MapPicker({ center: origin, value, onPick, label }) {
   const container = useRef(null)
   const view = useRef(null)
   const marker = useRef(null)
@@ -36,12 +36,12 @@ export default function MapPicker({ hub, value, onPick }) {
   pick.current = onPick
 
   useEffect(() => {
-    if (!hub || !APP_KEY) return undefined
+    if (!origin || !APP_KEY) return undefined
     let closed = false
     loadKakaoMaps()
       .then((maps) => {
         if (closed) return
-        const center = new maps.LatLng(hub.lat, hub.lon)
+        const center = new maps.LatLng(origin.lat, origin.lon)
         const map = new maps.Map(container.current, { center, level: INITIAL_LEVEL })
         map.addControl(new maps.ZoomControl(), maps.ControlPosition.RIGHT)
         dot(maps, map, center, '#4a5166', 16)
@@ -58,7 +58,7 @@ export default function MapPicker({ hub, value, onPick }) {
       marker.current = null
       if (container.current) container.current.innerHTML = ''
     }
-  }, [hub?.id])
+  }, [origin?.lat, origin?.lon])
 
   useEffect(() => {
     if (!view.current) return
@@ -68,10 +68,34 @@ export default function MapPicker({ hub, value, onPick }) {
       marker.current = null
     }
     if (value) {
-      marker.current = dot(maps, map, new maps.LatLng(value.lat, value.lon), '#e8a317', 18)
+      const position = new maps.LatLng(value.lat, value.lon)
+      marker.current = dot(maps, map, position, '#e8a317', 18)
+      map.panTo(position)
     }
   }, [value?.lat, value?.lon, ready])
 
   if (error) return <p className="error">{error}</p>
-  return <div ref={container} className="map" role="application" aria-label="하차 지점 지도" />
+  return <div ref={container} className="map" role="application" aria-label={label} />
+}
+
+/** 카카오 장소 검색. 키가 없으면 빈 목록을 돌려준다. */
+export async function searchPlaces(query, center) {
+  if (!APP_KEY || !query.trim()) return []
+  const maps = await loadKakaoMaps()
+  return new Promise((resolve) => {
+    const options = center ? { location: new maps.LatLng(center.lat, center.lon), size: 5 } : { size: 5 }
+    new maps.services.Places().keywordSearch(query, (data, status) => {
+      if (status !== maps.services.Status.OK) {
+        resolve([])
+        return
+      }
+      resolve(data.map((place) => ({
+        id: place.id,
+        name: place.place_name,
+        address: place.road_address_name || place.address_name,
+        lat: Number(place.y),
+        lon: Number(place.x),
+      })))
+    }, options)
+  })
 }

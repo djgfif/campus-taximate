@@ -48,7 +48,7 @@ class MatchingRoundTest {
 
         assertEquals(1, result.confirmed().size());
         ConfirmedGroup group = result.confirmed().get(0);
-        assertEquals(List.of(a, b, c), group.dropoffOrder());
+        assertEquals(List.of(a, b, c), group.order());
         assertEquals(c, group.payer());
         assertEquals(SLOT.plusSeconds(1800), group.departure());
     }
@@ -105,7 +105,7 @@ class MatchingRoundTest {
         RoundResult result = round.run(SLOT, requests, LEGS, failFirstAnchor);
 
         assertEquals(3, firstAnchorChecks.get());
-        assertTrue(result.confirmed().stream().noneMatch(g -> g.dropoffOrder().contains(requests.get(0))));
+        assertTrue(result.confirmed().stream().noneMatch(g -> g.order().contains(requests.get(0))));
     }
 
     @Test
@@ -131,7 +131,7 @@ class MatchingRoundTest {
         RoundResult result = round.run(SLOT, List.of(a, b, c, d), LEGS, skipFour);
 
         assertEquals(1, checks.get());
-        assertEquals(3, result.confirmed().get(0).dropoffOrder().size());
+        assertEquals(3, result.confirmed().get(0).order().size());
     }
 
     @Test
@@ -144,7 +144,7 @@ class MatchingRoundTest {
 
         RoundResult result = round.run(SLOT, List.of(a, b, c, d), LEGS, rejectFour);
 
-        assertEquals(3, result.confirmed().get(0).dropoffOrder().size());
+        assertEquals(3, result.confirmed().get(0).order().size());
     }
 
     @Test
@@ -179,9 +179,9 @@ class MatchingRoundTest {
         RoundResult result = round.run(SLOT, randomRequests(20261106, 40), LEGS, PASS);
 
         Set<Long> seen = new HashSet<>();
-        result.confirmed().forEach(g -> g.dropoffOrder().forEach(r -> assertTrue(seen.add(r.id()))));
+        result.confirmed().forEach(g -> g.order().forEach(r -> assertTrue(seen.add(r.id()))));
         assertTrue(result.confirmed().size() >= 5);
-        assertTrue(result.confirmed().stream().allMatch(g -> g.dropoffOrder().size() <= 4));
+        assertTrue(result.confirmed().stream().allMatch(g -> g.order().size() <= 4));
     }
 
     @Test

@@ -9,5 +9,6 @@ spring:
       ddl-auto: create-drop
 
 app:
+  account-key: demo-only-account-key
   demo:
     enabled: true

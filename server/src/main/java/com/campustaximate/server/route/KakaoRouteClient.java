@@ -4,6 +4,9 @@ import com.campustaximate.matching.GeoPoint;
 import com.campustaximate.matching.RoadLeg;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -19,6 +22,9 @@ public class KakaoRouteClient implements RouteClient {
 
     private static final int RADIUS_METERS = 10_000;
     private static final Duration TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration MIN_FUTURE = Duration.ofMinutes(10);
+    private static final DateTimeFormatter DEPARTURE_FORMAT =
+            DateTimeFormatter.ofPattern("yyyyMMddHHmm").withZone(ZoneId.of("Asia/Seoul"));
 
     private final RestClient client;
 
@@ -65,15 +71,40 @@ public class KakaoRouteClient implements RouteClient {
         }
     }
 
+    /** 미래 운행 정보는 경유지와 출발 시각을 함께 받는다. 곧 출발이면 지금 기준으로 조회한다. */
+    @Override
+    public Route routeAt(GeoPoint origin, List<GeoPoint> requested, Instant departure) {
+        if (departure == null || departure.isBefore(Instant.now().plus(MIN_FUTURE))) {
+            return route(origin, requested);
+        }
+        List<GeoPoint> stops = mergeStops(requested);
+        GeoPoint destination = stops.get(stops.size() - 1);
+        String waypoints = stops.subList(0, stops.size() - 1).stream()
+                .map(p -> p.lon() + "," + p.lat())
+                .collect(java.util.stream.Collectors.joining("|"));
+        try {
+            return parse(client.get()
+                    .uri(uri -> {
+                        uri.path("/v1/future/directions")
+                                .queryParam("origin", origin.lon() + "," + origin.lat())
+                                .queryParam("destination", destination.lon() + "," + destination.lat())
+                                .queryParam("departure_time", DEPARTURE_FORMAT.format(departure))
+                                .queryParam("priority", "RECOMMEND");
+                        if (!waypoints.isEmpty()) {
+                            uri.queryParam("waypoints", waypoints);
+                        }
+                        return uri.build();
+                    })
+                    .retrieve()
+                    .body(JsonNode.class));
+        } catch (RestClientException e) {
+            throw new RouteUnavailableException("kakao call failed", e);
+        }
+    }
+
     /** 이어지는 같은 정차 지점은 한 번만 넣는다. */
     static List<GeoPoint> mergeStops(List<GeoPoint> stops) {
-        List<GeoPoint> merged = new ArrayList<>();
-        for (GeoPoint stop : stops) {
-            if (merged.isEmpty() || !merged.getLast().isSameStop(stop)) {
-                merged.add(stop);
-            }
-        }
-        return merged;
+        return GeoPoint.mergeStops(stops);
     }
 
     @Override
@@ -131,7 +162,9 @@ public class KakaoRouteClient implements RouteClient {
             throw new RouteUnavailableException("kakao taxi fare missing", null);
         }
         List<GeoPoint> coordinates = new ArrayList<>();
+        List<Integer> legSeconds = new ArrayList<>();
         for (JsonNode section : route.path("sections")) {
+            legSeconds.add(section.path("duration").asInt());
             for (JsonNode road : section.path("roads")) {
                 JsonNode vertexes = road.path("vertexes");
                 for (int i = 0; i + 1 < vertexes.size(); i += 2) {
@@ -140,7 +173,8 @@ public class KakaoRouteClient implements RouteClient {
             }
         }
         return new Route(summary.path("distance").asDouble() / 1000.0,
-                summary.path("duration").asInt(), taxi.asLong() + summary.path("fare").path("toll").asLong(), coordinates);
+                summary.path("duration").asInt(), taxi.asLong() + summary.path("fare").path("toll").asLong(), coordinates,
+                legSeconds);
     }
 
     private static Map<String, Double> point(GeoPoint p) {

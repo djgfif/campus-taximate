@@ -17,8 +17,8 @@
       "memberId": 101,
       "nickname": "A",
       "memo": "회색 후드",
-      "dropoffOrder": 1,
-      "dropoffName": "샘플 하차 지점 1",
+      "rideOrder": 1,
+      "pointName": "샘플 하차 지점 1",
       "expectedShare": 2000,
       "arrived": false
     },
@@ -27,8 +27,8 @@
       "memberId": 102,
       "nickname": "B",
       "memo": "검은 가방",
-      "dropoffOrder": 2,
-      "dropoffName": "샘플 하차 지점 2",
+      "rideOrder": 2,
+      "pointName": "샘플 하차 지점 2",
       "expectedShare": 4300,
       "arrived": false
     },
@@ -37,8 +37,8 @@
       "memberId": 103,
       "nickname": "C",
       "memo": "흰 운동화",
-      "dropoffOrder": 3,
-      "dropoffName": "샘플 하차 지점 3",
+      "rideOrder": 3,
+      "pointName": "샘플 하차 지점 3",
       "expectedShare": 8700,
       "arrived": false
     }

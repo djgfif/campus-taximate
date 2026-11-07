@@ -82,12 +82,12 @@ class RouteGroupVerifierTest {
         Candidate c = sameDropoff(3);
         assertThat(groupVerifier.verify(c)).isEqualTo(Verdict.PASS);
         verify(routes, times(3)).route(any(), any());
-        assertThat(groupVerifier.routesOf(c.dropoffOrder()).cumulative().getLast().fare()).isEqualTo(10000);
+        assertThat(groupVerifier.routesOf(c.order()).total()).isEqualTo(10000);
     }
 
     @Test
     void sameDropoffLegNeedsNoCall() {
-        var requests = sameDropoff(2).dropoffOrder();
+        var requests = sameDropoff(2).order();
         var store = new RoadLegStore(routes);
         store.prepare(requests, now);
         assertThat(store.provider().leg(requests.get(0), requests.get(1))).contains(new RoadLeg(0, 0));
