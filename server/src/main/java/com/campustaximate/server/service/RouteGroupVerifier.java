@@ -227,7 +227,7 @@ final class RouteGroupVerifier implements GroupVerifier {
             SettlementCalculator.shares(routesOfGroup.total(),
                     SettlementCalculator.ratioUnits(solo.stream().map(RouteClient.Route::fare).toList()),
                     plan.payerIndex(order.size()));
-        } catch (IllegalArgumentException | SettlementCalculator.NegativeShareException e) {
+        } catch (IllegalArgumentException e) {
             return reject(candidate);
         }
         verified.put(order.stream().map(MatchRequest::id).toList(), routesOfGroup);

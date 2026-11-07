@@ -12,7 +12,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
 @Component
 public class AccessInterceptor implements HandlerInterceptor {
 
-    static final Set<String> PUBLIC_PATHS = Set.of("/api/config", "/api/me", "/api/auth/code", "/api/auth/login", "/api/auth/logout");
+    static final Set<String> PUBLIC_PATHS = Set.of("/api/config", "/api/me", "/api/auth/code", "/api/auth/login", "/api/auth/signin", "/api/auth/logout");
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {

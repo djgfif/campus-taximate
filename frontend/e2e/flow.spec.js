@@ -9,7 +9,7 @@ const ACCOUNTS = { pc: ['demo-f3', 'demo-f4'], phone: ['demo-m3', 'demo-m4'] }
 async function login(page, id) {
   await page.goto('/')
   await page.getByPlaceholder('학번@daejin.ac.kr').fill(`${id}@daejin.ac.kr`)
-  await page.getByRole('button', { name: '코드 받기' }).click()
+  await page.getByLabel('비밀번호').fill('demo1234')
   await page.getByRole('button', { name: '로그인', exact: true }).click()
   await expect(page.getByRole('heading', { name: '어디로 가세요?' })).toBeVisible()
 }

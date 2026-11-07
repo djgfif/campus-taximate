@@ -25,7 +25,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 학교 메일로 받은 일회용 코드로 로그인한다. 메일 소유 확인이 곧 로그인이다. */
+/** 가입과 비밀번호 재설정은 학교 메일 일회용 코드로 인증하고, 평소에는 메일과 비밀번호로 로그인한다. */
 @Service
 @RequiredArgsConstructor
 public class AuthService {
@@ -88,6 +88,30 @@ public class AuthService {
         }
         clearCode(member);
         return member.getId();
+    }
+
+    /** 메일 인증을 마친 회원이 비밀번호를 정하거나 바꾼다. */
+    @Transactional
+    public void setPassword(long memberId, String password) {
+        Member member = members.findById(memberId).orElseThrow(ApiException::unauthorized);
+        member.setPasswordHash(PasswordHasher.hash(password));
+    }
+
+    /** 실패 횟수를 남겨야 하므로 거절해도 롤백하지 않는다. */
+    @Transactional(noRollbackFor = ApiException.class)
+    public long signIn(String rawEmail, String password) {
+        String email = normalize(rawEmail);
+        Member member = members.findByEmail(email).orElseThrow(AuthService::invalidPassword);
+        requireNotLocked(member, clock.now());
+        if (!PasswordHasher.matches(password, member.getPasswordHash())) {
+            countDailyFailure(member, clock.now());
+            throw invalidPassword();
+        }
+        return member.getId();
+    }
+
+    private static ApiException invalidPassword() {
+        return ApiException.badRequest("INVALID_PASSWORD", "메일 또는 비밀번호가 맞지 않습니다.");
     }
 
     @Transactional

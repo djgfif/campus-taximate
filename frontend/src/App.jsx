@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from './api.js'
 import AuthScreen from './AuthScreen.jsx'
 import ProfileScreen from './ProfileScreen.jsx'
+import PasswordScreen from './PasswordScreen.jsx'
 import History from './History.jsx'
 import DemoBar from './DemoBar.jsx'
 import Home from './Home.jsx'
@@ -33,6 +34,7 @@ function Nav({ tab, onTab, onMenu }) {
 export default function App() {
   const [config, setConfig] = useState(null)
   const [me, setMe] = useState(undefined)
+  const [resetting, setResetting] = useState(false)
   const [state, setState] = useState(null)
   const location = useLocation()
   const navigate = useNavigate()
@@ -158,9 +160,10 @@ export default function App() {
           <Btn onClick={() => window.location.reload()}>다시 시도</Btn>
         </div>
       )}
-      {me === null && <AuthScreen config={config} onLogin={() => api.me().then(setMe)} />}
-      {me?.needsProfile && <ProfileScreen onDone={() => api.me().then(setMe)} />}
-      {me && !me.needsProfile && (
+      {me === null && <AuthScreen config={config} onLogin={(verified) => { setResetting(verified); return api.me().then(setMe) }} />}
+      {me && (me.needsPassword || resetting) && <PasswordScreen onDone={() => { setResetting(false); return api.me().then(setMe) }} />}
+      {me && !me.needsPassword && !resetting && me.needsProfile && <ProfileScreen onDone={() => api.me().then(setMe)} />}
+      {me && !me.needsPassword && !resetting && !me.needsProfile && (
         <>
           {wide && <Nav tab={tab} onTab={setTab} onMenu={openMenu} />}
           {offline && <Say tone="stop-tone">연결이 끊겼습니다. 다시 연결하는 중입니다.</Say>}

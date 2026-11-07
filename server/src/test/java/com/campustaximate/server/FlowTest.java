@@ -256,11 +256,13 @@ class FlowTest {
     }
 
     @Test
-    void negativePayerShareIsRejected() throws Exception {
+    void smallAmountIsSplitWithoutNegativeShare() throws Exception {
         List<MockHttpSession> users = departedParty();
         MockHttpSession payer = payerOf(users);
 
-        submit(onlyParty(payer).get("id").asLong(), 100, payer).andExpect(status().isBadRequest());
+        submit(onlyParty(payer).get("id").asLong(), 100, payer).andExpect(status().isOk());
+
+        assertThat(onlyParty(payer).get("settlement").get("warning").asBoolean()).isTrue();
     }
 
     @Test
@@ -337,6 +339,33 @@ class FlowTest {
         postJson("/api/auth/profile", "{\"nickname\":\"새학생\",\"gender\":\"FEMALE\"}", session).andExpect(status().isOk());
         createRequest(session, POINTS[0]).andExpect(status().isOk());
         postJson("/api/auth/profile", "{\"nickname\":\"바꿈\",\"gender\":\"MALE\"}", session).andExpect(status().isConflict());
+    }
+
+    @Test
+    void signupSetsPasswordThenSignsInWithPassword() throws Exception {
+        String email = "pw" + System.nanoTime() + "@daejin.ac.kr";
+        MockHttpSession first = new MockHttpSession();
+        postJson("/api/auth/code", "{\"email\":\"" + email + "\"}", first).andExpect(status().isOk());
+        postJson("/api/auth/login", "{\"email\":\"" + email + "\",\"code\":\"" + mailedCode(email) + "\"}", first)
+                .andExpect(status().isOk());
+        assertThat(read(mvc.perform(get("/api/me").session(first)).andReturn().getResponse().getContentAsString())
+                .get("needsPassword").asBoolean()).isTrue();
+        postJson("/api/auth/password", "{\"password\":\"short\"}", first).andExpect(status().isBadRequest());
+        postJson("/api/auth/password", "{\"password\":\"taxi-mate-77\"}", first).andExpect(status().isOk());
+
+        MockHttpSession second = new MockHttpSession();
+        postJson("/api/auth/signin", "{\"email\":\"" + email + "\",\"password\":\"wrong-pass-1\"}", second)
+                .andExpect(status().isBadRequest());
+        postJson("/api/auth/signin", "{\"email\":\"" + email + "\",\"password\":\"taxi-mate-77\"}", second)
+                .andExpect(status().isOk());
+        assertThat(read(mvc.perform(get("/api/me").session(second)).andReturn().getResponse().getContentAsString())
+                .get("needsPassword").asBoolean()).isFalse();
+    }
+
+    @Test
+    void passwordCannotBeSetWithoutLogin() throws Exception {
+        postJson("/api/auth/password", "{\"password\":\"taxi-mate-77\"}", new MockHttpSession())
+                .andExpect(status().isUnauthorized());
     }
 
     /** 코드는 해시로만 저장되므로 보낸 메일에서 읽는다. */

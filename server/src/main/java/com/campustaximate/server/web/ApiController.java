@@ -98,10 +98,16 @@ public class ApiController {
     public record LoginBody(@NotBlank String email, @NotBlank String code) {
     }
 
+    public record SignInBody(@NotBlank String email, @NotBlank String password) {
+    }
+
+    public record PasswordBody(@NotBlank @Size(min = 8, max = 64) String password) {
+    }
+
     public record ProfileBody(@NotBlank @Size(max = 20) String nickname, @NotNull Gender gender) {
     }
 
-    public record MeView(long id, String email, String nickname, Gender gender, boolean needsProfile) {
+    public record MeView(long id, String email, String nickname, Gender gender, boolean needsPassword, boolean needsProfile) {
     }
 
     public record RequestBodyDto(@NotNull Direction direction, Long hubId, Instant windowStart, Instant windowEnd,
@@ -176,7 +182,20 @@ public class ApiController {
 
     @PostMapping("/auth/login")
     public void login(@Valid @RequestBody LoginBody body, HttpServletRequest request, HttpServletResponse response) {
-        long id = auth.login(body.email(), body.code());
+        startSession(auth.login(body.email(), body.code()), request, response);
+    }
+
+    @PostMapping("/auth/signin")
+    public void signIn(@Valid @RequestBody SignInBody body, HttpServletRequest request, HttpServletResponse response) {
+        startSession(auth.signIn(body.email(), body.password()), request, response);
+    }
+
+    @PostMapping("/auth/password")
+    public void password(@Valid @RequestBody PasswordBody body, HttpSession session) {
+        auth.setPassword(memberId(session), body.password());
+    }
+
+    private void startSession(long id, HttpServletRequest request, HttpServletResponse response) {
         HttpSession session = request.getSession();
         request.changeSessionId();
         session.setAttribute(SESSION_KEY, id);
@@ -219,7 +238,7 @@ public class ApiController {
     public MeView me(HttpSession session) {
         long id = memberId(session);
         Member member = members.findById(id).orElseThrow(ApiException::unauthorized);
-        return new MeView(id, member.getEmail(), member.getNickname(), member.getGender(), !member.hasProfile());
+        return new MeView(id, member.getEmail(), member.getNickname(), member.getGender(), !member.hasPassword(), !member.hasProfile());
     }
 
     /** 내 상태가 바뀌면 신호를 보낸다. 연결이 안 되는 환경에서는 화면이 주기적으로 읽는다. */

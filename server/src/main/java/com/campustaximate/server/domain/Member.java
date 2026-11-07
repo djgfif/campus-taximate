@@ -53,9 +53,16 @@ public class Member {
 
     private LocalDate loginFailureDay;
 
+    /** 가입 때 메일 인증 뒤 정한다. PBKDF2 해시로만 저장한다. */
+    private String passwordHash;
+
     public Member(School school, String email) {
         this.school = school;
         this.email = email;
+    }
+
+    public boolean hasPassword() {
+        return passwordHash != null;
     }
 
     public boolean hasProfile() {

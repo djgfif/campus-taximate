@@ -6,8 +6,6 @@ import java.util.List;
 /** 단독 요금 비율과 분담금을 계산한다. */
 public final class SettlementCalculator {
 
-    private static final long ROUND_UNIT = 100;
-
     private SettlementCalculator() {
     }
 
@@ -22,9 +20,8 @@ public final class SettlementCalculator {
 
     /**
      * 결제 금액을 비율로 나눈다. payerIndex의 사람이 결제자이고 나머지를 부담한다.
-     * 결제자 외는 100원 단위로 올린다.
-     *
-     * @throws NegativeShareException 결제자 분담금이 음수가 될 때
+     * 결제자 외는 원 단위로 나누고 1원 미만은 버린다. 남는 금액은 결제자가 내서 합계가 결제 금액과 같다.
+     * 1원 미만을 버리므로 결제자 분담금은 음수가 되지 않는다.
      */
     public static List<Long> shares(long paidAmount, List<Long> ratioUnits, int payerIndex) {
         if (paidAmount <= 0 || paidAmount > 10_000_000) {
@@ -45,23 +42,11 @@ public final class SettlementCalculator {
                 shares.add(0L);
                 continue;
             }
-            long numerator = Math.multiplyExact(paidAmount, ratioUnits.get(i));
-            long denominator = Math.multiplyExact(total, ROUND_UNIT);
-            long share = (numerator + denominator - 1) / denominator * ROUND_UNIT;
+            long share = Math.multiplyExact(paidAmount, ratioUnits.get(i)) / total;
             shares.add(share);
             others += share;
         }
-        long payer = paidAmount - others;
-        if (payer < 0) {
-            throw new NegativeShareException();
-        }
-        shares.set(payerIndex, payer);
+        shares.set(payerIndex, paidAmount - others);
         return shares;
-    }
-
-    public static final class NegativeShareException extends RuntimeException {
-        public NegativeShareException() {
-            super("payer share is negative");
-        }
     }
 }

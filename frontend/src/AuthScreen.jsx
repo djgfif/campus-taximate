@@ -2,11 +2,22 @@ import React, { useState } from 'react'
 import { api } from './api.js'
 import { Brand, Btn, Say, Screen, toast } from './ui.jsx'
 
+/** 평소에는 메일과 비밀번호로 로그인한다. 가입과 비밀번호 재설정만 학교 메일 코드로 인증한다. */
 export default function AuthScreen({ config, onLogin }) {
-  const [step, setStep] = useState('email')
+  const [step, setStep] = useState('signin')
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [code, setCode] = useState('')
   const [info, setInfo] = useState('')
+
+  const signIn = async () => {
+    try {
+      await api.signin({ email, password })
+      await onLogin(false)
+    } catch (e) {
+      toast(e.message, 'bad')
+    }
+  }
 
   const sendCode = async () => {
     try {
@@ -23,42 +34,71 @@ export default function AuthScreen({ config, onLogin }) {
     }
   }
 
-  const login = async () => {
+  const verify = async () => {
     try {
       await api.login({ email, code })
-      await onLogin()
+      await onLogin(true)
     } catch (e) {
       toast(e.message, 'bad')
     }
+  }
+
+  const back = () => { setStep('signin'); setCode(''); setInfo('') }
+  const emailField = (
+    <label className="field">학교 메일
+      <input type="email" value={email} autoComplete="email" placeholder="학번@daejin.ac.kr"
+        onChange={(e) => setEmail(e.target.value)} />
+    </label>
+  )
+
+  if (step === 'signin') {
+    return (
+      <Screen foot={(
+        <>
+          <Btn disabled={!email.includes('@') || password.length < 8} onClick={signIn}>로그인</Btn>
+          <Btn className="quiet" onClick={() => setStep('email')}>처음이거나 비밀번호를 잊었어요</Btn>
+        </>
+      )}>
+        <header className="bar"><Brand /></header>
+        <div className="pad">
+          <h1 className="head">학교 메일로<br />로그인해요</h1>
+          {emailField}
+          <label className="field">비밀번호
+            <input type="password" value={password} autoComplete="current-password"
+              onChange={(e) => setPassword(e.target.value)} />
+          </label>
+          {config?.demo && <p className="note">시연 계정: demo-f1@daejin.ac.kr, demo-m1@daejin.ac.kr (비밀번호 demo1234)</p>}
+        </div>
+      </Screen>
+    )
   }
 
   const coding = step === 'code'
   return (
     <Screen foot={coding ? (
       <>
-        <Btn disabled={code.length < 6} onClick={login}>로그인</Btn>
-        <Btn className="quiet" onClick={() => { setStep('email'); setCode(''); setInfo('') }}>메일 다시 입력</Btn>
+        <Btn disabled={code.length < 6} onClick={verify}>인증하기</Btn>
+        <Btn className="quiet" onClick={back}>로그인으로 돌아가기</Btn>
       </>
-    ) : <Btn disabled={!email.includes('@')} onClick={sendCode}>코드 받기</Btn>}>
+    ) : (
+      <>
+        <Btn disabled={!email.includes('@')} onClick={sendCode}>코드 받기</Btn>
+        <Btn className="quiet" onClick={back}>로그인으로 돌아가기</Btn>
+      </>
+    )}>
       <header className="bar"><Brand /></header>
       <div className="pad">
-        <h1 className="head">{coding ? '메일로 받은 코드를\n입력해 주세요'.split('\n').map((line) => <span key={line}>{line}<br /></span>) : <>학교 메일로<br />시작해요</>}</h1>
-        <p className="sub">{coding ? email : '비밀번호 없이 메일 코드로 로그인합니다. 같은 기기에서는 다시 받지 않아도 됩니다.'}</p>
+        <h1 className="head">{coding ? <>메일로 받은 코드를<br />입력해 주세요</> : <>학교 메일로<br />인증해요</>}</h1>
+        <p className="sub">{coding ? email : '가입하거나 비밀번호를 다시 정할 때 한 번 인증합니다.'}</p>
         {coding ? (
           <>
-            <label className="field code">로그인 코드
+            <label className="field code">인증 코드
               <input inputMode="numeric" maxLength={6} value={code} autoComplete="one-time-code"
                 onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} />
             </label>
             {info && <Say tone="calm">{info}</Say>}
           </>
-        ) : (
-          <label className="field">학교 메일
-            <input type="email" value={email} autoComplete="email" placeholder="학번@daejin.ac.kr"
-              onChange={(e) => setEmail(e.target.value)} />
-          </label>
-        )}
-        {config?.demo && !coding && <p className="note">시연 계정: demo-f1@daejin.ac.kr, demo-m1@daejin.ac.kr</p>}
+        ) : emailField}
       </div>
     </Screen>
   )

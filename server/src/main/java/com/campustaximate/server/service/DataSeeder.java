@@ -21,6 +21,8 @@ import org.springframework.stereotype.Component;
 public class DataSeeder implements ApplicationRunner {
 
     public static final int DEMO_MEMBERS_PER_GENDER = 4;
+    /** 시연 계정 비밀번호. 시연 프로필에서만 만들어진다. */
+    public static final String DEMO_PASSWORD = "demo1234";
     private static final List<String> FEMALE_NICKNAMES = List.of("하늘", "바다", "구름", "별");
     private static final List<String> MALE_NICKNAMES = List.of("산", "강", "숲", "들");
 
@@ -64,6 +66,7 @@ public class DataSeeder implements ApplicationRunner {
         Member member = new Member(school, id + "@daejin.ac.kr");
         member.setNickname(nickname);
         member.setGender(gender);
+        member.setPasswordHash(PasswordHasher.hash(DEMO_PASSWORD));
         members.save(member);
     }
 }

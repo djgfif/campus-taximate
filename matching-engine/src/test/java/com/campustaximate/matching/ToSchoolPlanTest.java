@@ -91,7 +91,7 @@ class ToSchoolPlanTest {
     void firstPositionCanBeThePayerInSettlement() {
         List<Long> shares = SettlementCalculator.shares(15000, List.of(13200L, 9800L, 7000L), 0);
         assertEquals(List.of(6600L, 4900L, 3500L), shares);
-        List<Long> rounded = SettlementCalculator.shares(15400, List.of(13200L, 9800L, 7000L), 0);
-        assertEquals(List.of(6700L, 5100L, 3600L), rounded);
+        List<Long> uneven = SettlementCalculator.shares(15400, List.of(13200L, 9800L, 7000L), 0);
+        assertEquals(List.of(6777L, 5030L, 3593L), uneven);
     }
 }

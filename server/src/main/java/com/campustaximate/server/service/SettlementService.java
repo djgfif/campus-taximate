@@ -248,11 +248,7 @@ public class SettlementService {
                 payerIndex = i;
             }
         }
-        try {
-            return SettlementCalculator.shares(amount, units, payerIndex);
-        } catch (SettlementCalculator.NegativeShareException e) {
-            throw ApiException.badRequest("INVALID_AMOUNT", "금액이 너무 작습니다. 다시 확인해 주세요.");
-        }
+        return SettlementCalculator.shares(amount, units, payerIndex);
     }
 
     /** 브라우저가 보낸 형식은 믿지 않고 파일 앞부분으로 확인한다. */

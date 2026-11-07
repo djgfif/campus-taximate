@@ -70,7 +70,7 @@ public class PartyShrinker {
             return recalculate(plan);
         } catch (RouteClient.RouteUnavailableException e) {
             return departed ? keepStoredValues(plan) : null;
-        } catch (IllegalArgumentException | SettlementCalculator.NegativeShareException e) {
+        } catch (IllegalArgumentException e) {
             return null;
         }
     }
@@ -86,7 +86,7 @@ public class PartyShrinker {
             return new Recalculated(plan.stays().stream().map(Stay::id).toList(), solo,
                     plan.stays().stream().map(Stay::rideSeconds).toList(), plan.total(),
                     SettlementCalculator.shares(plan.total(), units, trip.payerIndex(plan.stays().size())));
-        } catch (IllegalArgumentException | SettlementCalculator.NegativeShareException e) {
+        } catch (IllegalArgumentException e) {
             return null;
         }
     }

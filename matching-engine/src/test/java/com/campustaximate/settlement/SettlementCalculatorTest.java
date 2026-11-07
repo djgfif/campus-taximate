@@ -20,7 +20,7 @@ class SettlementCalculatorTest {
 
     @Test
     void sharesFollowSoloFareExample() {
-        assertEquals(List.of(3300L, 5200L, 6500L), SettlementCalculator.shares(15000, EXAMPLE, EXAMPLE.size() - 1));
+        assertEquals(List.of(3281L, 5156L, 6563L), SettlementCalculator.shares(15000, EXAMPLE, EXAMPLE.size() - 1));
     }
 
     @Test
@@ -47,11 +47,19 @@ class SettlementCalculatorTest {
     }
 
     @Test
-    void rejectsAmountThatMakesPayerShareNegative() {
+    void deckExampleGivesSameRateToEveryone() {
+        List<Long> shares = SettlementCalculator.shares(15000, SettlementCalculator.ratioUnits(List.of(6000L, 10500L, 15000L)), 2);
+
+        assertEquals(List.of(2857L, 5000L, 7143L), shares);
+    }
+
+    @Test
+    void payerShareStaysNonNegativeForSmallAmount() {
         List<Long> units = SettlementCalculator.ratioUnits(List.of(5000L, 8000L, 11000L, 14000L));
 
-        assertThrows(SettlementCalculator.NegativeShareException.class,
-                () -> SettlementCalculator.shares(100, units, units.size() - 1));
+        List<Long> shares = SettlementCalculator.shares(100, units, units.size() - 1);
+        assertEquals(100L, shares.stream().mapToLong(Long::longValue).sum());
+        assertTrue(shares.get(units.size() - 1) >= 0);
     }
 
     @Test
