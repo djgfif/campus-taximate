@@ -11,7 +11,8 @@
 - 5분 슬롯 매칭. 지연 15분, 요금 10% 조건을 카카오 길찾기로 확인한 조합만 확정
 - 단독 요금 비율 정산. 단독 요금은 요청 때 보여 준 값으로 고정
 - 노쇼 처리, 결제자 넘김, 남은 일행 재계산
-- 휴대폰 화면과 PC 화면. Chrome, Edge, Firefox, Safari(WebKit), Android·iPhone 화면에서 E2E 통과(`npm run e2e:compat`, BSET=edge|firefox|safari)(폭 1024px 이상에서 왼쪽 작업, 오른쪽 지도)
+- 휴대폰 화면과 PC 화면(폭 1024px 이상에서 왼쪽 작업, 오른쪽 지도)
+- Chrome, Edge, Firefox, Safari(WebKit), Android·iPhone 화면에서 E2E 통과. `BSET=edge|firefox|safari npm run e2e:compat`
 
 ## 구성
 
