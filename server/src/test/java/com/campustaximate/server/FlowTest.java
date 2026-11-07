@@ -55,6 +55,7 @@ class FlowTest {
     @Autowired private SettlementRepository settlements;
     @Autowired private TransferRequestRepository transfers;
     @Autowired private com.campustaximate.server.repository.LoginTokenRepository loginTokens;
+    @org.springframework.boot.test.mock.mockito.SpyBean private com.campustaximate.server.service.MailService mail;
     @org.springframework.boot.test.mock.mockito.SpyBean private com.campustaximate.server.route.RouteClient routes;
 
     private long hubId;
@@ -293,7 +294,7 @@ class FlowTest {
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         assertThat(response).doesNotContain("demoCode");
 
-        String code = members.findByEmail(email).orElseThrow().getLoginCode();
+        String code = mailedCode(email);
         postJson("/api/auth/login", "{\"email\":\"" + email + "\",\"code\":\"" + code + "\"}", session)
                 .andExpect(status().isOk());
         assertThat(read(mvc.perform(get("/api/me").session(session)).andReturn().getResponse().getContentAsString())
@@ -303,6 +304,14 @@ class FlowTest {
         postJson("/api/auth/profile", "{\"nickname\":\"새학생\",\"gender\":\"FEMALE\"}", session).andExpect(status().isOk());
         createRequest(session, POINTS[0]).andExpect(status().isOk());
         postJson("/api/auth/profile", "{\"nickname\":\"바꿈\",\"gender\":\"MALE\"}", session).andExpect(status().isConflict());
+    }
+
+    /** 코드는 해시로만 저장되므로 보낸 메일에서 읽는다. */
+    private String mailedCode(String email) {
+        var text = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.Mockito.verify(mail, org.mockito.Mockito.atLeastOnce())
+                .sendNow(org.mockito.ArgumentMatchers.eq(email), org.mockito.ArgumentMatchers.anyString(), text.capture());
+        return text.getValue().replaceAll("\\D", "").substring(0, 6);
     }
 
     private jakarta.servlet.http.Cookie cookieFromLogin(String id) throws Exception {
@@ -358,7 +367,7 @@ class FlowTest {
         MockHttpSession session = new MockHttpSession();
         postJson("/api/auth/code", "{\"email\":\"" + email + "\"}", session).andExpect(status().isOk());
         postJson("/api/auth/code", "{\"email\":\"" + email + "\"}", session).andExpect(status().isTooManyRequests());
-        String code = members.findByEmail(email).orElseThrow().getLoginCode();
+        String code = mailedCode(email);
         String body = "{\"email\":\"" + email + "\",\"code\":\"" + code + "\"}";
 
         postJson("/api/auth/login", body, session).andExpect(status().isOk());
@@ -370,7 +379,7 @@ class FlowTest {
         String email = "guess" + System.nanoTime() + "@daejin.ac.kr";
         MockHttpSession session = new MockHttpSession();
         postJson("/api/auth/code", "{\"email\":\"" + email + "\"}", session).andExpect(status().isOk());
-        String code = members.findByEmail(email).orElseThrow().getLoginCode();
+        String code = mailedCode(email);
         String wrong = code.equals("000000") ? "000001" : "000000";
 
         for (int i = 0; i < 5; i++) {
@@ -387,7 +396,7 @@ class FlowTest {
         String email = "late" + System.nanoTime() + "@daejin.ac.kr";
         MockHttpSession session = new MockHttpSession();
         postJson("/api/auth/code", "{\"email\":\"" + email + "\"}", session).andExpect(status().isOk());
-        String code = members.findByEmail(email).orElseThrow().getLoginCode();
+        String code = mailedCode(email);
 
         clock.moveTo(clock.now().plusSeconds(601));
 
@@ -664,13 +673,13 @@ class FlowTest {
     }
 
     private org.springframework.test.web.servlet.ResultActions submit(long partyId, long amount, MockHttpSession user) throws Exception {
-        MockMultipartFile receipt = new MockMultipartFile("receipt", "r.png", "image/png", new byte[] {1, 2, 3});
+        MockMultipartFile receipt = new MockMultipartFile("receipt", "r.png", "image/png", new byte[] {(byte) 0x89, 80, 78, 71, 13, 10, 26, 10, 1});
         return mvc.perform(multipart("/api/parties/" + partyId + "/settlement").file(receipt)
                 .param("amount", String.valueOf(amount)).param("bankName", "OO은행").param("accountNumber", "000-0000-0000").session(user));
     }
 
     private org.springframework.test.web.servlet.ResultActions correct(long partyId, long amount, MockHttpSession user) throws Exception {
-        MockMultipartFile receipt = new MockMultipartFile("receipt", "n.png", "image/png", new byte[] {4, 5, 6});
+        MockMultipartFile receipt = new MockMultipartFile("receipt", "n.png", "image/png", new byte[] {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 4});
         return mvc.perform(multipart("/api/parties/" + partyId + "/settlement/correction").file(receipt)
                 .param("amount", String.valueOf(amount)).param("bankName", "OO은행").param("accountNumber", "000-0000-0000").session(user));
     }

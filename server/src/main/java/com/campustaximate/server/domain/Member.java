@@ -11,6 +11,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.ManyToOne;
 import java.time.Instant;
+import java.time.LocalDate;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -46,6 +47,11 @@ public class Member {
     private Instant loginCodeSentAt;
 
     private int loginCodeFailures;
+
+    /** 코드를 다시 받아도 줄지 않는 하루 실패 횟수. */
+    private int loginFailuresToday;
+
+    private LocalDate loginFailureDay;
 
     public Member(School school, String email) {
         this.school = school;

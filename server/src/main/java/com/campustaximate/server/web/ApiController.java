@@ -1,5 +1,9 @@
 package com.campustaximate.server.web;
 
+import com.campustaximate.server.service.ChangeBus;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import com.campustaximate.matching.Direction;
 import com.campustaximate.matching.Gender;
 import com.campustaximate.server.common.ApiException;
@@ -79,6 +83,7 @@ public class ApiController {
     private final RideRequestRepository requests;
     private final RouteClient routes;
     private final AppClock clock;
+    private final ChangeBus changes;
 
     @Value("${app.cookie-secure}")
     private boolean secureCookie;
@@ -97,7 +102,8 @@ public class ApiController {
 
     public record RequestBodyDto(@NotNull Direction direction, Long hubId, Instant windowStart, Instant windowEnd,
                                  Instant arriveBy, @NotBlank @Size(max = 100) String pointName,
-                                 @NotNull Double pointLat, @NotNull Double pointLon, @Size(max = 100) String memo) {
+                                 @NotNull @DecimalMin("-90") @DecimalMax("90") Double pointLat,
+                                 @NotNull @DecimalMin("-180") @DecimalMax("180") Double pointLon, @Size(max = 100) String memo) {
         RideRequestService.NewRequest toInput() {
             return new RideRequestService.NewRequest(direction, hubId, windowStart, windowEnd, arriveBy, pointName,
                     pointLat, pointLon, memo);
@@ -212,12 +218,18 @@ public class ApiController {
         return new MeView(id, member.getEmail(), member.getNickname(), member.getGender(), !member.hasProfile());
     }
 
-    /** 화면이 주기적으로 읽는 내 상태. */
+    /** 내 상태가 바뀌면 신호를 보낸다. 연결이 안 되는 환경에서는 화면이 주기적으로 읽는다. */
+    @GetMapping(path = "/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter events(HttpSession session) {
+        return changes.subscribe(memberId(session));
+    }
+
+    /** 화면이 읽는 내 상태. */
     @GetMapping("/state")
     public Map<String, Object> state(HttpSession session) {
         long id = memberId(session);
-        List<RideRequest> mine = requests.findByMemberIdOrderByIdDesc(id);
-        Object latest = mine.isEmpty() ? "" : RequestView.of(mine.get(0), insights.of(mine.get(0).getId()), null, null);
+        Object latest = requests.findFirstByMemberIdOrderByIdDesc(id)
+                .<Object>map(r -> RequestView.of(r, insights.of(r.getId()), null, null)).orElse("");
         return Map.of("now", clock.now(), "latestRequest", latest, "parties", parties.openParties(id),
                 "restricted", rideRequests.isRestricted(id));
     }

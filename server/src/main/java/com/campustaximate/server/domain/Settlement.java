@@ -1,5 +1,7 @@
 package com.campustaximate.server.domain;
 
+import jakarta.persistence.EntityListeners;
+import com.campustaximate.server.service.ChangeListener;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
@@ -14,6 +16,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
+@EntityListeners(ChangeListener.class)
 @Getter
 @Setter
 @NoArgsConstructor

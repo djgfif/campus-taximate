@@ -21,11 +21,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -33,9 +37,12 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class SettlementService {
+
+    private static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', 13, 10, 26, 10};
 
     private static final long MAX_AMOUNT = 10_000_000;
     private static final Duration RECEIPT_KEEP = Duration.ofDays(7);
@@ -47,6 +54,7 @@ public class SettlementService {
     private final TransferRequestRepository transfers;
     private final AppClock clock;
     private final PlatformTransactionManager transactionManager;
+    private final ChangeBus changes;
 
     @Value("${app.upload-dir}")
     private String uploadDir;
@@ -187,6 +195,8 @@ public class SettlementService {
                 throw ApiException.conflict("AMOUNT_CHANGED", "금액이 바뀌었습니다. 화면을 새로고침해 주세요.");
             }
             transfer.setStatus(TransferStatus.SENT);
+            log.info("정산 보냄. party={} transfer={} member={}", partyId, transferId, memberId);
+            changes.partyChanged(partyId);
         });
     }
 
@@ -202,6 +212,8 @@ public class SettlementService {
                 throw ApiException.conflict("BAD_STATE", "보냄 표시가 된 송금만 받음으로 바꿀 수 있습니다.");
             }
             transfer.setStatus(TransferStatus.RECEIVED);
+            log.info("정산 받음. party={} transfer={} member={}", partyId, transferId, memberId);
+            changes.partyChanged(partyId);
             boolean allReceived = transfers.findBySettlementOrderById(transfer.getSettlement()).stream()
                     .allMatch(t -> t.getStatus() == TransferStatus.RECEIVED);
             if (allReceived) {
@@ -243,6 +255,23 @@ public class SettlementService {
         }
     }
 
+    /** 브라우저가 보낸 형식은 믿지 않고 파일 앞부분으로 확인한다. */
+    private static void requireImageBytes(MultipartFile receipt) {
+        byte[] head = new byte[12];
+        try (InputStream in = receipt.getInputStream()) {
+            int read = in.readNBytes(head, 0, head.length);
+            boolean jpeg = read >= 3 && (head[0] & 0xFF) == 0xFF && (head[1] & 0xFF) == 0xD8 && (head[2] & 0xFF) == 0xFF;
+            boolean png = read >= 8 && Arrays.equals(Arrays.copyOf(head, 8), PNG);
+            boolean webp = read >= 12 && new String(head, 0, 4, StandardCharsets.ISO_8859_1).equals("RIFF")
+                    && new String(head, 8, 4, StandardCharsets.ISO_8859_1).equals("WEBP");
+            if (!jpeg && !png && !webp) {
+                throw ApiException.badRequest("RECEIPT_TYPE", "JPG, PNG, WEBP 사진만 올릴 수 있습니다.");
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     private String store(MultipartFile receipt) {
         if (receipt == null || receipt.isEmpty()) {
             throw ApiException.badRequest("RECEIPT_REQUIRED", "결제 내역 사진을 올려 주세요.");
@@ -250,6 +279,7 @@ public class SettlementService {
         if (receipt.getContentType() == null || !RECEIPT_TYPES.contains(receipt.getContentType())) {
             throw ApiException.badRequest("RECEIPT_TYPE", "JPG, PNG, WEBP 사진만 올릴 수 있습니다.");
         }
+        requireImageBytes(receipt);
         try {
             Path dir = Path.of(uploadDir);
             Files.createDirectories(dir);

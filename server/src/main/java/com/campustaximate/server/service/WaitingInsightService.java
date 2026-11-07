@@ -34,12 +34,12 @@ public class WaitingInsightService {
     /** 대기 중이 아니면 null이다. */
     @Transactional(readOnly = true)
     public Insight of(long requestId) {
-        List<RideRequest> waiting = requests.findByStatus(RequestStatus.WAITING);
-        RideRequest me = waiting.stream().filter(r -> r.getId() == requestId).findFirst().orElse(null);
-        if (me == null) {
+        RideRequest me = requests.findById(requestId).orElse(null);
+        if (me == null || me.getStatus() != RequestStatus.WAITING) {
             return null;
         }
-        List<RideRequest> peers = waiting.stream().filter(other -> isPeer(me, other)).toList();
+        List<RideRequest> peers = requests.findByStatusAndDirection(RequestStatus.WAITING, me.getDirection()).stream()
+                .filter(other -> isPeer(me, other)).toList();
         GeoPoint anchor = anchorOf(me);
         double myBearing = anchor.bearingTo(me.point());
         int sameDirection = (int) peers.stream()

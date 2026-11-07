@@ -362,7 +362,7 @@ class CommuteFlowTest {
         demo.advance(25 * 60);
         assertThat(onlyParty(users.get(0)).get("settlement").get("accountNumber").isNull()).isTrue();
 
-        MockMultipartFile receipt = new MockMultipartFile("receipt", "n.png", "image/png", new byte[] {4, 5, 6});
+        MockMultipartFile receipt = new MockMultipartFile("receipt", "n.png", "image/png", new byte[] {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 4});
         mvc.perform(multipart("/api/parties/" + partyId + "/settlement/correction").file(receipt)
                 .param("amount", String.valueOf(total)).param("bankName", "OO은행")
                 .param("accountNumber", "123-456-789").session(payer)).andExpect(status().isOk());
@@ -557,7 +557,7 @@ class CommuteFlowTest {
 
     private ResultActions submit(long partyId, long amount, String bank, String account, MockHttpSession user)
             throws Exception {
-        MockMultipartFile receipt = new MockMultipartFile("receipt", "r.png", "image/png", new byte[] {1, 2, 3});
+        MockMultipartFile receipt = new MockMultipartFile("receipt", "r.png", "image/png", new byte[] {(byte) 0x89, 80, 78, 71, 13, 10, 26, 10, 1});
         return mvc.perform(multipart("/api/parties/" + partyId + "/settlement").file(receipt)
                 .param("amount", String.valueOf(amount)).param("bankName", bank).param("accountNumber", account)
                 .session(user));

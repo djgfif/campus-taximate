@@ -1,16 +1,38 @@
+# 값은 .env에서 읽는다. .env.example을 참고한다.
 services:
   mysql:
     image: mysql:8.4.3
     environment:
       MYSQL_DATABASE: taximate
-      MYSQL_USER: taximate
-      MYSQL_PASSWORD: taximate
+      MYSQL_USER: ${DB_USER:-taximate}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD를 .env에 넣어 주세요}
       MYSQL_RANDOM_ROOT_PASSWORD: "yes"
     ports:
-      - "3306:3306"
+      - "127.0.0.1:3306:3306"
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     volumes:
       - taximate-mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
+      interval: 5s
+      retries: 20
+
+  app:
+    build:
+      context: .
+      args:
+        VITE_KAKAO_JS_KEY: ${VITE_KAKAO_JS_KEY:-}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/taximate?serverTimezone=UTC&characterEncoding=UTF-8
+    ports:
+      - "8080:8080"
+    volumes:
+      - taximate-uploads:/app/uploads
 
 volumes:
   taximate-mysql:
+  taximate-uploads:

@@ -1,71 +1,76 @@
 # 캠퍼스 택시메이트
 
-같은 거점에서 출발해 다른 곳에서 내리는 학생을 자동으로 매칭하고, 택시비를 단독 요금 비율로 나누는 모바일 웹이다. 앱은 택시 호출, 실제 결제, 송금을 하지 않는다.
+[![CI](../../actions/workflows/ci.yml/badge.svg)](../../actions/workflows/ci.yml)
+
+집과 학교를 오가는 대학생을 출발 전에 같은 방향 일행으로 자동 매칭하고, 택시비를 각자의 단독 요금 비율로 나누는 서비스입니다. 앱은 호출과 결제를 대신하지 않습니다. 결제자가 일반 택시를 잡고 결제하면 나머지가 은행 앱으로 보내고, 앱은 금액 계산과 보냄, 받음 표시를 맡습니다.
+
+## 주요 기능
+
+- 하교: 같은 거점에서 타고 각자 다른 지점에서 내림. 등교: 먼 사람부터 차례로 타고 학교에서 함께 내림
+- 5분 슬롯 매칭. 지연 15분, 요금 10% 조건을 카카오 길찾기로 확인한 조합만 확정
+- 단독 요금 비율 정산. 혼자 요금은 요청 때 보여 준 값으로 고정
+- 노쇼 처리, 결제자 넘김, 남은 일행 재계산
+- 휴대폰 화면과 PC 화면(폭 1024px 이상에서 왼쪽 작업, 오른쪽 지도)
 
 ## 구성
 
-- `matching-engine/`: 매칭 추정 단계와 정산 계산. DB, 스프링, 카카오에 의존하지 않는 순수 Java 모듈이다.
-- `server/`: Spring Boot API. 인증, 요청, 슬롯 스케줄러, 일행, 정산, 시연 모드.
-- `frontend/`: React 화면. 빌드하면 `server`의 정적 파일로 들어간다.
-- `docs/sample-confirmed-party.json`: 확정 일행 응답 샘플.
-
-## 키 설정
-
-저장소 최상위에 `.env`를 만든다. Git에는 올리지 않는다.
-
-```
-KAKAO_REST_KEY=REST API 키
-VITE_KAKAO_JS_KEY=JavaScript 키
-```
-
-JavaScript 키에는 카카오 콘솔에서 사이트 도메인(`http://localhost:8080`)을 등록해야 지도가 뜬다. 화면은 빌드할 때 키를 넣으므로 키를 바꾸면 다시 빌드한다.
+| 폴더 | 내용 |
+|---|---|
+| `matching-engine/` | 매칭 추정과 정산 계산. DB, 스프링, 카카오에 의존하지 않는 순수 Java |
+| `server/` | Spring Boot API. 인증, 슬롯 스케줄러, 일행, 정산, 실시간 신호, 메일 재시도 |
+| `frontend/` | React 화면. 빌드하면 `server`의 정적 파일로 들어간다 |
+| `docs/openapi.json` | API 명세 |
 
 ## 시연 실행
 
-MySQL 없이 돌아가고 데이터는 재시작하면 사라진다. `KAKAO_REST_KEY`가 없으면 경로와 요금은 모의 값이다.
+MySQL 없이 돌아가고 재시작하면 데이터가 사라집니다. Java 21과 Node 20이 필요합니다. `.env.example`을 복사해 `.env`를 만들고 카카오 키를 넣습니다. `KAKAO_REST_KEY`가 없으면 모의 경로로 돕니다.
 
 ```bash
-cd frontend
-npm install
-npm run build
-cd ..
-mvn package -DskipTests
+cd frontend && npm ci && npm run build && cd ..
+./mvnw package -DskipTests
 set -a; . ./.env; set +a
 SPRING_PROFILES_ACTIVE=demo java -jar server/target/server-0.1.0.jar
 ```
 
-`http://localhost:8080`에서 `demo-f1@daejin.ac.kr`을 넣는다. 시연 계정은 코드가 자동으로 들어간다. 화면 아래 시연 모드로 진행한다.
+`http://localhost:8080`에서 `demo-f1@daejin.ac.kr`로 로그인합니다. 시연 계정은 코드가 자동으로 들어갑니다. 요청을 만든 뒤 상단의 시연 메뉴에서 일행 만들기를 누르면 일행이 정해집니다.
 
-1. 탑승 요청을 넣고 샘플 요청 2개를 누른다.
-2. +5분을 누르면 일행이 확정된다.
-3. 샘플 일행 도착, 보냄과 도착했어요를 누른다.
-4. +30분을 누르면 출발 처리된다.
-5. 마지막 하차자가 금액과 사진을 올린다.
-6. 샘플 일행 도착, 보냄을 누르고 받았어요를 누른다.
+API 문서는 시연 실행 중 `http://localhost:8080/swagger-ui.html`에서 볼 수 있습니다.
 
-## 실제 실행
+## 운영 실행
+
+`.env`에 `.env.example`의 값을 모두 채운 뒤 실행합니다. `ACCOUNT_KEY`, `KAKAO_REST_KEY`, `MAIL_HOST`가 없으면 서버가 시작을 거부합니다. DB 구조는 Flyway가 만들고, 시작할 때 엔티티와 일치하는지 검사합니다.
 
 ```bash
-docker compose up -d mysql
-KAKAO_REST_KEY=키 ACCOUNT_KEY=계좌암호화키 MAIL_HOST=메일서버 MAIL_USER=계정 MAIL_PASSWORD=비밀번호 java -jar server/target/server-0.1.0.jar
+docker compose up -d --build
 ```
 
-키가 없으면 경로 조회가 실패해 요청을 저장하지 못한다. 메일 서버가 없으면 로그인 코드는 서버 로그에 찍힌다. 실제 사용자는 메일 서버 없이 로그인할 수 없다.
+`/actuator/health`로 상태를 확인합니다. 로그를 파일로 남기려면 `SPRING_PROFILES_ACTIVE=logfile`과 `LOG_DIR`을 넣습니다.
 
-## 테스트
+## 개발
 
 ```bash
-mvn install -DskipTests -pl matching-engine
-mvn test
+./mvnw verify                 # 서버와 엔진 테스트
+cd frontend
+npm run dev                   # 5173 포트, API는 8080으로 전달
+npm run lint
+npm test
 ```
+
+`MYSQL_TEST_URL`을 넣으면 `MigrationSchemaTest`가 실제 MySQL에서 돕니다. CI는 매번 MySQL 8.4에서 이 검사를 합니다.
+
+## 보안
+
+- API는 기본 거부. 공개 경로는 `AccessInterceptor`에 있는 목록뿐이고, 테스트가 모든 경로를 훑어 확인합니다
+- 로그인 코드와 유지 토큰은 해시로, 계좌번호는 AES-GCM으로 저장합니다
+- 코드 실패는 코드별 5회, 하루 20회로 막고, 인증 경로는 IP별 분당 30회로 제한합니다
+- 다른 사이트의 쓰기 요청은 Origin 검사로 막고, 결제 사진은 파일 앞부분으로 형식을 확인합니다
 
 ## 아직 확인하지 못한 것
 
-- 심야, 시외 할증에서의 카카오 요금 값. 낮 시간대 호출만 확인했다.
-- 길찾기 값 저장 허용 여부.
-- MySQL 실행. 테스트는 H2의 MySQL 모드로만 돌렸다.
-- 거점과 하차 지점 좌표. 초기 데이터는 시연용 샘플이다.
+- 심야, 시외 할증에서의 카카오 요금 값
+- 길찾기 값 저장 허용 여부
+- 초기 거점과 지점 좌표는 시연용 샘플입니다
 
 ## 아직 없는 것
 
-장소 검색, 신고, 관리 화면.
+앱을 닫았을 때의 푸시 알림(지금은 메일), 신고, 관리 화면. 요청 제한과 실시간 신호는 서버 한 대 기준입니다.

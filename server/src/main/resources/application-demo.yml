@@ -1,5 +1,13 @@
 # MySQL 없이 돌려 보는 시연 설정이다. 재시작하면 데이터가 사라진다.
+server:
+  servlet:
+    session:
+      cookie:
+        secure: false
+
 spring:
+  flyway:
+    enabled: false
   datasource:
     url: jdbc:h2:mem:taximate;MODE=MySQL;DB_CLOSE_DELAY=-1
     username: sa
@@ -9,6 +17,13 @@ spring:
       ddl-auto: create-drop
 
 app:
+  cookie-secure: false
   account-key: demo-only-account-key
   demo:
+    enabled: true
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
     enabled: true

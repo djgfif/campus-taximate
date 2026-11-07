@@ -115,12 +115,8 @@ public class PartyService {
 
     @Transactional(readOnly = true)
     public List<PartyView> openParties(long memberId) {
-        return requests.findByMemberIdOrderByIdDesc(memberId).stream()
-                .filter(r -> !r.isNoShow())
-                .map(RideRequest::getParty)
-                .filter(p -> p != null && (p.getStatus() == PartyStatus.CONFIRMED
-                        || p.getStatus() == PartyStatus.SETTLING))
-                .map(p -> toView(memberId, p))
+        return requests.findOpenByMember(memberId, List.of(PartyStatus.CONFIRMED, PartyStatus.SETTLING)).stream()
+                .map(r -> toView(memberId, r.getParty()))
                 .toList();
     }
 

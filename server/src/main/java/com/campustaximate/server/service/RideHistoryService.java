@@ -36,7 +36,7 @@ public class RideHistoryService {
 
     @Transactional(readOnly = true)
     public List<Entry> of(long memberId) {
-        return requests.findByMemberIdOrderByIdDesc(memberId).stream().map(r -> entry(r, memberId)).toList();
+        return requests.findTop50ByMemberIdOrderByIdDesc(memberId).stream().map(r -> entry(r, memberId)).toList();
     }
 
     private Entry entry(RideRequest r, long memberId) {

@@ -1,5 +1,9 @@
 package com.campustaximate.server.domain;
 
+import jakarta.persistence.EntityListeners;
+import jakarta.persistence.Index;
+import jakarta.persistence.Table;
+import com.campustaximate.server.service.ChangeListener;
 import com.campustaximate.matching.Direction;
 import com.campustaximate.matching.GeoPoint;
 import jakarta.persistence.Column;
@@ -20,6 +24,11 @@ import lombok.Setter;
 
 /** 탑승 요청. 일행, 승하차 순서, 단독 요금 비율, 분담금, 도착 표시를 함께 갖는다. */
 @Entity
+@EntityListeners(ChangeListener.class)
+@Table(indexes = {
+        @Index(name = "idx_ride_request_member", columnList = "member_id, id"),
+        @Index(name = "idx_ride_request_status", columnList = "status, direction")
+})
 @Getter
 @Setter
 @NoArgsConstructor

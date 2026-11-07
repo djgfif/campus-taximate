@@ -8,6 +8,10 @@ export default defineConfig({
     port: 5173,
     proxy: { '/api': 'http://localhost:8080' },
   },
+  test: {
+    environment: 'jsdom',
+    globals: true,
+  },
   build: {
     outDir: '../server/src/main/resources/static',
     emptyOutDir: true,

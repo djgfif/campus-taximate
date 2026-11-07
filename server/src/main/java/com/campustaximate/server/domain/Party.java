@@ -1,5 +1,7 @@
 package com.campustaximate.server.domain;
 
+import jakarta.persistence.EntityListeners;
+import com.campustaximate.server.service.ChangeListener;
 import com.campustaximate.matching.Direction;
 import com.campustaximate.matching.GeoPoint;
 import jakarta.persistence.Column;
@@ -19,6 +21,7 @@ import lombok.Setter;
 
 /** 자동으로 매칭된 일행. 하교는 hub, 등교는 school이 있다. 등교의 출발 시각은 첫 승차 시각이다. */
 @Entity
+@EntityListeners(ChangeListener.class)
 @Getter
 @Setter
 @NoArgsConstructor

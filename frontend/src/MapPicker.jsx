@@ -4,6 +4,7 @@ import { Btn } from './ui.jsx'
 
 const APP_KEY = import.meta.env.VITE_KAKAO_JS_KEY
 const INITIAL_LEVEL = 6
+const LOAD_TIMEOUT_MS = 8000
 
 let sdk = null
 
@@ -13,7 +14,12 @@ export function loadKakaoMaps() {
     sdk = new Promise((resolve, reject) => {
       const script = document.createElement('script')
       script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${APP_KEY}&libraries=services&autoload=false`
-      script.onload = () => window.kakao.maps.load(() => resolve(window.kakao.maps))
+      // 스크립트가 막히면 load 콜백이 오지 않는다. 기다리지 않고 지도 없는 화면으로 넘어간다.
+      const timer = setTimeout(() => reject(new Error('카카오맵을 불러오지 못했습니다.')), LOAD_TIMEOUT_MS)
+      script.onload = () => window.kakao.maps.load(() => {
+        clearTimeout(timer)
+        resolve(window.kakao.maps)
+      })
       script.onerror = () => reject(new Error('카카오맵을 불러오지 못했습니다.'))
       document.head.appendChild(script)
     })

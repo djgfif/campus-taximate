@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, Check, ChevronLeft, ChevronRight, Info, User } from 'lucide-react'
 
 const WIDE = '(min-width: 1024px)'
@@ -165,15 +165,36 @@ export function Chips({ options, value, onChange, label }) {
 }
 
 export function Sheet({ title, onClose, children, className = '' }) {
+  const box = useRef(null)
   useEffect(() => {
-    const key = (event) => event.key === 'Escape' && onClose()
+    const key = (event) => {
+      if (event.key === 'Escape') onClose()
+      if (event.key !== 'Tab') return
+      // 시트가 열린 동안 Tab이 뒤 화면으로 나가지 않게 한다.
+      const items = box.current.querySelectorAll('button:not(:disabled), a[href], input, select')
+      if (items.length === 0) return
+      const first = items[0]
+      const last = items[items.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
     window.addEventListener('keydown', key)
     return () => window.removeEventListener('keydown', key)
   }, [onClose])
+  useEffect(() => {
+    const before = document.activeElement
+    box.current.focus()
+    return () => before?.focus?.()
+  }, [])
   return (
     <>
-      <div className={`scrim ${className}`} onClick={onClose} />
-      <section className={`sheet ${className}`} role="dialog" aria-modal="true" aria-label={title}>
+      <div className={`scrim ${className}`} onClick={onClose} aria-hidden="true" />
+      <section ref={box} tabIndex={-1} className={`sheet ${className}`} role="dialog" aria-modal="true" aria-label={title}>
         <h2>{title}</h2>
         {children}
       </section>

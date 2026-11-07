@@ -1,0 +1,1515 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "OpenAPI definition",
+    "version": "v0"
+  },
+  "paths": {
+    "/api/transfers/{id}/sent": {
+      "post": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "sent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SentBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/transfers/{id}/received": {
+      "post": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "received",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/requests": {
+      "post": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "createRequest",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestBodyDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "integer",
+                    "format": "int64"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/requests/preview": {
+      "post": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "previewRequest",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestBodyDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Preview"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/parties/{id}/settlement": {
+      "post": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "submitSettlement",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "amount",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "bankName",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "accountNumber",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "required": [
+                  "receipt"
+                ],
+                "type": "object",
+                "properties": {
+                  "receipt": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/parties/{id}/settlement/correction": {
+      "post": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "correctSettlement",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "amount",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "bankName",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "accountNumber",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "required": [
+                  "receipt"
+                ],
+                "type": "object",
+                "properties": {
+                  "receipt": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/parties/{id}/boarded": {
+      "post": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "boarded",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/parties/{id}/arrive": {
+      "post": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "arrive",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/demo/samples": {
+      "post": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "demoSamples",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SampleBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "integer",
+                    "format": "int32"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/demo/run": {
+      "post": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "demoRun",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/demo/match": {
+      "post": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "demoMatch",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchOutcome"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/demo/advance": {
+      "post": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "demoAdvance",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdvanceBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/demo/act": {
+      "post": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "demoAct",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/auth/profile": {
+      "post": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "profile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "logout",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/auth/logout-all": {
+      "post": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "logoutAll",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/auth/code": {
+      "post": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "requestCode",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CodeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/state": {
+      "get": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "state",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/school": {
+      "get": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "school",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchoolView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/parties/{id}": {
+      "get": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "party",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/parties/{id}/settlement/preview": {
+      "get": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "previewSettlement",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "amount",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ShareView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/parties/{id}/routes": {
+      "get": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "partyRoutes",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/parties/{id}/receipt": {
+      "get": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "receipt",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me": {
+      "get": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "me",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hubs": {
+      "get": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "hubs",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HubView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/history": {
+      "get": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "history",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RequestView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/events": {
+      "get": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "events",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/SseEmitter"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config": {
+      "get": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "config",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/requests/{id}": {
+      "delete": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "cancelRequest",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "SentBody": {
+        "required": [
+          "revision"
+        ],
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "RequestBodyDto": {
+        "required": [
+          "direction",
+          "pointLat",
+          "pointLon",
+          "pointName"
+        ],
+        "type": "object",
+        "properties": {
+          "direction": {
+            "type": "string",
+            "enum": [
+              "FROM_HUB",
+              "TO_SCHOOL"
+            ]
+          },
+          "hubId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "windowStart": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "windowEnd": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "arriveBy": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "pointName": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string"
+          },
+          "pointLat": {
+            "maximum": 90,
+            "exclusiveMaximum": false,
+            "minimum": -90,
+            "exclusiveMinimum": false,
+            "type": "number",
+            "format": "double"
+          },
+          "pointLon": {
+            "maximum": 180,
+            "exclusiveMaximum": false,
+            "minimum": -180,
+            "exclusiveMinimum": false,
+            "type": "number",
+            "format": "double"
+          },
+          "memo": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string"
+          }
+        }
+      },
+      "Preview": {
+        "type": "object",
+        "properties": {
+          "soloFare": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "soloMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "resultBy": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SampleBody": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "MatchOutcome": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "WAITING",
+              "MATCHED",
+              "COMPLETED",
+              "UNMATCHED",
+              "CANCELED"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "AdvanceBody": {
+        "required": [
+          "minutes"
+        ],
+        "type": "object",
+        "properties": {
+          "minutes": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ProfileBody": {
+        "required": [
+          "gender",
+          "nickname"
+        ],
+        "type": "object",
+        "properties": {
+          "nickname": {
+            "maxLength": 20,
+            "minLength": 0,
+            "type": "string"
+          },
+          "gender": {
+            "type": "string",
+            "enum": [
+              "FEMALE",
+              "MALE"
+            ]
+          }
+        }
+      },
+      "LoginBody": {
+        "required": [
+          "code",
+          "email"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          }
+        }
+      },
+      "CodeBody": {
+        "required": [
+          "email"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          }
+        }
+      },
+      "SchoolView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "gateName": {
+            "type": "string"
+          },
+          "lat": {
+            "type": "number",
+            "format": "double"
+          },
+          "lon": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "MemberView": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "memberId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "nickname": {
+            "type": "string"
+          },
+          "memo": {
+            "type": "string"
+          },
+          "rideOrder": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pointName": {
+            "type": "string"
+          },
+          "expectedShare": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "arrived": {
+            "type": "boolean"
+          },
+          "noShow": {
+            "type": "boolean"
+          },
+          "soloFare": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "soloSeconds": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sharedSeconds": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "boardAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "arriveDeadline": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PartyView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "FROM_HUB",
+              "TO_SCHOOL"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "CONFIRMED",
+              "SETTLING",
+              "COMPLETED",
+              "UNSETTLED",
+              "CANCELED"
+            ]
+          },
+          "anchorName": {
+            "type": "string"
+          },
+          "meetingPoint": {
+            "type": "string"
+          },
+          "departureAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "boardedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "myBoardAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "arrivalAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "callAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "arriveDeadline": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expectedTotal": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "soloTotal": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "payerId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "payerNickname": {
+            "type": "string"
+          },
+          "payer": {
+            "type": "boolean"
+          },
+          "canArrive": {
+            "type": "boolean"
+          },
+          "canBoard": {
+            "type": "boolean"
+          },
+          "canCancel": {
+            "type": "boolean"
+          },
+          "canSettle": {
+            "type": "boolean"
+          },
+          "myRequestId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "myShare": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "mySoloFare": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemberView"
+            }
+          },
+          "settlement": {
+            "$ref": "#/components/schemas/SettlementView"
+          }
+        }
+      },
+      "SettlementView": {
+        "type": "object",
+        "properties": {
+          "paidAmount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "warning": {
+            "type": "boolean"
+          },
+          "differencePercent": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "canCorrect": {
+            "type": "boolean"
+          },
+          "receiptAvailable": {
+            "type": "boolean"
+          },
+          "bankName": {
+            "type": "string"
+          },
+          "accountNumber": {
+            "type": "string"
+          },
+          "transfers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TransferView"
+            }
+          }
+        }
+      },
+      "TransferView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "senderId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "senderNickname": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "REQUESTED",
+              "SENT",
+              "RECEIVED"
+            ]
+          }
+        }
+      },
+      "ShareView": {
+        "type": "object",
+        "properties": {
+          "memberId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "nickname": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "payer": {
+            "type": "boolean"
+          }
+        }
+      },
+      "GeoPoint": {
+        "type": "object",
+        "properties": {
+          "lat": {
+            "type": "number",
+            "format": "double"
+          },
+          "lon": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "RouteView": {
+        "type": "object",
+        "properties": {
+          "shared": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeoPoint"
+            }
+          },
+          "solo": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeoPoint"
+            }
+          }
+        }
+      },
+      "MeView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "email": {
+            "type": "string"
+          },
+          "nickname": {
+            "type": "string"
+          },
+          "gender": {
+            "type": "string",
+            "enum": [
+              "FEMALE",
+              "MALE"
+            ]
+          },
+          "needsProfile": {
+            "type": "boolean"
+          }
+        }
+      },
+      "HubView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "lat": {
+            "type": "number",
+            "format": "double"
+          },
+          "lon": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "Insight": {
+        "type": "object",
+        "properties": {
+          "stage": {
+            "type": "string",
+            "enum": [
+              "NOT_STARTED",
+              "ALONE",
+              "OTHER_DIRECTION",
+              "CANDIDATES"
+            ]
+          },
+          "peers": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sameDirection": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "nextCheckAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "searchStartsAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "RequestView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "WAITING",
+              "MATCHED",
+              "COMPLETED",
+              "UNMATCHED",
+              "CANCELED"
+            ]
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "FROM_HUB",
+              "TO_SCHOOL"
+            ]
+          },
+          "hubId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "anchorName": {
+            "type": "string"
+          },
+          "windowStart": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "windowEnd": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "arriveBy": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "resultBy": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "pointName": {
+            "type": "string"
+          },
+          "pointLat": {
+            "type": "number",
+            "format": "double"
+          },
+          "pointLon": {
+            "type": "number",
+            "format": "double"
+          },
+          "soloFare": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "soloMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "memo": {
+            "type": "string"
+          },
+          "insight": {
+            "$ref": "#/components/schemas/Insight"
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "WAITING",
+              "CANCELED",
+              "UNMATCHED",
+              "NO_SHOW",
+              "MATCHED",
+              "AWAITING_AMOUNT",
+              "SETTLING",
+              "SETTLED",
+              "UNSETTLED",
+              "PARTY_CANCELED",
+              "LEFT_ALONE"
+            ]
+          },
+          "paid": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "endReason": {
+            "type": "string",
+            "enum": [
+              "NO_SHOW",
+              "PARTY_CANCELED",
+              "LEFT_ALONE"
+            ]
+          },
+          "anchorLat": {
+            "type": "number",
+            "format": "double"
+          },
+          "anchorLon": {
+            "type": "number",
+            "format": "double"
+          },
+          "partyPaid": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "partySize": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "SseEmitter": {
+        "type": "object",
+        "properties": {
+          "timeout": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      }
+    }
+  }
+}
