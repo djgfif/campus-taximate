@@ -120,6 +120,12 @@ public class PartyService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public PartyView latestSettled(long memberId) {
+        return requests.findOpenByMember(memberId, List.of(PartyStatus.COMPLETED)).stream().findFirst()
+                .map(r -> toView(memberId, r.getParty())).orElse(null);
+    }
+
     /** 일행만 사진을 볼 수 있다. */
     @Transactional(readOnly = true)
     public Settlement receiptOf(long memberId, long partyId) {

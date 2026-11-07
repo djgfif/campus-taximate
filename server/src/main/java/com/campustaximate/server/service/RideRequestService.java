@@ -49,6 +49,7 @@ public class RideRequestService {
     private final PartyShrinker shrinker;
     private final PlatformTransactionManager transactionManager;
     private final AppClock clock;
+    private final MemberSafetyService safety;
 
     /** 하교는 hubId, windowStart, windowEnd를, 등교는 arriveBy를 쓴다. 등교의 학교는 회원의 학교다. */
     public record NewRequest(Direction direction, Long hubId, Instant windowStart, Instant windowEnd, Instant arriveBy,
@@ -65,8 +66,10 @@ public class RideRequestService {
     public RideRequest create(long memberId, NewRequest input) {
         TransactionTemplate tx = new TransactionTemplate(transactionManager);
         GeoPoint anchor = tx.execute(status -> {
+            members.findByIdForUpdate(memberId).orElseThrow(ApiException::unauthorized);
+            safety.requireUnrestricted(memberId);
             GeoPoint point = validateTrip(memberId, input);
-            if (isRestricted(memberId)) {
+            if (isTransferRestricted(memberId)) {
                 throw ApiException.conflict("TRANSFER_OVERDUE", "24시간이 지나도 보내지 않은 송금이 있어 새 요청을 할 수 없습니다.");
             }
             if (requests.findByActiveMemberId(memberId).isPresent()) {
@@ -140,7 +143,11 @@ public class RideRequestService {
     }
 
     private RideRequest save(long memberId, NewRequest input, RouteClient.Route solo, Instant deadlineSlot) {
-        Member member = members.findById(memberId).orElseThrow(ApiException::unauthorized);
+        Member member = members.findByIdForUpdate(memberId).orElseThrow(ApiException::unauthorized);
+        safety.requireUnrestricted(memberId);
+        if (isTransferRestricted(memberId)) {
+            throw ApiException.conflict("TRANSFER_OVERDUE", "24시간이 지나도 보내지 않은 송금이 있어 새 요청을 할 수 없어요.");
+        }
         RideRequest request = new RideRequest();
         request.setMember(member);
         request.setActiveMemberId(memberId);
@@ -190,6 +197,11 @@ public class RideRequestService {
 
     @Transactional(readOnly = true)
     public boolean isRestricted(long memberId) {
+        return safety.activeRestriction(memberId) != null || isTransferRestricted(memberId);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean isTransferRestricted(long memberId) {
         return transfers.existsOverdue(memberId, TransferStatus.REQUESTED, clock.now().minus(OVERDUE));
     }
 

@@ -31,6 +31,8 @@ public class TransferRequest {
 
     private long amount;
 
+    private java.time.Instant remindedAt;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private TransferStatus status = TransferStatus.REQUESTED;

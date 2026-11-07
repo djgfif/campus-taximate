@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { api } from './api.js'
+import { SettledFeedback } from './MemberSafety.jsx'
 import { formatTime, routeLabel, savedTotal, won } from './format.js'
 import { Item, Paper, Say, Screen, SideEmpty, SidePlain, TopBar, useWide } from './ui.jsx'
 
@@ -14,7 +15,7 @@ function recentRoutes(history) {
   }).slice(0, 3)
 }
 
-export default function Home({ state, onStart, onReopen, onHistory, onMenu }) {
+export default function Home({ state, myId, onStart, onReopen, onHistory, onMenu }) {
   const [history, setHistory] = useState([])
   const wide = useWide()
   useEffect(() => {
@@ -45,7 +46,8 @@ export default function Home({ state, onStart, onReopen, onHistory, onMenu }) {
       </div>
       {(blocked || state.parties.length > 0) && (
         <div className="pad">
-          {blocked && <Say tone="stop-tone" title="보내지 않은 송금이 있어요">24시간이 지나 새 요청을 할 수 없습니다. 보낸 뒤 보냈어요를 눌러 주세요.</Say>}
+          {state.restriction && <Say tone="stop-tone" title="신고 누적으로 이용이 제한됐어요">{state.restriction.message}</Say>}
+          {(state.transferRestricted || (blocked && !state.restriction)) && <Say tone="stop-tone" title="보내지 않은 송금이 있어요">24시간이 지나 새 요청을 할 수 없습니다. 보낸 뒤 보냈어요를 눌러 주세요.</Say>}
           <div className="list">
             {state.parties.map((party) => (
               <Item key={party.id} title={party.settlement || party.canSettle ? '진행 중인 정산' : '진행 중인 일행'}
@@ -55,6 +57,7 @@ export default function Home({ state, onStart, onReopen, onHistory, onMenu }) {
           </div>
         </div>
       )}
+      {state.settledParty && <SettledFeedback key={state.settledParty.id} party={state.settledParty} myId={myId} />}
       <div className="ways">
         <button type="button" className="way" disabled={blocked} onClick={() => onStart({ direction: 'TO_SCHOOL' })}>
           <b>등교</b>

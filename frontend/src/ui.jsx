@@ -89,7 +89,7 @@ export function Meter({ label, value, detail, tag, children }) {
 }
 
 /** 비동기 동작 중에는 스피너를 보이고 중복 누름을 막는다. */
-export function Btn({ onClick, className = '', disabled, children, type = 'button' }) {
+export function Btn({ onClick, className = '', disabled, children, type = 'button', ...props }) {
   const [busy, setBusy] = useState(false)
   const press = async () => {
     if (busy || !onClick) return
@@ -101,7 +101,7 @@ export function Btn({ onClick, className = '', disabled, children, type = 'butto
     }
   }
   return (
-    <button type={type} className={`btn ${className}`} disabled={disabled || busy} onClick={press}>
+    <button {...props} type={type} className={`btn ${className}`} disabled={disabled || busy} onClick={press}>
       {busy ? <span className="spin" aria-label="처리 중" /> : children}
     </button>
   )
@@ -171,7 +171,7 @@ export function Sheet({ title, onClose, children, className = '' }) {
       if (event.key === 'Escape') onClose()
       if (event.key !== 'Tab') return
       // 시트가 열린 동안 Tab이 뒤 화면으로 나가지 않게 한다.
-      const items = box.current.querySelectorAll('button:not(:disabled), a[href], input, select')
+      const items = box.current.querySelectorAll('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled)')
       if (items.length === 0) return
       const first = items[0]
       const last = items[items.length - 1]

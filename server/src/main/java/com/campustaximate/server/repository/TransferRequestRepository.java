@@ -15,6 +15,17 @@ public interface TransferRequestRepository extends JpaRepository<TransferRequest
     @EntityGraph(attributePaths = {"sender"})
     List<TransferRequest> findBySettlementOrderById(Settlement settlement);
 
+    @EntityGraph(attributePaths = {"sender", "settlement"})
+    @Query("select t from TransferRequest t where t.status = com.campustaximate.server.domain.TransferStatus.REQUESTED "
+            + "and t.remindedAt is null and t.settlement.requestedAt <= :before")
+    List<TransferRequest> findDueUnsentReminders(Instant before);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("update TransferRequest t set t.remindedAt = :now where t.id = :id and t.remindedAt is null "
+            + "and t.status = com.campustaximate.server.domain.TransferStatus.REQUESTED "
+            + "and t.settlement.id in (select s.id from Settlement s where s.requestedAt <= :before)")
+    int claimReminder(long id, Instant now, Instant before);
+
     @Query("select t.settlement.party.id from TransferRequest t where t.id = :id")
     Optional<Long> findPartyId(Long id);
 

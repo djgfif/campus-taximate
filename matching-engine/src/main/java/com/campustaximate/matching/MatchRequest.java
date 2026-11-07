@@ -2,6 +2,7 @@ package com.campustaximate.matching;
 
 import java.time.Instant;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * 매칭 대상 요청. anchor는 하교의 거점이나 등교의 학교이고, own은 각자의 하차 또는 승차 지점이다.
@@ -9,13 +10,14 @@ import java.util.Objects;
  */
 public record MatchRequest(long id, long memberId, Direction direction, long anchorId, GeoPoint anchor, Gender gender,
                            Instant windowStart, Instant windowEnd, Instant arriveBy, Instant deadlineSlot,
-                           GeoPoint own, double soloKm, int soloSeconds) {
+                           GeoPoint own, double soloKm, int soloSeconds, Set<Long> avoidMemberIds) {
 
     /** 같은 풀 안에서만 매칭한다. 등교는 도착 희망 시각까지 같아야 한다. */
     public record PoolKey(Direction direction, long anchorId, Gender gender, Instant arriveBy) {
     }
 
     public MatchRequest {
+        avoidMemberIds = Set.copyOf(avoidMemberIds);
         Objects.requireNonNull(direction);
         Objects.requireNonNull(anchor);
         Objects.requireNonNull(gender);
@@ -30,6 +32,23 @@ public record MatchRequest(long id, long memberId, Direction direction, long anc
             Objects.requireNonNull(arriveBy);
             Objects.requireNonNull(deadlineSlot);
         }
+    }
+
+    /** 기존 호출은 회피 없는 요청을 만든다. */
+    public MatchRequest(long id, long memberId, Direction direction, long anchorId, GeoPoint anchor, Gender gender,
+                        Instant windowStart, Instant windowEnd, Instant arriveBy, Instant deadlineSlot,
+                        GeoPoint own, double soloKm, int soloSeconds) {
+        this(id, memberId, direction, anchorId, anchor, gender, windowStart, windowEnd, arriveBy, deadlineSlot,
+                own, soloKm, soloSeconds, Set.of());
+    }
+
+    public MatchRequest withAvoidMemberIds(Set<Long> ids) {
+        return new MatchRequest(id, memberId, direction, anchorId, anchor, gender, windowStart, windowEnd,
+                arriveBy, deadlineSlot, own, soloKm, soloSeconds, ids);
+    }
+
+    public boolean avoids(MatchRequest other) {
+        return avoidMemberIds.contains(other.memberId) || other.avoidMemberIds.contains(memberId);
     }
 
     /** 하교 요청. */

@@ -59,6 +59,7 @@ public class SlotService {
     private final RoutePathStore paths;
     private final NotificationService notifications;
     private final AppClock clock;
+    private final MemberSafetyService safety;
     private final PlatformTransactionManager transactionManager;
     private final ReentrantLock lock = new ReentrantLock();
     private final Map<List<Long>, Instant> rejected = new ConcurrentHashMap<>();
@@ -149,11 +150,7 @@ public class SlotService {
         for (RideRequest rider : riders) {
             if (!rider.isArrived()) {
                 noShows.add(rider.getId());
-                if (!rider.isNoShow()) {
-                    rider.markNoShow();
-                    Member member = rider.getMember();
-                    member.setNoShowCount(member.getNoShowCount() + 1);
-                }
+                safety.recordNoShow(rider, now);
             }
         }
         if (noShows.isEmpty()) {
@@ -165,9 +162,10 @@ public class SlotService {
     private void matchWaiting(Instant slot, List<RideRequest> waiting) {
         Map<Long, RideRequest> snapshot = new LinkedHashMap<>();
         List<MatchRequest> input = new ArrayList<>();
+        Map<Long, Set<Long>> avoidMap = safety.avoidMap(waiting.stream().map(r -> r.getMember().getId()).toList());
         for (RideRequest r : waiting) {
             snapshot.put(r.getId(), r);
-            input.add(toEngine(r));
+            input.add(toEngine(r).withAvoidMemberIds(avoidMap.getOrDefault(r.getMember().getId(), Set.of())));
         }
         Instant now = clock.now();
         rejected.values().removeIf(until -> !until.isAfter(now));
@@ -212,6 +210,13 @@ public class SlotService {
     }
 
     private void confirm(ConfirmedGroup group, RouteGroupVerifier.VerifiedRoutes verified, Map<Long, RideRequest> snapshot) {
+        List<Long> memberIds = group.order().stream().map(MatchRequest::memberId).toList();
+        safety.lockMembers(memberIds);
+        Map<Long, Set<Long>> currentAvoids = safety.avoidMap(memberIds);
+        if (memberIds.stream().anyMatch(id -> memberIds.stream()
+                .anyMatch(other -> currentAvoids.getOrDefault(id, Set.of()).contains(other)))) {
+            return;
+        }
         List<RideRequest> riders = new ArrayList<>();
         for (MatchRequest m : group.order()) {
             RideRequest current = requests.findById(m.id()).orElseThrow();
@@ -230,6 +235,7 @@ public class SlotService {
         Instant departure = group.departure() != null ? group.departure() : verified.departure();
         Party party = parties.save(new Party(first.getDirection(), first.getHub(), first.getSchool(),
                 riders.get(payerIndex).getMember(), departure, total));
+        safety.remember(party, riders);
         for (int i = 0; i < riders.size(); i++) {
             RideRequest rider = riders.get(i);
             rider.setSoloKm(verified.solo().get(i).km());

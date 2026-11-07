@@ -63,6 +63,33 @@ class MatchingRoundTest {
     }
 
     @Test
+    void avoidedPairIsNeverGroupedTogether() {
+        var a = request(1, at(3, 0));
+        var b = request(2, at(5, 0));
+        var c = request(3, at(7, 0));
+        var d = request(4, at(9, 0));
+        // A를 기준자로 삼을 때뿐 아니라 다른 기준자의 조합 안에서도 B/C를 거른다.
+        for (boolean reverse : List.of(false, true)) {
+            var second = reverse ? b : b.withAvoidMemberIds(Set.of(c.memberId()));
+            var third = reverse ? c.withAvoidMemberIds(Set.of(b.memberId())) : c;
+            RoundResult result = round.run(SLOT, List.of(a, second, third, d), LEGS, candidate -> {
+                Set<Long> ids = new HashSet<>(candidate.order().stream().map(MatchRequest::memberId).toList());
+                assertTrue(!(ids.contains(b.memberId()) && ids.contains(c.memberId())));
+                return Verdict.PASS;
+            });
+            assertEquals(1, result.confirmed().size());
+            var group = result.confirmed().getFirst().order();
+            assertEquals(3, group.size());
+            assertTrue(group.contains(a) && group.contains(d));
+            assertTrue(group.stream().anyMatch(r -> r.memberId() == b.memberId() || r.memberId() == c.memberId()));
+        }
+        // 기준자와의 직접 회피도 제외한다. 두 명만 남은 회피 쌍은 마감에도 성사되지 않는다.
+        var blocked = a.withAvoidMemberIds(Set.of(b.memberId()));
+        assertTrue(round.run(SLOT.plusSeconds(1800), List.of(blocked, b), LEGS, PASS).confirmed().isEmpty());
+        assertEquals(1, round.run(SLOT, List.of(blocked, b, c, d), LEGS, PASS).confirmed().size());
+    }
+
+    @Test
     void differentGenderOrHubAreNotGrouped() {
         var a = request(1, at(3, 0));
         var b = request(2, at(5, 0));

@@ -37,6 +37,7 @@ public class BoardingMonitor {
     private final NotificationService notifications;
     private final PlatformTransactionManager transactionManager;
     private final ReminderService reminders;
+    private final MemberSafetyService safety;
 
     public void check(Instant now) {
         try {
@@ -73,9 +74,7 @@ public class BoardingMonitor {
         }
         for (RideRequest rider : riders) {
             if (!rider.isArrived() && !rider.isNoShow() && now.isAfter(rider.arriveDeadline())) {
-                rider.markNoShow();
-                Member member = rider.getMember();
-                member.setNoShowCount(member.getNoShowCount() + 1);
+                safety.recordNoShow(rider, now);
             }
         }
         handOverPayer(party, riders);

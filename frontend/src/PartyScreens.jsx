@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Check, Copy, X } from 'lucide-react'
 import RouteComparison, { RouteSide } from './RouteComparison.jsx'
 import { api } from './api.js'
+import { MemberActions } from './MemberSafety.jsx'
 import { formatTime, remaining, won } from './format.js'
 import { BackBar, Btn, Confirm, Item, Meter, Rail, Rows, Say, Screen, TopBar, toast, useWide } from './ui.jsx'
 
@@ -116,6 +117,7 @@ function HomeParty({ party, now, myId, run, onDetail, onHome, onMenu }) {
           <Item title="일행과 경로 자세히" onClick={onDetail} />
         </div>
       </div>
+      {new Date(now) >= new Date(party.departureAt) && <MemberActions partyId={party.id} />}
       {asking && <CancelSheet party={party} run={run} onClose={() => setAsking(false)} />}
       {driver && <DriverView party={party} onClose={() => setDriver(false)} />}
     </Screen>
@@ -161,6 +163,7 @@ function SchoolPayer({ party, now, myId, run, onDetail, onHome, onMenu }) {
           <Item title="분담금과 경로 자세히" detail={won(party.myShare)} onClick={onDetail} />
         </div>
       </div>
+      {new Date(now) >= new Date(party.departureAt) && <MemberActions partyId={party.id} />}
       {asking && <CancelSheet party={party} run={run} onClose={() => setAsking(false)} />}
       {driver && <DriverView party={party} onClose={() => setDriver(false)} />}
     </Screen>
@@ -194,11 +197,12 @@ function SchoolRider({ party, now, run, onDetail, onHome, onMenu }) {
           <Say title="승차 시각에 맞춰 나와 주세요">{party.payerNickname}님이 택시를 타면 남은 시간을 알려 드려요.</Say>
         )}
         {party.canArrive && (
-          <Say tone="calm" title={`${formatTime(party.arriveDeadline)}까지 눌러 주세요`}>이때까지 도착 표시가 없으면 일행에서 빠지고, 택시는 다음 지점으로 갑니다.</Say>
+          <Say tone="calm" title={`${formatTime(party.arriveDeadline)}까지 눌러 주세요`}>이때까지 도착 표시가 없으면 일행에서 빠지고 노쇼로 기록돼요. 30일 안에 두 번이면 7일 동안 새 요청을 할 수 없어요.</Say>
         )}
         <Rows items={[['내 예상 분담금', won(party.myShare), 'big'], ['학교 도착', formatTime(party.arrivalAt)]]} />
         <div className="list"><Item title="분담금과 경로 자세히" onClick={onDetail} /></div>
       </div>
+      {new Date(now) >= new Date(party.departureAt) && <MemberActions partyId={party.id} />}
       {asking && <CancelSheet party={party} run={run} onClose={() => setAsking(false)} />}
     </Screen>
   )
@@ -209,7 +213,7 @@ export function PartyScreen(props) {
   return props.party.payer ? <SchoolPayer {...props} /> : <SchoolRider {...props} />
 }
 
-export function PartyDetail({ party, myId, onBack }) {
+export function PartyDetail({ party, myId, now, onBack }) {
   const mine = party.members.find((m) => m.memberId === myId)
   const toSchool = party.direction === 'TO_SCHOOL'
   const wide = useWide()
@@ -230,6 +234,7 @@ export function PartyDetail({ party, myId, onBack }) {
       <div className="block">
         {toSchool && <p className="note">승차 시각 3분 뒤까지 도착 표시가 없으면 그 사람을 빼고 갑니다. 분담금은 남은 일행으로 다시 계산하고, 혼자 남으면 일행이 취소됩니다.</p>}
         <p className="note">실제 금액은 결제 후 같은 비율로 나눕니다. {REAL_NAME}</p>
+        {new Date(now) >= new Date(party.departureAt) && <MemberActions partyId={party.id} />}
       </div>
     </Screen>
   )

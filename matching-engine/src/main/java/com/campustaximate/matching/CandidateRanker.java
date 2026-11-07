@@ -46,6 +46,7 @@ public final class CandidateRanker {
         GeoPoint center = anchor.anchor();
         double anchorBearing = center.bearingTo(anchor.own());
         return others.stream()
+                .filter(r -> !anchor.avoids(r))
                 .sorted(Comparator.<MatchRequest>comparingDouble(
                                 r -> angleGap(anchorBearing, center.bearingTo(r.own())))
                         .thenComparingLong(MatchRequest::id))
@@ -64,7 +65,11 @@ public final class CandidateRanker {
             return;
         }
         for (int i = start; i <= pool.size() - need; i++) {
-            picked.add(pool.get(i));
+            MatchRequest next = pool.get(i);
+            if (anchor.avoids(next) || picked.stream().anyMatch(r -> r.avoids(next))) {
+                continue;
+            }
+            picked.add(next);
             collect(anchor, pool, need - 1, i + 1, picked, slot, legs, result);
             picked.remove(picked.size() - 1);
         }

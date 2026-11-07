@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { api } from './api.js'
+import { HistoryMemberActions } from './MemberSafety.jsx'
 import { RequestMap } from './RequestStatus.jsx'
 import { HISTORY_LABEL, formatDateTime, routeLabel, savedTotal, won } from './format.js'
 import { BackBar, Bone, Btn, Paper, Rows, Screen, SideEmpty, SidePlain, useWide } from './ui.jsx'
@@ -76,8 +77,11 @@ export default function History({ onBack }) {
           )}
           <div className="list">
             {items.map((item) => (
-              <Row key={item.id} item={item} selected={item.id === selected?.id}
-                onSelect={wide ? () => setSelectedId(item.id) : null} />
+              <React.Fragment key={item.id}>
+                <Row item={item} selected={item.id === selected?.id}
+                  onSelect={wide ? () => setSelectedId(item.id) : null} />
+                {(item.partyIds || (item.partyId ? [item.partyId] : [])).map((id) => <HistoryMemberActions key={id} partyId={id} />)}
+              </React.Fragment>
             ))}
           </div>
         </div>

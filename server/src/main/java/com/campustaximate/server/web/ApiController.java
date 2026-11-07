@@ -1,6 +1,9 @@
 package com.campustaximate.server.web;
 
 import com.campustaximate.server.service.PushService;
+import com.campustaximate.server.service.MemberSafetyService;
+import com.campustaximate.server.domain.ReportReason;
+import org.springframework.web.bind.annotation.PutMapping;
 import com.campustaximate.server.service.FareAccuracyService;
 import com.campustaximate.server.service.ChangeBus;
 import jakarta.validation.constraints.DecimalMax;
@@ -88,6 +91,7 @@ public class ApiController {
     private final ChangeBus changes;
     private final PushService push;
     private final FareAccuracyService accuracy;
+    private final MemberSafetyService safety;
 
     @Value("${app.cookie-secure}")
     private boolean secureCookie;
@@ -134,7 +138,13 @@ public class ApiController {
                               String pointName, double pointLat, double pointLon, long soloFare, int soloMinutes,
                               String memo, WaitingInsightService.Insight insight,
                               RideHistoryService.Stage stage, Long paid, EndReason endReason,
-                              double anchorLat, double anchorLon, Long partyPaid, Integer partySize) {
+                              double anchorLat, double anchorLon, Long partyPaid, Integer partySize, Long partyId, List<Long> partyIds) {
+        RequestView withPartyIds(List<Long> ids) {
+            return new RequestView(id, status, direction, hubId, anchorName, windowStart, windowEnd, arriveBy,
+                    resultBy, pointName, pointLat, pointLon, soloFare, soloMinutes, memo, insight, stage, paid,
+                    endReason, anchorLat, anchorLon, partyPaid, partySize, partyId, ids.isEmpty() ? partyIds : ids);
+        }
+
         static RequestView of(RideRequest r) {
             return of(r, null, null, null);
         }
@@ -157,7 +167,8 @@ public class ApiController {
                     r.getSoloFare(), (r.getSoloSeconds() + 59) / 60, r.getMemo(), insight, stage, paid,
                     r.isNoShow() ? EndReason.NO_SHOW : r.getEndReason(),
                     r.getHub() != null ? r.getHub().getLat() : r.getSchool().getLat(),
-                    r.getHub() != null ? r.getHub().getLon() : r.getSchool().getLon(), partyPaid, partySize);
+                    r.getHub() != null ? r.getHub().getLon() : r.getSchool().getLon(), partyPaid, partySize, r.getParty() == null ? null : r.getParty().getId(),
+                    r.getParty() == null ? List.of() : List.of(r.getParty().getId()));
         }
     }
 
@@ -281,7 +292,39 @@ public class ApiController {
         Object latest = requests.findFirstByMemberIdOrderByIdDesc(id)
                 .<Object>map(r -> RequestView.of(r, insights.of(r.getId()), null, null)).orElse("");
         return Map.of("now", clock.now(), "latestRequest", latest, "parties", parties.openParties(id),
-                "restricted", rideRequests.isRestricted(id));
+                "restricted", rideRequests.isRestricted(id),
+                "restriction", java.util.Optional.ofNullable(safety.activeRestriction(id)).<Object>map(r -> r).orElse(""),
+                "transferRestricted", rideRequests.isTransferRestricted(id),
+                "settledParty", java.util.Optional.ofNullable(parties.latestSettled(id)).<Object>map(p -> p).orElse(""));
+    }
+
+    public record ReportBody(@NotNull ReportReason reason, @Size(max = 200) String memo) { }
+
+    @PostMapping("/parties/{partyId}/members/{memberId}/report")
+    public void report(@PathVariable long partyId, @PathVariable long memberId,
+                       @Valid @RequestBody ReportBody body, HttpSession session) {
+        safety.report(memberId(session), memberId, partyId, body.reason(), body.memo());
+    }
+
+    @PutMapping("/members/{memberId}/avoid")
+    public void avoid(@PathVariable long memberId, HttpSession session) {
+        safety.avoid(memberId(session), memberId);
+    }
+
+    @DeleteMapping("/members/{memberId}/avoid")
+    public void unavoid(@PathVariable long memberId, HttpSession session) {
+        safety.unavoid(memberId(session), memberId);
+    }
+
+    @GetMapping("/avoids")
+    public List<MemberSafetyService.Peer> avoids(HttpSession session) {
+        return safety.avoids(memberId(session));
+    }
+
+    @GetMapping("/parties/{partyId}/members")
+    public List<MemberSafetyService.Peer> partyMembers(
+            @PathVariable long partyId, HttpSession session) {
+        return safety.peers(memberId(session), partyId);
     }
 
     @GetMapping("/hubs")
@@ -322,7 +365,7 @@ public class ApiController {
     @GetMapping("/history")
     public List<RequestView> history(HttpSession session) {
         return history.of(memberId(session)).stream()
-                .map(RequestView::of).toList();
+                .map(e -> RequestView.of(e).withPartyIds(safety.partyIds(e.request().getId()))).toList();
     }
 
     @GetMapping("/parties/{id}")

@@ -112,6 +112,9 @@ public class RideRequest {
     /** 등교에서 승차 시각 3분 뒤까지 도착 표시가 없었다. 마지막 판정 때 일행에서 빠진다. */
     private boolean noShow;
 
+    /** 노쇼로 기록된 시각. 최근 30일 노쇼 횟수를 셀 때 쓴다. */
+    private Instant noShowAt;
+
     @Enumerated(EnumType.STRING)
     private EndReason endReason;
 
@@ -144,8 +147,9 @@ public class RideRequest {
     }
 
     /** 노쇼는 일행 재계산 전이라도 새 요청을 막지 않는다. 일행에서는 마지막 판정 때 빠진다. */
-    public void markNoShow() {
+    public void markNoShow(Instant at) {
         noShow = true;
+        noShowAt = at;
         activeMemberId = null;
     }
 

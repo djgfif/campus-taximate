@@ -214,7 +214,7 @@ function Flow({ state, config, myId, run, onMenu, onHistory, onPush, pushOn }) {
   const latest = state.latestRequest || null
 
   if (party) {
-    if (detailId === party.id) return <PartyDetail party={party} myId={myId} onBack={() => navigate('/')} />
+    if (detailId === party.id) return <PartyDetail party={party} myId={myId} now={state.now} onBack={() => navigate('/')} />
     if (party.canSettle || (correctingId === party.id && party.settlement?.canCorrect)) {
       return (
         <PayerInput party={party} run={run} onDone={() => setCorrectingId(null)}
@@ -233,7 +233,7 @@ function Flow({ state, config, myId, run, onMenu, onHistory, onPush, pushOn }) {
     return <PartyScreen party={party} now={state.now} myId={myId} run={run} onMenu={onMenu} onDetail={() => navigate(`/parties/${party.id}`)} onHome={() => hide(party.id)} />
   }
   if (latest?.status === 'WAITING') return <Waiting latest={latest} config={config} run={run} onMenu={onMenu} onPush={pushOn ? null : onPush} />
-  if (draft) {
+  if (draft && !state.restricted) {
     const Request = draft.direction === 'TO_SCHOOL' ? SchoolRequest : HomeRequest
     return <Request initial={draft.initial} config={config} now={state.now} run={run} onClose={() => navigate('/', { replace: true })} />
   }
@@ -249,7 +249,7 @@ function Flow({ state, config, myId, run, onMenu, onHistory, onPush, pushOn }) {
     )
   }
   return (
-    <Home state={state} onStart={startRequest} onHistory={onHistory} onMenu={onMenu}
+    <Home state={state} myId={myId} onStart={startRequest} onHistory={onHistory} onMenu={onMenu}
       onReopen={(id) => setHidden((list) => list.filter((item) => item !== id))} />
   )
 }

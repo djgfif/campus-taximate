@@ -46,6 +46,12 @@ public interface RideRequestRepository extends JpaRepository<RideRequest, Long> 
             + "and coalesce(r.boardAt, p.departureAt) > :now and coalesce(r.boardAt, p.departureAt) <= :until")
     List<RideRequest> findDueReminders(Instant now, Instant until);
 
+    @Query("select count(a) > 0 from RideRequest a, RideRequest b "
+            + "where a.party.id = b.party.id and a.member.id = :first and b.member.id = :second")
+    boolean shareParty(long first, long second);
+
+    long countByMemberIdAndNoShowTrueAndNoShowAtAfter(Long memberId, java.time.Instant since);
+
     @Query("select r.member.id from RideRequest r where r.party.id = :partyId")
     List<Long> findMemberIdsByPartyId(long partyId);
 }
