@@ -52,7 +52,8 @@ jobs:
       - run: npm run build
 
   e2e:
-    runs-on: ubuntu-latest
+    # Playwright가 지원하는 이미지로 고정한다. ubuntu-latest가 바뀌면 브라우저를 설치하지 못한다.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
