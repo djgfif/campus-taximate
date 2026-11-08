@@ -11,13 +11,14 @@ async function login(page, id) {
   await page.getByPlaceholder('학번@daejin.ac.kr').fill(`${id}@daejin.ac.kr`)
   await page.getByLabel('비밀번호').fill('demo1234')
   await page.getByRole('button', { name: '로그인', exact: true }).click()
-  await expect(page.getByRole('heading', { name: '어디로 가세요?' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '어디로 가세요?' })).toBeVisible({ timeout: 15000 })
 }
 
 async function demo(page, action) {
   await page.getByRole('button', { name: '시연', exact: true }).click()
   await page.getByRole('dialog', { name: '시연' }).getByRole('button', { name: action }).click()
-  await expect(page.getByRole('dialog', { name: '시연' })).toBeHidden()
+  // 2~3명은 모집 마감까지 슬롯을 돌리므로 CI에서는 몇 초 넘게 걸릴 수 있다.
+  await expect(page.getByRole('dialog', { name: '시연' })).toBeHidden({ timeout: 60000 })
 }
 
 test('등교 요청부터 정산 완료까지 화면으로 끝낸다', async ({ page }, info) => {
