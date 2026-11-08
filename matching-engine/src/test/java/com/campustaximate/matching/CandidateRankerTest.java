@@ -24,10 +24,21 @@ class CandidateRankerTest {
         var c = request(3, at(7, 0));
         var d = request(4, at(9, 0));
 
-        List<Candidate> ranked = ranker.rank(anchor, List.of(b, c, d), SLOT, LEGS);
+        List<Candidate> ranked = ranker.rank(anchor, List.of(b, c, d), SLOT.plusSeconds(1800), LEGS);
 
         assertEquals(4, ranked.get(0).size());
         assertEquals(List.of(1L, 2L, 3L), ranked.get(1).sortedIds());
+    }
+
+    @Test
+    void onlyFullGroupsAreOfferedBeforeDeadlineSlot() {
+        var anchor = request(1, at(3, 0));
+        var b = request(2, at(5, 0));
+        var c = request(3, at(7, 0));
+        var d = request(4, at(9, 0));
+
+        assertTrue(ranker.rank(anchor, List.of(b, c), SLOT, LEGS).isEmpty());
+        assertTrue(ranker.rank(anchor, List.of(b, c, d), SLOT, LEGS).stream().allMatch(x -> x.size() == 4));
     }
 
     @Test

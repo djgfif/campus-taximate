@@ -59,7 +59,7 @@ public final class CandidateRanker {
         if (need == 0) {
             List<MatchRequest> group = new ArrayList<>(picked);
             group.add(anchor);
-            if (group.size() > 2 || TripPlan.of(anchor.direction(), settings).isDeadline(group, slot)) {
+            if (group.size() >= settings.maxGroupSize() || TripPlan.of(anchor.direction(), settings).isDeadline(group, slot)) {
                 calculator.evaluate(group, legs).ifPresent(result::add);
             }
             return;

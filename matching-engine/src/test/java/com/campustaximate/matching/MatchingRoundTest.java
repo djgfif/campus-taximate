@@ -38,19 +38,39 @@ class MatchingRoundTest {
         return requests;
     }
 
+    /** 기본 요청의 모집 마감 슬롯. 끝 시각 30분 전. */
+    private static final Instant DEADLINE = SLOT.plusSeconds(1800);
+
     @Test
-    void threePeopleConfirmImmediatelyWithPayerLastAndDepartureSlotPlusThirty() {
+    void fourPeopleConfirmImmediatelyWithPayerLastAndDepartureSlotPlusThirty() {
+        var a = request(1, at(3, 0));
+        var b = request(2, at(5, 0));
+        var c = request(3, at(7, 0));
+        var d = request(4, at(9, 0));
+
+        RoundResult result = round.run(SLOT, List.of(d, c, a, b), LEGS, PASS);
+
+        assertEquals(1, result.confirmed().size());
+        ConfirmedGroup group = result.confirmed().get(0);
+        assertEquals(List.of(a, b, c, d), group.order());
+        assertEquals(d, group.payer());
+        assertEquals(SLOT.plusSeconds(1800), group.departure());
+    }
+
+    @Test
+    void threePeopleWaitForFourthThenConfirmAtDeadline() {
         var a = request(1, at(3, 0));
         var b = request(2, at(5, 0));
         var c = request(3, at(7, 0));
 
-        RoundResult result = round.run(SLOT, List.of(c, a, b), LEGS, PASS);
+        assertTrue(round.run(SLOT, List.of(c, a, b), LEGS, PASS).confirmed().isEmpty());
+        RoundResult result = round.run(DEADLINE, List.of(c, a, b), LEGS, PASS);
 
         assertEquals(1, result.confirmed().size());
         ConfirmedGroup group = result.confirmed().get(0);
         assertEquals(List.of(a, b, c), group.order());
         assertEquals(c, group.payer());
-        assertEquals(SLOT.plusSeconds(1800), group.departure());
+        assertEquals(DEADLINE.plusSeconds(1800), group.departure());
     }
 
     @Test
@@ -72,7 +92,7 @@ class MatchingRoundTest {
         for (boolean reverse : List.of(false, true)) {
             var second = reverse ? b : b.withAvoidMemberIds(Set.of(c.memberId()));
             var third = reverse ? c.withAvoidMemberIds(Set.of(b.memberId())) : c;
-            RoundResult result = round.run(SLOT, List.of(a, second, third, d), LEGS, candidate -> {
+            RoundResult result = round.run(DEADLINE, List.of(a, second, third, d), LEGS, candidate -> {
                 Set<Long> ids = new HashSet<>(candidate.order().stream().map(MatchRequest::memberId).toList());
                 assertTrue(!(ids.contains(b.memberId()) && ids.contains(c.memberId())));
                 return Verdict.PASS;
@@ -86,7 +106,7 @@ class MatchingRoundTest {
         // 기준자와의 직접 회피도 제외한다. 두 명만 남은 회피 쌍은 마감에도 성사되지 않는다.
         var blocked = a.withAvoidMemberIds(Set.of(b.memberId()));
         assertTrue(round.run(SLOT.plusSeconds(1800), List.of(blocked, b), LEGS, PASS).confirmed().isEmpty());
-        assertEquals(1, round.run(SLOT, List.of(blocked, b, c, d), LEGS, PASS).confirmed().size());
+        assertEquals(1, round.run(DEADLINE, List.of(blocked, b, c, d), LEGS, PASS).confirmed().size());
     }
 
     @Test
@@ -155,7 +175,7 @@ class MatchingRoundTest {
             }
         };
 
-        RoundResult result = round.run(SLOT, List.of(a, b, c, d), LEGS, skipFour);
+        RoundResult result = round.run(DEADLINE, List.of(a, b, c, d), LEGS, skipFour);
 
         assertEquals(1, checks.get());
         assertEquals(3, result.confirmed().get(0).order().size());
@@ -169,7 +189,7 @@ class MatchingRoundTest {
         var d = request(4, at(9, 0));
         GroupVerifier rejectFour = cand -> cand.size() == 4 ? Verdict.FAIL : Verdict.PASS;
 
-        RoundResult result = round.run(SLOT, List.of(a, b, c, d), LEGS, rejectFour);
+        RoundResult result = round.run(DEADLINE, List.of(a, b, c, d), LEGS, rejectFour);
 
         assertEquals(3, result.confirmed().get(0).order().size());
     }
@@ -180,9 +200,10 @@ class MatchingRoundTest {
         var b = request(2, at(5, 0));
         var c = request(3, at(7, 0));
         var d = request(4, at(9, 0));
+        var e = request(5, at(11, 0));
         AtomicInteger calls = new AtomicInteger();
 
-        RoundResult result = round.run(SLOT, List.of(a, b, c, d), LEGS, cand -> {
+        RoundResult result = round.run(SLOT, List.of(a, b, c, d, e), LEGS, cand -> {
             calls.incrementAndGet();
             return Verdict.UNAVAILABLE;
         });

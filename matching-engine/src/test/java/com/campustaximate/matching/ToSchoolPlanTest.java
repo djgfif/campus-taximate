@@ -80,7 +80,7 @@ class ToSchoolPlanTest {
         MatchRequest near = request(1, 4);
         MatchRequest middle = request(2, 7);
         MatchRequest far = request(3, 10);
-        RoundResult result = round.run(SLOT, List.of(near, middle, far), Fixtures.LEGS, c -> Verdict.PASS);
+        RoundResult result = round.run(SLOT.plusSeconds(3600), List.of(near, middle, far), Fixtures.LEGS, c -> Verdict.PASS);
         ConfirmedGroup group = result.confirmed().get(0);
         assertEquals(List.of(far, middle, near), group.order());
         assertSame(far, group.payer());

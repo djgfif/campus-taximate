@@ -74,7 +74,7 @@ class CommuteFlowTest {
     @Test
     void farthestRiderBoardsFirstAndPaysAndEveryoneElseSends() throws Exception {
         List<MockHttpSession> users = threeRequests();
-        demo.advance(5);
+        advanceToDeadline();
 
         MockHttpSession farthest = users.get(2);
         JsonNode party = onlyParty(farthest);
@@ -141,7 +141,7 @@ class CommuteFlowTest {
     @Test
     void laterRiderIsNotNoShowAtFirstBoardingTime() throws Exception {
         List<MockHttpSession> users = threeRequests();
-        demo.advance(5);
+        advanceToDeadline();
         JsonNode party = onlyParty(users.get(2));
         long partyId = party.get("id").asLong();
         boarded(partyId, users.get(2)).andExpect(status().isOk());
@@ -158,7 +158,7 @@ class CommuteFlowTest {
     @Test
     void middleNoShowLeavesAtFinalCheckAndKeepsBoardingTimes() throws Exception {
         List<MockHttpSession> users = threeRequests();
-        demo.advance(5);
+        advanceToDeadline();
         JsonNode party = onlyParty(users.get(2));
         long partyId = party.get("id").asLong();
         Instant lastBoard = Instant.parse(party.get("members").get(2).get("boardAt").asText());
@@ -183,7 +183,7 @@ class CommuteFlowTest {
     @Test
     void firstRiderNoShowHandsPayerToNextRider() throws Exception {
         List<MockHttpSession> users = threeRequests();
-        demo.advance(5);
+        advanceToDeadline();
         JsonNode party = onlyParty(users.get(2));
         long partyId = party.get("id").asLong();
         arrive(partyId, users.get(1)).andExpect(status().isOk());
@@ -212,7 +212,7 @@ class CommuteFlowTest {
     @Test
     void onlyOneRiderLeftCancelsParty() throws Exception {
         List<MockHttpSession> users = threeRequests();
-        demo.advance(5);
+        advanceToDeadline();
         JsonNode party = onlyParty(users.get(2));
         boarded(party.get("id").asLong(), users.get(2)).andExpect(status().isOk());
 
@@ -228,7 +228,7 @@ class CommuteFlowTest {
     @Test
     void noShowRiderLeavesScreenAndCanRequestAgainBeforeFinalCheck() throws Exception {
         List<MockHttpSession> users = threeRequests();
-        demo.advance(5);
+        advanceToDeadline();
         JsonNode party = onlyParty(users.get(2));
         long partyId = party.get("id").asLong();
         boarded(partyId, users.get(2)).andExpect(status().isOk());
@@ -249,7 +249,7 @@ class CommuteFlowTest {
     @Test
     void cancelBeforeDepartureShrinksAndNextRiderBecomesFirst() throws Exception {
         List<MockHttpSession> users = threeRequests();
-        demo.advance(5);
+        advanceToDeadline();
         JsonNode party = onlyParty(users.get(2));
         long requestId = party.get("myRequestId").asLong();
 
@@ -265,7 +265,7 @@ class CommuteFlowTest {
     @Test
     void laterRiderCanCancelAfterFirstBoardingUntilOwnBoardingTime() throws Exception {
         List<MockHttpSession> users = threeRequests();
-        demo.advance(5);
+        advanceToDeadline();
         JsonNode party = onlyParty(users.get(2));
         long partyId = party.get("id").asLong();
         boarded(partyId, users.get(2)).andExpect(status().isOk());
@@ -286,7 +286,7 @@ class CommuteFlowTest {
     @Test
     void cancelAfterOwnBoardingTimeIsRefused() throws Exception {
         List<MockHttpSession> users = threeRequests();
-        demo.advance(5);
+        advanceToDeadline();
         JsonNode party = onlyParty(users.get(1));
         moveTo(Instant.parse(party.get("myBoardAt").asText()).plusSeconds(1));
 
@@ -297,7 +297,7 @@ class CommuteFlowTest {
     @Test
     void boardedPayerCannotCancelEvenBeforeBoardingTime() throws Exception {
         List<MockHttpSession> users = threeRequests();
-        demo.advance(5);
+        advanceToDeadline();
         JsonNode party = onlyParty(users.get(2));
         boarded(party.get("id").asLong(), users.get(2)).andExpect(status().isOk());
 
@@ -309,7 +309,7 @@ class CommuteFlowTest {
         List<MockHttpSession> users = threeRequests();
         users.add(login("demo-f4"));
         createRequest(users.get(3), new double[] {37.810, 127.120}, arriveBy).andExpect(status().isOk());
-        demo.advance(5);
+        advanceToDeadline();
         JsonNode party = onlyParty(users.get(2));
         assertThat(party.get("members")).hasSize(4);
         JsonNode riders = party.get("members");
@@ -329,7 +329,7 @@ class CommuteFlowTest {
     @Test
     void routeFailureAtFinalCheckKeepsBoardedPartyAndSettlement() throws Exception {
         List<MockHttpSession> users = threeRequests();
-        demo.advance(5);
+        advanceToDeadline();
         JsonNode party = onlyParty(users.get(2));
         long partyId = party.get("id").asLong();
         long total = party.get("expectedTotal").asLong();
@@ -379,7 +379,7 @@ class CommuteFlowTest {
         createRequest(a, POINTS[0], arriveBy).andExpect(status().isOk());
         createRequest(b, POINTS[1], arriveBy).andExpect(status().isOk());
         createRequest(c, POINTS[2], arriveBy.plusSeconds(300)).andExpect(status().isOk());
-        demo.advance(5);
+        advanceToDeadline();
         assertThat(state(a).get("parties")).isEmpty();
         assertThat(state(c).get("parties")).isEmpty();
     }
@@ -437,7 +437,7 @@ class CommuteFlowTest {
     @Test
     void settlementPreviewIsForPayerOnly() throws Exception {
         List<MockHttpSession> users = threeRequests();
-        demo.advance(5);
+        advanceToDeadline();
         long partyId = onlyParty(users.get(2)).get("id").asLong();
 
         JsonNode shares = read(mvc.perform(get("/api/parties/" + partyId + "/settlement/preview")
@@ -485,7 +485,7 @@ class CommuteFlowTest {
         MockHttpSession me = login("demo-f1");
         createRequest(me, POINTS[0], arriveBy).andExpect(status().isOk());
         demo.addSamples(idOf(me), 2);
-        demo.advance(5);
+        advanceToDeadline();
         JsonNode party = onlyParty(me);
         assertThat(party.get("direction").asText()).isEqualTo("TO_SCHOOL");
         arrive(party.get("id").asLong(), me).andExpect(status().isOk());
@@ -500,7 +500,7 @@ class CommuteFlowTest {
 
     private List<MockHttpSession> settledReady() throws Exception {
         List<MockHttpSession> users = threeRequests();
-        demo.advance(5);
+        advanceToDeadline();
         JsonNode party = onlyParty(users.get(2));
         long partyId = party.get("id").asLong();
         boarded(partyId, users.get(2)).andExpect(status().isOk());
@@ -608,5 +608,15 @@ class CommuteFlowTest {
 
     private JsonNode read(String body) throws Exception {
         return json.readTree(body);
+    }
+
+    /** 4명이 안 되면 모집 마감 슬롯에 확정한다. 대기 중 요청의 가장 이른 마감까지 시간을 보낸다. */
+    private void advanceToDeadline() {
+        java.time.Instant deadline = requests.findAll().stream()
+                .filter(r -> r.getStatus() == com.campustaximate.server.domain.RequestStatus.WAITING)
+                .map(com.campustaximate.server.domain.RideRequest::resultBy)
+                .min(java.time.Instant::compareTo).orElseThrow();
+        long minutes = java.time.Duration.between(clock.now(), deadline).toMinutes() + 1;
+        demo.advance((int) Math.max(5, minutes));
     }
 }

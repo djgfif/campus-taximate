@@ -78,7 +78,7 @@ class FlowTest {
     @Test
     void memberCanCompareRoutesAndConfirmedMetrics() throws Exception {
         List<MockHttpSession> users = threeRequests();
-        demo.advance(5);
+        advanceToDeadline();
         JsonNode party = onlyParty(users.get(0));
         long id = party.get("id").asLong();
         JsonNode routes = read(mvc.perform(get("/api/parties/" + id + "/routes").session(users.get(0)))
@@ -96,7 +96,7 @@ class FlowTest {
     void fullFlowFromRequestToCompleted() throws Exception {
         List<MockHttpSession> users = threeRequests();
 
-        demo.advance(5);
+        advanceToDeadline();
         JsonNode party = onlyParty(users.get(0));
         long partyId = party.get("id").asLong();
         assertThat(party.get("members")).hasSize(3);
@@ -132,7 +132,7 @@ class FlowTest {
     @Test
     void cancelDuringRouteLookupDoesNotUndoCompletedRide() throws Exception {
         List<MockHttpSession> users = threeRequests();
-        demo.advance(5);
+        advanceToDeadline();
         JsonNode party = onlyParty(users.get(0));
         long partyId = party.get("id").asLong();
         long requestId = party.get("myRequestId").asLong();
@@ -158,7 +158,7 @@ class FlowTest {
     @Test
     void cancelBeforeDepartureShrinksPartyAndRecalculates() throws Exception {
         List<MockHttpSession> users = threeRequests();
-        demo.advance(5);
+        advanceToDeadline();
         JsonNode before = onlyParty(users.get(1));
         long requestId = onlyParty(users.get(0)).get("myRequestId").asLong();
 
@@ -181,7 +181,7 @@ class FlowTest {
     @Test
     void lastTwoCannotShrinkSoPartyIsCanceled() throws Exception {
         List<MockHttpSession> users = threeRequests();
-        demo.advance(5);
+        advanceToDeadline();
         long first = onlyParty(users.get(0)).get("myRequestId").asLong();
         long second = onlyParty(users.get(1)).get("myRequestId").asLong();
 
@@ -189,13 +189,14 @@ class FlowTest {
         mvc.perform(delete("/api/requests/" + second).session(users.get(1))).andExpect(status().isOk());
 
         assertThat(state(users.get(2)).get("parties")).isEmpty();
-        assertThat(state(users.get(2)).get("latestRequest").get("status").asText()).isEqualTo("WAITING");
+        // 3명은 모집 마감 슬롯에 확정되므로, 남은 사람에게 다음 유효 슬롯이 없어 미성사가 된다.
+        assertThat(state(users.get(2)).get("latestRequest").get("status").asText()).isEqualTo("UNMATCHED");
     }
 
     @Test
     void noShowIsRemovedAndArrivedRidersBoardWithNewPayer() throws Exception {
         List<MockHttpSession> users = threeRequests();
-        demo.advance(5);
+        advanceToDeadline();
         long partyId = onlyParty(users.get(0)).get("id").asLong();
         mvc.perform(post("/api/parties/" + partyId + "/arrive").session(users.get(0))).andExpect(status().isOk());
         mvc.perform(post("/api/parties/" + partyId + "/arrive").session(users.get(1))).andExpect(status().isOk());
@@ -290,7 +291,7 @@ class FlowTest {
     void reminderGoesOnceTenMinutesBeforeBoarding() throws Exception {
         List<MockHttpSession> users = threeRequests();
         org.mockito.Mockito.clearInvocations(mail);
-        demo.advance(5);
+        advanceToDeadline();
         long partyId = onlyParty(users.get(0)).get("id").asLong();
         Instant departure = parties.findById(partyId).orElseThrow().getDepartureAt();
         long minutes = java.time.Duration.between(clock.now(), departure).toMinutes() - 1;
@@ -520,7 +521,7 @@ class FlowTest {
     @Test
     void cannotMarkArrivedAfterDeparture() throws Exception {
         List<MockHttpSession> users = threeRequests();
-        demo.advance(5);
+        advanceToDeadline();
         JsonNode party = onlyParty(users.get(0));
         clock.moveTo(Instant.parse(party.get("departureAt").asText()).plusSeconds(1));
 
@@ -550,7 +551,7 @@ class FlowTest {
     @Test
     void demoActMarksOnlySampleMembers() throws Exception {
         List<MockHttpSession> users = threeRequests();
-        demo.advance(5);
+        advanceToDeadline();
         MockHttpSession me = users.get(0);
         long partyId = onlyParty(me).get("id").asLong();
 
@@ -626,7 +627,7 @@ class FlowTest {
     @Test
     void repeatedDepartureCheckCountsNoShowOnce() throws Exception {
         List<MockHttpSession> users = threeRequests();
-        demo.advance(5);
+        advanceToDeadline();
         long partyId = onlyParty(users.get(0)).get("id").asLong();
         mvc.perform(post("/api/parties/" + partyId + "/arrive").session(users.get(0))).andExpect(status().isOk());
         mvc.perform(post("/api/parties/" + partyId + "/arrive").session(users.get(1))).andExpect(status().isOk());
@@ -704,7 +705,7 @@ class FlowTest {
 
     private List<MockHttpSession> departedParty() throws Exception {
         List<MockHttpSession> users = threeRequests();
-        demo.advance(5);
+        advanceToDeadline();
         long partyId = onlyParty(users.get(0)).get("id").asLong();
         for (MockHttpSession user : users) {
             mvc.perform(post("/api/parties/" + partyId + "/arrive").session(user)).andExpect(status().isOk());
@@ -794,5 +795,15 @@ class FlowTest {
 
     private JsonNode read(String body) throws Exception {
         return json.readTree(body);
+    }
+
+    /** 4명이 안 되면 모집 마감 슬롯에 확정한다. 대기 중 요청의 가장 이른 마감까지 시간을 보낸다. */
+    private void advanceToDeadline() {
+        java.time.Instant deadline = requests.findAll().stream()
+                .filter(r -> r.getStatus() == com.campustaximate.server.domain.RequestStatus.WAITING)
+                .map(com.campustaximate.server.domain.RideRequest::resultBy)
+                .min(java.time.Instant::compareTo).orElseThrow();
+        long minutes = java.time.Duration.between(clock.now(), deadline).toMinutes() + 1;
+        demo.advance((int) Math.max(5, minutes));
     }
 }
