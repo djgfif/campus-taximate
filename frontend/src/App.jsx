@@ -217,18 +217,18 @@ function Flow({ state, config, myId, run, onMenu, onHistory, onPush, pushOn }) {
     if (detailId === party.id) return <PartyDetail party={party} myId={myId} now={state.now} onBack={() => navigate('/')} />
     if (party.canSettle || (correctingId === party.id && party.settlement?.canCorrect)) {
       return (
-        <PayerInput party={party} run={run} onDone={() => setCorrectingId(null)}
+        <PayerInput party={party} now={state.now} run={run} onDone={() => setCorrectingId(null)}
           onLater={() => (party.canSettle ? hide(party.id) : setCorrectingId(null))} />
       )
     }
     if (party.settlement) {
       if (party.payer) {
-        return <Collect party={party} run={run} onMenu={onMenu} onCorrect={() => setCorrectingId(party.id)} onHome={() => hide(party.id)} />
+        return <Collect party={party} now={state.now} run={run} onMenu={onMenu} onCorrect={() => setCorrectingId(party.id)} onHome={() => hide(party.id)} />
       }
       const transfer = party.settlement.transfers.find((t) => t.senderId === myId)
       return transfer.status === 'REQUESTED'
-        ? <Transfer party={party} transfer={transfer} run={run} onMenu={onMenu} onHome={() => hide(party.id)} />
-        : <Done party={party} transfer={transfer} onMenu={onMenu} onHome={() => hide(party.id)} />
+        ? <Transfer party={party} now={state.now} transfer={transfer} run={run} onMenu={onMenu} onHome={() => hide(party.id)} />
+        : <Done party={party} now={state.now} transfer={transfer} onMenu={onMenu} onHome={() => hide(party.id)} />
     }
     return <PartyScreen party={party} now={state.now} myId={myId} run={run} onMenu={onMenu} onDetail={() => navigate(`/parties/${party.id}`)} onHome={() => hide(party.id)} />
   }

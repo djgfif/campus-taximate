@@ -54,6 +54,7 @@ public class SlotService {
     private final BoardingMonitor boarding;
     private final RoadLegStore legStore;
     private final SettlementService settlements;
+    private final PartyChatService chat;
     private final LoginTokenService loginTokens;
     private final RouteClient routes;
     private final RoutePathStore paths;
@@ -105,6 +106,7 @@ public class SlotService {
         guarded("출발 처리", () -> settleDepartures(clock.now()));
         guarded("승차 판정", () -> boarding.check(clock.now()));
         guarded("보관 기간 삭제", settlements::purgeReceipts);
+        guarded("일행 채팅 삭제", chat::purgeMessages);
         guarded("로그인 토큰 정리", loginTokens::purgeExpired);
         matchWaiting(slot, waiting);
     }

@@ -5,6 +5,7 @@ import ErrorBoundary from './ErrorBoundary.jsx'
 import { NoShow, Unmatched } from './RequestStatus.jsx'
 import { Sheet } from './ui.jsx'
 import { ReportSheet, SettledFeedback } from './MemberSafety.jsx'
+import { PartyChat } from './PartyScreens.jsx'
 import { api } from './api.js'
 
 const latest = {
@@ -120,5 +121,52 @@ describe('신고와 매칭 설정', () => {
     avoid.mockRestore()
     report.mockRestore()
     localStorage.clear()
+  })
+})
+
+
+describe('일행 채팅', () => {
+  it('메시지와 문구 버튼, 신고 시트, 읽기 전용 상태를 보여 준다', async () => {
+    const initial = { closed: false, closesAt: '2026-11-10T00:00:00Z', messages: [
+      { id: 1, memberId: 2, nickname: '일행', text: '기다리고 있어요', createdAt: '2026-11-08T00:00:00Z', mine: false },
+      { id: 2, memberId: 1, nickname: '내별명', text: '곧 가요', createdAt: '2026-11-08T00:01:00Z', mine: true },
+    ] }
+    const read = vi.spyOn(api, 'partyMessages').mockResolvedValue(initial)
+    const send = vi.spyOn(api, 'sendPartyMessage').mockResolvedValue({ id: 3 })
+    vi.spyOn(api, 'partyMembers').mockResolvedValue([{ memberId: 2, nickname: '일행', avoided: true }])
+    const props = { partyId: 11, now: '2026-11-08T00:01:00Z', status: 'CONFIRMED' }
+    const view = render(<PartyChat {...props} />)
+    expect(screen.getByRole('region', { name: '일행 채팅' })).toBeTruthy()
+    await screen.findByText('기다리고 있어요')
+    expect(screen.getByText('나 (내별명)')).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: /메시지 신고/ })).toHaveLength(1)
+    const input = screen.getByRole('textbox', { name: '일행에게 보낼 메시지' })
+    expect(input.maxLength).toBe(200)
+    for (const phrase of ['조금 늦어요', '도착했어요, 어디 계세요?', '택시 잡았어요']) {
+      fireEvent.click(screen.getByRole('button', { name: phrase, exact: true }))
+      await waitFor(() => expect(send).toHaveBeenLastCalledWith(11, phrase))
+      await waitFor(() => expect(screen.getByRole('button', { name: phrase, exact: true }).disabled).toBe(false))
+    }
+    fireEvent.click(screen.getByRole('button', { name: '인상착의:', exact: true }))
+    expect(input.value).toBe('인상착의: ')
+    expect(document.activeElement).toBe(input)
+    fireEvent.change(input, { target: { value: '인상착의: 파란 외투예요' } })
+    fireEvent.click(screen.getByRole('button', { name: '메시지 보내기' }))
+    await waitFor(() => expect(send).toHaveBeenCalledWith(11, '인상착의: 파란 외투예요'))
+    await waitFor(() => expect(input.value).toBe(''))
+    fireEvent.click(screen.getByRole('button', { name: '일행님 메시지 신고' }))
+    await screen.findByRole('dialog', { name: '일행님 신고·다시 매칭 안 함' })
+    expect(screen.getByRole('button', { name: '다시 매칭 안 함 해제' })).toBeTruthy()
+    fireEvent.keyDown(window, { key: 'Escape' })
+    read.mockResolvedValue({ ...initial, closed: true })
+    view.rerender(<PartyChat {...props} now="2026-11-10T00:00:01Z" status="COMPLETED" />)
+    await screen.findByText('일행 채팅은 읽기만 가능해요.')
+    expect(screen.queryByRole('textbox', { name: '일행에게 보낼 메시지' })).toBeNull()
+    expect(screen.getByText('기다리고 있어요')).toBeTruthy()
+    read.mockRejectedValue(Object.assign(new Error('현재 일행원만 채팅할 수 있어요.'), { status: 403 }))
+    view.rerender(<PartyChat {...props} now="2026-11-10T00:00:02Z" />)
+    await screen.findByText('현재 일행원만 채팅할 수 있어요.')
+    expect(screen.queryByText('기다리고 있어요')).toBeNull()
+    expect(screen.queryByRole('textbox', { name: '일행에게 보낼 메시지' })).toBeNull()
   })
 })

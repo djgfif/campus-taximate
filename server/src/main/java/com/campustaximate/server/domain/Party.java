@@ -53,6 +53,9 @@ public class Party {
     /** 첫 승차자가 "택시 탔어요"를 누른 시각. */
     private Instant boardedAt;
 
+    /** 전원 받음 처리 시각. 채팅 보관 기간의 기준이다. */
+    private Instant settledAt;
+
     private long expectedTotal;
 
     @Enumerated(EnumType.STRING)

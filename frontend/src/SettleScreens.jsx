@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Camera, Copy } from 'lucide-react'
 import { api } from './api.js'
+import { PartyChat } from './PartyScreens.jsx'
 import { MemberActions } from './MemberSafety.jsx'
 import { TRANSFER_LABEL, routeLabel, won } from './format.js'
 import { BackBar, Btn, Meter, Money, Paper, Rows, Say, Screen, SideEmpty, SidePlain, TopBar, toast, useWide } from './ui.jsx'
@@ -30,7 +31,7 @@ function ReceiptPaper({ party }) {
   )
 }
 
-export function PayerInput({ party, run, onDone, onLater }) {
+export function PayerInput({ party, now, run, onDone, onLater }) {
   const correcting = party.settlement != null
   const [amount, setAmount] = useState('')
   const [receipt, setReceipt] = useState(null)
@@ -109,12 +110,13 @@ export function PayerInput({ party, run, onDone, onLater }) {
       <div className="block">
         <p className="note">금액, 사진, 계좌는 이번 일행에게만 보입니다. 사진은 7일 뒤, 계좌는 모두 받음 처리되거나 7일이 지나면 지웁니다. 일행이 보내기 전까지는 고칠 수 있습니다.</p>
       </div>
+      <PartyChat key={party.id} partyId={party.id} now={now} status={party.status} />
       <MemberActions partyId={party.id} />
     </Screen>
   )
 }
 
-export function Collect({ party, run, onCorrect, onHome, onMenu }) {
+export function Collect({ party, now, run, onCorrect, onHome, onMenu }) {
   const { settlement } = party
   const receiving = settlement.transfers.reduce((sum, t) => sum + t.amount, 0)
   const myPart = settlement.paidAmount - receiving
@@ -151,12 +153,13 @@ export function Collect({ party, run, onCorrect, onHome, onMenu }) {
         {!wide && <Rows items={[saved]} />}
         <p className="note">은행 앱에서 입금을 확인한 뒤 받음을 눌러 주세요. 모두 받음이면 계좌를 지우고 완료합니다.</p>
       </div>
+      <PartyChat key={party.id} partyId={party.id} now={now} status={party.status} />
       <MemberActions partyId={party.id} />
     </Screen>
   )
 }
 
-export function Transfer({ party, transfer, run, onHome, onMenu }) {
+export function Transfer({ party, now, transfer, run, onHome, onMenu }) {
   const { settlement } = party
   const wide = useWide()
   const copy = async () => {
@@ -207,12 +210,13 @@ export function Transfer({ party, transfer, run, onHome, onMenu }) {
           : <p className="note">결제 사진이 없습니다.</p>)}
         <p className="note">은행 앱에서 보낸 뒤 아래 버튼을 눌러 주세요. 24시간 안에 보내 주세요. {REAL_NAME}</p>
       </div>
+      <PartyChat key={party.id} partyId={party.id} now={now} status={party.status} />
       <MemberActions partyId={party.id} />
     </Screen>
   )
 }
 
-export function Done({ party, transfer, onHome, onMenu }) {
+export function Done({ party, now, transfer, onHome, onMenu }) {
   const mineName = party.members.find((m) => m.requestId === party.myRequestId)?.pointName
   return (
     <Screen aside={<SidePlain><ReceiptPaper party={party} /></SidePlain>} foot={<Btn className="line" onClick={onHome}>홈으로</Btn>}>
@@ -226,6 +230,7 @@ export function Done({ party, transfer, onHome, onMenu }) {
         ]} />
         <p className="note">{party.payerNickname}님이 받음을 누르면 이 일행은 완료됩니다. 계좌는 모두 받음 처리되거나 7일이 지나면 지웁니다.</p>
       </div>
+      <PartyChat key={party.id} partyId={party.id} now={now} status={party.status} />
       <MemberActions partyId={party.id} />
     </Screen>
   )

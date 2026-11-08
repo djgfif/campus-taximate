@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { api } from './api.js'
+import { PartyChat } from './PartyScreens.jsx'
 import { SettledFeedback } from './MemberSafety.jsx'
 import { formatTime, routeLabel, savedTotal, won } from './format.js'
 import { Item, Paper, Say, Screen, SideEmpty, SidePlain, TopBar, useWide } from './ui.jsx'
@@ -57,6 +58,7 @@ export default function Home({ state, myId, onStart, onReopen, onHistory, onMenu
           </div>
         </div>
       )}
+      {state.settledParty && <PartyChat key={state.settledParty.id} partyId={state.settledParty.id} now={state.now} status={state.settledParty.status} />}
       {state.settledParty && <SettledFeedback key={state.settledParty.id} party={state.settledParty} myId={myId} />}
       <div className="ways">
         <button type="button" className="way" disabled={blocked} onClick={() => onStart({ direction: 'TO_SCHOOL' })}>

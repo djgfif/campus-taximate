@@ -1,9 +1,20 @@
 import React, { useEffect, useState } from 'react'
 import { api } from './api.js'
+import { PartyChat } from './PartyScreens.jsx'
 import { HistoryMemberActions } from './MemberSafety.jsx'
 import { RequestMap } from './RequestStatus.jsx'
 import { HISTORY_LABEL, formatDateTime, routeLabel, savedTotal, won } from './format.js'
 import { BackBar, Bone, Btn, Paper, Rows, Screen, SideEmpty, SidePlain, useWide } from './ui.jsx'
+
+function HistoryChat({ partyId }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div>
+      <Btn className="small quiet" aria-expanded={open} onClick={() => setOpen((value) => !value)}>일행 채팅 보기</Btn>
+      {open && <PartyChat key={partyId} partyId={partyId} />}
+    </div>
+  )
+}
 
 function Row({ item, selected, onSelect }) {
   const [label, tone] = HISTORY_LABEL[item.stage] || ['', '']
@@ -80,7 +91,7 @@ export default function History({ onBack }) {
               <React.Fragment key={item.id}>
                 <Row item={item} selected={item.id === selected?.id}
                   onSelect={wide ? () => setSelectedId(item.id) : null} />
-                {(item.partyIds || (item.partyId ? [item.partyId] : [])).map((id) => <HistoryMemberActions key={id} partyId={id} />)}
+                {(item.partyIds || (item.partyId ? [item.partyId] : [])).map((id) => <React.Fragment key={id}><HistoryChat partyId={id} /><HistoryMemberActions partyId={id} /></React.Fragment>)}
               </React.Fragment>
             ))}
           </div>

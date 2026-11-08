@@ -218,6 +218,7 @@ public class SettlementService {
                     .allMatch(t -> t.getStatus() == TransferStatus.RECEIVED);
             if (allReceived) {
                 party.setStatus(PartyStatus.COMPLETED);
+                party.setSettledAt(clock.now());
                 transfer.getSettlement().clearAccount();
             }
         });

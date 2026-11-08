@@ -92,6 +92,7 @@ public class ApiController {
     private final PushService push;
     private final FareAccuracyService accuracy;
     private final MemberSafetyService safety;
+    private final com.campustaximate.server.service.PartyChatService chat;
 
     @Value("${app.cookie-secure}")
     private boolean secureCookie;
@@ -296,6 +297,20 @@ public class ApiController {
                 "restriction", java.util.Optional.ofNullable(safety.activeRestriction(id)).<Object>map(r -> r).orElse(""),
                 "transferRestricted", rideRequests.isTransferRestricted(id),
                 "settledParty", java.util.Optional.ofNullable(parties.latestSettled(id)).<Object>map(p -> p).orElse(""));
+    }
+
+    public record MessageBody(String text) { }
+
+    @GetMapping("/parties/{partyId}/messages")
+    public com.campustaximate.server.service.PartyChatService.ChatView messages(
+            @PathVariable long partyId, @RequestParam(required = false) Long after, HttpSession session) {
+        return chat.read(memberId(session), partyId, after);
+    }
+
+    @PostMapping("/parties/{partyId}/messages")
+    public com.campustaximate.server.service.PartyChatService.MessageView message(
+            @PathVariable long partyId, @RequestBody MessageBody body, HttpSession session) {
+        return chat.send(memberId(session), partyId, body.text());
     }
 
     public record ReportBody(@NotNull ReportReason reason, @Size(max = 200) String memo) { }

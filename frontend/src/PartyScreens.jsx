@@ -1,10 +1,110 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Check, Copy, X } from 'lucide-react'
 import RouteComparison, { RouteSide } from './RouteComparison.jsx'
 import { api } from './api.js'
-import { MemberActions } from './MemberSafety.jsx'
+import { MemberActions, ReportSheet } from './MemberSafety.jsx'
 import { formatTime, remaining, won } from './format.js'
 import { BackBar, Btn, Confirm, Item, Meter, Rail, Rows, Say, Screen, TopBar, toast, useWide } from './ui.jsx'
+
+const CHAT_PHRASES = ['조금 늦어요', '도착했어요, 어디 계세요?', '인상착의: ', '택시 잡았어요']
+
+/** 기존 상태 갱신 시각을 따라 읽는다. 이용 내역에서는 자체 갱신을 정리한다. */
+export function PartyChat({ partyId, now, status }) {
+  const [chat, setChat] = useState(null)
+  const [text, setText] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [denied, setDenied] = useState(false)
+  const [selected, setSelected] = useState(null)
+  const [reload, setReload] = useState(0)
+  const input = useRef(null)
+  const sending = useRef(false)
+  const readVersion = useRef(0)
+  useEffect(() => {
+    let disposed = false
+    const load = async () => {
+      const version = ++readVersion.current
+      try {
+        const next = await api.partyMessages(partyId)
+        if (!disposed && version === readVersion.current) { setChat(next); setDenied(false); setError('') }
+      } catch (e) {
+        if (!disposed && version === readVersion.current) {
+          setError(e.message)
+          if (e.status === 403) { setChat(null); setDenied(true); setSelected(null); setText('') }
+        }
+      }
+    }
+    load()
+    const timer = now == null ? setInterval(load, 5000) : null
+    return () => { disposed = true; clearInterval(timer) }
+  }, [partyId, now, status, reload])
+  const send = async (value, clearDraft = true) => {
+    if (sending.current || !value.trim()) return
+    sending.current = true
+    setBusy(true)
+    setError('')
+    try {
+      await api.sendPartyMessage(partyId, value)
+      if (clearDraft) setText('')
+      setReload((value) => value + 1)
+    } catch (e) {
+      setError(e.message)
+      if (e.code === 'CHAT_CLOSED' || e.status === 403) ++readVersion.current
+      if (e.code === 'CHAT_CLOSED') setChat((value) => value && { ...value, closed: true })
+      if (e.status === 403) { setChat(null); setDenied(true); setSelected(null); setText('') }
+    } finally { sending.current = false; setBusy(false) }
+  }
+  const report = async (message) => {
+    try {
+      const peers = await api.partyMembers(partyId)
+      const member = peers.find((peer) => peer.memberId === message.memberId)
+      if (member) setSelected(member)
+    } catch (e) { setError(e.message) }
+  }
+  const closed = chat?.closed || ['COMPLETED', 'SETTLED', 'CANCELED'].includes(status)
+  return (
+    <section className="block party-chat" aria-label="일행 채팅">
+      <h2 className="block-title">일행 채팅</h2>
+      {!chat && !error && <p role="status">메시지를 불러오고 있어요</p>}
+      {chat && (
+        <>
+          <ol className="chat-messages" aria-label="최근 일행 메시지" aria-live="polite" aria-relevant="additions">
+            {chat.messages.map((message) => (
+              <li key={message.id} className={message.mine ? 'mine' : ''}>
+                <div className="chat-meta"><b>{message.mine ? `나 (${message.nickname})` : message.nickname}</b>
+                  <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
+                  {!message.mine && <Btn className="small quiet" aria-label={`${message.nickname}님 메시지 신고`} onClick={() => report(message)}>신고</Btn>}
+                </div>
+                <p>{message.text}</p>
+              </li>
+            ))}
+          </ol>
+          {chat.messages.length === 0 && <p className="note">아직 메시지가 없어요.</p>}
+        </>
+      )}
+      {closed && !denied && <p className="note" role="status">일행 채팅은 읽기만 가능해요.</p>}
+      {!denied && chat && !closed && (
+        <form onSubmit={(event) => { event.preventDefault(); send(text) }}>
+          <div className="chat-phrases" role="group" aria-label="자주 쓰는 문구">
+            {CHAT_PHRASES.map((phrase) => <Btn key={phrase} className="small line" disabled={busy} onClick={() => {
+              if (phrase === '인상착의: ') {
+                setText(phrase)
+                input.current?.focus()
+              } else return send(phrase, false)
+            }}>{phrase}</Btn>)}
+          </div>
+          <label className="field">일행에게 보낼 메시지
+            <textarea ref={input} maxLength={200} value={text} disabled={busy} onChange={(e) => setText(e.target.value)} />
+          </label>
+          <Btn type="submit" disabled={busy || !text.trim()}>메시지 보내기</Btn>
+        </form>
+      )}
+      {error && <p role="alert">{error} <button type="button" onClick={() => setReload((value) => value + 1)}>다시 불러오기</button></p>}
+      <p className="note">정산이 끝나거나 출발 후 24시간이 지나면 쓰기가 닫혀요. 그때부터 7일 뒤 메시지를 지워요.</p>
+      {selected && <ReportSheet partyId={partyId} member={selected} onClose={() => setSelected(null)} onSaved={() => setSelected(null)} />}
+    </section>
+  )
+}
 
 const REAL_NAME = '송금할 때 서로의 실명이 표시될 수 있습니다.'
 
@@ -117,6 +217,7 @@ function HomeParty({ party, now, myId, run, onDetail, onHome, onMenu }) {
           <Item title="일행과 경로 자세히" onClick={onDetail} />
         </div>
       </div>
+      <PartyChat key={party.id} partyId={party.id} now={now} status={party.status} />
       {new Date(now) >= new Date(party.departureAt) && <MemberActions partyId={party.id} />}
       {asking && <CancelSheet party={party} run={run} onClose={() => setAsking(false)} />}
       {driver && <DriverView party={party} onClose={() => setDriver(false)} />}
@@ -163,6 +264,7 @@ function SchoolPayer({ party, now, myId, run, onDetail, onHome, onMenu }) {
           <Item title="분담금과 경로 자세히" detail={won(party.myShare)} onClick={onDetail} />
         </div>
       </div>
+      <PartyChat key={party.id} partyId={party.id} now={now} status={party.status} />
       {new Date(now) >= new Date(party.departureAt) && <MemberActions partyId={party.id} />}
       {asking && <CancelSheet party={party} run={run} onClose={() => setAsking(false)} />}
       {driver && <DriverView party={party} onClose={() => setDriver(false)} />}
@@ -202,6 +304,7 @@ function SchoolRider({ party, now, run, onDetail, onHome, onMenu }) {
         <Rows items={[['내 예상 분담금', won(party.myShare), 'big'], ['학교 도착', formatTime(party.arrivalAt)]]} />
         <div className="list"><Item title="분담금과 경로 자세히" onClick={onDetail} /></div>
       </div>
+      <PartyChat key={party.id} partyId={party.id} now={now} status={party.status} />
       {new Date(now) >= new Date(party.departureAt) && <MemberActions partyId={party.id} />}
       {asking && <CancelSheet party={party} run={run} onClose={() => setAsking(false)} />}
     </Screen>
@@ -234,7 +337,8 @@ export function PartyDetail({ party, myId, now, onBack }) {
       <div className="block">
         {toSchool && <p className="note">승차 시각 3분 뒤까지 도착 표시가 없으면 그 사람을 빼고 갑니다. 분담금은 남은 일행으로 다시 계산하고, 혼자 남으면 일행이 취소됩니다.</p>}
         <p className="note">실제 금액은 결제 후 같은 비율로 나눕니다. {REAL_NAME}</p>
-        {new Date(now) >= new Date(party.departureAt) && <MemberActions partyId={party.id} />}
+        <PartyChat key={party.id} partyId={party.id} now={now} status={party.status} />
+      {new Date(now) >= new Date(party.departureAt) && <MemberActions partyId={party.id} />}
       </div>
     </Screen>
   )

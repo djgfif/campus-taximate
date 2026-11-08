@@ -1040,6 +1040,119 @@
           }
         }
       }
+    },
+    "/api/parties/{partyId}/messages": {
+      "get": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "messages",
+        "description": "\ud604\uc7ac \uc77c\ud589\uc6d0\uc5d0\uac8c \ucd5c\uadfc \uba54\uc2dc\uc9c0 \ucd5c\ub300 50\uac1c\ub97c \uc624\ub798\ub41c \uc21c\uc11c\ub85c \ub3cc\ub824\uc918\uc694. after\uac00 \uc788\uc73c\uba74 \ud574\ub2f9 \ubc88\ud638 \uc774\ud6c4 \uba54\uc2dc\uc9c0 \ucd5c\ub300 50\uac1c\ub97c \uc624\ub798\ub41c \uc21c\uc11c\ub85c \ub3cc\ub824\uc918\uc694. \uc885\ub8cc \ud6c4 7\uc77c\uc774 \uc9c0\ub098\uba74 \uba54\uc2dc\uc9c0\ub294 \ube44\uc5b4 \uc788\uc5b4\uc694.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "partyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "after\ub294 0 \uc774\uc0c1\uc774\uc5b4\uc57c \ud574\uc694."
+          },
+          "401": {
+            "description": "\ub85c\uadf8\uc778\uc774 \ud544\uc694\ud574\uc694."
+          },
+          "403": {
+            "description": "\ud604\uc7ac \uc77c\ud589\uc6d0\ub9cc \uc77d\uace0 \uc4f8 \uc218 \uc788\uc5b4\uc694. \ucde8\uc18c\u00b7\ub178\uc1fc\ub85c \ube60\uc9c0\uba74 \uc811\uadfc\ud560 \uc218 \uc5c6\uc5b4\uc694."
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "message",
+        "description": "\uc77c\ud589 \ud655\uc815\ubd80\ud130 \uc815\uc0b0 \uc644\ub8cc\uc640 \ucd9c\ubc1c \ud6c4 24\uc2dc\uac04 \uc911 \uc774\ub978 \ub54c\uae4c\uc9c0 \ubcf4\ub0bc \uc218 \uc788\uc5b4\uc694. \ub2e4\ub978 \ud604\uc7ac \uc77c\ud589\uc6d0\uc5d0\uac8c \ud654\uba74 \uac31\uc2e0\uacfc \uc6f9 \ud478\uc2dc\ub9cc \ubcf4\ub0b4\uc694.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "partyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MessageBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "\uc55e\ub4a4 \uacf5\ubc31\uc744 \ube80 \ud14d\uc2a4\ud2b8\uac00 1~200\uc790\uc5ec\uc57c \ud574\uc694."
+          },
+          "401": {
+            "description": "\ub85c\uadf8\uc778\uc774 \ud544\uc694\ud574\uc694."
+          },
+          "403": {
+            "description": "\ud604\uc7ac \uc77c\ud589\uc6d0\ub9cc \uc77d\uace0 \uc4f8 \uc218 \uc788\uc5b4\uc694. \ucde8\uc18c\u00b7\ub178\uc1fc\ub85c \ube60\uc9c0\uba74 \uc811\uadfc\ud560 \uc218 \uc5c6\uc5b4\uc694."
+          },
+          "409": {
+            "description": "CHAT_CLOSED: \uc77c\ud589 \ucc44\ud305\uc740 \uc77d\uae30\ub9cc \uac00\ub2a5\ud574\uc694."
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1849,6 +1962,64 @@
                 ]
               }
             ]
+          }
+        }
+      },
+      "MessageBody": {
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "\uc55e\ub4a4 \uacf5\ubc31\uc744 \uc81c\uac70\ud55c \ub4a4 \uae38\uc774\ub97c \uac80\uc0ac\ud574\uc694."
+          }
+        }
+      },
+      "MessageView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "memberId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "nickname": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "mine": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ChatView": {
+        "type": "object",
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessageView"
+            }
+          },
+          "closed": {
+            "type": "boolean"
+          },
+          "closesAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       }
