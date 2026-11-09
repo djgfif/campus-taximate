@@ -22,14 +22,17 @@ public class PartyCanceler {
 
     private final RideRequestRepository requests;
     private final NotificationService notifications;
+    private final PartyChatService chat;
 
     @Transactional(propagation = Propagation.MANDATORY)
     public void cancel(Party party, Set<Long> leavingRequestIds, Instant now) {
         List<RideRequest> riders = requests.findByPartyOrderByRideOrder(party);
         party.setStatus(PartyStatus.CANCELED);
+        party.setChatClosedAt(now);
         EndReason survivor = party.getBoardedAt() != null ? EndReason.LEFT_ALONE : EndReason.PARTY_CANCELED;
         Instant nextSlot = AppClock.nextSlotAfter(now);
         for (RideRequest rider : riders) {
+            chat.markLeft(party.getId(), rider.getMember().getId(), now);
             Instant lastSlot = rider.resultBy();
             rider.clearParty();
             if (leavingRequestIds.contains(rider.getId())) {
