@@ -40,6 +40,8 @@ public class MemberSafetyService {
     private final MemberRestrictionRepository restrictions;
     private final PartyAssignmentRepository assignments;
     private final PartyRepository parties;
+    private final PartyChatService chat;
+    private final PartyMessageRepository messages;
     private final RideRequestRepository requests;
     private final MemberRepository members;
     private final AppClock clock;
@@ -96,6 +98,11 @@ public class MemberSafetyService {
 
     @Transactional
     public void report(long actor, long target, long partyId, ReportReason reason, String memo) {
+        report(actor, target, partyId, reason, memo, null);
+    }
+
+    @Transactional
+    public void report(long actor, long target, long partyId, ReportReason reason, String memo, Long messageId) {
         requireOther(actor, target);
         if (reason == null || (memo != null && memo.length() > 200)) {
             throw ApiException.badRequest("INVALID_REPORT", "신고 사유와 200자 이하의 메모를 입력해 주세요.");
@@ -113,6 +120,13 @@ public class MemberSafetyService {
         report.setParty(parties.getReferenceById(partyId));
         report.setReason(reason);
         report.setMemo(memo == null || memo.isBlank() ? null : memo.trim());
+        if (messageId != null) {
+            var evidence = messages.findById(messageId)
+                    .filter(m -> m.getParty().getId() == partyId && m.getMember().getId() == target)
+                    .orElseThrow(() -> ApiException.badRequest("INVALID_MESSAGE", "해당 일행원의 메시지가 아니에요."));
+            report.setMessageId(evidence.getId());
+            report.setMessageSnapshot(evidence.getText());
+        }
         report.setCreatedAt(clock.now());
         reports.saveAndFlush(report);
         addAvoid(actor, target);
@@ -134,6 +148,9 @@ public class MemberSafetyService {
             return;
         }
         rider.markNoShow(now);
+        if (rider.getParty() != null) {
+            chat.markLeft(rider.getParty().getId(), rider.getMember().getId(), now);
+        }
         Member member = rider.getMember();
         member.setNoShowCount(member.getNoShowCount() + 1);
         requests.flush();
