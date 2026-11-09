@@ -20,4 +20,15 @@ public class PartyAssignment {
     private Party party;
     private long memberId;
     private long requestId;
+
+    /** Leaving members may read only messages that already existed on departure. */
+    private Instant leftAt;
+    private Long lastVisibleMessageId;
+
+    public void leave(Instant now, long lastMessageId) {
+        if (leftAt == null) {
+            leftAt = now;
+            lastVisibleMessageId = lastMessageId;
+        }
+    }
 }
