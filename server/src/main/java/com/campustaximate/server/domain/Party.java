@@ -56,6 +56,9 @@ public class Party {
     /** 전원 받음 처리 시각. 채팅 보관 기간의 기준이다. */
     private Instant settledAt;
 
+    /** Actual cancellation time; closes chat even if the planned departure is in the future. */
+    private Instant chatClosedAt;
+
     private long expectedTotal;
 
     @Enumerated(EnumType.STRING)
