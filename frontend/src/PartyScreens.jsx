@@ -1,66 +1,190 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, Copy, X } from 'lucide-react'
 import RouteComparison, { RouteSide } from './RouteComparison.jsx'
 import { api } from './api.js'
+import { subscribeChatUpdates } from './chatEvents.js'
 import { MemberActions, ReportSheet } from './MemberSafety.jsx'
 import { formatTime, remaining, won } from './format.js'
 import { BackBar, Btn, Confirm, Item, Meter, Rail, Rows, Say, Screen, TopBar, toast, useWide } from './ui.jsx'
 
 const CHAT_PHRASES = ['조금 늦어요', '도착했어요, 어디 계세요?', '인상착의: ', '택시 잡았어요']
 
-/** 기존 상태 갱신 시각을 따라 읽는다. 이용 내역에서는 자체 갱신을 정리한다. */
-export function PartyChat({ partyId, now, status }) {
+/**
+ * Chat owns its own message cursor. SSE tells it when to fetch; polling and focus
+ * recovery cover missed events and disconnected browsers. The server is the source of truth.
+ */
+export function PartyChat({ partyId, status }) {
   const [chat, setChat] = useState(null)
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [denied, setDenied] = useState(false)
   const [selected, setSelected] = useState(null)
-  const [reload, setReload] = useState(0)
+  const [loadingOlder, setLoadingOlder] = useState(false)
+  const [unread, setUnread] = useState(0)
   const input = useRef(null)
+  const scroll = useRef(null)
   const sending = useRef(false)
-  const readVersion = useRef(0)
-  useEffect(() => {
-    let disposed = false
-    const load = async () => {
-      const version = ++readVersion.current
-      try {
-        const next = await api.partyMessages(partyId)
-        if (!disposed && version === readVersion.current) { setChat(next); setDenied(false); setError('') }
-      } catch (e) {
-        if (!disposed && version === readVersion.current) {
+  const pending = useRef(null)
+  const syncing = useRef(false)
+  const syncAgain = useRef(false)
+  const disposed = useRef(false)
+  const newestId = useRef(0)
+  const oldestId = useRef(null)
+  const atBottom = useRef(true)
+
+  const synchronize = useCallback(async () => {
+    if (syncing.current) { syncAgain.current = true; return }
+    syncing.current = true
+    try {
+      do {
+        syncAgain.current = false
+        const startCursor = newestId.current
+        let cursor = startCursor
+        const received = []
+        let response
+        try {
+          let pages = 0
+          do {
+            response = await api.partyMessages(partyId, cursor || null)
+            if (disposed.current) return
+            received.push(...response.messages)
+            if (response.messages.length) cursor = response.messages[response.messages.length - 1].id
+            pages += 1
+            // A large offline backlog is drained through subsequent synchronization rounds.
+            if (pages >= 20 && response.hasNewer) {
+              syncAgain.current = true
+              break
+            }
+          } while (response.hasNewer && response.messages.length)
+          if (disposed.current) return
+          newestId.current = Math.max(newestId.current, cursor)
+          if (startCursor > 0 && !atBottom.current) {
+            const unseen = received.filter((message) => !message.mine).length
+            if (unseen) setUnread((count) => count + unseen)
+          }
+          setChat((previous) => {
+            if (!previous || startCursor === 0) {
+              if (received.length) oldestId.current = received[0].id
+              return { ...response, messages: received }
+            }
+            const known = new Set(previous.messages.map((message) => message.id))
+            const additions = received.filter((message) => !known.has(message.id))
+            return { ...previous, closed: response.closed, closesAt: response.closesAt,
+              messages: [...previous.messages, ...additions] }
+          })
+          setError('')
+          setDenied(false)
+        } catch (e) {
+          if (disposed.current) return
           setError(e.message)
-          if (e.status === 403) { setChat(null); setDenied(true); setSelected(null); setText('') }
+          if (e.status === 403) {
+            setChat(null); setDenied(true); setSelected(null); setText('')
+          }
+          break
         }
-      }
+      } while (syncAgain.current && !disposed.current)
+    } finally {
+      syncing.current = false
     }
-    load()
-    const timer = now == null ? setInterval(load, 5000) : null
-    return () => { disposed = true; clearInterval(timer) }
-  }, [partyId, now, status, reload])
+  }, [partyId])
+
+  useEffect(() => {
+    disposed.current = false
+    synchronize()
+    const unsubscribe = subscribeChatUpdates((changedPartyId) => {
+      if (changedPartyId == null || changedPartyId === partyId) synchronize()
+    })
+    // SSE is best effort. Reconcile periodically and after tab resume.
+    const timer = setInterval(synchronize, 15000)
+    const wake = () => { if (document.visibilityState === 'visible') synchronize() }
+    document.addEventListener('visibilitychange', wake)
+    return () => {
+      disposed.current = true
+      unsubscribe()
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', wake)
+    }
+  }, [partyId, synchronize])
+
+  useEffect(() => { if (chat) synchronize() }, [status]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const node = scroll.current
+    if (node && atBottom.current) {
+      node.scrollTop = node.scrollHeight
+      setUnread(0)
+    }
+  }, [chat?.messages.length])
+
+  const onScroll = () => {
+    const node = scroll.current
+    if (!node) return
+    atBottom.current = node.scrollHeight - node.scrollTop - node.clientHeight < 48
+    if (atBottom.current) setUnread(0)
+  }
+
+  const loadOlder = async () => {
+    if (loadingOlder || !chat?.hasOlder || oldestId.current == null) return
+    setLoadingOlder(true)
+    setError('')
+    const node = scroll.current
+    const previousHeight = node?.scrollHeight || 0
+    const previousTop = node?.scrollTop || 0
+    try {
+      const response = await api.partyMessages(partyId, null, oldestId.current)
+      if (disposed.current) return
+      if (response.messages.length) oldestId.current = response.messages[0].id
+      atBottom.current = false
+      setChat((previous) => {
+        if (!previous) return previous
+        const known = new Set(previous.messages.map((message) => message.id))
+        return { ...previous, hasOlder: response.hasOlder,
+          messages: [...response.messages.filter((message) => !known.has(message.id)), ...previous.messages] }
+      })
+      requestAnimationFrame(() => {
+        if (node && !disposed.current) node.scrollTop = node.scrollHeight - previousHeight + previousTop
+      })
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setLoadingOlder(false)
+    }
+  }
+
   const send = async (value, clearDraft = true) => {
-    if (sending.current || !value.trim()) return
+    const message = value.trim()
+    if (sending.current || !message) return
     sending.current = true
     setBusy(true)
     setError('')
+    if (!pending.current || pending.current.text !== message) {
+      const id = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
+      pending.current = { text: message, id }
+    }
     try {
-      await api.sendPartyMessage(partyId, value)
+      await api.sendPartyMessage(partyId, message, pending.current.id)
+      pending.current = null
       if (clearDraft) setText('')
-      setReload((value) => value + 1)
+      await synchronize()
     } catch (e) {
       setError(e.message)
-      if (e.code === 'CHAT_CLOSED' || e.status === 403) ++readVersion.current
-      if (e.code === 'CHAT_CLOSED') setChat((value) => value && { ...value, closed: true })
+      if (e.code === 'CHAT_CLOSED') setChat((previous) => previous && { ...previous, closed: true })
       if (e.status === 403) { setChat(null); setDenied(true); setSelected(null); setText('') }
-    } finally { sending.current = false; setBusy(false) }
+    } finally {
+      sending.current = false
+      setBusy(false)
+    }
   }
+
   const report = async (message) => {
     try {
       const peers = await api.partyMembers(partyId)
       const member = peers.find((peer) => peer.memberId === message.memberId)
-      if (member) setSelected(member)
+      if (member) setSelected({ ...member, messageId: message.id })
     } catch (e) { setError(e.message) }
   }
+
   const closed = chat?.closed || ['COMPLETED', 'SETTLED', 'CANCELED'].includes(status)
   return (
     <section className="block party-chat" aria-label="일행 채팅">
@@ -68,7 +192,8 @@ export function PartyChat({ partyId, now, status }) {
       {!chat && !error && <p role="status">메시지를 불러오고 있어요</p>}
       {chat && (
         <>
-          <ol className="chat-messages" aria-label="최근 일행 메시지" aria-live="polite" aria-relevant="additions">
+          {chat.hasOlder && <Btn className="small line" disabled={loadingOlder} onClick={loadOlder}>이전 메시지 보기</Btn>}
+          <ol ref={scroll} onScroll={onScroll} className="chat-messages" aria-label="최근 일행 메시지" aria-live="polite" aria-relevant="additions">
             {chat.messages.map((message) => (
               <li key={message.id} className={message.mine ? 'mine' : ''}>
                 <div className="chat-meta"><b>{message.mine ? `나 (${message.nickname})` : message.nickname}</b>
@@ -79,6 +204,12 @@ export function PartyChat({ partyId, now, status }) {
               </li>
             ))}
           </ol>
+          {unread > 0 && <Btn className="small line" onClick={() => {
+            const node = scroll.current
+            if (node) node.scrollTop = node.scrollHeight
+            atBottom.current = true
+            setUnread(0)
+          }}>새 메시지 {unread}개 · 아래로 이동</Btn>}
           {chat.messages.length === 0 && <p className="note">아직 메시지가 없어요.</p>}
         </>
       )}
@@ -99,7 +230,7 @@ export function PartyChat({ partyId, now, status }) {
           <Btn type="submit" disabled={busy || !text.trim()}>메시지 보내기</Btn>
         </form>
       )}
-      {error && <p role="alert">{error} <button type="button" onClick={() => setReload((value) => value + 1)}>다시 불러오기</button></p>}
+      {error && <p role="alert">{error} <button type="button" onClick={synchronize}>다시 불러오기</button></p>}
       <p className="note">정산이 끝나거나 출발 후 24시간이 지나면 쓰기가 닫혀요. 그때부터 7일 뒤 메시지를 지워요.</p>
       {selected && <ReportSheet partyId={partyId} member={selected} onClose={() => setSelected(null)} onSaved={() => setSelected(null)} />}
     </section>
