@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from './api.js'
+import { announceChatUpdate } from './chatEvents.js'
 import AuthScreen from './AuthScreen.jsx'
 import ProfileScreen from './ProfileScreen.jsx'
 import PasswordScreen from './PasswordScreen.jsx'
@@ -89,11 +90,17 @@ export default function App() {
     let soon = null
     let last = Date.now()
     const source = new EventSource('/api/events')
-    source.onopen = () => { live = true }
+    source.onopen = () => { live = true; announceChatUpdate() }
     source.onerror = () => { live = false }
     source.addEventListener('state', () => {
       clearTimeout(soon)
       soon = setTimeout(refresh, 150)
+    })
+    source.addEventListener('party-message', (event) => {
+      try {
+        const { partyId } = JSON.parse(event.data)
+        if (typeof partyId === 'number') announceChatUpdate(partyId)
+      } catch { /* periodic reconciliation still recovers missing messages */ }
     })
     const timer = setInterval(() => {
       if (!live || Date.now() - last >= LIVE_POLL_MS) {
@@ -101,7 +108,12 @@ export default function App() {
         refresh()
       }
     }, POLL_MS)
-    const wake = () => document.visibilityState === 'visible' && refresh()
+    const wake = () => {
+      if (document.visibilityState === 'visible') {
+        refresh()
+        announceChatUpdate()
+      }
+    }
     document.addEventListener('visibilitychange', wake)
     return () => {
       source.close()
