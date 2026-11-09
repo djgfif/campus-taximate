@@ -7,6 +7,7 @@ import { Sheet } from './ui.jsx'
 import { ReportSheet, SettledFeedback } from './MemberSafety.jsx'
 import { PartyChat } from './PartyScreens.jsx'
 import { api } from './api.js'
+import { announceChatUpdate } from './chatEvents.js'
 
 const latest = {
   id: 1, direction: 'TO_SCHOOL', pointName: '역전', anchorName: '정문', arriveBy: '2026-11-09T00:00:00Z',
@@ -157,6 +158,11 @@ describe('일행 채팅', () => {
     fireEvent.click(screen.getByRole('button', { name: '일행님 메시지 신고' }))
     await screen.findByRole('dialog', { name: '일행님 신고·다시 매칭 안 함' })
     expect(screen.getByRole('button', { name: '다시 매칭 안 함 해제' })).toBeTruthy()
+    const report = vi.spyOn(api, 'reportMember').mockResolvedValue(null)
+    fireEvent.click(screen.getByRole('button', { name: '신고하기', exact: true }))
+    await waitFor(() => expect(report).toHaveBeenCalledWith(11, 2, {
+      reason: 'RUDE', memo: '', messageId: 1,
+    }))
     fireEvent.keyDown(window, { key: 'Escape' })
     read.mockResolvedValue({ ...initial, closed: true })
     view.rerender(<PartyChat {...props} now="2026-11-10T00:00:01Z" status="COMPLETED" />)
@@ -169,4 +175,39 @@ describe('일행 채팅', () => {
     expect(screen.queryByText('기다리고 있어요')).toBeNull()
     expect(screen.queryByRole('textbox', { name: '일행에게 보낼 메시지' })).toBeNull()
   })
+  it('같은 now 값에서도 새 메시지 SSE 이벤트를 받으면 채팅을 갱신한다', async () => {
+    const messages = [{ id: 1, memberId: 1, nickname: '나', text: '첫 메시지',
+      createdAt: '2026-11-08T00:00:00Z', mine: true }]
+    vi.spyOn(api, 'partyMessages').mockImplementation(async () => ({
+      closed: false, closesAt: '2026-11-10T00:00:00Z',
+      messages: [...messages], hasOlder: false, hasNewer: false,
+    }))
+    render(<PartyChat partyId={22} now="2026-11-08T00:00:00Z" status="CONFIRMED" />)
+    await screen.findByText('첫 메시지')
+    messages.push({ id: 2, memberId: 2, nickname: '상대', text: '지금 도착했어요',
+      createdAt: '2026-11-08T00:00:01Z', mine: false })
+    announceChatUpdate(22)
+    await screen.findByText('지금 도착했어요')
+    expect(screen.getByRole('region', { name: '일행 채팅' })).toBeTruthy()
+  })
+
+  it('통신 실패 후 같은 메시지 재시도에는 동일한 전송 번호를 쓴다', async () => {
+    vi.spyOn(api, 'partyMessages').mockResolvedValue({
+      closed: false, closesAt: '2026-11-10T00:00:00Z',
+      messages: [], hasOlder: false, hasNewer: false,
+    })
+    const send = vi.spyOn(api, 'sendPartyMessage')
+      .mockRejectedValueOnce(new Error('네트워크 오류'))
+      .mockResolvedValueOnce({ id: 1 })
+    render(<PartyChat partyId={23} status="CONFIRMED" />)
+    const input = await screen.findByRole('textbox', { name: '일행에게 보낼 메시지' })
+    fireEvent.change(input, { target: { value: '재전송 테스트' } })
+    fireEvent.click(screen.getByRole('button', { name: '메시지 보내기' }))
+    await screen.findByText('네트워크 오류')
+    fireEvent.click(screen.getByRole('button', { name: '메시지 보내기' }))
+    await waitFor(() => expect(send).toHaveBeenCalledTimes(2))
+    expect(send.mock.calls[0][2]).toBeTruthy()
+    expect(send.mock.calls[1][2]).toBe(send.mock.calls[0][2])
+  })
+
 })
