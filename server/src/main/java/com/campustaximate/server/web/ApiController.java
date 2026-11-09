@@ -299,26 +299,27 @@ public class ApiController {
                 "settledParty", java.util.Optional.ofNullable(parties.latestSettled(id)).<Object>map(p -> p).orElse(""));
     }
 
-    public record MessageBody(String text) { }
+    public record MessageBody(String text, String clientMessageId) { }
 
     @GetMapping("/parties/{partyId}/messages")
     public com.campustaximate.server.service.PartyChatService.ChatView messages(
-            @PathVariable long partyId, @RequestParam(required = false) Long after, HttpSession session) {
-        return chat.read(memberId(session), partyId, after);
+            @PathVariable long partyId, @RequestParam(required = false) Long after,
+            @RequestParam(required = false) Long before, HttpSession session) {
+        return chat.read(memberId(session), partyId, after, before);
     }
 
     @PostMapping("/parties/{partyId}/messages")
     public com.campustaximate.server.service.PartyChatService.MessageView message(
             @PathVariable long partyId, @RequestBody MessageBody body, HttpSession session) {
-        return chat.send(memberId(session), partyId, body.text());
+        return chat.send(memberId(session), partyId, body.text(), body.clientMessageId());
     }
 
-    public record ReportBody(@NotNull ReportReason reason, @Size(max = 200) String memo) { }
+    public record ReportBody(@NotNull ReportReason reason, @Size(max = 200) String memo, Long messageId) { }
 
     @PostMapping("/parties/{partyId}/members/{memberId}/report")
     public void report(@PathVariable long partyId, @PathVariable long memberId,
                        @Valid @RequestBody ReportBody body, HttpSession session) {
-        safety.report(memberId(session), memberId, partyId, body.reason(), body.memo());
+        safety.report(memberId(session), memberId, partyId, body.reason(), body.memo(), body.messageId());
     }
 
     @PutMapping("/members/{memberId}/avoid")
