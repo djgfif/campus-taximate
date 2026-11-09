@@ -14,6 +14,7 @@ import com.campustaximate.server.repository.MemberAvoidRepository;
 import com.campustaximate.server.repository.MemberReportRepository;
 import com.campustaximate.server.repository.MemberRestrictionRepository;
 import com.campustaximate.server.repository.PartyAssignmentRepository;
+import com.campustaximate.server.repository.PartyMessageRepository;
 import com.campustaximate.server.repository.PartyRepository;
 import com.campustaximate.server.repository.RideRequestRepository;
 import com.campustaximate.server.repository.MemberRepository;
