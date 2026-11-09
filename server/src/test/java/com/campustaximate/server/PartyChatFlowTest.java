@@ -48,6 +48,8 @@ class PartyChatFlowTest {
     @Autowired SettlementRepository settlements;
     @Autowired TransferRequestRepository transfers;
     @Autowired MailOutboxRepository outbox;
+    @Autowired MemberReportRepository reports;
+    @Autowired MemberSafetyService safety;
     @MockBean PushService push;
     @SpyBean ChangeBus changes;
     long a, b, c, outsider;
@@ -61,6 +63,7 @@ class PartyChatFlowTest {
 
     @AfterEach
     void clean() {
+        reports.deleteAll();
         messages.deleteAll();
         assignments.deleteAll();
         transfers.deleteAll();
@@ -81,11 +84,10 @@ class PartyChatFlowTest {
         JsonNode first = body(send(a, party, text).andExpect(status().isOk()));
         assertThat(first.get("memberId").asLong()).isEqualTo(a);
         assertThat(first.get("nickname").asText()).isEqualTo(members.findById(a).orElseThrow().getNickname());
-        verify(push).send(b, "[캠퍼스 택시메이트] 일행 메시지", "가".repeat(40), "/");
-        verify(push).send(c, "[캠퍼스 택시메이트] 일행 메시지", "가".repeat(40), "/");
+        verify(push).send(b, "[캠퍼스 택시메이트] 일행 메시지", "새 일행 메시지가 도착했어요.", "/");
+        verify(push).send(c, "[캠퍼스 택시메이트] 일행 메시지", "새 일행 메시지가 도착했어요.", "/");
         verify(push, never()).send(eq(a), anyString(), anyString(), anyString());
-        verify(changes).memberChanged(b);
-        verify(changes).memberChanged(c);
+        verify(changes).partyMessageChanged(party.getId(), first.get("id").asLong(), java.util.List.of(a, b, c));
         assertThat(outbox.count()).isEqualTo(mailBefore);
         read(b, party).andExpect(status().isOk());
         JsonNode second = body(send(b, party, "도착했어요").andExpect(status().isOk()));
@@ -175,6 +177,112 @@ class PartyChatFlowTest {
         mvc.perform(post(url(party)).session(session(a)).contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest());
         assertThat(messages.count()).isEqualTo(2);
+    }
+
+    @Test
+    void clientMessageIdPreventsDuplicateSendAndRejectsReusedKeyWithDifferentText() throws Exception {
+        Party party = party(a, b);
+        String endpoint = url(party);
+        String key = "retry-1";
+        String payload = json.writeValueAsString(Map.of("text", "기다리고 있어요", "clientMessageId", key));
+        clearInvocations(push, changes);
+        JsonNode first = body(mvc.perform(post(endpoint).session(session(a))
+                .contentType(MediaType.APPLICATION_JSON).content(payload)).andExpect(status().isOk()));
+        JsonNode second = body(mvc.perform(post(endpoint).session(session(a))
+                .contentType(MediaType.APPLICATION_JSON).content(payload)).andExpect(status().isOk()));
+        assertThat(second.get("id").asLong()).isEqualTo(first.get("id").asLong());
+        assertThat(messages.count()).isEqualTo(1);
+        verify(changes, times(1)).partyMessageChanged(eq(party.getId()), eq(first.get("id").asLong()), anyList());
+        verify(push, times(1)).send(eq(b), anyString(), anyString(), eq("/"));
+        mvc.perform(post(endpoint).session(session(a)).contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("text", "다른 내용", "clientMessageId", key))))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void cursorPagingLoadsOlderMessagesAndPaginatesOfflineBacklog() throws Exception {
+        Party party = party(a, b);
+        for (int i = 0; i < 65; i++) {
+            messages.save(new PartyMessage(party, members.getReferenceById(a), "메시지 " + i, clock.now()));
+        }
+        JsonNode latest = body(read(b, party).andExpect(status().isOk()));
+        assertThat(latest.get("messages")).hasSize(50);
+        assertThat(latest.get("hasOlder").asBoolean()).isTrue();
+        long oldestShown = latest.get("messages").get(0).get("id").asLong();
+        JsonNode earlier = body(mvc.perform(get(url(party)).param("before", String.valueOf(oldestShown))
+                .session(session(b))).andExpect(status().isOk()));
+        assertThat(earlier.get("messages")).hasSize(15);
+        assertThat(earlier.get("hasOlder").asBoolean()).isFalse();
+        assertThat(earlier.get("messages").get(14).get("id").asLong()).isLessThan(oldestShown);
+
+        JsonNode firstBatch = body(mvc.perform(get(url(party)).param("after", "0").session(session(b)))
+                .andExpect(status().isOk()));
+        assertThat(firstBatch.get("messages")).hasSize(50);
+        assertThat(firstBatch.get("hasNewer").asBoolean()).isTrue();
+        long end = firstBatch.get("messages").get(49).get("id").asLong();
+        JsonNode secondBatch = body(mvc.perform(get(url(party)).param("after", String.valueOf(end))
+                .session(session(b))).andExpect(status().isOk()));
+        assertThat(secondBatch.get("messages")).hasSize(15);
+        assertThat(secondBatch.get("hasNewer").asBoolean()).isFalse();
+        mvc.perform(get(url(party)).param("after", "1").param("before", "100")
+                .session(session(b))).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void formerMemberCanReadOnlyPreDepartureMessagesAndCannotPost() throws Exception {
+        Party party = party(a, b, c);
+        JsonNode before = body(send(a, party, "떠나기 전").andExpect(status().isOk()));
+        PartyAssignment membership = assignments.findByPartyIdAndMemberId(party.getId(), b).orElseThrow();
+        membership.leave(clock.now(), before.get("id").asLong());
+        assignments.save(membership);
+        RideRequest leaving = rider(party, b);
+        leaving.clearParty();
+        leaving.finish(RequestStatus.CANCELED);
+        requests.save(leaving);
+        send(a, party, "떠난 뒤 비공개").andExpect(status().isOk());
+
+        JsonNode formerView = body(read(b, party).andExpect(status().isOk()));
+        assertThat(formerView.get("closed").asBoolean()).isTrue();
+        assertThat(formerView.get("messages")).hasSize(1);
+        assertThat(formerView.get("messages").get(0).get("id").asLong()).isEqualTo(before.get("id").asLong());
+        JsonNode future = body(mvc.perform(get(url(party)).param("after", before.get("id").asText())
+                .session(session(b))).andExpect(status().isOk()));
+        assertThat(future.get("messages")).isEmpty();
+        send(b, party, "이탈했지만 보내기").andExpect(status().isForbidden());
+    }
+
+    @Test
+    void reportMessageMustBelongToReportedMemberAndPreservesEvidenceSnapshot() throws Exception {
+        Party party = party(a, b);
+        long fromB = body(send(b, party, "부적절한 발언").andExpect(status().isOk())).get("id").asLong();
+        long fromA = body(send(a, party, "정상 메시지").andExpect(status().isOk())).get("id").asLong();
+        mvc.perform(post("/api/parties/" + party.getId() + "/members/" + b + "/report")
+                .session(session(a)).contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("reason", "RUDE", "messageId", fromA))))
+                .andExpect(status().isBadRequest());
+        assertThat(reports.count()).isZero();
+        mvc.perform(post("/api/parties/" + party.getId() + "/members/" + b + "/report")
+                .session(session(a)).contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("reason", "RUDE", "messageId", fromB))))
+                .andExpect(status().isOk());
+        MemberReport evidence = reports.findAll().get(0);
+        assertThat(evidence.getMessageId()).isEqualTo(fromB);
+        assertThat(evidence.getMessageSnapshot()).isEqualTo("부적절한 발언");
+        messages.deleteAll();
+        assertThat(reports.findById(evidence.getId()).orElseThrow().getMessageSnapshot())
+                .isEqualTo("부적절한 발언");
+    }
+
+    @Test
+    void chatRateLimitBlocksFloodingWithoutBlockingPreviousMessages() throws Exception {
+        Party party = party(a, b);
+        for (int i = 0; i < 10; i++) {
+            send(a, party, "문자 " + i).andExpect(status().isOk());
+        }
+        JsonNode blocked = body(send(a, party, "도배").andExpect(status().isTooManyRequests()));
+        assertThat(blocked.get("code").asText()).isEqualTo("CHAT_RATE_LIMIT");
+        assertThat(messages.count()).isEqualTo(10);
+        assertThat(body(read(b, party).andExpect(status().isOk())).get("messages")).hasSize(10);
     }
 
     private void assertClosed(Party party) throws Exception {
