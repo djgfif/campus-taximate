@@ -22,8 +22,6 @@ import java.util.Map;
 /** 뽑힌 조합의 누적 값과 각자의 단독 값을 같은 시점에 조회해 15분, 10% 조건을 다시 검사한다. 슬롯 한 번만 쓴다. */
 final class RouteGroupVerifier implements GroupVerifier {
 
-    private static final int MAX_DELAY_SECONDS = 15 * 60;
-    private static final double MIN_SAVING_RATE = 0.10;
     private static final Duration REJECT_KEEP = Duration.ofMinutes(30);
     private static final int MAX_BACKTRACK_QUERIES = 3;
 
@@ -213,14 +211,8 @@ final class RouteGroupVerifier implements GroupVerifier {
     private Verdict finish(Candidate candidate, VerifiedRoutes routesOfGroup) {
         List<MatchRequest> order = candidate.order();
         List<RouteClient.Route> solo = routesOfGroup.solo();
-        long soloTotal = solo.stream().mapToLong(RouteClient.Route::fare).sum();
-        if (routesOfGroup.total() > soloTotal * (1 - MIN_SAVING_RATE)) {
+        if (!GroupEconomics.passes(routesOfGroup.total(), solo, routesOfGroup.rideSeconds())) {
             return reject(candidate);
-        }
-        for (int i = 0; i < order.size(); i++) {
-            if (routesOfGroup.rideSeconds().get(i) - solo.get(i).seconds() > MAX_DELAY_SECONDS) {
-                return reject(candidate);
-            }
         }
         try {
             TripPlan plan = TripPlan.of(order.get(0).direction());
