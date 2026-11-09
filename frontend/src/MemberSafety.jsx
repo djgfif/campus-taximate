@@ -29,7 +29,9 @@ export function ReportSheet({ partyId, member, onClose, onSaved }) {
       <p className="note">신고하면 다시 매칭하지 않도록 함께 지정돼요. 다시 매칭 안 함은 상대에게 알리지 않아요.</p>
       <form className="report-form" onSubmit={(e) => {
         e.preventDefault()
-        act(() => api.reportMember(partyId, member.memberId, { reason, memo }), '신고를 접수했어요')
+        act(() => api.reportMember(partyId, member.memberId, {
+          reason, memo, ...(member.messageId == null ? {} : { messageId: member.messageId }),
+        }), '신고를 접수했어요')
       }}>
         <fieldset className="report-reasons" disabled={busy}>
           <legend>신고 사유</legend>
