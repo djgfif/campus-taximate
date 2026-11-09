@@ -37,6 +37,7 @@ public class PartyShrinker {
     private final RouteClient routes;
     private final RoutePathStore paths;
     private final NotificationService notifications;
+    private final PartyChatService chat;
     private final PlatformTransactionManager transactionManager;
     private final AppClock clock;
 
@@ -203,6 +204,7 @@ public class PartyShrinker {
         List<RideRequest> stay = new ArrayList<>();
         for (RideRequest rider : requests.findByPartyOrderByRideOrder(party)) {
             if (leaving.contains(rider.getId())) {
+                chat.markLeft(partyId, rider.getMember().getId(), clock.now());
                 rider.clearParty();
                 rider.finish(RequestStatus.CANCELED);
             } else {
