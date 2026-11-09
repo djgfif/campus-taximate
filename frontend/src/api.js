@@ -33,8 +33,14 @@ function settlementForm({ amount, receipt, bankName, accountNumber }) {
 }
 
 export const api = {
-  partyMessages: (partyId, after) => request(`/parties/${partyId}/messages${after == null ? '' : `?after=${after}`}`),
-  sendPartyMessage: (partyId, text) => json('POST', `/parties/${partyId}/messages`, { text }),
+  partyMessages: (partyId, after, before) => {
+    const params = new URLSearchParams()
+    if (after != null) params.set('after', after)
+    if (before != null) params.set('before', before)
+    const query = params.toString()
+    return request(`/parties/${partyId}/messages${query ? `?${query}` : ''}`)
+  },
+  sendPartyMessage: (partyId, text, clientMessageId) => json('POST', `/parties/${partyId}/messages`, { text, clientMessageId }),
   config: () => request('/config'),
   me: () => request('/me'),
   state: () => request('/state'),
