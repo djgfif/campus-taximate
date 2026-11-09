@@ -26,5 +26,9 @@ public class MemberReport {
     private ReportReason reason;
     @Column(length = 200)
     private String memo;
+    /** Snapshot is independent of the short-lived original chat message. */
+    private Long messageId;
+    @Column(length = 200)
+    private String messageSnapshot;
     private Instant createdAt;
 }
