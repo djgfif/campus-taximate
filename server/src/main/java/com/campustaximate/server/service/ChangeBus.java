@@ -51,6 +51,14 @@ public class ChangeBus {
         afterCommit(() -> requests.findMemberIdsByPartyId(partyId).forEach(this::notifyMember));
     }
 
+    /** A chat notification contains only the party and message ID; clients fetch authoritative DB rows. */
+    public void partyMessageChanged(long partyId, long messageId, List<Long> memberIds) {
+        List<Long> recipients = List.copyOf(memberIds);
+        afterCommit(() -> recipients.forEach(memberId -> emitters.getOrDefault(memberId, Set.of())
+                .forEach(emitter -> send(memberId, emitter, SseEmitter.event().name("party-message")
+                        .data(Map.of("partyId", partyId, "messageId", messageId))))));
+    }
+
     private void afterCommit(Runnable action) {
         if (emitters.isEmpty()) {
             return;
