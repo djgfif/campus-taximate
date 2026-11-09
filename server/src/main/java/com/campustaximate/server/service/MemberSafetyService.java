@@ -121,6 +121,12 @@ public class MemberSafetyService {
         report.setReason(reason);
         report.setMemo(memo == null || memo.isBlank() ? null : memo.trim());
         if (messageId != null) {
+            PartyAssignment membership = assignments.findByPartyIdAndMemberId(partyId, actor)
+                    .orElseThrow(() -> ApiException.forbidden("이 일행의 메시지를 신고할 수 없어요."));
+            if (membership.getLeftAt() != null && (membership.getLastVisibleMessageId() == null
+                    || messageId > membership.getLastVisibleMessageId())) {
+                throw ApiException.forbidden("이탈한 뒤 작성된 메시지는 신고할 수 없어요.");
+            }
             var evidence = messages.findById(messageId)
                     .filter(m -> m.getParty().getId() == partyId && m.getMember().getId() == target)
                     .orElseThrow(() -> ApiException.badRequest("INVALID_MESSAGE", "해당 일행원의 메시지가 아니에요."));
