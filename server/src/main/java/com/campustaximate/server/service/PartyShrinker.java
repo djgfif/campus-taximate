@@ -25,7 +25,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 빠진 사람만 빼고 남은 사람으로 일행을 다시 계산한다. 새 사람을 찾지 않는다.
- * 1명만 남거나 다시 조회하지 못하면 일행을 취소한다.
+ * 출발 전 재계산한 그룹이 절감률/탑승 시간 조건을 잃으면 일행을 취소한다.
+ * 이미 택시가 출발했다면 경로 조건이 달라져도 정산을 위한 일행을 유지한다.
  */
 @Component
 @RequiredArgsConstructor
@@ -44,7 +45,8 @@ public class PartyShrinker {
                         long soloFare) {
     }
 
-    private record Plan(long version, Direction direction, GeoPoint anchor, long total, List<Stay> stays) {
+    private record Plan(long version, Direction direction, GeoPoint anchor, long total,
+                        boolean rideStarted, List<Stay> stays) {
     }
 
     /** departed이면 남은 사람은 탑승 완료가 된다. */
@@ -64,12 +66,17 @@ public class PartyShrinker {
         tx.executeWithoutResult(status -> apply(partyId, leaving, plan, result, departed));
     }
 
-    /** 이미 택시를 탄 일행은 조회가 실패해도 취소하지 않는다. 취소하면 결제자가 낸 돈을 나눌 길이 없어진다. */
+    /** 출발 전에는 재계산 결과도 경제성 조건을 충족해야 한다. 택시가 이미 출발했으면 정산 흐름을 보존한다. */
     private Recalculated recalculateOrKeep(Plan plan, boolean departed) {
         try {
-            return recalculate(plan);
+            Recalculated result = recalculate(plan);
+            if (!departed && !plan.rideStarted()
+                    && !GroupEconomics.passes(result.total(), result.solo(), result.rideSeconds())) {
+                return null;
+            }
+            return result;
         } catch (RouteClient.RouteUnavailableException e) {
-            return departed ? keepStoredValues(plan) : null;
+            return departed || plan.rideStarted() ? keepStoredValues(plan) : null;
         } catch (IllegalArgumentException e) {
             return null;
         }
@@ -110,7 +117,9 @@ public class PartyShrinker {
                         rider.getSoloKm(), rider.getSoloSeconds(), rider.getSoloFare()));
             }
         }
-        return new Plan(party.getVersion(), party.getDirection(), party.anchorPoint(), party.getExpectedTotal(), stays);
+        boolean rideStarted = party.getBoardedAt() != null || !clock.now().isBefore(party.getDepartureAt());
+        return new Plan(party.getVersion(), party.getDirection(), party.anchorPoint(),
+                party.getExpectedTotal(), rideStarted, stays);
     }
 
     private record Recalculated(List<Long> ids, List<RouteClient.Route> solo, List<Integer> rideSeconds,
