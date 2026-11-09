@@ -179,6 +179,59 @@ class FlowTest {
     }
 
     @Test
+    void cancelBeforeDepartureCancelsPartyIfNewFareNoLongerSavesTenPercent() throws Exception {
+        List<MockHttpSession> users = threeRequests();
+        advanceToDeadline();
+        long partyId = onlyParty(users.get(1)).get("id").asLong();
+        long requestId = onlyParty(users.get(0)).get("myRequestId").asLong();
+
+        // Only the newly calculated two-stop shared trip becomes expensive.
+        org.mockito.Mockito.doAnswer(call -> {
+            var original = (com.campustaximate.server.route.RouteClient.Route) call.callRealMethod();
+            List<?> stops = call.getArgument(1);
+            return stops.size() > 1 ? original.withFare(100_000L) : original;
+        }).when(routes).route(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+
+        mvc.perform(delete("/api/requests/" + requestId).session(users.get(0))).andExpect(status().isOk());
+
+        assertThat(parties.findById(partyId).orElseThrow().getStatus())
+                .isEqualTo(com.campustaximate.server.domain.PartyStatus.CANCELED);
+        assertThat(state(users.get(0)).get("latestRequest").get("status").asText()).isEqualTo("CANCELED");
+        for (int i = 1; i < users.size(); i++) {
+            assertThat(state(users.get(i)).get("parties")).isEmpty();
+            assertThat(state(users.get(i)).get("latestRequest").get("status").asText()).isEqualTo("UNMATCHED");
+        }
+    }
+
+    @Test
+    void cancelBeforeDepartureCancelsPartyIfNewRouteAddsOverFifteenMinutes() throws Exception {
+        List<MockHttpSession> users = threeRequests();
+        advanceToDeadline();
+        long partyId = onlyParty(users.get(1)).get("id").asLong();
+        long requestId = onlyParty(users.get(0)).get("myRequestId").asLong();
+
+        // The fare still looks good, but the last rider's shared ride is too long.
+        org.mockito.Mockito.doAnswer(call -> {
+            var original = (com.campustaximate.server.route.RouteClient.Route) call.callRealMethod();
+            List<?> stops = call.getArgument(1);
+            if (stops.size() > 1) {
+                return new com.campustaximate.server.route.RouteClient.Route(
+                        original.km(), original.seconds() + 20 * 60, original.fare(),
+                        original.coordinates(), original.legSeconds());
+            }
+            return original;
+        }).when(routes).route(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+
+        mvc.perform(delete("/api/requests/" + requestId).session(users.get(0))).andExpect(status().isOk());
+
+        assertThat(parties.findById(partyId).orElseThrow().getStatus())
+                .isEqualTo(com.campustaximate.server.domain.PartyStatus.CANCELED);
+        for (int i = 1; i < users.size(); i++) {
+            assertThat(state(users.get(i)).get("parties")).isEmpty();
+        }
+    }
+
+    @Test
     void lastTwoCannotShrinkSoPartyIsCanceled() throws Exception {
         List<MockHttpSession> users = threeRequests();
         advanceToDeadline();
