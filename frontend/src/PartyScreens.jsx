@@ -115,6 +115,7 @@ export function PartyChat({ partyId, now, status }) {
       {!chat && !error && <p role="status">메시지를 불러오고 있어요</p>}
       {chat && (
         <div className="chat-box">
+          {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- 스크롤되는 목록이라 키보드로 포커스해 읽을 수 있어야 한다 */}
           <ol ref={list} className="chat-messages" tabIndex={0} onScroll={onScroll}
             aria-label="최근 일행 메시지" aria-live="polite" aria-relevant="additions">
             {messages.length === 0 && <li className="chat-empty">아직 메시지가 없어요. 문구를 눌러 먼저 인사해 보세요.</li>}
