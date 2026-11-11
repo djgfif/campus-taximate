@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { Check, Copy, X } from 'lucide-react'
+import { Check, Copy, X , Send } from 'lucide-react'
 import RouteComparison, { RouteSide } from './RouteComparison.jsx'
 import { api } from './api.js'
 import { MemberActions, ReportSheet } from './MemberSafety.jsx'
@@ -8,6 +8,10 @@ import { formatTime, formatDateTime, isPaymentParty, partyLabel, remaining, won 
 import { BackBar, Btn, Confirm, Item, Meter, Rail, Rows, Say, Screen, Sheet, TopBar, toast, useWide } from './ui.jsx'
 
 const CHAT_PHRASES = ['조금 늦어요', '도착했어요, 어디 계세요?', '인상착의: ', '택시 잡았어요']
+
+const GROUP_GAP_MS = 5 * 60 * 1000
+const NEAR_BOTTOM_PX = 48
+const INPUT_MAX_PX = 120
 
 /** 기존 상태 갱신 시각을 따라 읽는다. 이용 내역에서는 자체 갱신을 정리한다. */
 export function PartyChat({ partyId, now, status }) {
@@ -18,9 +22,13 @@ export function PartyChat({ partyId, now, status }) {
   const [denied, setDenied] = useState(false)
   const [selected, setSelected] = useState(null)
   const [reload, setReload] = useState(0)
+  const [unseen, setUnseen] = useState(false)
   const input = useRef(null)
+  const list = useRef(null)
+  const pinned = useRef(true)
   const sending = useRef(false)
   const readVersion = useRef(0)
+
   useEffect(() => {
     let disposed = false
     const load = async () => {
@@ -39,6 +47,44 @@ export function PartyChat({ partyId, now, status }) {
     const timer = now == null ? setInterval(load, 5000) : null
     return () => { disposed = true; clearInterval(timer) }
   }, [partyId, now, status, reload])
+
+  const messages = chat?.messages ?? []
+  const lastMine = messages.length > 0 && messages[messages.length - 1].mine
+
+  // 맨 아래를 보고 있거나 내가 보냈으면 따라가고, 위를 읽는 중이면 버튼으로 알린다.
+  useEffect(() => {
+    const el = list.current
+    if (!el) return
+    if (pinned.current || lastMine) {
+      el.scrollTop = el.scrollHeight
+      pinned.current = true
+      setUnseen(false)
+    } else {
+      setUnseen(true)
+    }
+  }, [messages.length, lastMine])
+
+  // 입력창 높이를 글자 수에 맞춘다.
+  useEffect(() => {
+    const el = input.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, INPUT_MAX_PX)}px`
+  }, [text])
+
+  const onScroll = () => {
+    const el = list.current
+    pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX
+    if (pinned.current) setUnseen(false)
+  }
+  const toBottom = () => {
+    const el = list.current
+    if (!el) return
+    el.scrollTop = el.scrollHeight
+    pinned.current = true
+    setUnseen(false)
+  }
+
   const send = async (value, clearDraft = true) => {
     if (sending.current || !value.trim()) return
     sending.current = true
@@ -63,29 +109,44 @@ export function PartyChat({ partyId, now, status }) {
     } catch (e) { setError(e.message) }
   }
   const closed = chat?.closed || ['COMPLETED', 'CANCELED', 'DISSOLVED', 'NOT_OPERATED', 'FARE_MISSING'].includes(status)
+
   return (
     <section className="block party-chat" aria-label="일행 채팅">
       <h2 className="block-title">일행 채팅</h2>
       {!chat && !error && <p role="status">메시지를 불러오고 있어요</p>}
       {chat && (
-        <>
-          <ol className="chat-messages" aria-label="최근 일행 메시지" aria-live="polite" aria-relevant="additions">
-            {chat.messages.map((message) => (
-              <li key={message.id} className={message.mine ? 'mine' : ''}>
-                <div className="chat-meta"><b>{message.mine ? `나 (${message.nickname})` : message.nickname}</b>
-                  <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
-                  {!message.mine && <Btn className="small quiet" aria-label={`${message.nickname}님 메시지 신고`} onClick={() => report(message)}>신고</Btn>}
-                </div>
-                <p>{message.text}</p>
-              </li>
-            ))}
+        <div className="chat-box">
+          {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- 스크롤되는 목록이라 키보드로 포커스해 읽을 수 있어야 한다 */}
+          <ol ref={list} className="chat-messages" tabIndex={0} onScroll={onScroll}
+            aria-label="최근 일행 메시지" aria-live="polite" aria-relevant="additions">
+            {messages.length === 0 && <li className="chat-empty">아직 메시지가 없어요. 문구를 눌러 먼저 인사해 보세요.</li>}
+            {messages.map((message, i) => {
+              const prev = messages[i - 1]
+              const head = !prev || prev.memberId !== message.memberId
+                || new Date(message.createdAt) - new Date(prev.createdAt) > GROUP_GAP_MS
+              const stamp = <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
+              return (
+                <li key={message.id} className={`${message.mine ? 'mine' : 'theirs'}${head ? ' head' : ''}`}>
+                  {head && <b className="chat-name">{message.mine ? `나 (${message.nickname})` : message.nickname}</b>}
+                  <div className="chat-line">
+                    {message.mine && stamp}
+                    <p className="bubble">{message.text}</p>
+                    {!message.mine && stamp}
+                    {!message.mine && (
+                      <button type="button" className="chat-report" aria-label={`${message.nickname}님 메시지 신고`}
+                        onClick={() => report(message)}>신고</button>
+                    )}
+                  </div>
+                </li>
+              )
+            })}
           </ol>
-          {chat.messages.length === 0 && <p className="note">아직 메시지가 없어요.</p>}
-        </>
+          {unseen && <button type="button" className="chat-new" onClick={toBottom}>새 메시지 ↓</button>}
+        </div>
       )}
       {closed && !denied && <p className="note" role="status">일행 채팅은 읽기만 가능해요.</p>}
       {!denied && chat && !closed && (
-        <form onSubmit={(event) => { event.preventDefault(); send(text) }}>
+        <form className="chat-form" onSubmit={(event) => { event.preventDefault(); send(text) }}>
           <div className="chat-phrases" role="group" aria-label="자주 쓰는 문구">
             {CHAT_PHRASES.map((phrase) => <Btn key={phrase} className="small line" disabled={busy} onClick={() => {
               if (phrase === '인상착의: ') {
@@ -94,10 +155,22 @@ export function PartyChat({ partyId, now, status }) {
               } else return send(phrase, false)
             }}>{phrase}</Btn>)}
           </div>
-          <label className="field">일행에게 보낼 메시지
-            <textarea ref={input} maxLength={200} value={text} disabled={busy} onChange={(e) => setText(e.target.value)} />
-          </label>
-          <Btn type="submit" disabled={busy || !text.trim()}>메시지 보내기</Btn>
+          <div className="chat-compose">
+            <textarea ref={input} rows={1} maxLength={200} value={text} readOnly={busy}
+              aria-label="일행에게 보낼 메시지" placeholder="메시지를 입력하세요"
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => {
+                // 한글 조합 중 Enter는 글자 확정이므로 전송하지 않는다.
+                if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault()
+                  send(text)
+                }
+              }} />
+            <button type="submit" className="chat-send" aria-label="메시지 보내기" disabled={busy || !text.trim()}>
+              <Send size={20} aria-hidden="true" />
+            </button>
+          </div>
+          {text.length >= 160 && <small className="chat-count">{text.length}/200</small>}
         </form>
       )}
       {error && <p role="alert">{error} <button type="button" onClick={() => setReload((value) => value + 1)}>다시 불러오기</button></p>}
