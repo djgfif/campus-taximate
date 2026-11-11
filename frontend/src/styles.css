@@ -422,7 +422,7 @@ button.item:active { opacity: 0.6; }
 /* 메시지가 적을 때는 아래쪽에 붙인다. flex-end는 넘칠 때 위가 잘려서 쓰지 않는다. */
 .chat-messages > li:first-child { margin-top: auto; }
 .chat-messages li { display: flex; flex-direction: column; max-width: 82%; }
-.chat-messages li.head:not(:first-child) { margin-top: 10px; }
+.chat-messages li.chat-head:not(:first-child) { margin-top: 10px; }
 .chat-messages li.mine { align-self: flex-end; align-items: flex-end; }
 .chat-messages li.theirs { align-self: flex-start; align-items: flex-start; }
 .chat-messages li.chat-empty { margin: auto; align-self: center; max-width: none; color: var(--road); font-size: 14px; text-align: center; }
@@ -431,8 +431,8 @@ button.item:active { opacity: 0.6; }
 .bubble { padding: 9px 13px; border-radius: 16px; font-size: 15px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
 .theirs .bubble { background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); }
 .mine .bubble { background: var(--amber); color: var(--ink); }
-.theirs.head .bubble { border-top-left-radius: 4px; }
-.mine.head .bubble { border-top-right-radius: 4px; }
+.theirs.chat-head .bubble { border-top-left-radius: 4px; }
+.mine.chat-head .bubble { border-top-right-radius: 4px; }
 .chat-line time { flex: none; font-size: 11px; color: var(--road); white-space: nowrap; }
 /* 글자는 작게, 누르는 영역은 넓게 */
 .chat-report { flex: none; margin: -10px -4px; padding: 10px 6px; font-size: 11px; color: var(--road); opacity: 0.7; }

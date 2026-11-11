@@ -126,7 +126,7 @@ export function PartyChat({ partyId, now, status }) {
                 || new Date(message.createdAt) - new Date(prev.createdAt) > GROUP_GAP_MS
               const stamp = <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
               return (
-                <li key={message.id} className={`${message.mine ? 'mine' : 'theirs'}${head ? ' head' : ''}`}>
+                <li key={message.id} className={`${message.mine ? 'mine' : 'theirs'}${head ? ' chat-head' : ''}`}>
                   {head && <b className="chat-name">{message.mine ? `나 (${message.nickname})` : message.nickname}</b>}
                   <div className="chat-line">
                     {message.mine && stamp}
