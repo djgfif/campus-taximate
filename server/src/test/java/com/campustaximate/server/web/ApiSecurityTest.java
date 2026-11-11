@@ -59,11 +59,16 @@ class ApiSecurityTest {
 
     @Test
     void responsesCarrySecurityHeaders() throws Exception {
-        mvc.perform(get("/api/config")).andExpect(status().isOk())
+        var response = mvc.perform(get("/api/config")).andExpect(status().isOk())
                 .andExpect(header().string("X-Content-Type-Options", "nosniff"))
                 .andExpect(header().string("X-Frame-Options", "DENY"))
                 .andExpect(header().exists("Content-Security-Policy"))
-                .andExpect(header().exists("X-Request-Id"));
+                .andExpect(header().exists("X-Request-Id")).andReturn().getResponse();
+        String csp = response.getHeader("Content-Security-Policy");
+        assertThat(csp).contains("https://js.tosspayments.com",
+                "connect-src 'self' https://dapi.kakao.com *.daumcdn.net *.kakaocdn.net https://*.tosspayments.com",
+                "frame-src 'self' https://*.tosspayments.com");
+        assertThat(csp).doesNotContain("script-src *", "connect-src *", "frame-src *");
     }
 
     @Test

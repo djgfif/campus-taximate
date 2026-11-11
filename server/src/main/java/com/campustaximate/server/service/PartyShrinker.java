@@ -25,7 +25,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 빠진 사람만 빼고 남은 사람으로 일행을 다시 계산한다. 새 사람을 찾지 않는다.
- * 1명만 남거나 다시 조회하지 못하면 일행을 취소한다.
+ * 1명만 남으면 해산한다. 선결제 일행은 재조회 실패 때 저장된 예상값을 유지한다.
  */
 @Component
 @RequiredArgsConstructor
@@ -39,29 +39,40 @@ public class PartyShrinker {
     private final NotificationService notifications;
     private final PlatformTransactionManager transactionManager;
     private final AppClock clock;
+    private final PartyChangeService changes;
 
     private record Stay(long id, GeoPoint own, Instant boardAt, int rideSeconds, double soloKm, int soloSeconds,
                         long soloFare) {
     }
 
-    private record Plan(long version, Direction direction, GeoPoint anchor, long total, List<Stay> stays) {
+    private record Plan(long version, Direction direction, GeoPoint anchor, long total, List<Stay> stays, boolean paymentFlow) {
     }
 
     /** departed이면 남은 사람은 탑승 완료가 된다. */
     public void remove(long partyId, Set<Long> requested, Instant now, boolean departed) {
+        remove(partyId,requested,now,departed,departed?"NO_SHOW_LEGACY":"MEMBER_LEFT",null,Set.of());
+    }
+
+    public void remove(long partyId, Set<Long> requested, Instant now, boolean departed, String reason, Long groupVersion, Set<Long> held) {
         TransactionTemplate tx = new TransactionTemplate(transactionManager);
         Set<Long> leaving = tx.execute(status -> withNoShows(partyId, requested));
-        Plan plan = tx.execute(status -> plan(partyId, leaving));
+        Plan plan = tx.execute(status -> {
+            Party party=parties.findByIdForUpdate(partyId).orElseThrow();
+            if(groupVersion!=null && party.getGroupVersion()!=groupVersion) throw ApiException.conflict("PARTY_CHANGED", "일행이 바뀌었어요. 다시 확인해 주세요.");
+            changes.capture(party,requests.findByPartyOrderByRideOrder(party),true);
+            if(!requests.findByPartyOrderByRideOrder(party).stream().map(RideRequest::getId).toList().containsAll(leaving)) throw ApiException.conflict("NOT_IN_PARTY", "이미 일행에서 빠진 요청입니다.");
+            return plan(partyId,leaving);
+        });
         if (plan.stays().size() < 2) {
-            cancel(tx, partyId, leaving, now, departed);
+            cancel(tx, partyId, leaving, now, departed, reason, held, plan.version());
             return;
         }
         Recalculated result = recalculateOrKeep(plan, departed);
         if (result == null) {
-            cancel(tx, partyId, leaving, now, departed);
+            cancel(tx, partyId, leaving, now, departed, reason, held, plan.version());
             return;
         }
-        tx.executeWithoutResult(status -> apply(partyId, leaving, plan, result, departed));
+        tx.executeWithoutResult(status -> apply(partyId, leaving, plan, result, departed, reason, held));
     }
 
     /** 이미 택시를 탄 일행은 조회가 실패해도 취소하지 않는다. 취소하면 결제자가 낸 돈을 나눌 길이 없어진다. */
@@ -69,7 +80,7 @@ public class PartyShrinker {
         try {
             return recalculate(plan);
         } catch (RouteClient.RouteUnavailableException e) {
-            return departed ? keepStoredValues(plan) : null;
+            return departed || plan.paymentFlow() ? keepStoredValues(plan) : null;
         } catch (IllegalArgumentException e) {
             return null;
         }
@@ -110,7 +121,7 @@ public class PartyShrinker {
                         rider.getSoloKm(), rider.getSoloSeconds(), rider.getSoloFare()));
             }
         }
-        return new Plan(party.getVersion(), party.getDirection(), party.anchorPoint(), party.getExpectedTotal(), stays);
+        return new Plan(party.getVersion(), party.getDirection(), party.anchorPoint(), party.getExpectedTotal(), stays, party.paymentFlow());
     }
 
     private record Recalculated(List<Long> ids, List<RouteClient.Route> solo, List<Integer> rideSeconds,
@@ -174,10 +185,12 @@ public class PartyShrinker {
         return route.fare();
     }
 
-    private void cancel(TransactionTemplate tx, long partyId, Set<Long> leaving, Instant now, boolean departed) {
+    private void cancel(TransactionTemplate tx, long partyId, Set<Long> leaving, Instant now, boolean departed, String reason, Set<Long> held, long version) {
         tx.executeWithoutResult(status -> {
             Party party = parties.findByIdForUpdate(partyId).orElseThrow();
+            if(party.getVersion()!=version) throw ApiException.conflict("CONFLICT", "일행이 바뀌었어요. 다시 확인해 주세요.");
             requireOpen(party, leaving, departed);
+            changes.changed(party,leaving,reason,held);
             canceler.cancel(party, leaving, now);
         });
     }
@@ -194,12 +207,13 @@ public class PartyShrinker {
         }
     }
 
-    private void apply(long partyId, Set<Long> leaving, Plan plan, Recalculated result, boolean departed) {
+    private void apply(long partyId, Set<Long> leaving, Plan plan, Recalculated result, boolean departed, String reason, Set<Long> held) {
         Party party = parties.findByIdForUpdate(partyId).orElseThrow();
         if (party.getVersion() != plan.version()) {
             throw ApiException.conflict("CONFLICT", "일행이 바뀌었습니다. 다시 시도해 주세요.");
         }
         requireOpen(party, leaving, departed);
+        changes.changed(party,leaving,reason,held);
         List<RideRequest> stay = new ArrayList<>();
         for (RideRequest rider : requests.findByPartyOrderByRideOrder(party)) {
             if (leaving.contains(rider.getId())) {
@@ -230,6 +244,10 @@ public class PartyShrinker {
             }
             notifications.toMember(rider.getMember(), "[캠퍼스 택시메이트] 일행 변경",
                     "일행 중 한 명이 빠져 분담금과 결제자가 다시 계산됐습니다. 앱에서 확인해 주세요.");
+        }
+        if (departed && party.paymentFlow()) {
+            party.setStatus(com.campustaximate.server.domain.PartyStatus.AWAITING_FARE);
+            if (party.getStartedAt() == null) party.setStartedAt(clock.now());
         }
         party.setExpectedTotal(result.total());
         party.setPayer(stay.get(trip.payerIndex(stay.size())).getMember());

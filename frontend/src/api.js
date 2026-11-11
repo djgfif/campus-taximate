@@ -23,12 +23,10 @@ const json = (method, path, body) =>
     body: JSON.stringify(body ?? {}),
   })
 
-function settlementForm({ amount, receipt, bankName, accountNumber }) {
+function settlementForm({ amount, receipt }) {
   const form = new FormData()
   form.append('amount', amount)
   form.append('receipt', receipt)
-  form.append('bankName', bankName)
-  form.append('accountNumber', accountNumber)
   return form
 }
 
@@ -39,6 +37,14 @@ export const api = {
   me: () => request('/me'),
   state: () => request('/state'),
   hubs: () => request('/hubs'),
+  nearbyPoints: ({ lat, lon }) => request(`/hubs/nearby?${new URLSearchParams({ lat, lon })}`),
+  confirmRide: (id, rode) => json('POST', `/parties/${id}/ride-confirmation`, { rode }),
+  leaveAfterChange: (id, groupVersion) => json('POST', `/parties/${id}/leave-after-change`, { groupVersion }),
+  party: (id) => request(`/parties/${id}`),
+  paymentOrder: (partyId, purpose) => json('POST', '/payments/orders', { partyId, purpose }),
+  confirmPayment: (body) => json('POST', '/payments/confirm', body),
+  getPayment: (orderId) => request(`/payments/orders/${encodeURIComponent(orderId)}`),
+  objectToFare: (partyId, reason) => json('POST', `/parties/${partyId}/settlement/objections`, { reason }),
   school: () => request('/school'),
   history: () => request('/history'),
   partyMembers: (partyId) => request(`/parties/${partyId}/members`),

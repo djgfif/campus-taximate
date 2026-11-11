@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import MapView from './MapView.jsx'
 import { api } from './api.js'
-import { formatTime, won } from './format.js'
+import { formatTime, isPaymentParty, won } from './format.js'
 import { Paper, Rows, Say, SidePlain } from './ui.jsx'
 
 const CARD_WIDTH = 232
@@ -38,7 +38,7 @@ const toLines = (routes) => [
 function stopsOf(party, mine, routes) {
   const toSchool = party.direction === 'TO_SCHOOL'
   const { solo, shared } = routes
-  const anchor = toSchool ? solo[solo.length - 1] : solo[0]
+  const anchor = toSchool ? solo[solo.length - 1] : shared[0]
   const me = toSchool ? solo[0] : solo[solo.length - 1]
   const far = toSchool ? shared[0] : shared[shared.length - 1]
   const farOrder = toSchool ? 1 : party.members.length
@@ -68,7 +68,7 @@ function FullRows({ party, mine }) {
       ['혼자 타면', `${f.solo}분, ${won(mine.soloFare)}`],
       ['같이 타면', `${f.shared}분, ${won(mine.expectedShare)}`, 'big'],
       ['아끼는 돈', won(f.saved), 'save'],
-      ['늘어나는 시간', `${f.delay}분 (기준 15분 이내)`],
+      [isPaymentParty(party) ? '차량 이동 시간 차이' : '늘어나는 시간', `${f.delay}분`],
       ['도착 예정', formatTime(party.arrivalAt)],
     ]} />
   )
@@ -80,6 +80,7 @@ export default function RouteComparison({ party, mine }) {
     <div className="block">
       <h2 className="block-title">경로 비교</h2>
       <FullRows party={party} mine={mine} />
+      {isPaymentParty(party) && <p className="note">차량 이동 시간만 비교한 값이에요. 걷는 시간은 포함하지 않아요.</p>}
       {failed
         ? <p className="note">지도를 불러오지 못했습니다. 시간과 금액을 확인해 주세요.</p>
         : <p className="note">{LEGEND}</p>}
@@ -115,7 +116,7 @@ export function RouteSide({ party, mine }) {
         <div><small>혼자 타면</small><b>{won(mine.soloFare)}</b></div>
         <div><small>같이 타면</small><b>{won(mine.expectedShare)}</b></div>
         <div><small>아끼는 돈</small><b className="save">{won(f.saved)}</b></div>
-        <div><small>늘어나는 시간</small><b>{f.delay}분</b><small>기준 15분 이내</small></div>
+        <div><small>{isPaymentParty(party) ? '차량 이동 시간 차이' : '늘어나는 시간'}</small><b>{f.delay}분</b><small>{isPaymentParty(party) ? '걷는 시간 제외' : '기준 15분 이내'}</small></div>
       </div>
     </>
   )

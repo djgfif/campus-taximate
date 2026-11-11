@@ -1,6 +1,12 @@
 package com.campustaximate.server.domain;
 
 import jakarta.persistence.EntityListeners;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.PrePersist;
+import java.util.ArrayList;
+import java.util.List;
+import com.campustaximate.matching.MatchingSettings;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import com.campustaximate.server.service.ChangeListener;
@@ -34,7 +40,7 @@ import lombok.Setter;
 @NoArgsConstructor
 public class RideRequest {
 
-    private static final Duration LEAD = Duration.ofMinutes(30);
+    private static final Duration LEAD = Duration.ofMinutes(MatchingSettings.everyMinute().leadMinutes());
     private static final Duration BOARD_GRACE = Duration.ofMinutes(3);
 
     @Id
@@ -62,6 +68,40 @@ public class RideRequest {
     /** 등교만 값이 있다. */
     @ManyToOne(fetch = FetchType.LAZY)
     private School school;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private RequestMode mode = RequestMode.RESERVATION;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private TimeBasis timeBasis = TimeBasis.DEPART;
+
+    private int earlyArrivalMinutes = 10;
+    private Double originLat;
+    private Double originLon;
+    private String originName;
+
+    @Column(nullable = false)
+    private Instant requestedAt;
+
+    @OneToMany(mappedBy = "request", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<RideRequestPoint> points = new ArrayList<>();
+
+    @PrePersist
+    void stampRequest() {
+        if (requestedAt == null) requestedAt = Instant.now();
+    }
+
+    /** 옛 데이터의 출발지는 단일 승차 지점이다. */
+    public GeoPoint origin() {
+        if (originLat != null && originLon != null) return new GeoPoint(originLat, originLon);
+        return hub != null ? new GeoPoint(hub.getLat(), hub.getLon()) : point();
+    }
+
+    public Instant earliestArrival() {
+        return arriveBy == null ? null : arriveBy.minusSeconds(earlyArrivalMinutes * 60L);
+    }
 
     private Instant windowStart;
 
@@ -127,7 +167,9 @@ public class RideRequest {
 
     /** 결과를 늦어도 언제 알 수 있는지. 이 슬롯이 마지막 매칭 기회다. */
     public Instant resultBy() {
-        return deadlineSlot != null ? deadlineSlot : windowEnd.minus(LEAD);
+        Instant deadline = deadlineSlot != null ? deadlineSlot : windowEnd.minus(LEAD);
+        Instant instantEnd = requestedAt == null ? deadline : requestedAt.plusSeconds(15 * 60);
+        return mode == RequestMode.INSTANT && instantEnd.isBefore(deadline) ? instantEnd : deadline;
     }
 
     /** 이 시각까지 도착을 표시해야 한다. 하교는 출발 시각, 등교는 내 승차 시각 3분 뒤다. */

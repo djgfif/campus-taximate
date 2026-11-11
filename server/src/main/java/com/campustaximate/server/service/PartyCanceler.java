@@ -22,11 +22,13 @@ public class PartyCanceler {
 
     private final RideRequestRepository requests;
     private final NotificationService notifications;
+    private final PaymentService payments;
 
     @Transactional(propagation = Propagation.MANDATORY)
     public void cancel(Party party, Set<Long> leavingRequestIds, Instant now) {
         List<RideRequest> riders = requests.findByPartyOrderByRideOrder(party);
-        party.setStatus(PartyStatus.CANCELED);
+        party.setStatus(party.paymentFlow() ? PartyStatus.DISSOLVED : PartyStatus.CANCELED);
+        if (party.paymentFlow()) payments.refundForDissolution(party.getId());
         EndReason survivor = party.getBoardedAt() != null ? EndReason.LEFT_ALONE : EndReason.PARTY_CANCELED;
         Instant nextSlot = AppClock.nextSlotAfter(now);
         for (RideRequest rider : riders) {

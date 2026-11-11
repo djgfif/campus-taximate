@@ -26,11 +26,12 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
     private static final Set<String> SAFE_METHODS = Set.of("GET", "HEAD", "OPTIONS");
     private static final String CONTENT_POLICY = String.join("; ",
             "default-src 'self'",
-            "script-src 'self' https://dapi.kakao.com *.daumcdn.net *.kakaocdn.net",
+            "script-src 'self' https://dapi.kakao.com *.daumcdn.net *.kakaocdn.net https://js.tosspayments.com",
             "style-src 'self' 'unsafe-inline'",
             "img-src 'self' data: blob: https: http:",
             "font-src 'self' data:",
-            "connect-src 'self' https://dapi.kakao.com *.daumcdn.net *.kakaocdn.net",
+            "connect-src 'self' https://dapi.kakao.com *.daumcdn.net *.kakaocdn.net https://*.tosspayments.com",
+            "frame-src 'self' https://*.tosspayments.com",
             "object-src 'none'",
             "base-uri 'self'",
             "frame-ancestors 'none'");

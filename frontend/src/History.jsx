@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { api } from './api.js'
 import { PartyChat } from './PartyScreens.jsx'
+import { FinancialDetails } from './SettleScreens.jsx'
 import { HistoryMemberActions } from './MemberSafety.jsx'
 import { RequestMap } from './RequestStatus.jsx'
 import { HISTORY_LABEL, formatDateTime, routeLabel, savedTotal, won } from './format.js'
@@ -17,7 +18,7 @@ function HistoryChat({ partyId }) {
 }
 
 function Row({ item, selected, onSelect }) {
-  const [label, tone] = HISTORY_LABEL[item.stage] || ['', '']
+  const [label, tone] = HISTORY_LABEL[item.stage] || ['상태 확인 중', '']
   const content = (
     <>
       <div>
@@ -40,7 +41,7 @@ function Row({ item, selected, onSelect }) {
 
 /** 넓은 화면의 오른쪽. 경로 선은 저장하지 않으므로 지점만 표시한다. */
 function Detail({ item }) {
-  const [label] = HISTORY_LABEL[item.stage] || ['']
+  const [label] = HISTORY_LABEL[item.stage] || ['상태 확인 중']
   return (
     <SidePlain>
       <div className="mini"><RequestMap item={item} edge={28} /></div>
@@ -54,6 +55,7 @@ function Detail({ item }) {
           ['상태', label],
         ]} />
       </Paper>
+      <HistoryFinance item={item} />
     </SidePlain>
   )
 }
@@ -90,7 +92,8 @@ export default function History({ onBack }) {
             {items.map((item) => (
               <React.Fragment key={item.id}>
                 <Row item={item} selected={item.id === selected?.id}
-                  onSelect={wide ? () => setSelectedId(item.id) : null} />
+                  onSelect={() => setSelectedId(item.id)} />
+                {!wide && item.id === selected?.id && <HistoryFinance item={item} />}
                 {(item.partyIds || (item.partyId ? [item.partyId] : [])).map((id) => <React.Fragment key={id}><HistoryChat partyId={id} /><HistoryMemberActions partyId={id} /></React.Fragment>)}
               </React.Fragment>
             ))}
@@ -99,4 +102,26 @@ export default function History({ onBack }) {
       )}
     </Screen>
   )
+}
+
+function HistoryFinance({ item }) {
+  const id = item.partyId || item.partyIds?.[0]
+  const [result, setResult] = useState({})
+  const [reload, setReload] = useState(0)
+  useEffect(() => {
+    if (!id) return undefined
+    let closed = false
+    api.party(id).then((party) => !closed && setResult({ id, party }))
+      .catch((e) => !closed && setResult({ id, error: e.message }))
+    return () => { closed = true }
+  }, [id, reload])
+  if (!id) return <p className="note">이 요청에서 조회할 수 있는 결제 상세가 없어요.</p>
+  const current = result.id === id ? result : {}
+  return <section className="history-finance" aria-label="결제·환불 기록">
+    <h3>결제·환불 기록</h3>
+    {current.party ? <FinancialDetails party={current.party} />
+      : current.error ? <p role="status">결제 상세를 읽지 못했어요. {current.error}</p> : <p role="status">결제 기록을 읽고 있어요.</p>}
+    {current.party?.canConfirmRide && <a href={'/parties/' + id}>일행 화면에서 운행 답변하기</a>}
+    <Btn className="small quiet" onClick={() => setReload((n) => n + 1)}>결제 기록 다시 확인</Btn>
+  </section>
 }

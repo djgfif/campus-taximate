@@ -29,6 +29,10 @@ public class Hub {
     @Column(nullable = false)
     private String meetingPoint;
 
+    private boolean fieldChecked = true;
+
+    private boolean active = true;
+
     private double lat;
 
     private double lon;

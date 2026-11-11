@@ -416,3 +416,17 @@ button.item:active { opacity: 0.6; }
 .chat-phrases { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .chat-phrases .btn { width: auto; margin: 0; }
 .party-chat textarea { min-height: 80px; }
+
+/* 공동 승차 요청과 결제: 기존 간격·타이포를 따른다. */
+.place-field { margin: 1.5rem 0; }
+.boarding-points { border: 1px solid #d8dce3; border-radius: 12px; padding: 16px; margin: 20px 0; min-width: 0; }
+.boarding-points legend { font-weight: 700; padding: 0 6px; }
+.point-option { display: flex; align-items: center; gap: 12px; padding: 12px 0; cursor: pointer; }
+.point-option input { width: 20px; height: 20px; flex-shrink: 0; accent-color: #161a23; }
+.point-option b, .point-option small { display: block; }
+.point-option small { color: #596273; margin-top: 4px; }
+.payment-card { padding: 20px; margin: 20px 0; border: 1px solid #d8dce3; border-radius: 12px; background: #fff; }
+.payment-card h2 { font-size: 21px; line-height: 1.5; margin: 0 0 10px; }
+.payment-card .btn + .btn { margin-top: 8px; }
+.history-finance { padding: 18px 0; border-bottom: 1px solid #e5e7ec; }
+.financial-details section { margin: 16px 0; }

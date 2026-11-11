@@ -15,6 +15,8 @@ import com.campustaximate.server.common.ApiException;
 import com.campustaximate.server.common.AppClock;
 import com.campustaximate.server.domain.EndReason;
 import com.campustaximate.server.domain.Hub;
+import com.campustaximate.server.domain.RequestMode;
+import com.campustaximate.server.domain.TimeBasis;
 import com.campustaximate.server.domain.Member;
 import com.campustaximate.server.domain.RequestStatus;
 import com.campustaximate.server.domain.RideRequest;
@@ -118,12 +120,20 @@ public class ApiController {
     public record RequestBodyDto(@NotNull Direction direction, Long hubId, Instant windowStart, Instant windowEnd,
                                  Instant arriveBy, @NotBlank @Size(max = 100) String pointName,
                                  @NotNull @DecimalMin("-90") @DecimalMax("90") Double pointLat,
-                                 @NotNull @DecimalMin("-180") @DecimalMax("180") Double pointLon, @Size(max = 100) String memo) {
+                                 @NotNull @DecimalMin("-180") @DecimalMax("180") Double pointLon, @Size(max = 100) String memo,
+                                 RequestMode mode, TimeBasis timeBasis, @Valid OriginBody origin,
+                                 List<Long> pointIds, Integer earlyArrivalMinutes) {
         RideRequestService.NewRequest toInput() {
             return new RideRequestService.NewRequest(direction, hubId, windowStart, windowEnd, arriveBy, pointName,
-                    pointLat, pointLon, memo);
+                    pointLat, pointLon, memo, mode, timeBasis,
+                    origin == null ? null : new RideRequestService.Origin(origin.lat(), origin.lon(), origin.name()),
+                    pointIds, earlyArrivalMinutes);
         }
     }
+
+    public record OriginBody(@NotNull @DecimalMin("-90") @DecimalMax("90") Double lat,
+                             @NotNull @DecimalMin("-180") @DecimalMax("180") Double lon,
+                             @Size(max = 100) String name) { }
 
     public record SentBody(@NotNull Integer revision) {
     }
@@ -401,6 +411,13 @@ public class ApiController {
     @PostMapping("/parties/{id}/boarded")
     public void boarded(@PathVariable long id, HttpSession session) {
         parties.board(memberId(session), id);
+    }
+
+    public record ObjectionBody(@NotBlank @Size(max=500) String reason) { }
+
+    @PostMapping("/parties/{id}/settlement/objections")
+    public void objectToFare(@PathVariable long id, @Valid @RequestBody ObjectionBody body, HttpSession session) {
+        settlements.objectToFare(memberId(session), id, body.reason());
     }
 
     @GetMapping("/parties/{id}/settlement/preview")

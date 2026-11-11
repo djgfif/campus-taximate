@@ -49,6 +49,10 @@ class FlowTest {
     @Autowired private ObjectMapper json;
     @Autowired private AppClock clock;
     @Autowired private DemoService demo;
+    @Autowired private com.campustaximate.server.service.PaymentService payments;
+    @Autowired private com.campustaximate.server.repository.PaymentOrderRepository paymentOrders;
+    @Autowired private com.campustaximate.server.repository.SettlementShareRepository allocations;
+    @Autowired private com.campustaximate.server.repository.PayoutLedgerRepository payouts;
     @Autowired private MemberRepository members;
     @Autowired private RideRequestRepository requests;
     @Autowired private PartyRepository parties;
@@ -58,10 +62,13 @@ class FlowTest {
     @org.springframework.boot.test.mock.mockito.SpyBean private com.campustaximate.server.service.MailService mail;
     @org.springframework.boot.test.mock.mockito.SpyBean private com.campustaximate.server.route.RouteClient routes;
 
+    @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbc;
+
     private long hubId;
 
     @BeforeEach
     void reset() throws Exception {
+        PaymentTestSupport.clear(jdbc);
         transfers.deleteAll();
         settlements.deleteAll();
         requests.deleteAll();
@@ -78,7 +85,7 @@ class FlowTest {
     @Test
     void memberCanCompareRoutesAndConfirmedMetrics() throws Exception {
         List<MockHttpSession> users = threeRequests();
-        advanceToDeadline();
+        advanceToConfirmation();
         JsonNode party = onlyParty(users.get(0));
         long id = party.get("id").asLong();
         JsonNode routes = read(mvc.perform(get("/api/parties/" + id + "/routes").session(users.get(0)))
@@ -94,45 +101,25 @@ class FlowTest {
 
     @Test
     void fullFlowFromRequestToCompleted() throws Exception {
-        List<MockHttpSession> users = threeRequests();
-
-        advanceToDeadline();
-        JsonNode party = onlyParty(users.get(0));
-        long partyId = party.get("id").asLong();
-        assertThat(party.get("members")).hasSize(3);
-        assertThat(party.get("status").asText()).isEqualTo("CONFIRMED");
-
-        for (MockHttpSession user : users) {
-            mvc.perform(post("/api/parties/" + partyId + "/arrive").session(user)).andExpect(status().isOk());
-        }
-        demo.advance(30);
+        List<MockHttpSession> users = departedParty();
         MockHttpSession payer = payerOf(users);
-        assertThat(onlyParty(payer).get("canSettle").asBoolean()).isTrue();
-
+        long id = onlyParty(payer).get("id").asLong();
         long total = onlyParty(payer).get("expectedTotal").asLong();
-        submit(partyId, total, payer).andExpect(status().isOk());
-        JsonNode settled = onlyParty(payer);
-        assertThat(settled.get("status").asText()).isEqualTo("SETTLING");
-        assertThat(settled.get("settlement").get("warning").asBoolean()).isFalse();
-        long sum = settled.get("settlement").get("paidAmount").asLong();
-        assertThat(sum).isEqualTo(total);
-
-        for (JsonNode transfer : settled.get("settlement").get("transfers")) {
-            MockHttpSession sender = sessionOf(users, transfer.get("senderId").asLong());
-            mvc.perform(post("/api/transfers/" + transfer.get("id").asLong() + "/sent").session(sender)
-                            .contentType(MediaType.APPLICATION_JSON).content("{\"revision\":0}"))
-                    .andExpect(status().isOk());
-            mvc.perform(post("/api/transfers/" + transfer.get("id").asLong() + "/received").session(payer))
-                    .andExpect(status().isOk());
-        }
+        submit(id, total, payer).andExpect(status().isOk());
+        assertThat(onlyParty(payer).get("status").asText()).isEqualTo("OBJECTION_WINDOW");
+        assertThat(transfers.count()).isZero();
+        assertThat(payouts.count()).isZero();
+        advance(24 * 60 + 1);
+        assertThat(parties.findById(id).orElseThrow().getStatus()).isEqualTo(com.campustaximate.server.domain.PartyStatus.COMPLETED);
+        assertThat(payouts.findAll()).hasSize(1);
+        assertThat(allocations.findAll().stream().mapToLong(a -> a.getAmount()).sum()).isEqualTo(total);
         assertThat(state(payer).get("parties")).isEmpty();
-        assertThat(state(payer).get("latestRequest").get("status").asText()).isEqualTo("COMPLETED");
     }
 
     @Test
     void cancelDuringRouteLookupDoesNotUndoCompletedRide() throws Exception {
         List<MockHttpSession> users = threeRequests();
-        advanceToDeadline();
+        advanceToConfirmation();
         JsonNode party = onlyParty(users.get(0));
         long partyId = party.get("id").asLong();
         long requestId = party.get("myRequestId").asLong();
@@ -142,7 +129,7 @@ class FlowTest {
         var once = new java.util.concurrent.atomic.AtomicBoolean();
         org.mockito.Mockito.doAnswer(call -> {
             if (once.compareAndSet(false, true)) {
-                demo.advance(30);
+                advance(30);
             }
             return call.callRealMethod();
         }).when(routes).route(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
@@ -158,7 +145,7 @@ class FlowTest {
     @Test
     void cancelBeforeDepartureShrinksPartyAndRecalculates() throws Exception {
         List<MockHttpSession> users = threeRequests();
-        advanceToDeadline();
+        advanceToConfirmation();
         JsonNode before = onlyParty(users.get(1));
         long requestId = onlyParty(users.get(0)).get("myRequestId").asLong();
 
@@ -181,7 +168,7 @@ class FlowTest {
     @Test
     void lastTwoCannotShrinkSoPartyIsCanceled() throws Exception {
         List<MockHttpSession> users = threeRequests();
-        advanceToDeadline();
+        advanceToConfirmation();
         long first = onlyParty(users.get(0)).get("myRequestId").asLong();
         long second = onlyParty(users.get(1)).get("myRequestId").asLong();
 
@@ -189,19 +176,20 @@ class FlowTest {
         mvc.perform(delete("/api/requests/" + second).session(users.get(1))).andExpect(status().isOk());
 
         assertThat(state(users.get(2)).get("parties")).isEmpty();
-        // 3명은 모집 마감 슬롯에 확정되므로, 남은 사람에게 다음 유효 슬롯이 없어 미성사가 된다.
-        assertThat(state(users.get(2)).get("latestRequest").get("status").asText()).isEqualTo("UNMATCHED");
+        // 조기 확정 뒤 해산하면 모집 마감 전이므로 남은 요청은 다시 대기한다.
+        assertThat(state(users.get(2)).get("latestRequest").get("status").asText()).isEqualTo("WAITING");
     }
 
     @Test
     void noShowIsRemovedAndArrivedRidersBoardWithNewPayer() throws Exception {
         List<MockHttpSession> users = threeRequests();
-        advanceToDeadline();
+        advanceToConfirmation();
         long partyId = onlyParty(users.get(0)).get("id").asLong();
+        legacyParty(partyId);
         mvc.perform(post("/api/parties/" + partyId + "/arrive").session(users.get(0))).andExpect(status().isOk());
         mvc.perform(post("/api/parties/" + partyId + "/arrive").session(users.get(1))).andExpect(status().isOk());
 
-        demo.advance(30);
+        advance(30);
 
         Member noShow = members.findByEmail("demo-f3@daejin.ac.kr").orElseThrow();
         assertThat(noShow.getNoShowCount()).isEqualTo(1);
@@ -219,7 +207,7 @@ class FlowTest {
         List<MockHttpSession> users = departedParty();
         assertThat(state(users.get(0)).get("parties")).hasSize(1);
 
-        demo.advance(24 * 60 + 5);
+        advance(24 * 60 + 5);
 
         assertThat(state(users.get(0)).get("parties")).isEmpty();
         assertThat(state(users.get(0)).get("latestRequest").get("status").asText()).isEqualTo("COMPLETED");
@@ -229,19 +217,18 @@ class FlowTest {
     void amountCanBeCorrectedOnlyBeforeAnyoneSends() throws Exception {
         List<MockHttpSession> users = departedParty();
         MockHttpSession payer = payerOf(users);
-        long partyId = onlyParty(payer).get("id").asLong();
+        long id = onlyParty(payer).get("id").asLong();
         long total = onlyParty(payer).get("expectedTotal").asLong();
-        submit(partyId, total, payer).andExpect(status().isOk());
-
-        correct(partyId, total + 1000, payer).andExpect(status().isOk());
-        JsonNode settlement = onlyParty(payer).get("settlement");
-        assertThat(settlement.get("revision").asInt()).isEqualTo(1);
-        JsonNode transfer = settlement.get("transfers").get(0);
-        MockHttpSession sender = sessionOf(users, transfer.get("senderId").asLong());
-
-        sent(transfer, 0, sender).andExpect(status().isConflict());
-        sent(transfer, 1, sender).andExpect(status().isOk());
-        correct(partyId, total, payer).andExpect(status().isConflict());
+        submit(id, total, payer).andExpect(status().isOk());
+        Instant previous = settlements.findAll().getFirst().getObjectionDeadlineAt();
+        advance(60);
+        correct(id, total + 1000, payer).andExpect(status().isOk());
+        assertThat(settlements.findAll().getFirst().getObjectionDeadlineAt()).isAfter(previous);
+        mvc.perform(post("/api/parties/" + id + "/settlement/objections").session(users.get(0))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"영수증 확인 요청\"}")).andExpect(status().isOk());
+        correct(id, total, payer).andExpect(status().isConflict());
+        assertThat(payouts.count()).isZero();
+        assertThat(transfers.count()).isZero();
     }
 
     @Test
@@ -270,16 +257,17 @@ class FlowTest {
     void unsentTransferBlocksNewRequestAfterTwentyFourHoursUntilSent() throws Exception {
         List<MockHttpSession> users = departedParty();
         MockHttpSession payer = payerOf(users);
-        JsonNode party = onlyParty(payer);
-        submit(party.get("id").asLong(), party.get("expectedTotal").asLong(), payer).andExpect(status().isOk());
-        JsonNode transfer = onlyParty(payer).get("settlement").get("transfers").get(0);
-        MockHttpSession sender = sessionOf(users, transfer.get("senderId").asLong());
-
-        demo.advance(24 * 60);
-
+        long id = onlyParty(payer).get("id").asLong();
+        submit(id, onlyParty(payer).get("expectedTotal").asLong() * 2, payer).andExpect(status().isOk());
+        // 이 시나리오에서는 추가 결제를 자동 승인하지 않고 연체와 해제를 직접 검증한다.
+        demo.advance(48 * 60);
+        demo.advance(1);
+        var extra = paymentOrders.findByPartyIdOrderById(id).stream()
+                .filter(o -> o.getPurpose() == com.campustaximate.server.domain.PaymentPurpose.ADDITIONAL).findFirst().orElseThrow();
+        MockHttpSession sender = sessionOf(users, extra.getMemberId());
         assertThat(state(sender).get("restricted").asBoolean()).isTrue();
         createRequest(sender, POINTS[0]).andExpect(status().isConflict());
-        sent(transfer, 0, sender).andExpect(status().isOk());
+        payments.confirm(extra.getMemberId(), extra.getOrderId(), "test_" + extra.getOrderId(), extra.getAmount());
         assertThat(state(sender).get("restricted").asBoolean()).isFalse();
     }
 
@@ -291,17 +279,17 @@ class FlowTest {
     void reminderGoesOnceTenMinutesBeforeBoarding() throws Exception {
         List<MockHttpSession> users = threeRequests();
         org.mockito.Mockito.clearInvocations(mail);
-        advanceToDeadline();
+        advanceToConfirmation();
         long partyId = onlyParty(users.get(0)).get("id").asLong();
         Instant departure = parties.findById(partyId).orElseThrow().getDepartureAt();
         long minutes = java.time.Duration.between(clock.now(), departure).toMinutes() - 1;
         if (minutes > 0) {
-            demo.advance((int) minutes);
+            advance((int) minutes);
         }
         org.mockito.Mockito.verify(mail, org.mockito.Mockito.times(users.size()))
                 .send(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq("[캠퍼스 택시메이트] 곧 승차 시각"),
                         org.mockito.ArgumentMatchers.anyString());
-        demo.advance(1);
+        advance(1);
         org.mockito.Mockito.verify(mail, org.mockito.Mockito.times(users.size()))
                 .send(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq("[캠퍼스 택시메이트] 곧 승차 시각"),
                         org.mockito.ArgumentMatchers.anyString());
@@ -484,9 +472,20 @@ class FlowTest {
 
         assertThat(java.nio.file.Path.of(path)).doesNotExist();
         mvc.perform(get("/api/parties/" + partyId + "/receipt").session(payer)).andExpect(status().isNotFound());
-        JsonNode settlement = onlyParty(payer).get("settlement");
+        // 완료 일행은 활성 목록에서 빠지지만 완료 요약·직접 조회·이력에는 정산 기록이 남는다.
+        JsonNode after = state(payer);
+        assertThat(after.get("parties")).isEmpty();
+        assertThat(after.get("settledParty").get("id").asLong()).isEqualTo(partyId);
+        assertThat(after.get("settledParty").get("status").asText()).isEqualTo("COMPLETED");
+        JsonNode completed = read(mvc.perform(get("/api/parties/" + partyId).session(payer))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        JsonNode settlement = completed.get("settlement");
         assertThat(settlement.get("receiptAvailable").asBoolean()).isFalse();
         assertThat(settlement.get("paidAmount").asLong()).isEqualTo(total);
+        assertThat(settlements.findAll()).hasSize(1);
+        JsonNode entry = history(payer);
+        assertThat(entry.get("partyId").asLong()).isEqualTo(partyId);
+        assertThat(entry.get("stage").asText()).isEqualTo("SETTLED");
     }
 
     @Test
@@ -521,7 +520,7 @@ class FlowTest {
     @Test
     void cannotMarkArrivedAfterDeparture() throws Exception {
         List<MockHttpSession> users = threeRequests();
-        advanceToDeadline();
+        advanceToConfirmation();
         JsonNode party = onlyParty(users.get(0));
         clock.moveTo(Instant.parse(party.get("departureAt").asText()).plusSeconds(1));
 
@@ -536,7 +535,7 @@ class FlowTest {
         JsonNode party = onlyParty(payer);
         long partyId = party.get("id").asLong();
         submit(partyId, party.get("expectedTotal").asLong(), payer).andExpect(status().isOk());
-        JsonNode transfer = onlyParty(payer).get("settlement").get("transfers").get(0);
+        var paymentOrder = paymentOrders.findByPartyIdOrderById(partyId).getFirst();
         MockHttpSession outsider = login("demo-m1");
 
         mvc.perform(get("/api/parties/" + partyId + "/routes").session(outsider)).andExpect(status().isForbidden());
@@ -544,14 +543,14 @@ class FlowTest {
         mvc.perform(get("/api/parties/" + partyId).session(outsider)).andExpect(status().isForbidden());
         mvc.perform(get("/api/parties/" + partyId + "/receipt").session(outsider)).andExpect(status().isForbidden());
         submit(partyId, 1000, outsider).andExpect(status().isForbidden());
-        sent(transfer, 0, outsider).andExpect(status().isForbidden());
+        mvc.perform(get("/api/payments/orders/" + paymentOrder.getOrderId()).session(outsider)).andExpect(status().isForbidden());
         mvc.perform(get("/api/state")).andExpect(status().isUnauthorized());
     }
 
     @Test
     void demoActMarksOnlySampleMembers() throws Exception {
         List<MockHttpSession> users = threeRequests();
-        advanceToDeadline();
+        advanceToConfirmation();
         MockHttpSession me = users.get(0);
         long partyId = onlyParty(me).get("id").asLong();
 
@@ -565,7 +564,7 @@ class FlowTest {
         }
         assertThat(arrived).isEqualTo(2);
         mvc.perform(post("/api/parties/" + partyId + "/arrive").session(me)).andExpect(status().isOk());
-        demo.advance(30);
+        advance(30);
         assertThat(state(me).get("parties")).hasSize(1);
     }
 
@@ -605,7 +604,7 @@ class FlowTest {
         long firstRequest = state(users.get(0)).get("latestRequest").get("id").asLong();
         ExecutorService pool = Executors.newFixedThreadPool(10);
         List<Callable<Integer>> tasks = new ArrayList<>();
-        clock.moveTo(AppClock.nextSlotAfter(clock.now()).plusSeconds(1));
+        clock.moveTo(AppClock.nextSlotAfter(clock.now()).plusSeconds(15 * 60L + 1));
         for (int i = 0; i < 9; i++) {
             tasks.add(() -> {
                 demo.runNow();
@@ -627,16 +626,17 @@ class FlowTest {
     @Test
     void repeatedDepartureCheckCountsNoShowOnce() throws Exception {
         List<MockHttpSession> users = threeRequests();
-        advanceToDeadline();
+        advanceToConfirmation();
         long partyId = onlyParty(users.get(0)).get("id").asLong();
+        legacyParty(partyId);
         mvc.perform(post("/api/parties/" + partyId + "/arrive").session(users.get(0))).andExpect(status().isOk());
         mvc.perform(post("/api/parties/" + partyId + "/arrive").session(users.get(1))).andExpect(status().isOk());
         org.mockito.Mockito.doThrow(new org.springframework.dao.OptimisticLockingFailureException("x"))
                 .when(routes).route(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
 
-        demo.advance(40);
+        advance(40);
         org.mockito.Mockito.reset(routes);
-        demo.advance(5);
+        advance(5);
 
         assertThat(members.findByEmail("demo-f3@daejin.ac.kr").orElseThrow().getNoShowCount()).isEqualTo(1);
     }
@@ -660,29 +660,24 @@ class FlowTest {
         MockHttpSession early = login("demo-f4");
         Instant later = AppClock.nextSlotAfter(clock.now()).plusSeconds(7200);
         postRequest(early, later, later.plusSeconds(3600), POINTS[2]).andExpect(status().isOk());
-        assertThat(state(early).get("latestRequest").get("insight").get("stage").asText()).isEqualTo("NOT_STARTED");
+        assertThat(state(early).get("latestRequest").get("insight").get("stage").asText()).isEqualTo("ALONE");
     }
 
     @Test
     void historyShowsSettlementStageAndWhatIPaid() throws Exception {
         List<MockHttpSession> users = departedParty();
-        long partyId = onlyParty(users.get(0)).get("id").asLong();
-        MockHttpSession rider = users.get(0);
-        assertThat(history(rider).get("stage").asText()).isEqualTo("AWAITING_AMOUNT");
-
-        submit(partyId, 15000, users.get(2)).andExpect(status().isOk());
-
-        JsonNode mine = history(rider);
-        assertThat(mine.get("stage").asText()).isEqualTo("SETTLING");
+        long id = onlyParty(users.get(0)).get("id").asLong();
+        assertThat(history(users.get(0)).get("stage").asText()).isEqualTo("AWAITING_AMOUNT");
+        submit(id, 15000, payerOf(users)).andExpect(status().isOk());
+        JsonNode mine = history(users.get(0));
+        assertThat(mine.get("stage").asText()).isEqualTo("OBJECTION_WINDOW");
         assertThat(mine.get("paid").asLong()).isPositive();
         assertThat(mine.get("partyPaid").asLong()).isEqualTo(15000);
         assertThat(mine.get("partySize").asInt()).isEqualTo(3);
-        assertThat(mine.get("anchorLat").asDouble()).isNotZero();
-        long sum = 0;
-        for (MockHttpSession user : users) {
-            sum += history(user).get("paid").asLong();
-        }
-        assertThat(sum).isEqualTo(15000);
+        advance(24 * 60 + 1);
+        assertThat(allocations.findAll().stream().mapToLong(a -> a.getAmount()).sum()).isEqualTo(15000);
+        assertThat(payouts.findAll()).hasSize(1);
+        assertThat(transfers.count()).isZero();
     }
 
     @Test
@@ -698,6 +693,15 @@ class FlowTest {
         assertThat(onlyParty(me).get("members")).hasSize(3);
     }
 
+    /** 자동 노쇼·승계는 레거시 회귀로 계속 검증한다. 새 흐름은 운행 확인 테스트가 맡는다. */
+    private void legacyParty(long id) {
+        var party=parties.findById(id).orElseThrow(); party.setPaymentFlowVersion(0);
+        party.setPrepayDeadlineAt(null); party.setConfirmedAt(null);
+        jdbc.update("delete from payment_operation where payment_order_id in (select id from payment_order where party_id=?)",id);
+        jdbc.update("delete from payment_order where party_id=?",id);
+        party.setStatus(com.campustaximate.server.domain.PartyStatus.CONFIRMED); parties.save(party);
+    }
+
     private JsonNode history(MockHttpSession user) throws Exception {
         return read(mvc.perform(get("/api/history").session(user)).andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString()).get(0);
@@ -705,12 +709,12 @@ class FlowTest {
 
     private List<MockHttpSession> departedParty() throws Exception {
         List<MockHttpSession> users = threeRequests();
-        advanceToDeadline();
+        advanceToConfirmation();
         long partyId = onlyParty(users.get(0)).get("id").asLong();
         for (MockHttpSession user : users) {
             mvc.perform(post("/api/parties/" + partyId + "/arrive").session(user)).andExpect(status().isOk());
         }
-        demo.advance(30);
+        advance(30);
         return users;
     }
 
@@ -797,13 +801,18 @@ class FlowTest {
         return json.readTree(body);
     }
 
-    /** 4명이 안 되면 모집 마감 슬롯에 확정한다. 대기 중 요청의 가장 이른 마감까지 시간을 보낸다. */
-    private void advanceToDeadline() {
-        java.time.Instant deadline = requests.findAll().stream()
-                .filter(r -> r.getStatus() == com.campustaximate.server.domain.RequestStatus.WAITING)
-                .map(com.campustaximate.server.domain.RideRequest::resultBy)
-                .min(java.time.Instant::compareTo).orElseThrow();
-        long minutes = java.time.Duration.between(clock.now(), deadline).toMinutes() + 1;
-        demo.advance((int) Math.max(5, minutes));
+    /** 예약 2~3명은 최초 요청 10분 뒤 첫 예약 회차에 확정한다. */
+    private void advanceToConfirmation() {
+        for (int minute = 0; minute < 20; minute++) {
+            if (!requests.findByStatus(com.campustaximate.server.domain.RequestStatus.MATCHED).isEmpty()) return;
+            advance(1);
+        }
+        assertThat(requests.findByStatus(com.campustaximate.server.domain.RequestStatus.MATCHED)).isNotEmpty();
+    }
+    private void advance(int minutes) {
+        PaymentTestSupport.approveEligible(payments, paymentOrders, parties, clock);
+        demo.advance(minutes);
+        PaymentTestSupport.approveEligible(payments, paymentOrders, parties, clock);
+        payments.retryDue();
     }
 }

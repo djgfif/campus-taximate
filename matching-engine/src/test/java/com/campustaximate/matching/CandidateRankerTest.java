@@ -18,16 +18,23 @@ class CandidateRankerTest {
     private final CandidateRanker ranker = new CandidateRanker(MatchingSettings.defaults());
 
     @Test
-    void largerGroupComesFirstThenShorterRoute() {
+    void largerGroupComesFirstThenBiggerSaving() {
         var anchor = request(1, at(3, 0));
         var b = request(2, at(5, 0));
         var c = request(3, at(7, 0));
         var d = request(4, at(9, 0));
 
-        List<Candidate> ranked = ranker.rank(anchor, List.of(b, c, d), SLOT.plusSeconds(1800), LEGS);
+        List<Candidate> ranked = ranker.rank(anchor, List.of(b, c, d), SLOT.plusSeconds(2100), LEGS);
 
         assertEquals(4, ranked.get(0).size());
-        assertEquals(List.of(1L, 2L, 3L), ranked.get(1).sortedIds());
+        assertEquals(3, ranked.get(1).size());
+        // 같은 인원이면 거리 절약이 큰 조합이 앞(먼 사람끼리 묶을수록 절약이 크다)
+        assertEquals(List.of(1L, 3L, 4L), ranked.get(1).sortedIds());
+        for (int i = 1; i < ranked.size(); i++) {
+            Candidate prev = ranked.get(i - 1);
+            Candidate next = ranked.get(i);
+            assertTrue(prev.size() > next.size() || prev.savedKm() >= next.savedKm());
+        }
     }
 
     @Test
@@ -52,7 +59,7 @@ class CandidateRankerTest {
     @Test
     void pairDeadlineUsesEarliestEndOfTheTwo() {
         var anchor = request(1, at(3, 0), 30);
-        var other = request(2, at(5, 0), 0);
+        var other = request(2, at(5, 0), -5); // 끝 SLOT+25분 → 마감 SLOT
 
         assertEquals(1, ranker.rank(anchor, List.of(other), SLOT, LEGS).size());
     }

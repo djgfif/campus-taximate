@@ -35,6 +35,8 @@ public class DemoService {
     private final HubRepository hubs;
     private final PartyService partyService;
     private final SettlementService settlementService;
+    private final PaymentService payments;
+    private final com.campustaximate.server.repository.PaymentOrderRepository paymentOrders;
     private final WaitingInsightService insights;
 
     @Value("${app.demo.enabled}")
@@ -70,7 +72,7 @@ public class DemoService {
     public void runNow() {
         requireEnabled();
         slots.runLocked(() -> {
-            slots.process(AppClock.slotOf(clock.now()));
+            slots.process(AppClock.minuteOf(clock.now()));
             return null;
         });
     }
@@ -83,11 +85,11 @@ public class DemoService {
         }
         slots.runLocked(() -> {
             Instant target = clock.now().plusSeconds(minutes * 60L);
-            Instant slot = AppClock.nextSlotAfter(clock.now());
+            Instant slot = AppClock.nextMinuteAfter(clock.now());
             while (!slot.isAfter(target)) {
                 clock.moveTo(slot);
                 slots.process(slot);
-                slot = AppClock.nextSlotAfter(slot);
+                slot = AppClock.nextMinuteAfter(slot);
             }
             clock.moveTo(target);
             slots.checkBoarding();
@@ -148,6 +150,13 @@ public class DemoService {
     public void actAsSamples(long memberId) {
         requireEnabled();
         for (PartyService.PartyView party : partyService.openParties(memberId)) {
+            if (payments.simulated()) {
+                for (var order : paymentOrders.findByPartyIdOrderById(party.id())) {
+                    if (isSample(order.getMemberId(), memberId) && order.getStatus() == com.campustaximate.server.domain.PaymentStatus.REQUIRED) {
+                        payments.confirm(order.getMemberId(), order.getOrderId(), "demo_" + order.getOrderId(), order.getAmount());
+                    }
+                }
+            }
             for (PartyService.MemberView rider : party.members()) {
                 if (!isSample(rider.memberId(), memberId) || rider.arrived() || party.settlement() != null
                         || rider.noShow() || clock.now().isAfter(rider.arriveDeadline())) {

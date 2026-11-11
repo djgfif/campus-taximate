@@ -7,6 +7,6 @@ import org.springframework.data.jpa.repository.Query;
 
 public interface HubRepository extends JpaRepository<Hub, Long> {
 
-    @Query("select h from Hub h join h.schools s where s.id = :schoolId order by h.id")
+    @Query("select h from Hub h join h.schools s where s.id = :schoolId and h.active = true and h.fieldChecked = true order by h.id")
     List<Hub> findBySchool(Long schoolId);
 }

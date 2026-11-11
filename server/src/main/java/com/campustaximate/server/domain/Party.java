@@ -56,6 +56,26 @@ public class Party {
     /** 전원 받음 처리 시각. 채팅 보관 기간의 기준이다. */
     private Instant settledAt;
 
+    /** 0은 기존 송금 방식, 2는 선결제 방식이다. 기존 행의 의미를 바꾸지 않는다. */
+    private int paymentFlowVersion;
+    private Instant confirmedAt;
+    private Instant prepayDeadlineAt;
+    private Instant startedAt;
+    private Instant fareRemindedAt;
+
+    public boolean paymentFlow() { return paymentFlowVersion >= 2; }
+    public Instant freeCancelUntil() {
+        if (prepayDeadlineAt == null) return departureAt.minusSeconds(1800);
+        Instant before = departureAt.minusSeconds(1800);
+        return prepayDeadlineAt.isAfter(before) ? prepayDeadlineAt : before;
+    }
+
+    /** 재계산 버전. JPA 낙관적 잠금 version과 별개다. */
+    @Column(nullable=false) private long groupVersion = 1;
+    private Instant rideAskedAt;
+    private String reviewReason;
+    private boolean adminReviewRequired;
+
     private long expectedTotal;
 
     @Enumerated(EnumType.STRING)

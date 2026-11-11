@@ -21,49 +21,49 @@ async function demo(page, action) {
   await expect(page.getByRole('dialog', { name: '시연' })).toBeHidden({ timeout: 60000 })
 }
 
-test('등교 요청부터 정산 완료까지 화면으로 끝낸다', async ({ page }, info) => {
+test('승차 지점 요청부터 이의 기간과 정산 완료까지 화면으로 끝낸다', async ({ page }, info) => {
   await login(page, ACCOUNTS[info.project.name][0])
-
-  await page.getByRole('button', { name: /^등교/ }).click()
-  await expect(page).toHaveURL(/\/request\/school$/)
-  await page.getByLabel('시연 지점').selectOption({ label: '역전 버스 정류장' })
+  await page.getByRole('button', { name: /^하교/ }).click()
+  await expect(page).toHaveURL(/\/request\/home$/)
+  await page.getByLabel('시연 출발지').selectOption({ index: 1 })
+  await page.getByLabel('시연 도착지').selectOption({ label: '역전 버스 정류장' })
+  await page.getByRole('checkbox').first().check()
   await expect(page.getByText(/^약 [\d,]+원, \d+분$/)).toBeVisible()
   await page.getByRole('button', { name: '일행 찾기' }).click()
   await expect(page.getByText('결과는 늦어도')).toBeVisible()
 
   await demo(page, '일행 만들기')
   await expect(page.getByText('내가 결제자')).toBeVisible()
-
+  await expect(page.getByText('무료 취소 마감', { exact: true })).toBeVisible()
+  // 샘플 회원의 선결제와 도착을 실제 회원과 같은 API로 처리한다.
+  await demo(page, '샘플 일행 행동')
   await page.getByRole('button', { name: '기사님께 보여 줄 화면' }).click()
   await expect(page.getByRole('dialog', { name: '기사님께 보여 줄 화면' })).toBeVisible()
   await page.keyboard.press('Escape')
+  await page.getByRole('button', { name: '도착했어요', exact: true }).click()
 
-  await page.getByRole('button', { name: '택시 탔어요' }).click()
-  await demo(page, '샘플 일행 행동')
   const amount = page.getByLabel('실제 결제 금액')
-  // 내일 아침 승차라 1시간씩 넘겨 학교 도착 뒤까지 간다.
-  await demo(page, '+30분')
-  for (let i = 0; i < 40 && !(await amount.isVisible()); i++) {
-    await page.request.post('/api/demo/advance', { data: { minutes: 60 } })
-    await page.waitForTimeout(300)
-  }
+  for (let i = 0; i < 30 && !(await amount.isVisible()); i++) await demo(page, '+5분')
+  await expect(amount).toBeVisible()
   await amount.fill('20000')
-  await page.locator('input[type=file]').setInputFiles({ name: 'r.png', mimeType: 'image/png', buffer: PNG })
-  await page.getByLabel('은행').fill('시연은행')
-  await page.getByLabel('받을 계좌').fill('000-000-000000')
+  await page.getByLabel('영수증 사진').setInputFiles({ name: 'r.png', mimeType: 'image/png', buffer: PNG })
+  await expect(page.getByLabel('은행', { exact: true })).toHaveCount(0)
+  await expect(page.getByLabel('받을 계좌', { exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: /정산 요청/ }).click()
-  await expect(page.getByText('받을 돈')).toBeVisible()
+  await expect(page.getByRole('heading', { name: '이의 기간', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '요금 이의', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^(보냄|받음)$/ })).toHaveCount(0)
+  await expect(page.getByText(/모의 지급/)).toHaveCount(0)
 
+  await demo(page, '+24시간')
+  await demo(page, '+5분')
+  // 확정 후 추가 결제가 생긴 샘플도 모의 게이트웨이로 승인한다.
   await demo(page, '샘플 일행 행동')
-  const received = page.getByRole('button', { name: '받음', exact: true })
-  await expect(received.first()).toBeVisible()
-  while (await received.count()) {
-    await received.first().click()
-    await page.waitForTimeout(400)
-  }
-
+  await demo(page, '+5분')
   await page.goto('/history')
-  await expect(page.getByText('정산 완료').first()).toBeVisible()
+  await expect(page.getByText('정산 완료', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText(/모의 지급 [\d,]+원/).first()).toBeVisible()
+  await expect(page.getByText('실제 송금 없음').first()).toBeVisible()
   await expect(page.getByText(/전체 정산 \d+건 중/)).toBeVisible()
 })
 

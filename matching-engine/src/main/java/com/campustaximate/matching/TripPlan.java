@@ -9,26 +9,46 @@ import java.util.Optional;
 /** 방향마다 다른 규칙을 한곳에 모은다. 나머지 매칭 코드는 방향을 몰라도 된다. */
 public interface TripPlan {
 
+    /** 시간 검사 결과. ok가 거짓이면 이번 회차에 그 조합은 안 된다. */
+    record Schedule(boolean ok, Instant departure) {
+        static final Schedule FAIL = new Schedule(false, null);
+    }
+
     /** 승하차 순서를 정하는 기준. */
     Comparator<MatchRequest> comparator();
 
     /** order 안에서 결제자의 위치. */
     int payerIndex(int size);
 
-    /** 이 슬롯의 풀에 들어가는가. */
+    /** 이 회차의 풀에 들어가는가. */
     boolean eligible(MatchRequest request, Instant slot);
 
-    /** 이 슬롯 뒤로 기회가 없는가. */
+    /** 이 회차 뒤로 기회가 없는가(못 찾으면 매칭 실패). */
     boolean expired(MatchRequest request, Instant slot);
 
-    /** 2명 조합을 확정해도 되는 기한인가. */
+    /** 이번 회차가 이 사람의 마지막 기회인가. 일행 고르기의 첫 기준이다. */
+    default boolean lastChance(MatchRequest request, Instant slot) {
+        return expired(request, slot);
+    }
+
+    /** 일행 모집 마감 회차인가(구성원 중 가장 이른 마감). */
     boolean isDeadline(List<MatchRequest> group, Instant slot);
+
+    /** 2~4명 일행을 이번 회차에 확정해도 되는가(명세 5.1). */
+    default boolean confirmable(List<MatchRequest> group, Instant slot, int maxGroupSize) {
+        return group.size() >= maxGroupSize || isDeadline(group, slot);
+    }
 
     /** 먼저 처리할 요청을 고르는 기준 시각. */
     Instant urgency(MatchRequest request);
 
     /** 슬롯으로 정해지는 출발 시각. 경로 조회가 필요한 방향은 비어 있다. */
     Optional<Instant> departure(Instant slot);
+
+    /** 하차 순서와 동승 시간으로 출발 시각을 정하고 시간 조건을 본다. 기본은 시간 조건 없음. */
+    default Schedule schedule(List<MatchRequest> order, List<Integer> rides, Instant slot) {
+        return new Schedule(true, slot == null ? null : departure(slot).orElse(null));
+    }
 
     /** order를 따라 탈 때 각자 차 안에 있는 시간(초). legs는 order의 앞사람에서 뒷사람 구간이다. */
     List<Integer> rideSeconds(List<MatchRequest> order, List<RoadLeg> legs);

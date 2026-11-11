@@ -33,6 +33,7 @@ import org.springframework.test.web.servlet.ResultActions;
 @AutoConfigureMockMvc
 @ActiveProfiles("demo")
 class PartyChatFlowTest {
+    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
     @Autowired AppClock clock;
@@ -63,6 +64,7 @@ class PartyChatFlowTest {
     void clean() {
         messages.deleteAll();
         assignments.deleteAll();
+        PaymentTestSupport.clear(jdbc);
         transfers.deleteAll();
         settlements.deleteAll();
         requests.deleteAll();

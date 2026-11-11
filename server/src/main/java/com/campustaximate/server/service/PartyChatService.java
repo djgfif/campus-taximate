@@ -99,7 +99,7 @@ public class PartyChatService {
     }
 
     private boolean closed(Party party) {
-        return party.getStatus() == PartyStatus.COMPLETED || party.getStatus() == PartyStatus.CANCELED
+        return party.getStatus() == PartyStatus.COMPLETED || List.of(PartyStatus.CANCELED, PartyStatus.DISSOLVED, PartyStatus.NOT_OPERATED, PartyStatus.FARE_MISSING).contains(party.getStatus())
                 || !clock.now().isBefore(endsAt(party));
     }
 

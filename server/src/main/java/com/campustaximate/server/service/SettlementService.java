@@ -55,6 +55,9 @@ public class SettlementService {
     private final AppClock clock;
     private final PlatformTransactionManager transactionManager;
     private final ChangeBus changes;
+    private final RideConfirmationService rideConfirmations;
+    private final com.campustaximate.server.repository.SettlementShareRepository allocations;
+    private final com.campustaximate.server.repository.FareObjectionRepository objections;
 
     @Value("${app.upload-dir}")
     private String uploadDir;
@@ -68,7 +71,7 @@ public class SettlementService {
         Party party = lockAsPayer(memberId, partyId);
         List<RideRequest> riders = requests.findByPartyOrderByRideOrder(party);
         requireDeparted(party, riders);
-        requireAccount(bankName, accountNumber);
+        if (!party.paymentFlow()) requireAccount(bankName, accountNumber);
         List<Long> shares = shares(amount, riders, party);
         create(party, riders, shares, amount, store(receipt), receipt.getContentType(), bankName, accountNumber);
     }
@@ -84,6 +87,14 @@ public class SettlementService {
 
     private void create(Party party, List<RideRequest> riders, List<Long> shares, long amount, String receiptPath,
                         String contentType, String bankName, String accountNumber) {
+        if (party.paymentFlow()) {
+            Settlement settlement = settlements.save(new Settlement(party, amount, receiptPath, contentType, null, null, clock.now()));
+            settlement.setObjectionDeadlineAt(clock.now().plusSeconds(24 * 3600));
+            saveAllocations(party, settlement, riders, shares);
+            if(rideConfirmations.hasNegativeAnswer(party.getId())) { party.setStatus(PartyStatus.REVIEW_PENDING); party.setAdminReviewRequired(true); party.setReviewReason("RIDE_DISPUTE"); }
+            else party.setStatus(PartyStatus.OBJECTION_WINDOW);
+            return;
+        }
         Settlement settlement = settlements.save(new Settlement(party, amount, receiptPath, contentType,
                 bankName.trim(), accountNumber.trim(), clock.now()));
         for (int i = 0; i < riders.size(); i++) {
@@ -95,6 +106,14 @@ public class SettlementService {
     }
 
     private void requireDeparted(Party party, List<RideRequest> riders) {
+        if (party.paymentFlow()) {
+            Instant start = party.getStartedAt() == null ? party.getDepartureAt() : party.getStartedAt();
+            if (!List.of(PartyStatus.AWAITING_FARE,PartyStatus.RIDE_UNCONFIRMED).contains(party.getStatus()) || !clock.now().isBefore(start.plusSeconds(24 * 3600))) {
+                throw ApiException.conflict("NOT_AWAITING_FARE", "금액을 입력할 수 없는 상태이거나 입력 기한이 지났습니다.");
+            }
+            if(party.getStatus()==PartyStatus.RIDE_UNCONFIRMED) rideConfirmations.start(party,party.getDepartureAt());
+            return;
+        }
         if (party.getStatus() != PartyStatus.CONFIRMED
                 || riders.stream().anyMatch(r -> r.getStatus() != RequestStatus.COMPLETED)) {
             throw ApiException.conflict("NOT_DEPARTED", "출발 처리가 끝난 뒤에 입력할 수 있습니다.");
@@ -132,6 +151,21 @@ public class SettlementService {
         Party party = lockAsPayer(memberId, partyId);
         Settlement settlement = settlements.findByParty(party)
                 .orElseThrow(() -> ApiException.notFound("정산이 없습니다."));
+        if (party.paymentFlow()) {
+            if (party.getStatus() != PartyStatus.OBJECTION_WINDOW || !clock.now().isBefore(settlement.getObjectionDeadlineAt())
+                    || objections.existsBySettlementId(settlement.getId())) {
+                throw ApiException.conflict("CANNOT_CORRECT", "이의가 없고 이의 기간 안일 때만 금액을 고칠 수 있습니다.");
+            }
+            List<RideRequest> riders = requests.findByPartyOrderByRideOrder(party);
+            List<Long> values = shares(amount, riders, party);
+            String previous = settlement.getReceiptPath();
+            settlement.setReceiptPath(store(receipt)); settlement.setReceiptContentType(receipt.getContentType());
+            settlement.setPaidAmount(amount); settlement.setRevision(settlement.getRevision() + 1); settlement.setStoredAt(clock.now());
+            settlement.setObjectionDeadlineAt(clock.now().plusSeconds(24 * 3600)); settlement.clearAccount();
+            saveAllocations(party, settlement, riders, values);
+            deleteFile(previous);
+            return;
+        }
         List<TransferRequest> current = transfers.findBySettlementOrderById(settlement);
         if (current.stream().anyMatch(t -> t.getStatus() != TransferStatus.REQUESTED)) {
             throw ApiException.conflict("ALREADY_SENT", "누군가 이미 보내 금액을 고칠 수 없습니다.");
@@ -155,6 +189,34 @@ public class SettlementService {
         settlement.setRevision(settlement.getRevision() + 1);
         settlement.setStoredAt(clock.now());
         deleteFile(oldPath);
+    }
+
+    private void saveAllocations(Party party, Settlement settlement, List<RideRequest> riders, List<Long> values) {
+        List<com.campustaximate.server.domain.SettlementShare> old = allocations.findBySettlementIdOrderByRideOrder(settlement.getId());
+        for (int i = 0; i < riders.size(); i++) {
+            RideRequest rider = riders.get(i);
+            var share = old.stream().filter(a -> a.getMemberId().equals(rider.getMember().getId())).findFirst()
+                    .orElseGet(com.campustaximate.server.domain.SettlementShare::new);
+            share.setSettlementId(settlement.getId()); share.setPartyId(party.getId()); share.setMemberId(rider.getMember().getId());
+            share.setRatioUnits(rider.getRatioUnits()); share.setRideOrder(rider.getRideOrder()); share.setAmount(values.get(i));
+            share.setPayer(rider.getMember().getId().equals(party.getPayer().getId())); allocations.save(share);
+        }
+    }
+
+    @Transactional
+    public void objectToFare(long memberId, long partyId, String reason) {
+        Party party = parties.findByIdForUpdate(partyId).orElseThrow(() -> ApiException.notFound("없는 일행입니다."));
+        Settlement settlement = settlements.findByParty(party).orElseThrow(() -> ApiException.notFound("정산이 없습니다."));
+        if (requests.findByPartyOrderByRideOrder(party).stream().noneMatch(r -> r.getMember().getId() == memberId)) {
+            throw ApiException.forbidden("일행원만 요금 이의를 낼 수 있습니다.");
+        }
+        if (!party.paymentFlow() || !List.of(PartyStatus.OBJECTION_WINDOW, PartyStatus.REVIEW_PENDING).contains(party.getStatus())
+                || !clock.now().isBefore(settlement.getObjectionDeadlineAt())) throw ApiException.conflict("OBJECTION_CLOSED", "요금 이의 기간이 끝났습니다.");
+        if (reason == null || reason.isBlank() || reason.length() > 500) throw ApiException.badRequest("INVALID_OBJECTION", "이의 사유는 1~500자로 입력해 주세요.");
+        if (objections.existsBySettlementIdAndMemberId(settlement.getId(), memberId)) return;
+        var objection = new com.campustaximate.server.domain.FareObjection();
+        objection.setSettlementId(settlement.getId()); objection.setMemberId(memberId); objection.setReason(reason.strip());
+        objection.setCreatedAt(clock.now()); objections.save(objection); party.setStatus(PartyStatus.REVIEW_PENDING);
     }
 
     /** 보관 기간이 지난 사진과 계좌를 지운다. 금액과 정산 기록은 남긴다. */
@@ -183,7 +245,8 @@ public class SettlementService {
     public void markSent(long memberId, long transferId, int revision) {
         long partyId = partyIdOf(transferId);
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-            parties.findByIdForUpdate(partyId).orElseThrow();
+            Party locked = parties.findByIdForUpdate(partyId).orElseThrow();
+            if (locked.paymentFlow()) throw ApiException.conflict("PAYMENT_FLOW", "새 일행은 결제 승인으로 처리합니다.");
             TransferRequest transfer = transfers.findById(transferId).orElseThrow();
             if (!transfer.getSender().getId().equals(memberId)) {
                 throw ApiException.forbidden("본인 송금만 표시할 수 있습니다.");
@@ -204,6 +267,7 @@ public class SettlementService {
         long partyId = partyIdOf(transferId);
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
             Party party = parties.findByIdForUpdate(partyId).orElseThrow();
+            if (party.paymentFlow()) throw ApiException.conflict("PAYMENT_FLOW", "새 일행은 결제 승인으로 처리합니다.");
             TransferRequest transfer = transfers.findById(transferId).orElseThrow();
             if (!party.getPayer().getId().equals(memberId)) {
                 throw ApiException.forbidden("결제자만 표시할 수 있습니다.");

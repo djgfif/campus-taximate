@@ -5,7 +5,7 @@ import { pushUndecided } from './push.js'
 import { formatDateTime, formatTime, routeLabel, won } from './format.js'
 import { Btn, Confirm, Meter, Rail, Rows, Say, Screen, TopBar } from './ui.jsx'
 
-const timeRow = (latest) => (latest.direction === 'TO_SCHOOL'
+const timeRow = (latest) => (latest.arriveBy && !latest.windowStart
   ? ['도착 희망', formatDateTime(latest.arriveBy)]
   : ['출발 가능', `${formatTime(latest.windowStart)} ~ ${formatTime(latest.windowEnd)}`])
 
@@ -42,7 +42,7 @@ export function Waiting({ latest, config, run, onMenu, onPush }) {
   return (
     <Screen aside={<RequestMap item={latest} />} foot={<Btn className="line" onClick={() => setAsking(true)}>요청 취소</Btn>}>
       <TopBar dark onMenu={onMenu} />
-      <Meter label="결과는 늦어도" value={formatTime(latest.resultBy)} detail="3명이 모이면 더 빨리 알려 드려요">
+      <Meter label="결과는 늦어도" value={formatTime(latest.resultBy)} detail="예약과 즉시 요청의 확정 조건에 따라 알려 드려요">
         <div className="road" aria-hidden="true"><i /></div>
       </Meter>
       <div className="block">

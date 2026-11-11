@@ -3,8 +3,9 @@ import { Check, Copy, X } from 'lucide-react'
 import RouteComparison, { RouteSide } from './RouteComparison.jsx'
 import { api } from './api.js'
 import { MemberActions, ReportSheet } from './MemberSafety.jsx'
-import { formatTime, remaining, won } from './format.js'
-import { BackBar, Btn, Confirm, Item, Meter, Rail, Rows, Say, Screen, TopBar, toast, useWide } from './ui.jsx'
+import PaymentCard from './PaymentCard.jsx'
+import { formatTime, formatDateTime, isPaymentParty, partyLabel, remaining, won } from './format.js'
+import { BackBar, Btn, Confirm, Item, Meter, Rail, Rows, Say, Screen, Sheet, TopBar, toast, useWide } from './ui.jsx'
 
 const CHAT_PHRASES = ['조금 늦어요', '도착했어요, 어디 계세요?', '인상착의: ', '택시 잡았어요']
 
@@ -61,7 +62,7 @@ export function PartyChat({ partyId, now, status }) {
       if (member) setSelected(member)
     } catch (e) { setError(e.message) }
   }
-  const closed = chat?.closed || ['COMPLETED', 'SETTLED', 'CANCELED'].includes(status)
+  const closed = chat?.closed || ['COMPLETED', 'CANCELED', 'DISSOLVED', 'NOT_OPERATED', 'FARE_MISSING'].includes(status)
   return (
     <section className="block party-chat" aria-label="일행 채팅">
       <h2 className="block-title">일행 채팅</h2>
@@ -121,11 +122,13 @@ function Foot({ party, primary, onCancel, onHome }) {
 
 const Arrived = () => <button type="button" className="btn done" disabled><Check size={20} aria-hidden="true" />도착 표시 완료</button>
 
-function CancelSheet({ party, run, onClose }) {
+function CancelSheet({ party, now, run, onClose }) {
   return (
     <Confirm title="탑승을 취소할까요?" action="탑승 취소" onClose={onClose}
       onConfirm={() => run(() => api.cancelRequest(party.myRequestId), '탑승을 취소했어요')}>
-      남은 일행의 분담금이 다시 계산됩니다. 일행이 한 명만 남으면 일행이 취소됩니다.
+      {party.freeCancelUntil && <span>{formatDateTime(party.freeCancelUntil)}까지 무료 취소예요.
+        {now && new Date(now) <= new Date(party.freeCancelUntil) ? ' 선결제했으면 전액 환불해요.' : ' 무료 취소 마감이 지났어요.'}<br /></span>}
+      남은 일행의 분담금을 다시 계산하고, 한 명만 남으면 해산해요.
     </Confirm>
   )
 }
@@ -312,6 +315,7 @@ function SchoolRider({ party, now, run, onDetail, onHome, onMenu }) {
 }
 
 export function PartyScreen(props) {
+  if (isPaymentParty(props.party)) return <PaymentParty {...props} />
   if (props.party.direction === 'FROM_HUB') return <HomeParty {...props} />
   return props.party.payer ? <SchoolPayer {...props} /> : <SchoolRider {...props} />
 }
@@ -323,6 +327,11 @@ export function PartyDetail({ party, myId, now, onBack }) {
   return (
     <Screen aside={mine ? <RouteSide party={party} mine={mine} /> : null}>
       <BackBar onBack={onBack} title={toSchool ? '분담금과 경로' : '일행과 경로'} />
+      <div className="block"><Rows items={[
+        ['승차 지점', party.anchorName || party.meetingPoint], ['출발 시각', formatDateTime(party.departureAt)],
+        ['결제자', party.payerNickname],
+        party.freeCancelUntil && ['무료 취소 마감', formatDateTime(party.freeCancelUntil)],
+      ]} /><PartyFareRows party={party} /></div>
       <div className="block">
         <Rail items={party.members.map((m) => ({
           key: m.requestId,
@@ -336,10 +345,90 @@ export function PartyDetail({ party, myId, now, onBack }) {
       {mine && !wide && <RouteComparison party={party} mine={mine} />}
       <div className="block">
         {toSchool && <p className="note">승차 시각 3분 뒤까지 도착 표시가 없으면 그 사람을 빼고 갑니다. 분담금은 남은 일행으로 다시 계산하고, 혼자 남으면 일행이 취소됩니다.</p>}
-        <p className="note">실제 금액은 결제 후 같은 비율로 나눕니다. {REAL_NAME}</p>
+        <p className="note">실제 금액은 결제 후 같은 비율로 나눕니다. {isPaymentParty(party) ? '정산 확정 뒤 선결제와의 차액을 처리해요.' : REAL_NAME}</p>
         <PartyChat key={party.id} partyId={party.id} now={now} status={party.status} />
       {new Date(now) >= new Date(party.departureAt) && <MemberActions partyId={party.id} />}
       </div>
     </Screen>
   )
+}
+
+/** 서버가 허용한 본인 답만 전송한다. 두 버튼의 중복 누름도 함께 막는다. */
+export function RideConfirmationCard({ party, onUpdated }) {
+  const [saved,setSaved]=useState(null)
+  const [busy,setBusy]=useState(false)
+  const [error,setError]=useState('')
+  const sending=useRef(false)
+  const answer=party.myRideAnswer ?? (saved?.id===party.id?saved.answer:null)
+  const submit=async(rode)=>{
+    if(sending.current || answer!=null) return
+    sending.current=true; setBusy(true); setError('')
+    try { await api.confirmRide(party.id,rode); setSaved({id:party.id,answer:rode}); await onUpdated?.() }
+    catch(e) { setError(e.message) }
+    finally { sending.current=false; setBusy(false) }
+  }
+  if(!party.canConfirmRide && answer==null && party.status!=='RIDE_UNCONFIRMED') return null
+  return <section className="payment-card" aria-label="운행 확인">
+    <h2>{answer!=null?'내 운행 답변':'운행 확인 중'}</h2><p>일행과 택시에 탔나요? 첫 답변은 바꿀 수 없어요.</p>
+    {answer!=null ? <Say>내 답변: {answer?'탔어요':'못 탔어요'}</Say>
+      : party.canConfirmRide ? <div className="btns"><Btn disabled={busy} onClick={()=>submit(true)}>탔어요</Btn><Btn className="line" disabled={busy} onClick={()=>submit(false)}>못 탔어요</Btn></div>
+        : <p>운행 확인 결과를 기다리고 있어요.</p>}
+    {error && <p role="alert">{error}</p>}
+  </section>
+}
+
+export function PartyFareRows({ party }) {
+  return <Rows items={[
+    party.myConfirmedShare!=null ? ['확정 때 예상 분담금',won(party.myConfirmedShare),'big'] : ['내 예상 분담금',won(party.myShare),'big'],
+    party.myConfirmedMigrated && ['확정값 출처','원본 미상(이관)'],
+    party.myConfirmedShare!=null && party.myConfirmedShare!==party.myShare && ['현재 예상 분담금',won(party.myShare),'big'],
+  ]} />
+}
+
+function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDetail, onMenu }) {
+  const [asking, setAsking] = useState(false)
+  const [driver, setDriver] = useState(false)
+  const [leavingChange,setLeavingChange]=useState(false)
+  const members = party.members || []
+  const waiting = ['PREPAYING', 'READY'].includes(party.status)
+  const free = party.freeCancelUntil && new Date(now) <= new Date(party.freeCancelUntil)
+  return <Screen foot={<>
+    {waiting && party.canArrive && <Btn onClick={() => run(() => api.arrive(party.id), '도착을 표시했어요')}>도착했어요</Btn>}
+    {party.canLeaveAfterChange && <Btn className="line" onClick={()=>setLeavingChange(true)}>변경돼서 빠지기</Btn>}
+    {party.canCancel && <Btn className="quiet" onClick={() => setAsking(true)}>내 탑승 취소</Btn>}
+    <Btn className="line" onClick={onHome}>홈으로</Btn>
+  </>}>
+    <TopBar dark onMenu={onMenu} />
+    <Meter label={partyLabel(party.status)} value={formatTime(party.departureAt)} detail={party.meetingPoint} tag={party.payer ? '내가 결제자' : null} />
+    <div className="block">
+      <Rows items={[
+        ['승차 지점', party.anchorName || party.meetingPoint], ['출발 시각', formatDateTime(party.departureAt)],
+        ['결제자', party.payerNickname],
+        party.freeCancelUntil && ['무료 취소 마감', formatDateTime(party.freeCancelUntil)],
+      ]} />
+      <PartyFareRows party={party} />
+      <RideConfirmationCard party={party} onUpdated={onUpdated} />
+      {party.adminReviewRequired && <Say tone="stop-tone">{party.reviewReason==='LATE_RIDE_ANSWER_AFTER_REFUND'?'환불 뒤 운행 답변이 접수되어 관리자 확인이 필요해요.':party.reviewReason==='RIDE_DISPUTE'?'운행 답변이 엇갈려 관리자 검토 중이에요. 환불은 보류해요.':'관리자 확인이 필요한 내역이 있어요.'}</Say>}
+      {party.status==='RIDE_UNCONFIRMED' && <Say>자동으로 환불하지 않아요. 결제자는 출발 예정 시각에서 24시간 안에 실제 금액을 입력할 수 있어요.</Say>}
+      {waiting && <Say>{free ? '무료 취소 마감 전 취소하면 승인된 선결제를 전액 환불해요.' : '무료 취소 마감이 지났어요. 취소하면 남은 일행의 분담금을 다시 계산해요.'}</Say>}
+      {party.status === 'PREPAYING' && <Say>결제자 외 일행은 기한 안에 선결제해 주세요. 확인 중인 결제는 호출 시각까지 조회한 뒤 미납 여부를 정해요.</Say>}
+      {party.status === 'READY' && <Say>승차 지점에 모여 출발을 준비해 주세요. 택시를 부르는 사람은 {party.payerNickname}님이에요.</Say>}
+      {party.status === 'AWAITING_FARE' && <Say>{party.payer ? '실제 금액과 영수증을 입력해 주세요.' : '결제자가 실제 금액과 영수증을 입력하기를 기다리고 있어요.'}</Say>}
+      {['DISSOLVED', 'NOT_OPERATED', 'FARE_MISSING'].includes(party.status) && <Say>{party.status==='DISSOLVED' && party.reviewReason==='LATE_CANCELLATION_COMPENSATION'?'무료가 아닌 이탈 금액은 환불을 보류해요. 나머지 승인된 선결제는 전액 환불해요.':'승인된 선결제는 전액 환불 처리해요.'} 카드 반영까지 3~4영업일 정도 걸려요.</Say>}
+      {!party.payer && ['PREPAYING', 'READY', 'AWAITING_FARE'].includes(party.status) && <PaymentCard partyId={party.id} myId={myId} now={now} config={config} onUpdated={onUpdated} />}
+      <h2 className="block-title">하차 순서</h2>
+      <Rail items={[...members].sort((a, b) => a.rideOrder - b.rideOrder).map((m) => ({ key: m.requestId, pin: m.rideOrder,
+        name: m.memberId === myId ? '나 (' + m.nickname + ')' : m.nickname,
+        detail: [m.pointName, m.memberId === party.payerId ? '결제자' : '', m.confirmedShare!=null ? '확정 때 ' + won(m.confirmedShare) + (m.migratedUnknown?' (원본 미상, 이관)':'') + (m.confirmedShare!==m.expectedShare?' · 현재 ' + won(m.expectedShare):'') : m.expectedShare != null ? '예상 ' + won(m.expectedShare) : ''].filter(Boolean).join(' · '), me: m.memberId === myId, state: waiting ? m.noShow ? '불참' : m.arrived ? '도착' : '오는 중' : '', ok: m.arrived,
+      }))} />
+      <div className="list">{party.payer && <Item title="기사님께 보여 줄 화면" onClick={() => setDriver(true)} />}<Item title="일행과 경로 자세히" onClick={onDetail} /></div>
+    </div>
+    <PartyChat partyId={party.id} now={now} status={party.status} />
+    {leavingChange && <Sheet title="변경된 일행에서 빠질까요?" onClose={()=>setLeavingChange(false)}>
+      <Say title={party.changeExitFree?'무료 이탈':'무료 아님'}>{party.changeExitFree?'호출 시각 전이라 승인된 선결제를 전액 환불해요.':'호출 시각이 지나 무료가 아니에요. 선결제는 환불하지 않고 정산 처리를 기다려요.'}</Say>
+      <Btn onClick={async()=>{await run(()=>api.leaveAfterChange(party.id,party.groupVersion),(r)=>r.message);setLeavingChange(false)}}>변경 이탈 확인</Btn>
+    </Sheet>}
+    {asking && <CancelSheet party={party} now={now} run={run} onClose={() => setAsking(false)} />}
+    {driver && <DriverView party={party} onClose={() => setDriver(false)} />}
+  </Screen>
 }
