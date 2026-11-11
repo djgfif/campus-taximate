@@ -47,6 +47,7 @@ class PaymentFlowTest {
     @Autowired PartyChangeRepository partyChanges;
     @Autowired RideConfirmationRepository rideAnswers;
     @Autowired PartyService partyService;
+    @Autowired PartyReadinessService readiness;
     @Autowired PlatformTransactionManager manager;
     @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
     @MockBean PaymentGateway gateway;
@@ -161,7 +162,7 @@ class PaymentFlowTest {
     }
     @Test void reservationAndInstantDeadlinesFollowConfirmedSlot() {
         assertThat(PaymentService.prepayDeadline(NOW,NOW.plusSeconds(1800),false)).isEqualTo(NOW.plusSeconds(600));
-        assertThat(PaymentService.prepayDeadline(NOW,NOW.plusSeconds(1800),true)).isEqualTo(NOW.plusSeconds(300));
+        assertThat(PaymentService.prepayDeadline(NOW,NOW.plusSeconds(1800),true)).isEqualTo(NOW.plusSeconds(180));
         assertThat(PaymentService.prepayDeadline(NOW,NOW.plusSeconds(1500),false)).isEqualTo(NOW.plusSeconds(300));
         assertThat(PaymentService.prepayAmount(1)).isEqualTo(2);
     }
@@ -522,5 +523,95 @@ class PaymentFlowTest {
             assertThat(rideRequests.isRestricted(ids.get(1))).isTrue();
             verify(gateway,times(1)).confirm(anyString(),eq(extra.getOrderId()),eq(892L),anyString());
         } finally {release.countDown();pool.shutdownNow();}
+    }
+
+    void instantParty() {
+        new TransactionTemplate(manager).executeWithoutResult(tx->{
+            var p=parties.findByIdForUpdate(partyId).orElseThrow();p.setInstant(true);p.setDepartureAt(NOW.plusSeconds(540));p.setPrepayDeadlineAt(NOW.plusSeconds(180));
+            orders.findByPartyIdOrderById(partyId).forEach(o->o.setDeadlineAt(NOW.plusSeconds(180)));
+            requests.findByPartyOrderByRideOrder(p).forEach(r->r.setArrived(false));
+        });
+    }
+    @Test void i04ReadyRequiresBothPrepaymentsAndEveryMembersArrivalPromise() {
+        instantParty();approve(0);
+        for(Long id:ids)readiness.prepare(id,partyId,"NEARBY");
+        assertThat(partyService.view(ids.get(2),partyId).callReady()).isFalse();
+        approve(1);
+        assertThat(partyService.view(ids.get(2),partyId).callReady()).isTrue();
+        assertThat(partyService.view(ids.get(0),partyId).canCall()).isFalse();
+        assertThat(partyService.view(ids.get(2),partyId).canCall()).isTrue();
+        assertThatThrownBy(()->readiness.call(ids.get(0),partyId)).isInstanceOf(ApiException.class);
+        readiness.call(ids.get(2),partyId);readiness.call(ids.get(2),partyId);
+        assertThat(parties.findById(partyId).orElseThrow().getCalledAt()).isEqualTo(NOW);
+        assertThat(parties.findById(partyId).orElseThrow().getStartedAt()).isNull();
+    }
+    @Test void i04OneUnmarkedMemberKeepsCallButtonOffUntilTwoMinutePromise() {
+        instantParty();approve(0);approve(1);
+        readiness.prepare(ids.get(0),partyId,"ARRIVED");readiness.prepare(ids.get(2),partyId,"NEARBY");
+        var before=partyService.view(ids.get(2),partyId);
+        assertThat(before.canCall()).isFalse();assertThat(before.callReady()).isFalse();assertThat(before.notReadyReasons()).anyMatch(r->r.contains("2분 안 도착"));
+        readiness.prepare(ids.get(1),partyId,"NEARBY");assertThat(partyService.view(ids.get(2),partyId).canCall()).isTrue();
+        readiness.prepare(ids.get(0),partyId,"NEARBY");assertThat(partyService.view(ids.get(0),partyId).members()).anyMatch(m->m.memberId()==ids.get(0)&&m.arrived());
+    }
+    @Test void i05EstimatedTAllowsCallAndRecordsUnconfirmedWithoutNoShow() {
+        instantParty();approve(0);approve(1);at(NOW.plusSeconds(180));lifecycle.beforeDepartures();
+        at(NOW.plusSeconds(539));assertThat(partyService.view(ids.get(2),partyId).canCall()).isFalse();
+        at(NOW.plusSeconds(540));var ready=partyService.view(ids.get(2),partyId);
+        assertThat(ready.callReady()).isFalse();assertThat(ready.canCall()).isTrue();
+        readiness.call(ids.get(2),partyId);
+        assertThat(terms.findByPartyIdOrderById(partyId)).allMatch(t->t.getBoardingUnconfirmedAt()!=null);
+        assertThat(requests.findByStatus(RequestStatus.MATCHED)).hasSize(3);assertThat(requests.findAll()).allMatch(r->!r.isNoShow());
+        at(NOW.plusSeconds(840));lifecycle.beforeDepartures();assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.RIDE_UNCONFIRMED);
+    }
+    @Test void reservationCallStillWaitsForTMinusTenWithoutArrivalPromises() {
+        approve(0);approve(1);at(NOW.plusSeconds(600));lifecycle.beforeDepartures();
+        at(NOW.plusSeconds(1199));assertThat(partyService.view(ids.get(2),partyId).canCall()).isFalse();
+        at(NOW.plusSeconds(1200));assertThat(partyService.view(ids.get(2),partyId).canCall()).isTrue();
+    }
+    @Test void preparationApisRequireMemberAndServerChecksCallReadiness() throws Exception {
+        instantParty();var session=new org.springframework.mock.web.MockHttpSession();session.setAttribute("memberId",ids.get(2));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/parties/"+partyId+"/readiness").session(session)
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{\"state\":\"NEARBY\"}"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.callReady").value(false));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/parties/"+partyId+"/call").session(session))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isConflict());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/parties/"+partyId+"/readiness"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isUnauthorized());
+        assertThatThrownBy(()->readiness.prepare(Long.MAX_VALUE,partyId,"ARRIVED")).isInstanceOf(ApiException.class);
+    }
+
+    @Test void sevenDayJumpCompletesAllRefundsEvenAtSubMicrosecondTimestamp() {
+        depart();submit(16800);
+        // datetime(6)이 999ns를 다음 마이크로초로 반올림하면 예전 코드는 이 회차의 즉시 환불을 놓쳤다.
+        at(NOW.plusSeconds(1800+7*24*3600L).plusNanos(999));lifecycle.afterDepartures();
+        assertThat(order(0).getRefundedAmount()).isEqualTo(480);assertThat(order(1).getRefundedAmount()).isEqualTo(840);
+        assertThat(operations.findAll()).allMatch(op->op.getStatus()==PaymentOperationStatus.SUCCEEDED);
+        assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.COMPLETED);
+        assertThat(payouts.findAll()).hasSize(1);
+    }
+    @Test void oneRetryPassAlsoExecutesRefundCreatedByLateApprovalLookup() {
+        PaymentOrder a=order(0);approve(1);
+        doAnswer(c->{provider.confirm(c.getArgument(0),c.getArgument(1),c.getArgument(2),c.getArgument(3));throw new PaymentGateway.Unavailable("승인 응답 유실");})
+                .when(gateway).confirm(anyString(),eq(a.getOrderId()),anyLong(),anyString());
+        doThrow(new PaymentGateway.Unavailable("조회 장애")).when(gateway).get(anyString());
+        approve(0);at(NOW.plusSeconds(1200));lifecycle.beforeDepartures();
+        doAnswer(c->provider.get(c.getArgument(0))).when(gateway).get(anyString());
+        payments.retryDue();
+        assertThat(order(0).getRefundedAmount()).isEqualTo(3680);
+        assertThat(operations.findByPaymentOrderIdOrderById(order(0).getId())).allMatch(op->op.getStatus()==PaymentOperationStatus.SUCCEEDED);
+        verify(gateway,times(1)).cancel(eq(order(0).getPaymentKey()),eq(3680L),anyString(),anyString());
+    }
+
+    @Test void instantPendingPaymentWaitsUntilEstimatedTThenExcludesWithoutDepartureConflict() {
+        instantParty();approve(0);var b=order(1);
+        doThrow(new PaymentGateway.Unavailable("모의 확인 중")).when(gateway).confirm(anyString(),eq(b.getOrderId()),anyLong(),anyString());
+        approve(1);at(NOW.plusSeconds(180));lifecycle.beforeDepartures();
+        assertThat(requests.findByStatus(RequestStatus.MATCHED)).hasSize(3);
+        at(NOW.plusSeconds(540));lifecycle.beforeDepartures();
+        assertThat(requests.findByStatus(RequestStatus.MATCHED)).hasSize(2);
+        assertThat(order(1).getExcludedAt()).isEqualTo(clock.now());
+        assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.READY);
+        assertThat(partyService.view(ids.get(2),partyId).canCall()).isTrue();
     }
 }

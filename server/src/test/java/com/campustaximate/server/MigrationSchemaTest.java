@@ -97,4 +97,11 @@ class MigrationSchemaTest {
             sql.executeUpdate("update party set status='RIDE_UNCONFIRMED' where id=1");
         }
     }
+
+    @Test void v10PreparationColumnsArePresent() throws Exception {
+        try(var connection=dataSource.getConnection();var sql=connection.createStatement()) {
+            try(var rows=sql.executeQuery("select instant_group,called_at from party where 1=0")){assertThat(rows.getMetaData().getColumnCount()).isEqualTo(2);}
+            try(var rows=sql.executeQuery("select nearby_at from ride_request where 1=0")){assertThat(rows.getMetaData().getColumnCount()).isEqualTo(1);}
+        }
+    }
 }

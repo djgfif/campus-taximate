@@ -42,6 +42,7 @@ public class PartyService {
     private final com.campustaximate.server.repository.SettlementShareRepository allocations;
     private final com.campustaximate.server.repository.PayoutLedgerRepository payouts;
     private final PaymentService payments;
+    private final PartyReadinessService readiness;
     private final RideConfirmationService rideConfirmations;
     private final com.campustaximate.server.repository.PartyMemberTermRepository terms;
     private final com.campustaximate.server.repository.PartyChangeRepository partyChanges;
@@ -50,7 +51,7 @@ public class PartyService {
     public record MemberView(long requestId, long memberId, String nickname, String memo, int rideOrder,
                              String pointName, long expectedShare, boolean arrived, boolean noShow,
                              long soloFare, int soloSeconds, int sharedSeconds, Instant boardAt,
-                             Instant arriveDeadline, Long confirmedShare, Long confirmedPrepay, boolean migratedUnknown, boolean boardingUnconfirmed) {
+                             Instant arriveDeadline, Long confirmedShare, Long confirmedPrepay, boolean migratedUnknown, boolean boardingUnconfirmed, boolean nearby) {
     }
 
     public record TransferView(long id, long senderId, String senderNickname, long amount, TransferStatus status) {
@@ -71,7 +72,7 @@ public class PartyService {
                             List<MemberView> members, SettlementView settlement, Instant prepayDeadlineAt, Instant freeCancelUntil, Instant startedAt,
                             long groupVersion, String reviewReason, boolean adminReviewRequired,
                             Boolean myRideAnswer, boolean canConfirmRide, boolean canLeaveAfterChange, boolean changeExitFree,
-                            Long myConfirmedShare, boolean myConfirmedMigrated, List<ChangeView> changes) {
+                            Long myConfirmedShare, boolean myConfirmedMigrated, List<ChangeView> changes, boolean instant, Instant calledAt, boolean callReady, boolean canCall, List<String> notReadyReasons) {
     }
 
     public record ChangeView(long version,String reason,Instant changedAt) { }
@@ -84,6 +85,7 @@ public class PartyService {
             throw ApiException.conflict("BAD_STATE", "도착을 표시할 수 없는 상태입니다.");
         }
         mine.setArrived(true);
+        mine.setNearbyAt(null);
     }
 
     /** 등교 결제자의 "택시 탔어요". 도착 표시를 겸하고 다음 승차자에게 남은 시간을 보여 준다. */
@@ -203,13 +205,14 @@ public class PartyService {
                         termList.stream().filter(t->t.getRequestId().equals(r.getId())).map(com.campustaximate.server.domain.PartyMemberTerm::getConfirmedShare).findFirst().orElse(null),
                         termList.stream().filter(t->t.getRequestId().equals(r.getId())).map(com.campustaximate.server.domain.PartyMemberTerm::getConfirmedPrepay).findFirst().orElse(null),
                         termList.stream().anyMatch(t->t.getRequestId().equals(r.getId())&&t.isMigratedUnknown()),
-                        termList.stream().anyMatch(t->t.getRequestId().equals(r.getId())&&t.getBoardingUnconfirmedAt()!=null)))
+                        termList.stream().anyMatch(t->t.getRequestId().equals(r.getId())&&t.getBoardingUnconfirmedAt()!=null),r.getNearbyAt()!=null))
                 .toList();
         Instant myStart = mine.getBoardAt() != null ? mine.getBoardAt() : party.getDepartureAt();
         Instant payerBoardAt = riders.stream()
                 .filter(r -> r.getMember().getId().equals(party.getPayer().getId()))
                 .findFirst().map(RideRequest::getBoardAt).orElse(null);
         long soloTotal = riders.stream().mapToLong(RideRequest::getSoloFare).sum();
+        var ready=readiness.state(party,memberId,riders);
         return new PartyView(party.getId(), party.getDirection(), party.getStatus(), party.anchorName(),
                 party.getHub() != null ? party.getHub().getMeetingPoint() : mine.getPointName(),
                 party.getDepartureAt(), party.getBoardedAt(), mine.getBoardAt(),
@@ -229,7 +232,8 @@ public class PartyService {
                 party.paymentFlow() && party.getGroupVersion()>1 && mine.canCancelAt(clock.now()),
                 clock.now().isBefore(party.getDepartureAt().minusSeconds(600)),
                 myTerm==null?null:myTerm.getConfirmedShare(),myTerm!=null&&myTerm.isMigratedUnknown(),
-                partyChanges.findByPartyIdOrderByGroupVersion(party.getId()).stream().map(c->new ChangeView(c.getGroupVersion(),c.getReason(),c.getChangedAt())).toList());
+                partyChanges.findByPartyIdOrderByGroupVersion(party.getId()).stream().map(c->new ChangeView(c.getGroupVersion(),c.getReason(),c.getChangedAt())).toList(),
+                party.isInstant(),party.getCalledAt(),ready.callReady(),ready.canCall(),ready.notReadyReasons());
     }
 
     private SettlementView toView(Settlement settlement, Party party, boolean payer, long memberId) {

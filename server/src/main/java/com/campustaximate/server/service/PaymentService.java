@@ -13,6 +13,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /** 주문 금액은 서버가 정한다. 네트워크 호출 전 작업을 커밋해 응답 유실도 복구한다. */
+@lombok.extern.slf4j.Slf4j
 @Service
 @RequiredArgsConstructor
 public class PaymentService {
@@ -24,7 +25,9 @@ public class PaymentService {
     private final PaymentGateway gateway;
     private final AppClock clock;
     private final PartyChangeService partyChanges;
+    private final com.campustaximate.matching.MatchingSettings matchingSettings;
     private final PartyMemberTermRepository terms;
+    private final NotificationService notifications;
     private final PlatformTransactionManager transactionManager;
 
     public record OrderView(String orderId, long amount, PaymentPurpose purpose, PaymentStatus status,
@@ -38,7 +41,7 @@ public class PaymentService {
     public static long prepayAmount(long share) { return Math.addExact(Math.multiplyExact(share, 115), 99) / 100; }
     public static Instant prepayDeadline(Instant confirmed, Instant departure, boolean instant) {
         Instant minimum = confirmed.plusSeconds(300);
-        if (instant) return minimum;
+        if (instant) return confirmed.plusSeconds(com.campustaximate.matching.MatchingSettings.everyMinute().instantPrepMinutes()*60L);
         Instant normal = confirmed.plusSeconds(3600);
         if (departure.minusSeconds(1200).isBefore(normal)) normal = departure.minusSeconds(1200);
         return normal.isBefore(minimum) ? minimum : normal;
@@ -48,8 +51,8 @@ public class PaymentService {
     public void preparePrepayments(Party party, List<RideRequest> riders, Instant slot) {
         party.setPaymentFlowVersion(2);
         party.setConfirmedAt(slot);
-        party.setPrepayDeadlineAt(prepayDeadline(slot, party.getDepartureAt(),
-                riders.stream().anyMatch(r -> r.getMode() == RequestMode.INSTANT)));
+        party.setInstant(riders.stream().anyMatch(r -> r.getMode() == RequestMode.INSTANT));
+        party.setPrepayDeadlineAt(party.isInstant()?slot.plusSeconds(matchingSettings.instantPrepMinutes()*60L):prepayDeadline(slot,party.getDepartureAt(),false));
         party.setStatus(PartyStatus.PREPAYING);
         for (RideRequest rider : riders) {
             if (!rider.getMember().getId().equals(party.getPayer().getId())) {
@@ -58,6 +61,7 @@ public class PaymentService {
             }
         }
         partyChanges.capture(party, riders, false);
+        if(party.isInstant()) notifications.toMember(party.getPayer(),"[캠퍼스 택시메이트] 승차 지점으로 출발", "즉시 일행이 확정됐어요. 지금 승차 지점으로 출발해 주세요.");
     }
 
     /** 호출자는 일행 잠금을 먼저 잡는다. */
@@ -112,7 +116,7 @@ public class PaymentService {
             if (op != null) return op.getId();
             order.setStatus(PaymentStatus.PROCESSING);
             op = new PaymentOperation(); op.setPaymentOrderId(order.getId()); op.setType(PaymentOperationType.CONFIRM);
-            op.setIdempotencyKey(key); op.setAmount(amount); op.setNextAttemptAt(clock.now());
+            op.setIdempotencyKey(key); op.setAmount(amount); op.setNextAttemptAt(clock.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS));
             return operations.saveAndFlush(op).getId();
         });
         if (operationId != null) execute(operationId);
@@ -206,8 +210,25 @@ public class PaymentService {
     }
 
     public void retryDue() {
-        for (PaymentOperation op : operations.findByStatusInAndNextAttemptAtLessThanEqualOrderById(
-                List.of(PaymentOperationStatus.PENDING, PaymentOperationStatus.PROCESSING), clock.now())) execute(op.getId());
+        // 승인 조회가 그 회차에 새 환불을 만들 수 있다. 처음 읽은 목록만 실행하면 다음 회차까지 미완료가 남는다.
+        Set<Long> attempted=new HashSet<>();
+        Set<Long> touched=new HashSet<>();
+        while(attempted.size()<1000) {
+            List<PaymentOperation> due=operations.findByStatusInAndNextAttemptAtLessThanEqualOrderById(
+                    List.of(PaymentOperationStatus.PENDING,PaymentOperationStatus.PROCESSING),clock.now()).stream()
+                    .filter(op->!attempted.contains(op.getId())).toList();
+            if(due.isEmpty()) break;
+            for(PaymentOperation op:due) {
+                attempted.add(op.getId());
+                orders.findPartyId(op.getPaymentOrderId()).ifPresent(touched::add);
+                try {execute(op.getId());}
+                catch(RuntimeException failure) {log.error("결제 작업 {} 적용 실패. 다른 일행의 작업은 계속합니다.",op.getId(),failure);}
+            }
+        }
+        for(Long id:touched) tx().executeWithoutResult(status->{
+            Party party=parties.findByIdForUpdate(id).orElse(null);
+            if(party!=null) completeIfDone(party);
+        });
     }
 
     public void execute(long operationId) {
@@ -222,7 +243,7 @@ public class PaymentService {
             if (op.getType() == PaymentOperationType.CANCEL
                     && (order.getApprovedAmount() == 0 || order.getRefundedAmount() < op.getTargetRefund() - op.getAmount())) return null;
             op.setStatus(PaymentOperationStatus.PROCESSING); op.setAttempts(op.getAttempts() + 1);
-            op.setLeaseUntil(clock.now().plusSeconds(60)); op.setNextAttemptAt(clock.now().plusSeconds(60));
+            op.setLeaseUntil(clock.now().plusSeconds(60)); op.setNextAttemptAt(clock.now().plusSeconds(60).truncatedTo(java.time.temporal.ChronoUnit.MICROS));
             return new Work(op.getId(), order.getId(), op.getType(), op.getIdempotencyKey(), order.getPaymentKey(),
                     order.getOrderId(), op.getAmount(), order.getAmount(), op.getTargetRefund(), op.getReason(), op.getAttempts());
         });

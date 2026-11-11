@@ -51,6 +51,7 @@ class FlowTest {
     @Autowired private DemoService demo;
     @Autowired private com.campustaximate.server.service.PaymentService payments;
     @Autowired private com.campustaximate.server.repository.PaymentOrderRepository paymentOrders;
+    @Autowired private com.campustaximate.server.repository.PaymentOperationRepository paymentOperations;
     @Autowired private com.campustaximate.server.repository.SettlementShareRepository allocations;
     @Autowired private com.campustaximate.server.repository.PayoutLedgerRepository payouts;
     @Autowired private MemberRepository members;
@@ -473,6 +474,14 @@ class FlowTest {
         assertThat(java.nio.file.Path.of(path)).doesNotExist();
         mvc.perform(get("/api/parties/" + partyId + "/receipt").session(payer)).andExpect(status().isNotFound());
         // 완료 일행은 활성 목록에서 빠지지만 완료 요약·직접 조회·이력에는 정산 기록이 남는다.
+        var ledger=paymentOrders.findByPartyIdOrderById(partyId);
+        assertThat(ledger).as("일행 전체 결제 장부: %s",ledger.stream().map(o->o.getId()+":"+o.getStatus()+":승인="+o.getApprovedAmount()+":환불="+o.getRefundedAmount()+"/"+o.getRefundTarget()+":작업="+paymentOperations.findByPaymentOrderIdOrderById(o.getId()).stream().map(op->op.getStatus()+":"+op.getLastError()+":"+op.getNextAttemptAt()+":"+op.getLeaseUntil()).toList()).toList())
+                .hasSize(2).allMatch(o -> o.getApprovedAmount() > 0 && o.getRefundedAmount() == o.getRefundTarget());
+        for(var order:ledger) {
+            var work=paymentOperations.findByPaymentOrderIdOrderById(order.getId());
+            assertThat(work).as("결제 작업: %s",work.stream().map(op->op.getId()+":"+op.getStatus()+":"+op.getLastError()+":"+op.getNextAttemptAt()+":"+op.getLeaseUntil()).toList())
+                    .allMatch(op->op.getStatus()==com.campustaximate.server.domain.PaymentOperationStatus.SUCCEEDED);
+        }
         JsonNode after = state(payer);
         assertThat(after.get("parties")).isEmpty();
         assertThat(after.get("settledParty").get("id").asLong()).isEqualTo(partyId);

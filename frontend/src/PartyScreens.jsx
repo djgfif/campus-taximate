@@ -208,7 +208,7 @@ function HomeParty({ party, now, myId, run, onDetail, onHome, onMenu }) {
           name: m.memberId === myId ? `나 (${m.nickname})` : m.nickname,
           detail: m.pointName,
           me: m.memberId === myId,
-          state: leaving ? '' : m.arrived ? '도착' : '오는 중',
+          state: leaving ? '' : m.arrived ? '도착' : m.nearby?'2분 안 도착':'오는 중',
           ok: m.arrived,
         }))} />
       </div>
@@ -328,7 +328,7 @@ export function PartyDetail({ party, myId, now, onBack }) {
     <Screen aside={mine ? <RouteSide party={party} mine={mine} /> : null}>
       <BackBar onBack={onBack} title={toSchool ? '분담금과 경로' : '일행과 경로'} />
       <div className="block"><Rows items={[
-        ['승차 지점', party.anchorName || party.meetingPoint], ['출발 시각', formatDateTime(party.departureAt)],
+        ['승차 지점', party.anchorName || party.meetingPoint], [party.instant?'예상 출발':'출발 시각', formatDateTime(party.departureAt)],
         ['결제자', party.payerNickname],
         party.freeCancelUntil && ['무료 취소 마감', formatDateTime(party.freeCancelUntil)],
       ]} /><PartyFareRows party={party} /></div>
@@ -391,9 +391,11 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
   const [leavingChange,setLeavingChange]=useState(false)
   const members = party.members || []
   const waiting = ['PREPAYING', 'READY'].includes(party.status)
+  const mine=members.find(m=>m.requestId===party.myRequestId)
   const free = party.freeCancelUntil && new Date(now) <= new Date(party.freeCancelUntil)
   return <Screen foot={<>
-    {waiting && party.canArrive && <Btn onClick={() => run(() => api.arrive(party.id), '도착을 표시했어요')}>도착했어요</Btn>}
+    {waiting && (party.instant?!mine?.arrived:party.canArrive) && <Btn onClick={() => run(() => party.instant?api.prepareParty(party.id,'ARRIVED'):api.arrive(party.id), '도착을 표시했어요')}>도착했어요</Btn>}
+    {waiting && party.instant && !mine?.arrived && <Btn className="line" disabled={mine?.nearby} onClick={()=>run(()=>api.prepareParty(party.id,'NEARBY'),'2분 안 도착으로 표시했어요')}>{mine?.nearby?'2분 안 도착 표시 완료':'2분 안 도착'}</Btn>}
     {party.canLeaveAfterChange && <Btn className="line" onClick={()=>setLeavingChange(true)}>변경돼서 빠지기</Btn>}
     {party.canCancel && <Btn className="quiet" onClick={() => setAsking(true)}>내 탑승 취소</Btn>}
     <Btn className="line" onClick={onHome}>홈으로</Btn>
@@ -402,16 +404,24 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
     <Meter label={partyLabel(party.status)} value={formatTime(party.departureAt)} detail={party.meetingPoint} tag={party.payer ? '내가 결제자' : null} />
     <div className="block">
       <Rows items={[
-        ['승차 지점', party.anchorName || party.meetingPoint], ['출발 시각', formatDateTime(party.departureAt)],
+        ['승차 지점', party.anchorName || party.meetingPoint], [party.instant?'예상 출발':'출발 시각', formatDateTime(party.departureAt)],
         ['결제자', party.payerNickname],
         party.freeCancelUntil && ['무료 취소 마감', formatDateTime(party.freeCancelUntil)],
       ]} />
       <PartyFareRows party={party} />
+      {party.instant && waiting && <Say>{party.payer?'확정 즉시 승차 지점으로 출발해 주세요.':'승차 지점으로 이동하며 선결제를 마쳐 주세요.'} 선결제 기한은 확정 뒤 {config?.instantMatching?.prepMinutes??3}분이에요.</Say>}
+      {party.payer && waiting && <section aria-label="호출 준비">
+        <Btn disabled={!party.canCall} onClick={()=>run(async()=>{await api.callParty(party.id);setDriver(true)},'호출을 표시했어요')}>{party.calledAt?'호출 표시 완료':'택시 호출하기'}</Btn>
+        {party.instant&&party.callReady&&<p>모두 준비됐어요. 호출할 수 있어요.</p>}
+        {party.notReadyReasons?.map(reason=><p className="note" key={reason}>{reason}</p>)}
+        {party.instant&&party.canCall&&!party.callReady&&<Say>예상 출발 시각이 되어 호출할 수 있어요. 아직 도착하지 않은 일행은 탑승 미확인으로 기록해요.</Say>}
+        <p className="note">버튼은 호출 표시만 남겨요. 택시는 결제자가 직접 불러 주세요.</p>
+      </section>}
       <RideConfirmationCard party={party} onUpdated={onUpdated} />
       {party.adminReviewRequired && <Say tone="stop-tone">{party.reviewReason==='LATE_RIDE_ANSWER_AFTER_REFUND'?'환불 뒤 운행 답변이 접수되어 관리자 확인이 필요해요.':party.reviewReason==='RIDE_DISPUTE'?'운행 답변이 엇갈려 관리자 검토 중이에요. 환불은 보류해요.':'관리자 확인이 필요한 내역이 있어요.'}</Say>}
       {party.status==='RIDE_UNCONFIRMED' && <Say>자동으로 환불하지 않아요. 결제자는 출발 예정 시각에서 24시간 안에 실제 금액을 입력할 수 있어요.</Say>}
       {waiting && <Say>{free ? '무료 취소 마감 전 취소하면 승인된 선결제를 전액 환불해요.' : '무료 취소 마감이 지났어요. 취소하면 남은 일행의 분담금을 다시 계산해요.'}</Say>}
-      {party.status === 'PREPAYING' && <Say>결제자 외 일행은 기한 안에 선결제해 주세요. 확인 중인 결제는 호출 시각까지 조회한 뒤 미납 여부를 정해요.</Say>}
+      {party.status === 'PREPAYING' && <Say>결제자 외 일행은 기한 안에 선결제해 주세요. 확인 중인 결제는 {party.instant?'예상 출발 시각':'호출 시각'}까지 조회한 뒤 미납 여부를 정해요.</Say>}
       {party.status === 'READY' && <Say>승차 지점에 모여 출발을 준비해 주세요. 택시를 부르는 사람은 {party.payerNickname}님이에요.</Say>}
       {party.status === 'AWAITING_FARE' && <Say>{party.payer ? '실제 금액과 영수증을 입력해 주세요.' : '결제자가 실제 금액과 영수증을 입력하기를 기다리고 있어요.'}</Say>}
       {['DISSOLVED', 'NOT_OPERATED', 'FARE_MISSING'].includes(party.status) && <Say>{party.status==='DISSOLVED' && party.reviewReason==='LATE_CANCELLATION_COMPENSATION'?'무료가 아닌 이탈 금액은 환불을 보류해요. 나머지 승인된 선결제는 전액 환불해요.':'승인된 선결제는 전액 환불 처리해요.'} 카드 반영까지 3~4영업일 정도 걸려요.</Say>}

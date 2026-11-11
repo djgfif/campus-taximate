@@ -42,6 +42,11 @@ spring:
       mail.smtp.writetimeout: 5000
 
 app:
+  matching:
+    instant-match-minutes: 5
+    instant-prep-minutes: 3
+    instant-dispatch-minutes: 5
+    instant-max-walk-seconds: 300
   payment:
     timeout-ms: 3000
   features:

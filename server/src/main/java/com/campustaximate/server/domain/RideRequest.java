@@ -148,6 +148,8 @@ public class RideRequest {
     private Long expectedShare;
 
     private boolean arrived;
+    /** 도착 약속이며 실제 탑승 확인은 아니다. 도착 표시 때 지운다. */
+    private Instant nearbyAt;
 
     /** 등교에서 승차 시각 3분 뒤까지 도착 표시가 없었다. 마지막 판정 때 일행에서 빠진다. */
     private boolean noShow;
@@ -167,9 +169,8 @@ public class RideRequest {
 
     /** 결과를 늦어도 언제 알 수 있는지. 이 슬롯이 마지막 매칭 기회다. */
     public Instant resultBy() {
-        Instant deadline = deadlineSlot != null ? deadlineSlot : windowEnd.minus(LEAD);
-        Instant instantEnd = requestedAt == null ? deadline : requestedAt.plusSeconds(15 * 60);
-        return mode == RequestMode.INSTANT && instantEnd.isBefore(deadline) ? instantEnd : deadline;
+        if(mode==RequestMode.INSTANT) return deadlineSlot!=null?deadlineSlot:requestedAt.plusSeconds(MatchingSettings.everyMinute().instantMatchMinutes()*60L);
+        return deadlineSlot != null ? deadlineSlot : windowEnd.minus(LEAD);
     }
 
     /** 이 시각까지 도착을 표시해야 한다. 하교는 출발 시각, 등교는 내 승차 시각 3분 뒤다. */
@@ -216,6 +217,7 @@ public class RideRequest {
         ratioUnits = null;
         expectedShare = null;
         arrived = false;
+        nearbyAt = null;
         noShow = false;
     }
 }

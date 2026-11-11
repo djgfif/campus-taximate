@@ -42,4 +42,23 @@ describe('운행 확인과 변경 이탈',()=>{
     fireEvent.click(screen.getByRole('button',{name:'변경 이탈 확인'}))
     await waitFor(()=>expect(leave).toHaveBeenCalledWith(11,2))
   })
+
+  it('즉시 일행의 예상 출발·3분 기한·준비 사유와 호출 버튼을 서버 상태대로 연결한다',async()=>{
+    const prepare=vi.spyOn(api,'prepareParty').mockResolvedValue({})
+    const call=vi.spyOn(api,'callParty').mockResolvedValue({})
+    const run=vi.fn(async action=>action())
+    const party={id:11,status:'PREPAYING',instant:true,prepayDeadlineAt:'2026-11-11T00:05:00Z',departureAt:'2026-11-11T00:11:00Z',payer:true,payerId:3,myRequestId:33,myShare:8000,members:[{requestId:33,memberId:3,nickname:'다',rideOrder:1,pointName:'역',arrived:false,nearby:false}],canArrive:true,canCall:false,callReady:false,notReadyReasons:['아직 표시하지 않은 일행이 있어요.']}
+    const view=render(<PartyScreen party={party} now="2026-11-11T00:02:00Z" run={run} myId={3} />)
+    expect(screen.getByText('예상 출발')).toBeTruthy()
+    expect(screen.getByText(/선결제 기한은 확정 뒤 3분/)).toBeTruthy()
+    expect(screen.getByRole('button',{name:'택시 호출하기'}).disabled).toBe(true)
+    expect(screen.getByText('아직 표시하지 않은 일행이 있어요.')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button',{name:'2분 안 도착',exact:true}))
+    await waitFor(()=>expect(prepare).toHaveBeenCalledWith(11,'NEARBY'))
+    view.rerender(<PartyScreen party={{...party,canCall:true}} now="2026-11-11T00:11:00Z" run={run} myId={3} />)
+    expect(screen.getByText(/예상 출발 시각이 되어 호출할 수 있어요/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button',{name:'택시 호출하기'}))
+    await waitFor(()=>expect(call).toHaveBeenCalledWith(11))
+    await screen.findByRole('dialog',{name:'기사님께 보여 줄 화면'})
+  })
 })

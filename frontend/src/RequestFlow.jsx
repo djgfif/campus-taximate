@@ -86,18 +86,22 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
     return () => { closed = true }
   }, [originKey])
   const nearby = points.key === originKey ? points.data : []
-  const selected = selection.key === originKey ? selection.ids.filter((id) => nearby.some((p) => p.id === id)) : []
+  const instant=mode==='INSTANT'
+  const maxWalk=config?.instantMatching?.maxWalkSeconds ?? 300
+  const matchMinutes=config?.instantMatching?.matchMinutes ?? 5
+  const effectiveBasis=instant?'DEPART':basis
+  const selected = selection.key === originKey ? selection.ids.filter((id) => nearby.some((p) => p.id === id && (!instant||p.walkSeconds<=maxWalk))) : []
   const changeOrigin = (place) => { setOrigin(place); setSelection({ key: '', ids: [] }) }
   const toggle = (id) => setSelection({ key: originKey, ids: selected.includes(id) ? selected.filter((p) => p !== id) : [...selected, id].slice(0, 3) })
   const options = requestTimeOptions(now)
   const chosenStart = options.includes(start) ? start : options[0]
   const arrivals = requestTimeOptions(now, 30)
   const chosenArrival = arrivals.includes(arrival) ? arrival : arrivals[Math.min(30, arrivals.length - 1)]
-  const ready = origin.point && origin.name.trim() && destination.point && destination.name.trim() && selected.length > 0 && chosenStart && chosenArrival
+  const ready = origin.point && origin.name.trim() && destination.point && destination.name.trim() && selected.length > 0 && (instant || chosenStart && chosenArrival)
   const body = ready ? {
-    direction: 'FROM_HUB', mode, timeBasis: basis, origin: { ...origin.point, name: origin.name }, pointIds: selected,
+    direction: 'FROM_HUB', mode, timeBasis: effectiveBasis, origin: { ...origin.point, name: origin.name }, pointIds: selected,
     pointName: destination.name, pointLat: destination.point.lat, pointLon: destination.point.lon, memo,
-    ...(basis === 'DEPART' ? { windowStart: chosenStart, windowEnd: new Date(new Date(chosenStart).getTime() + endLength * 60000).toISOString() }
+    ...(instant ? {} : basis === 'DEPART' ? { windowStart: chosenStart, windowEnd: new Date(new Date(chosenStart).getTime() + endLength * 60000).toISOString() }
       : { arriveBy: chosenArrival, earlyArrivalMinutes: early }),
   } : null
   const preview = usePreview(body)
@@ -115,15 +119,16 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
     <div className="pad">
       <h1 className="head">어디서 출발하나요?</h1>
       <Chips label="요청 방식" value={mode} onChange={setMode} options={[{ value: 'RESERVATION', label: '예약' }, { value: 'INSTANT', label: '즉시' }]} />
-      {mode === 'INSTANT' && <Say title="지금부터 25분 뒤 출발 가능">일행을 찾으면 출발 시각을 알려 드려요. 도착 기준도 단독 이동 시간을 뺀 출발 가능 시각으로 확인해요.</Say>}
+      <Say title={instant?'지금 출발할 수 있는 사람끼리 찾아요':'출발 시간을 미리 정해요'}>{instant?<>{matchMinutes}분 동안 같이 탈 사람을 찾아요. 걸어서 {Math.floor(maxWalk/60)}분 안 지점만 고를 수 있어요.</>:<>예약은 출발 또는 도착 기준으로 시간을 골라 주세요.</>}</Say>
       <PlaceField label="출발지" value={origin} center={center} onChange={changeOrigin} samples={config?.demo ? hubs : []} />
       <fieldset className="boarding-points"><legend>승차 지점 (1~3곳)</legend>
         {!origin.point ? <p className="note">출발지를 먼저 골라 주세요.</p> : points.key !== originKey ? <p role="status">근처 지점을 찾고 있어요.</p>
           : points.error ? <p role="alert">{points.error}</p> : nearby.length === 0 ? <Say>근처에 승차 지점이 없어요</Say>
-            : nearby.map((p) => <label key={p.id} className="point-option" aria-label={p.name + ' 걸어서 약 ' + Math.ceil(p.walkSeconds / 60) + '분' + (p.walkEstimated ? ', 추정' : '')}><input type="checkbox" checked={selected.includes(p.id)} onChange={() => toggle(p.id)} />
-              <span><b>{p.name}</b><small>걸어서 약 {Math.ceil(p.walkSeconds / 60)}분{p.walkEstimated ? ', 추정' : ''}</small></span></label>)}
+            : nearby.map((p) => <label key={p.id} className="point-option" aria-label={p.name + ' 걸어서 약 ' + Math.ceil(p.walkSeconds / 60) + '분' + (p.walkEstimated ? ', 추정' : '')}><input type="checkbox" checked={selected.includes(p.id)} disabled={instant&&p.walkSeconds>maxWalk} onChange={() => toggle(p.id)} />
+              <span><b>{p.name}</b><small>걸어서 약 {Math.ceil(p.walkSeconds / 60)}분{p.walkEstimated ? ', 추정' : ''}</small>{instant&&p.walkSeconds>maxWalk&&<small>즉시 선택 불가</small>}</span></label>)}
       </fieldset>
       <PlaceField label="도착지" value={destination} center={origin.point || center} onChange={setDestination} samples={config?.demo ? config.sampleDropoffs || [] : []} />
+      {!instant && <>
       <Chips label="시간 기준" value={basis} onChange={setBasis} options={[{ value: 'DEPART', label: '출발 기준' }, { value: 'ARRIVE', label: '도착 기준' }]} />
       {basis === 'DEPART' ? <>
         <label className="field">출발 가능 시작<select value={chosenStart || ''} onChange={(e) => setStart(e.target.value)}>{options.map((t) => <option key={t} value={t}>{formatDateTime(t)}</option>)}</select></label>
@@ -134,6 +139,7 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
         <Chips label="일찍 도착 허용" value={early} onChange={setEarly} options={[0, 5, 10, 15].map((m) => ({ value: m, label: m + '분' }))} />
       </>}
       <p className="note">예약은 다음 날 23시 59분까지, 시간은 5분 단위로 골라 주세요.</p>
+      </>}
       <Rows items={[
         ['혼자 타면', preview.data ? '약 ' + won(preview.data.soloFare) + ', ' + preview.data.soloMinutes + '분' : '입력을 마치면 확인해요'],
         ['모집 마감', preview.data ? formatDateTime(preview.data.resultBy) : '미리보기 대기'],

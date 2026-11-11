@@ -30,4 +30,10 @@ public class PaymentOperation {
     private Instant completedAt;
     /** 비밀 키·원본 응답 대신 짧은 오류 구분만 저장한다. */
     private String lastError;
+    /** DB datetime(6)의 반올림으로 즉시 작업이 미래 작업이 되지 않도록 내림한다. */
+    @PrePersist @PreUpdate
+    void databasePrecision() {
+        if(nextAttemptAt!=null) nextAttemptAt=nextAttemptAt.truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+        if(leaseUntil!=null) leaseUntil=leaseUntil.truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+    }
 }

@@ -189,17 +189,17 @@ public class PartyShrinker {
         tx.executeWithoutResult(status -> {
             Party party = parties.findByIdForUpdate(partyId).orElseThrow();
             if(party.getVersion()!=version) throw ApiException.conflict("CONFLICT", "일행이 바뀌었어요. 다시 확인해 주세요.");
-            requireOpen(party, leaving, departed);
+            requireOpen(party, leaving, departed, reason);
             changes.changed(party,leaving,reason,held);
             canceler.cancel(party, leaving, now);
         });
     }
 
     /** 경로를 조회하는 동안 출발 처리가 끝났거나 빠질 사람의 탑승 시각이 지났으면 바꾸지 않는다. */
-    private void requireOpen(Party party, Set<Long> leaving, boolean departed) {
+    private void requireOpen(Party party, Set<Long> leaving, boolean departed, String reason) {
         List<RideRequest> riders = requests.findByPartyOrderByRideOrder(party);
         boolean closed = riders.stream().anyMatch(rider -> rider.getStatus() != RequestStatus.MATCHED);
-        boolean tooLate = !departed && riders.stream()
+        boolean tooLate = !departed && !"PREPAY_UNPAID".equals(reason) && riders.stream()
                 .filter(rider -> leaving.contains(rider.getId()) && !rider.isNoShow())
                 .anyMatch(rider -> !rider.canCancelAt(clock.now()));
         if (closed || tooLate) {
@@ -212,7 +212,7 @@ public class PartyShrinker {
         if (party.getVersion() != plan.version()) {
             throw ApiException.conflict("CONFLICT", "일행이 바뀌었습니다. 다시 시도해 주세요.");
         }
-        requireOpen(party, leaving, departed);
+        requireOpen(party, leaving, departed, reason);
         changes.changed(party,leaving,reason,held);
         List<RideRequest> stay = new ArrayList<>();
         for (RideRequest rider : requests.findByPartyOrderByRideOrder(party)) {

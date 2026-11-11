@@ -59,7 +59,7 @@ public class DemoService {
             addSamples(memberId, 2);
         }
         for (int i = 0; i < MAX_MATCH_SLOTS; i++) {
-            advance(5);
+            advance(mine.getMode()==com.campustaximate.server.domain.RequestMode.INSTANT?1:5);
             RequestStatus status = requests.findById(mine.getId()).orElseThrow().getStatus();
             if (status != RequestStatus.WAITING) {
                 return new MatchOutcome(status, status == RequestStatus.MATCHED
@@ -123,13 +123,15 @@ public class DemoService {
             try {
                 rideRequests.create(id, new RideRequestService.NewRequest(direction, hub.getId(), start, end, arriveBy,
                         dropoff.name(), onTheWay == null ? dropoff.lat() : onTheWay.lat(),
-                        onTheWay == null ? dropoff.lon() : onTheWay.lon(), memo));
+                        onTheWay == null ? dropoff.lon() : onTheWay.lon(), memo,
+                        mine==null?null:mine.getMode(),null,null,null,null));
             } catch (ApiException e) {
                 if (onTheWay == null) {
                     throw e;
                 }
                 rideRequests.create(id, new RideRequestService.NewRequest(direction, hub.getId(), start, end, arriveBy,
-                        dropoff.name(), dropoff.lat(), dropoff.lon(), memo));
+                        dropoff.name(), dropoff.lat(), dropoff.lon(), memo,
+                        mine==null?null:mine.getMode(),null,null,null,null));
             }
         }
         return samples.size();

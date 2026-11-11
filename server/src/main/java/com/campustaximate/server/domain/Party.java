@@ -62,6 +62,10 @@ public class Party {
     private Instant prepayDeadlineAt;
     private Instant startedAt;
     private Instant fareRemindedAt;
+    /** 즉시 요청자가 나중에 빠져도 확정 때의 시간표를 유지한다. */
+    @Column(name="instant_group",nullable=false) private boolean instant;
+    private Instant calledAt;
+    public Instant paymentCheckUntil() { return instant?departureAt:departureAt.minusSeconds(600); }
 
     public boolean paymentFlow() { return paymentFlowVersion >= 2; }
     public Instant freeCancelUntil() {

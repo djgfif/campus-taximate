@@ -52,6 +52,7 @@ class MatchingConnectionTest {
 
     @BeforeEach
     void prepare() {
+        PaymentTestSupport.clear(jdbc);
         requests.deleteAll();
         parties.deleteAll();
         ((Map<?, ?>) org.springframework.test.util.ReflectionTestUtils.getField(soloRoutes, "entries")).clear();
@@ -80,6 +81,7 @@ class MatchingConnectionTest {
 
     @AfterEach
     void clean() {
+        PaymentTestSupport.clear(jdbc);
         requests.deleteAll();
         parties.deleteAll();
     }
@@ -110,21 +112,27 @@ class MatchingConnectionTest {
     }
 
     @Test
-    void instantStartBeforeNowPlusTwentyFiveMinutesIsRejected() throws Exception {
+    void instantPointOverFiveMinutesIsRejectedBeforeRouteLookup() throws Exception {
         var body = departure(0);
         body.put("mode", "INSTANT");
-        body.put("windowStart", NOW.plusSeconds(1200).toString());
+        body.put("origin",Map.of("lat",37.002,"lon",127));
+        body.put("pointIds",List.of(points.get(0).getId(),points.get(3).getId()));
         create(a, body).andExpect(status().isBadRequest());
         assertThat(requests.count()).isZero();
         verifyNoInteractions(routes);
     }
 
     @Test
-    void instantStartExactlyTwentyFiveMinutesIsAccepted() throws Exception {
+    void instantWithNoTimeInputAcceptsFiveMinuteWalkingBoundary() throws Exception {
         var body = departure(0);
         body.put("mode", "INSTANT");
-        body.put("windowStart", NOW.plusSeconds(1500).toString());
+        body.remove("windowStart"); body.remove("windowEnd");
+        body.put("origin",Map.of("lat",37.0018,"lon",127));
         create(a, body).andExpect(status().isOk());
+        var request=requests.findAll().getFirst();
+        // 지점 목록은 지연 로딩이라 세션 밖에서 읽지 않고 DB 값으로 확인한다.
+        assertThat(jdbc.queryForObject("select walk_seconds from ride_request_point where request_id = ?", Integer.class, request.getId())).isEqualTo(300);
+        assertThat(request.resultBy()).isEqualTo(NOW.plusSeconds(300));
     }
 
     @Test
@@ -252,13 +260,14 @@ class MatchingConnectionTest {
     }
 
     @Test
-    void instantArrivalUsesSoloDepartureForLeadValidation() throws Exception {
+    void instantArrivalIsRejectedEvenWithPlentyOfTime() throws Exception {
         var body = departure(0);
         body.put("mode", "INSTANT");
         body.put("timeBasis", "ARRIVE");
-        body.put("arriveBy", NOW.plusSeconds(30 * 60).toString());
+        body.put("arriveBy", NOW.plusSeconds(3 * 3600).toString());
         create(a, body).andExpect(status().isBadRequest());
         assertThat(requests.count()).isZero();
+        verifyNoInteractions(routes);
     }
 
     @Test
@@ -275,11 +284,11 @@ class MatchingConnectionTest {
     }
 
     @Test
-    void instantArrivalUsesOneCurrentSoloLookup() throws Exception {
+    void instantDepartureUsesOneCurrentSoloLookup() throws Exception {
         var body = departure(1);
         body.put("mode", "INSTANT");
-        body.put("timeBasis", "ARRIVE");
-        body.put("arriveBy", NOW.plusSeconds(3 * 3600).toString());
+        body.put("timeBasis", "DEPART");
+        body.remove("windowStart");body.remove("windowEnd");
         create(b, body).andExpect(status().isOk());
         verify(routes, times(1)).routeAt(any(), anyList(), isNull());
     }
@@ -290,13 +299,17 @@ class MatchingConnectionTest {
         var second = departure(1);
         first.put("mode", "INSTANT");
         second.put("mode", "INSTANT");
+        first.put("origin",Map.of("lat",37.0005,"lon",127));
+        second.put("origin",Map.of("lat",37.0005,"lon",127));
         create(a, first).andExpect(status().isOk());
         create(b, second).andExpect(status().isOk());
         Instant slot = NOW.plusSeconds(60);
         doReturn(slot).when(clock).now();
         slots.runLocked(() -> { slots.process(slot); return null; });
         assertThat(parties.findAll()).hasSize(1);
-        assertThat(parties.findAll().getFirst().getDepartureAt()).isEqualTo(NOW.plusSeconds(1800));
+        assertThat(parties.findAll().getFirst().getDepartureAt()).isEqualTo(NOW.plusSeconds(60+480));
+        verify(routes,atLeastOnce()).routeAt(any(),anyList(),eq(NOW.plusSeconds(60+480)));
+        assertThat(requests.findByStatus(RequestStatus.MATCHED)).allMatch(r->r.getRequestedAt().equals(NOW)&&r.getPoints().getFirst().getWalkSeconds()<=180);
     }
 
     @Test
@@ -306,7 +319,8 @@ class MatchingConnectionTest {
         body.put("pointIds", List.of(points.get(0).getId(), points.get(1).getId()));
         body.put("origin", Map.of("lat", 37, "lon", 127));
         create(a, body).andExpect(status().isOk());
-        Instant slot = NOW.plusSeconds(900);
+        assertThat(requests.findAll().getFirst().resultBy()).isEqualTo(NOW.plusSeconds(300));
+        Instant slot = NOW.plusSeconds(300);
         doReturn(slot).when(clock).now();
         slots.runLocked(() -> { slots.process(slot); slots.process(slot); return null; });
         assertThat(requests.findByStatus(RequestStatus.UNMATCHED)).hasSize(1);
@@ -323,5 +337,30 @@ class MatchingConnectionTest {
         RideRequest request = requests.findByStatus(RequestStatus.WAITING).getFirst();
         assertThat(request.getPoints().getFirst().getWalkSeconds()).isEqualTo(600);
         assertThat(request.getPoints().getFirst().isWalkEstimated()).isTrue();
+    }
+
+    @Test void i03FourMinuteWalkingUsesEngineTAndThreeMinutePrepayDeadline() throws Exception {
+        for(int i=0;i<2;i++) {
+            var body=departure(i);body.put("mode","INSTANT");body.remove("windowStart");body.remove("windowEnd");
+            body.put("origin",Map.of("lat",37.001,"lon",127));create(i==0?a:b,body).andExpect(status().isOk());
+        }
+        Instant slot=NOW.plusSeconds(120);doReturn(slot).when(clock).now();
+        slots.runLocked(()->{slots.process(slot);return null;});
+        assertThat(parties.findAll()).hasSize(1);var party=parties.findAll().getFirst();
+        assertThat(party.isInstant()).isTrue();assertThat(party.getDepartureAt()).isEqualTo(NOW.plusSeconds(660));
+        assertThat(party.getPrepayDeadlineAt()).isEqualTo(NOW.plusSeconds(300));
+        assertThat(party.freeCancelUntil()).isEqualTo(NOW.plusSeconds(300));
+        verify(routes,atLeastOnce()).routeAt(any(),anyList(),eq(NOW.plusSeconds(660)));
+        assertThat(jdbc.queryForObject("select count(*) from mail_outbox where subject=?",Integer.class,"[캠퍼스 택시메이트] 승차 지점으로 출발")).isEqualTo(1);
+    }
+    @Test void mixedInstantAndReservationRaisesEngineTIntoReservationWindow() throws Exception {
+        var instant=departure(0);instant.put("mode","INSTANT");instant.remove("windowStart");instant.remove("windowEnd");
+        var reservation=departure(1);reservation.put("windowStart",NOW.plusSeconds(900).toString());reservation.put("windowEnd",NOW.plusSeconds(1800).toString());
+        create(a,instant).andExpect(status().isOk());create(b,reservation).andExpect(status().isOk());
+        Instant slot=NOW.plusSeconds(60);doReturn(slot).when(clock).now();slots.runLocked(()->{slots.process(slot);return null;});
+        assertThat(parties.findAll()).hasSize(1);var party=parties.findAll().getFirst();
+        assertThat(party.getDepartureAt()).isEqualTo(NOW.plusSeconds(900));assertThat(party.getPrepayDeadlineAt()).isEqualTo(slot.plusSeconds(180));
+        assertThat(requests.findByStatus(RequestStatus.MATCHED)).hasSize(2);
+        verify(routes,atLeastOnce()).routeAt(any(),anyList(),eq(NOW.plusSeconds(900)));
     }
 }

@@ -70,12 +70,12 @@ public class SlotService {
     private final AppClock clock;
     private final MemberSafetyService safety;
     private final PlatformTransactionManager transactionManager;
+    private final MatchingSettings matchingSettings;
     private final ReentrantLock lock = new ReentrantLock();
     private final Map<List<Long>, Instant> rejected = new ConcurrentHashMap<>();
     @Value("${app.public-url}")
     private String publicUrl;
 
-    private final MatchingRound round = new MatchingRound(MatchingSettings.everyMinute());
 
     @Scheduled(cron = "0 * * * * *")
     public void onSchedule() {
@@ -160,7 +160,8 @@ public class SlotService {
         }
         if(party.paymentFlow()) {
             // 새 흐름은 전원 도착 때만 기존 출발 처리를 하고, 미표시자를 노쇼로 빼지 않는다.
-            if(riders.stream().allMatch(RideRequest::isArrived)) rideConfirmations.start(party,now);
+            if(party.isInstant()) rideConfirmations.markBoardingUnconfirmed(party);
+            if(riders.stream().allMatch(RideRequest::isArrived) && (!party.isInstant()||party.getCalledAt()!=null)) rideConfirmations.start(party,now);
             return Set.of();
         }
         Set<Long> noShows = new HashSet<>();
@@ -189,13 +190,13 @@ public class SlotService {
         }
         Instant now = clock.now();
         rejected.values().removeIf(until -> !until.isAfter(now));
-        legStore.prepare(input.stream().filter(r -> TripPlan.of(r.direction()).eligible(r, slot)).toList(), now);
+        legStore.prepare(input.stream().filter(r -> TripPlan.of(r.direction(),matchingSettings).eligible(r, slot)).toList(), now);
         Map<Long, Long> requestFares = new LinkedHashMap<>();
         snapshot.forEach((id, r) -> requestFares.put(id, r.getSoloFare()));
         Map<Long, GeoPoint> origins = new LinkedHashMap<>();
         snapshot.forEach((id, r) -> origins.put(id, r.origin()));
-        RouteGroupVerifier verifier = new RouteGroupVerifier(routes, rejected, now, paths, requestFares, origins, slot);
-        RoundResult result = round.run(slot, input, legStore.provider(), verifier);
+        RouteGroupVerifier verifier = new RouteGroupVerifier(routes, rejected, now, paths, requestFares, origins, slot,matchingSettings);
+        RoundResult result = new MatchingRound(matchingSettings).run(slot, input, legStore.provider(), verifier);
 
         Instant limit = AppClock.nextMinuteAfter(slot);
         TransactionTemplate tx = new TransactionTemplate(transactionManager);

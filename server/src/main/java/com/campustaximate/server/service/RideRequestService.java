@@ -36,6 +36,8 @@ public class RideRequestService {
     private final SoloRouteLookup soloRoutes;
     private final WalkEstimator walks;
     private final PartyShrinker shrinker;
+    private final MatchingSettings matchingSettings;
+    private final com.campustaximate.server.common.InstantMatchingConfiguration instantSettings;
     private final com.campustaximate.server.repository.PartyRepository partyRepository;
     private final PlatformTransactionManager transactionManager;
     private final AppClock clock;
@@ -100,7 +102,14 @@ public class RideRequestService {
             request.setOriginName(input.origin() == null ? null : input.origin().name());
             if (input.direction() == Direction.TO_SCHOOL) request.setSchool(member.getSchool());
             else request.setHub(hubs.getReferenceById(prepared.points().getFirst().hubId()));
-            if (input.basis() == TimeBasis.DEPART) {
+            if(input.requestMode()==RequestMode.INSTANT) {
+                // S37: 출발 범위는 입력받지 않는다. 아래 범위는 목록 표시용이며 엔진은 즉시 범위를 보지 않는다.
+                request.setWindowStart(requestedAt);
+                int walk=prepared.points().stream().mapToInt(PointInput::walkSeconds).max().orElse(0);
+                request.setWindowEnd(requestedAt.plusSeconds(matchingSettings.instantMatchMinutes()*60L
+                        +Math.max(matchingSettings.instantPrepMinutes()*60L,walk)+matchingSettings.instantDispatchMinutes()*60L));
+                request.setDeadlineSlot(requestedAt.plusSeconds(matchingSettings.instantMatchMinutes()*60L));
+            } else if (input.basis() == TimeBasis.DEPART) {
                 request.setWindowStart(input.windowStart());
                 request.setWindowEnd(input.windowEnd());
             } else {
@@ -125,10 +134,11 @@ public class RideRequestService {
     }
 
     public Preview preview(long memberId, NewRequest input) {
+        Instant requestedAt=clock.now();
         Prepared prepared = new TransactionTemplate(transactionManager).execute(status -> prepare(memberId, input));
         Quote quote = quote(memberId, input, prepared, true);
-        Instant deadline = quote.deadline() != null ? quote.deadline() : input.windowEnd().minus(LEAD);
-        if (input.requestMode() == RequestMode.INSTANT && clock.now().plusSeconds(900).isBefore(deadline)) deadline = clock.now().plusSeconds(900);
+        Instant deadline = input.requestMode()==RequestMode.INSTANT ? requestedAt.plusSeconds(matchingSettings.instantMatchMinutes()*60L)
+                : quote.deadline() != null ? quote.deadline() : input.windowEnd().minus(LEAD);
         return new Preview(quote.solo().fare(), (quote.solo().seconds() + 59) / 60, deadline);
     }
 
@@ -160,6 +170,7 @@ public class RideRequestService {
         List<PointInput> points = selected.stream().map(h -> {
             GeoPoint point = new GeoPoint(h.getLat(), h.getLon());
             WalkEstimator.Walk walk = input.origin() == null ? new WalkEstimator.Walk(0, true) : walks.estimate(origin, point);
+            if(input.requestMode()==RequestMode.INSTANT && walk.seconds()>instantSettings.getInstantMaxWalkSeconds()) throw ApiException.badRequest("INSTANT_WALK_TOO_LONG", "즉시는 걸어서 "+instantSettings.getInstantMaxWalkSeconds()/60+"분 안 승차 지점만 고를 수 있어요.");
             if (walk.seconds() > 600) throw ApiException.badRequest("WALK_TOO_LONG", "걷는 시간이 10분을 넘는 승차 지점입니다.");
             return new PointInput(h.getId(), point, walk.seconds(), walk.estimated());
         }).toList();
@@ -195,11 +206,14 @@ public class RideRequestService {
     }
 
     private void requireTimely(NewRequest input, RouteClient.Route solo) {
-        if (input.requestMode() == RequestMode.INSTANT && input.basis() == TimeBasis.ARRIVE && input.arriveBy().minusSeconds(solo.seconds()).isBefore(clock.now().plus(LEAD))) throw ApiException.badRequest("TOO_LATE", "즉시 요청은 출발 가능 시각이 지금부터 25분 이후여야 합니다.");
         if (input.basis() == TimeBasis.ARRIVE && arrivalDeadline(input, solo).isBefore(AppClock.nextMinuteAfter(clock.now()))) throw ApiException.badRequest("TOO_LATE", "도착 희망 시각이 너무 가까워 일행을 찾을 시간이 없습니다.");
     }
 
     private void validateTimes(NewRequest input) {
+        if(input.requestMode()==RequestMode.INSTANT) {
+            if(input.basis()!=TimeBasis.DEPART) throw ApiException.badRequest("INSTANT_DEPART_ONLY", "즉시 요청은 출발 기준만 사용할 수 있어요.");
+            return; // 옛 즉시 입력에 window가 있어도 사용하지 않는다.
+        }
         Instant reference;
         if (input.basis() == TimeBasis.ARRIVE) {
             reference = input.arriveBy();
@@ -209,7 +223,6 @@ public class RideRequestService {
             Instant start = input.windowStart(), end = input.windowEnd();
             if (start == null || end == null || !isFiveMinuteUnit(start) || !isFiveMinuteUnit(end) || end.isBefore(start) || Duration.between(start, end).compareTo(MAX_WINDOW) > 0) throw ApiException.badRequest("INVALID_WINDOW", "출발 가능 시간은 5분 단위, 최대 60분으로 입력해 주세요.");
             if (!clock.now().isBefore(end.minus(LEAD))) throw ApiException.badRequest("TOO_LATE", "모집 마감이 지난 요청입니다.");
-            if (input.requestMode() == RequestMode.INSTANT && start.isBefore(clock.now().plus(LEAD))) throw ApiException.badRequest("TOO_LATE", "즉시 요청은 출발 가능 시작이 지금부터 25분 이후여야 합니다.");
             reference = start;
         }
         Instant limit = clock.now().atZone(SEOUL).toLocalDate().plusDays(2).atStartOfDay(SEOUL).toInstant();

@@ -5,7 +5,7 @@ import { pushUndecided } from './push.js'
 import { formatDateTime, formatTime, routeLabel, won } from './format.js'
 import { Btn, Confirm, Meter, Rail, Rows, Say, Screen, TopBar } from './ui.jsx'
 
-const timeRow = (latest) => (latest.arriveBy && !latest.windowStart
+const timeRow = (latest) => (latest.mode==='INSTANT' ? ['출발 준비','지금 출발, 확정 뒤 예상 출발 안내'] : latest.arriveBy && !latest.windowStart
   ? ['도착 희망', formatDateTime(latest.arriveBy)]
   : ['출발 가능', `${formatTime(latest.windowStart)} ~ ${formatTime(latest.windowEnd)}`])
 
@@ -46,6 +46,7 @@ export function Waiting({ latest, config, run, onMenu, onPush }) {
         <div className="road" aria-hidden="true"><i /></div>
       </Meter>
       <div className="block">
+        {latest.mode==='INSTANT'&&<Say>{config?.instantMatching?.matchMinutes??5}분 동안 같이 탈 사람을 찾아요. 확정되면 예상 출발 시각을 알려 드려요.</Say>}
         <Situation insight={latest.insight} />
         {onPush && pushUndecided() && (
           <Say tone="calm" title="화면을 닫아도 결과를 받으려면">

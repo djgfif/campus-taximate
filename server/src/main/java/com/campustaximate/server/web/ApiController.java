@@ -80,6 +80,7 @@ public class ApiController {
     private final LoginTokenService tokens;
     private final RideRequestService rideRequests;
     private final PartyService parties;
+    private final com.campustaximate.server.common.InstantMatchingConfiguration instantSettings;
     private final SettlementService settlements;
     private final DemoService demo;
     private final WaitingInsightService insights;
@@ -149,11 +150,11 @@ public class ApiController {
                               String pointName, double pointLat, double pointLon, long soloFare, int soloMinutes,
                               String memo, WaitingInsightService.Insight insight,
                               RideHistoryService.Stage stage, Long paid, EndReason endReason,
-                              double anchorLat, double anchorLon, Long partyPaid, Integer partySize, Long partyId, List<Long> partyIds) {
+                              double anchorLat, double anchorLon, Long partyPaid, Integer partySize, Long partyId, List<Long> partyIds, RequestMode mode, TimeBasis timeBasis) {
         RequestView withPartyIds(List<Long> ids) {
             return new RequestView(id, status, direction, hubId, anchorName, windowStart, windowEnd, arriveBy,
                     resultBy, pointName, pointLat, pointLon, soloFare, soloMinutes, memo, insight, stage, paid,
-                    endReason, anchorLat, anchorLon, partyPaid, partySize, partyId, ids.isEmpty() ? partyIds : ids);
+                    endReason, anchorLat, anchorLon, partyPaid, partySize, partyId, ids.isEmpty() ? partyIds : ids, mode, timeBasis);
         }
 
         static RequestView of(RideRequest r) {
@@ -179,7 +180,7 @@ public class ApiController {
                     r.isNoShow() ? EndReason.NO_SHOW : r.getEndReason(),
                     r.getHub() != null ? r.getHub().getLat() : r.getSchool().getLat(),
                     r.getHub() != null ? r.getHub().getLon() : r.getSchool().getLon(), partyPaid, partySize, r.getParty() == null ? null : r.getParty().getId(),
-                    r.getParty() == null ? List.of() : List.of(r.getParty().getId()));
+                    r.getParty() == null ? List.of() : List.of(r.getParty().getId()),r.getMode(),r.getTimeBasis());
         }
     }
 
@@ -192,7 +193,9 @@ public class ApiController {
     @GetMapping("/config")
     public Map<String, Object> config() {
         return Map.of("demo", demo.enabled(), "simulatedRoute", routes.simulated(), "now", clock.now(),
-                "mailEnabled", mail.enabled(), "sampleDropoffs", DataSeeder.SAMPLE_DROPOFFS);
+                "mailEnabled", mail.enabled(), "sampleDropoffs", DataSeeder.SAMPLE_DROPOFFS,"instantMatching",Map.of(
+                    "matchMinutes",instantSettings.getInstantMatchMinutes(),"prepMinutes",instantSettings.getInstantPrepMinutes(),
+                    "dispatchMinutes",instantSettings.getInstantDispatchMinutes(),"maxWalkSeconds",instantSettings.getInstantMaxWalkSeconds()));
     }
 
     @PostMapping("/auth/code")

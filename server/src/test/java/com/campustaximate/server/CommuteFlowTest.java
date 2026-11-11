@@ -235,7 +235,8 @@ class CommuteFlowTest {
         JsonNode state = state(users.get(1));
         assertThat(state.get("parties")).isEmpty();
         assertThat(state.get("latestRequest").get("endReason").asText()).isEqualTo("NO_SHOW");
-        createRequest(users.get(1), POINTS[1], arriveBy.plus(Duration.ofDays(1))).andExpect(status().isOk());
+        // 예약 상한(다음 날 23:59) 안에 들도록 하루가 아닌 12시간 뒤로 잡는다. 하루 뒤는 저녁에 실행하면 상한을 넘는다.
+        createRequest(users.get(1), POINTS[1], arriveBy.plus(Duration.ofHours(12))).andExpect(status().isOk());
 
         passAllBoardings(party);
 

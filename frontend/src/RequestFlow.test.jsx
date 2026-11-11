@@ -57,13 +57,17 @@ describe('새 탑승 요청', () => {
     expect(props.onClose).toHaveBeenCalledOnce()
   })
 
-  it('즉시 선택 시 25분 안내와 즉시 요청값을 사용한다', async () => {
+  it('즉시는 5분 모집을 안내하고 시간 입력 없이 출발 기준으로 보낸다', async () => {
     render(<RequestForm {...props} />)
     fireEvent.click(screen.getByRole('button', { name: '즉시', exact: true }))
-    expect(screen.getByText('지금부터 25분 뒤 출발 가능')).toBeTruthy()
+    expect(screen.getByText(/5분 동안 같이 탈 사람을 찾아요/)).toBeTruthy()
+    expect(screen.queryByLabelText('출발 가능 시작')).toBeNull()
+    expect(screen.queryByRole('group',{name:'시간 기준'})).toBeNull()
     await chooseOrigin(); await chooseDestination()
     fireEvent.click((await screen.findAllByRole('checkbox'))[0])
-    await waitFor(() => expect(api.previewRequest).toHaveBeenCalledWith(expect.objectContaining({ mode: 'INSTANT' })))
+    await waitFor(() => expect(api.previewRequest).toHaveBeenCalledWith(expect.objectContaining({ mode: 'INSTANT',timeBasis:'DEPART' })))
+    const body=api.previewRequest.mock.calls.at(-1)[0]
+    expect(body).not.toHaveProperty('windowStart');expect(body).not.toHaveProperty('windowEnd');expect(body).not.toHaveProperty('arriveBy')
   })
 
   it('도착 기준은 허용 10분을 기본으로 하고 출발 범위를 보내지 않는다', async () => {
@@ -87,5 +91,25 @@ describe('새 탑승 요청', () => {
     expect(screen.queryByText('약 16,800원, 30분')).toBeNull()
     expect(screen.getByRole('button', { name: '일행 찾기' }).disabled).toBe(true)
     expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
+  })
+
+  it('즉시로 바꾸면 5분 초과 지점은 선택할 수 없고 제출 목록에서도 빠진다',async()=>{
+    api.nearbyPoints.mockResolvedValue([{id:1,name:'가까운 지점',walkSeconds:300,walkEstimated:true},{id:2,name:'먼 지점',walkSeconds:360,walkEstimated:true}])
+    render(<RequestForm {...props} />)
+    await chooseOrigin();await chooseDestination()
+    const choices=await screen.findAllByRole('checkbox')
+    fireEvent.click(choices[0]);fireEvent.click(choices[1])
+    fireEvent.click(screen.getByRole('button',{name:'즉시',exact:true}))
+    expect(choices[0].disabled).toBe(false);expect(choices[1].disabled).toBe(true);expect(choices[1].checked).toBe(false)
+    await waitFor(()=>expect(api.previewRequest).toHaveBeenLastCalledWith(expect.objectContaining({mode:'INSTANT',pointIds:[1]})))
+    expect(screen.getByText('즉시 선택 불가')).toBeTruthy()
+  })
+  it('도착 기준을 고른 뒤 즉시로 바꿔도 도착 기준을 보내지 않는다',async()=>{
+    render(<RequestForm {...props} schoolDestination />)
+    await chooseOrigin();fireEvent.click((await screen.findAllByRole('checkbox'))[0])
+    fireEvent.click(screen.getByRole('button',{name:'즉시',exact:true}))
+    expect(screen.queryByLabelText('늦어도 도착 시각')).toBeNull()
+    await waitFor(()=>expect(api.previewRequest).toHaveBeenLastCalledWith(expect.objectContaining({mode:'INSTANT',timeBasis:'DEPART'})))
+    expect(api.previewRequest.mock.calls.at(-1)[0]).not.toHaveProperty('arriveBy')
   })
 })

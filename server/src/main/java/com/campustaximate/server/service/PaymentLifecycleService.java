@@ -51,7 +51,7 @@ public class PaymentLifecycleService {
                     if(order.getExcludedAt()!=null) {ids.add(order.getRequestId());continue;}
                     if(order.getMemberId().equals(party.getPayer().getId()) || order.getStatus()==PaymentStatus.APPROVED) continue;
                     boolean pending=order.getPaymentKey()!=null && !"FAILED".equals(order.getGatewayStatus());
-                    if(pending && clock.now().isBefore(party.getDepartureAt().minusSeconds(600))) continue;
+                    if(pending && clock.now().isBefore(party.paymentCheckUntil())) continue;
                     order.setStatus(PaymentStatus.EXPIRED); order.setExcludedAt(clock.now()); ids.add(order.getRequestId());
                 }
                 return ids;

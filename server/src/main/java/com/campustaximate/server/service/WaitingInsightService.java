@@ -77,6 +77,7 @@ public class WaitingInsightService {
         if (me.getTimeBasis() == TimeBasis.ARRIVE) {
             return !other.earliestArrival().isAfter(me.getArriveBy()) && !me.earliestArrival().isAfter(other.getArriveBy());
         }
+        if(me.getMode()==RequestMode.INSTANT || other.getMode()==RequestMode.INSTANT) return true;
         return !other.getWindowStart().isAfter(me.getWindowEnd()) && !me.getWindowStart().isAfter(other.getWindowEnd());
     }
 

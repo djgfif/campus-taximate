@@ -38,6 +38,7 @@ final class RouteGroupVerifier implements GroupVerifier {
     private final Map<RouteKey, VerifiedRoutes> verified = new HashMap<>();
     private final Map<Long, GeoPoint> origins;
     private final Instant slot;
+    private final MatchingSettings settings;
     private final RoutePathStore paths;
     private final Map<Long, Long> requestFares;
 
@@ -62,6 +63,12 @@ final class RouteGroupVerifier implements GroupVerifier {
 
     RouteGroupVerifier(RouteClient routes, Map<List<Long>, Instant> rejected, Instant now, RoutePathStore paths,
                        Map<Long, Long> requestFares, Map<Long, GeoPoint> origins, Instant slot) {
+        this(routes,rejected,now,paths,requestFares,origins,slot,MatchingSettings.everyMinute());
+    }
+
+    RouteGroupVerifier(RouteClient routes, Map<List<Long>,Instant> rejected, Instant now, RoutePathStore paths,
+                       Map<Long,Long> requestFares, Map<Long,GeoPoint> origins, Instant slot,MatchingSettings settings) {
+        this.settings=settings;
         this.origins = origins;
         this.slot = slot;
         this.requestFares = requestFares;
@@ -110,7 +117,9 @@ final class RouteGroupVerifier implements GroupVerifier {
         List<GeoPoint> stops = GeoPoint.mergeStops(order.stream().map(MatchRequest::own).toList());
         Instant departure = candidate.departure();
         if (departure == null) departure = slot.plusSeconds(MatchingSettings.everyMinute().leadMinutes() * 60L);
-        Instant minimum = slot.plusSeconds(MatchingSettings.everyMinute().leadMinutes() * 60L);
+        boolean instant=order.stream().anyMatch(MatchRequest::instant);
+        Instant minimum=instant?TripPlan.of(Direction.FROM_HUB,settings).schedule(order,java.util.Collections.nCopies(order.size(),0),slot).departure():slot.plusSeconds(settings.leadMinutes()*60L);
+        if(minimum==null || instant&&order.stream().anyMatch(MatchRequest::arrival)) return reject(candidate);
         List<Integer> seconds = new ArrayList<>();
         List<RouteClient.Route> solo = new ArrayList<>();
         RouteClient.Route full = null;
@@ -146,7 +155,7 @@ final class RouteGroupVerifier implements GroupVerifier {
                 } else if (order.stream().anyMatch(r -> r.arrival())) {
                     return reject(candidate);
                 } else {
-                    for (MatchRequest rider : order) if (!rider.canDepartAt(departure)) return reject(candidate);
+                    for (MatchRequest rider : order) if (!rider.instant() && !rider.canDepartAt(departure)) return reject(candidate);
                 }
                 fits = true;
                 break;
