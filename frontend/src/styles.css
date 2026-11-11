@@ -405,14 +405,73 @@ button.item:active { opacity: 0.6; }
 .report-reasons input { width: 20px; height: 20px; accent-color: var(--ink); }
 .field textarea { min-height: 100px; padding: 12px 14px; resize: vertical; }
 
-/* 일행 채팅 */
-.chat-messages { list-style: none; padding: 0; margin: 0 0 16px; max-height: 360px; overflow-y: auto; }
-.chat-messages li { padding: 12px; margin: 8px 0; border: 1px solid var(--line, #d8dce2); border-radius: 8px; }
-.chat-messages li.mine { background: var(--soft, #f1f4f6); }
-.chat-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.chat-meta time { font-size: 12px; }
-.chat-meta .btn { width: auto; margin: 0 0 0 auto; }
-.chat-messages p { white-space: pre-wrap; overflow-wrap: anywhere; margin: 8px 0 0; }
-.chat-phrases { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-.chat-phrases .btn { width: auto; margin: 0; }
-.party-chat textarea { min-height: 80px; }
+/* 일행 채팅: 안개색 바닥 위에 말풍선. 내 말은 호박색, 상대 말은 흰색 */
+.chat-box { position: relative; }
+.chat-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 160px;
+  max-height: 360px;
+  padding: 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: 14px;
+  background: var(--mist);
+}
+/* 메시지가 적을 때는 아래쪽에 붙인다. flex-end는 넘칠 때 위가 잘려서 쓰지 않는다. */
+.chat-messages > li:first-child { margin-top: auto; }
+.chat-messages li { display: flex; flex-direction: column; max-width: 82%; }
+.chat-messages li.head:not(:first-child) { margin-top: 10px; }
+.chat-messages li.mine { align-self: flex-end; align-items: flex-end; }
+.chat-messages li.theirs { align-self: flex-start; align-items: flex-start; }
+.chat-messages li.chat-empty { margin: auto; align-self: center; max-width: none; color: var(--road); font-size: 14px; text-align: center; }
+.chat-name { margin: 0 4px 3px; font-size: 12px; font-weight: 700; color: var(--road); }
+.chat-line { display: flex; align-items: flex-end; gap: 6px; }
+.bubble { padding: 9px 13px; border-radius: 16px; font-size: 15px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.theirs .bubble { background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); }
+.mine .bubble { background: var(--amber); color: var(--ink); }
+.theirs.head .bubble { border-top-left-radius: 4px; }
+.mine.head .bubble { border-top-right-radius: 4px; }
+.chat-line time { flex: none; font-size: 11px; color: var(--road); white-space: nowrap; }
+/* 글자는 작게, 누르는 영역은 넓게 */
+.chat-report { flex: none; margin: -10px -4px; padding: 10px 6px; font-size: 11px; color: var(--road); opacity: 0.7; }
+.chat-report:active { opacity: 1; }
+.chat-new {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.chat-form { display: flex; flex-direction: column; gap: 8px; }
+.chat-phrases { display: flex; flex-wrap: nowrap; gap: 8px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.chat-phrases::-webkit-scrollbar { display: none; }
+.chat-phrases .btn { width: auto; flex: none; min-height: 36px; padding: 0 12px; border-radius: 999px; font-size: 13px; white-space: nowrap; }
+.chat-compose { display: flex; align-items: flex-end; gap: 8px; }
+.chat-compose textarea {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  max-height: 120px;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--mist);
+  font-size: 16px; /* iOS가 입력창을 확대하지 않는 최소 크기 */
+  line-height: 1.4;
+  resize: none;
+  outline: 2px solid transparent;
+  transition: outline-color 0.12s, background-color 0.12s;
+}
+.chat-compose textarea:focus { outline-color: var(--ink); background: var(--paper); }
+.chat-send { width: 48px; height: 48px; flex: none; display: grid; place-items: center; border-radius: 14px; background: var(--amber); color: var(--ink); transition: transform 0.12s var(--ease); }
+.chat-send:active:not(:disabled) { transform: scale(0.96); }
+.chat-send:disabled { background: var(--mist); color: #8d94a3; cursor: default; }
+.chat-count { align-self: flex-end; font-size: 12px; color: var(--road); }
