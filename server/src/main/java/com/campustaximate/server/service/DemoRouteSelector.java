@@ -10,6 +10,9 @@ public class DemoRouteSelector {
     private final RouteClient routes;private final MatchingSettings settings;private final AppClock clock;
     public boolean realRoutes(){return !routes.simulated();}
     public List<GeoPoint> select(MatchRequest mine,long soloFare,GeoPoint origin,List<Long> memberIds){
+        return select(mine,soloFare,origin,memberIds,false);
+    }
+    public List<GeoPoint> select(MatchRequest mine,long soloFare,GeoPoint origin,List<Long> memberIds,boolean passenger){
         Instant slot=mine.instant()?AppClock.nextMinuteAfter(clock.now()):AppClock.slotOf(clock.now());
         var plan=TripPlan.of(mine.direction(),settings);var initial=plan.schedule(List.of(mine),List.of(mine.soloSeconds()),slot);
         if(!initial.ok())throw ApiException.conflict("DEMO_ROUTE_NOT_FOUND","요청 시간에 맞는 시연 경로를 찾지 못했어요.");
@@ -23,7 +26,13 @@ public class DemoRouteSelector {
         Map<Long,Long> fares=new HashMap<>();fares.put(mine.id(),soloFare);Map<Long,GeoPoint> origins=new HashMap<>();origins.put(mine.id(),origin);
         for(int index=0;index<memberIds.size();index++){
             boolean found=false;
-            for(GeoPoint point:choices.stream().distinct().toList())try{
+            List<GeoPoint> points=new ArrayList<>();
+            if(passenger && index==0) {
+                DataSeeder.SAMPLE_DROPOFFS.forEach(p->points.add(new GeoPoint(p.lat(),p.lon())));
+                for(double ratio:new double[]{1.12,1.25,1.5}) points.add(new GeoPoint(mine.anchor().lat()+(mine.own().lat()-mine.anchor().lat())*ratio,mine.anchor().lon()+(mine.own().lon()-mine.anchor().lon())*ratio));
+                points.removeIf(p->mine.anchor().distanceKm(p)<=mine.anchor().distanceKm(mine.own())+0.05);
+            } else points.addAll(choices);
+            for(GeoPoint point:points.stream().distinct().toList())try{
                 var solo=routes.routeAt(mine.anchor(),List.of(point),at);long id=Long.MAX_VALUE-index;
                 MatchRequest sample=new MatchRequest(id,memberIds.get(index),mine.direction(),mine.anchorId(),mine.anchor(),mine.gender(),
                     mine.windowStart(),mine.windowEnd(),mine.arriveBy(),mine.arrival()?mine.arriveBy().minusSeconds(solo.seconds()+(settings.leadMinutes()+35)*60L):mine.deadlineSlot(),
@@ -34,6 +43,8 @@ public class DemoRouteSelector {
                     var leg=routes.routeAt(from.own(),List.of(to.own()),at);return Optional.of(new RoadLeg(leg.km(),leg.seconds()));
                 },slot);
                 if(candidate.isEmpty())continue;
+                long expectedPayer=passenger?memberIds.getFirst():mine.memberId();
+                if(candidate.get().order().getLast().memberId()!=expectedPayer)continue;
                 fares.put(id,solo.fare());origins.put(id,mine.anchor());
                 var verifier=new RouteGroupVerifier(routes,new HashMap<>(),clock.now(),null,fares,origins,slot,settings);
                 if(verifier.check(candidate.get()).verdict()!=Verdict.PASS)continue;

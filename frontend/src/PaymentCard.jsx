@@ -7,7 +7,7 @@ import { Btn, Rows, Say } from './ui.jsx'
 export function PaymentRecord({ order }) {
   const refundPending = Math.max(0, (order.refundRequestedAmount || 0) - (order.refundedAmount || 0))
   return <Rows items={[
-    ['주문 금액', won(order.amount)], ['승인 금액', won(order.approvedAmount || 0)],
+    ['주문 금액', won(order.amount)], ['결제한 금액', order.approvedAmount > 0 ? won(order.approvedAmount) : '아직 결제 전'],
     order.deadlineAt && ['결제 기한', formatDateTime(order.deadlineAt)],
     ['결제 상태', ({ REQUIRED: '결제 대기', PROCESSING: '확인 중', APPROVED: '승인 완료', EXPIRED: '기한 종료', OVERDUE: '추가 결제 기한 지남', ADMIN_REQUIRED: '관리자 확인 필요' })[order.status] || '상태 확인 중'],
     order.refundedAmount > 0 && ['환불 처리 금액', won(order.refundedAmount)],
@@ -43,7 +43,7 @@ export default function PaymentCard({ partyId, purpose = 'PREPAY', myId, now, co
   }
   return <section className="payment-card" aria-label={extra ? '추가 결제' : '선결제'}>
     <h2>{extra ? '추가 결제' : '선결제'}{order ? ' ' + won(order.amount) : ''}</h2>
-    {!extra && <p>확정 당시 예상 분담금의 115%를 미리 결제해요.</p>}
+    {!extra && <p>처음 안내된 내 몫의 115%를 미리 결제해요.</p>}
     {!order && !error && <p role="status">주문을 확인하고 있어요.</p>}
     {order && <>
       <p>기한 {formatDateTime(order.deadlineAt)}</p>
@@ -56,8 +56,8 @@ export default function PaymentCard({ partyId, purpose = 'PREPAY', myId, now, co
       {extra && late && order.status !== 'APPROVED' && <Say tone="stop-tone">추가 결제 기한이 지났어요. 결제를 마치면 새 요청 제한이 풀려요.</Say>}
       {(order.refundRequestedAmount > 0 || order.refundedAmount > 0) && <p className="note">환불은 카드사에 반영되기까지 3~4영업일 정도 걸려요.</p>}
       {payable && (clientKey ? <Btn onClick={() => pay(false)}>카드로 결제하기</Btn> : <>
-        <Say>결제 테스트 키 없음</Say>
-        {config?.demo && order.simulated && <Btn onClick={() => pay(true)}>모의 결제로 승인하기</Btn>}
+        <Say>카드 결제를 준비하지 못했어요. 잠시 뒤 다시 확인해 주세요.</Say>
+        {config?.demo && order.simulated && <Btn onClick={() => pay(true)}>시연 결제하기</Btn>}
       </>)}
     </>}
     {error && <p role="alert">{error}</p>}

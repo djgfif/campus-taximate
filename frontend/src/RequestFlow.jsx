@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { api } from './api.js'
 import MapPicker, { searchPlaces } from './MapPicker.jsx'
 import MapView from './MapView.jsx'
+import RequestTimePicker from './RequestTimePicker.jsx'
 import { formatDateTime, formatTime, requestTimeOptions, won } from './format.js'
 import { BackBar, Btn, Chips, Rows, Say, Screen } from './ui.jsx'
 
@@ -97,11 +98,13 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
   const chosenStart = options.includes(start) ? start : options[0]
   const arrivals = requestTimeOptions(now, 30)
   const chosenArrival = arrivals.includes(arrival) ? arrival : arrivals[Math.min(30, arrivals.length - 1)]
+  const maxWindow = chosenStart ? Math.min(60, (new Date(options.at(-1)) - new Date(chosenStart)) / 60000) : 0
+  const chosenLength = Math.min(endLength, maxWindow)
   const ready = origin.point && origin.name.trim() && destination.point && destination.name.trim() && selected.length > 0 && (instant || chosenStart && chosenArrival)
   const body = ready ? {
     direction: 'FROM_HUB', mode, timeBasis: effectiveBasis, origin: { ...origin.point, name: origin.name }, pointIds: selected,
     pointName: destination.name, pointLat: destination.point.lat, pointLon: destination.point.lon, memo,
-    ...(instant ? {} : basis === 'DEPART' ? { windowStart: chosenStart, windowEnd: new Date(new Date(chosenStart).getTime() + endLength * 60000).toISOString() }
+    ...(instant ? {} : basis === 'DEPART' ? { windowStart: chosenStart, windowEnd: new Date(new Date(chosenStart).getTime() + chosenLength * 60000).toISOString() }
       : { arriveBy: chosenArrival, earlyArrivalMinutes: early }),
   } : null
   const preview = usePreview(body)
@@ -131,11 +134,11 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
       {!instant && <>
       <Chips label="시간 기준" value={basis} onChange={setBasis} options={[{ value: 'DEPART', label: '출발 기준' }, { value: 'ARRIVE', label: '도착 기준' }]} />
       {basis === 'DEPART' ? <>
-        <label className="field">출발 가능 시작<select value={chosenStart || ''} onChange={(e) => setStart(e.target.value)}>{options.map((t) => <option key={t} value={t}>{formatDateTime(t)}</option>)}</select></label>
-        <label className="field">출발 가능 범위<select value={endLength} onChange={(e) => setEndLength(Number(e.target.value))}>{Array.from({ length: 13 }, (_, i) => i * 5).map((m) => <option key={m} value={m}>{m}분</option>)}</select></label>
-        {chosenStart && <p className="sub">{formatTime(chosenStart)} ~ {formatTime(new Date(chosenStart).getTime() + endLength * 60000)}</p>}
+        <RequestTimePicker label="출발 가능 시작" options={options} value={chosenStart} now={now} onChange={setStart} />
+        <label className="field">출발 가능 범위<select value={chosenLength} onChange={(e) => setEndLength(Number(e.target.value))}>{Array.from({ length: 13 }, (_, i) => i * 5).filter((m) => m <= maxWindow).map((m) => <option key={m} value={m}>{m}분</option>)}</select></label>
+        {chosenStart && <p className="sub">{formatTime(chosenStart)} ~ {formatTime(new Date(chosenStart).getTime() + chosenLength * 60000)}</p>}
       </> : <>
-        <label className="field">늦어도 도착 시각<select value={chosenArrival || ''} onChange={(e) => setArrival(e.target.value)}>{arrivals.map((t) => <option key={t} value={t}>{formatDateTime(t)}</option>)}</select></label>
+        <RequestTimePicker label="늦어도 도착 시각" options={arrivals} value={chosenArrival} now={now} onChange={setArrival} />
         <Chips label="일찍 도착 허용" value={early} onChange={setEarly} options={[0, 5, 10, 15].map((m) => ({ value: m, label: m + '분' }))} />
       </>}
       <p className="note">예약은 다음 날 23시 59분까지, 시간은 5분 단위로 골라 주세요.</p>

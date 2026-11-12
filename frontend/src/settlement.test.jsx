@@ -17,7 +17,7 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks() })
 
 describe('새 정산 화면', () => {
-  it('정산 확정 뒤 환불·추가 결제·모의 지급을 서버 기록대로 표시한다', () => {
+  it('정산 확정 뒤 환불·추가 결제·앱 정산 기록상 받을 돈(실제 송금 없음)을 서버 기록대로 표시한다', () => {
     const payments = [
       { orderId: 'p1', purpose: 'PREPAY', amount: 3680, approvedAmount: 3680, refundedAmount: 480, refundRequestedAmount: 480, status: 'APPROVED' },
       { orderId: 'a1', purpose: 'ADDITIONAL', amount: 892, approvedAmount: 0, refundedAmount: 0, status: 'REQUIRED', deadlineAt: '2026-11-12T00:00:00Z', simulated: true },
@@ -27,7 +27,7 @@ describe('새 정산 화면', () => {
     expect(within(screen.getByRole('region', { name: '선결제 기록' })).getByText('480원')).toBeTruthy()
     expect(screen.getByText('환불은 카드 반영까지 3~4영업일 정도 걸려요.')).toBeTruthy()
     expect(screen.getByRole('heading', { name: '추가 결제 892원' })).toBeTruthy()
-    expect(screen.getByText('모의 지급 8,800원')).toBeTruthy()
+    expect(screen.getByText('앱 정산 기록상 받을 돈(실제 송금 없음) 8,800원')).toBeTruthy()
     expect(screen.getByText('실제 송금 없음')).toBeTruthy()
     expect(screen.queryByRole('button', { name: /^(보냄|받음)$/ })).toBeNull()
     expect(screen.queryByRole('button', { name: '요금 이의', exact: true })).toBeNull()
@@ -54,7 +54,7 @@ describe('새 정산 화면', () => {
   it('관리자 검토 중에는 금액 수정 버튼을 제공하지 않는다', () => {
     render(<SettlementScreen party={{ ...party, status: 'REVIEW_PENDING' }} myId={3} now={now} onCorrect={() => {}} />)
     expect(screen.getByRole('heading', { name: '관리자 검토 중' })).toBeTruthy()
-    expect(screen.getByText('요금 이의가 있어 관리자 검토 중이에요. 아직 환불·추가 결제·모의 지급을 진행하지 않아요.')).toBeTruthy()
+    expect(screen.getByText('요금 이의가 있어 관리자 검토 중이에요. 환불과 추가 결제, 받을 돈의 정산을 보류해요.')).toBeTruthy()
     expect(screen.queryByRole('button', { name: '금액 고치기' })).toBeNull()
   })
 
@@ -80,9 +80,9 @@ describe('새 정산 화면', () => {
     expect(sent).not.toHaveBeenCalled(); expect(received).not.toHaveBeenCalled()
   })
 
-  it('확정 전에는 모의 지급을 실제 지급으로 표현하지 않는다', () => {
+  it('확정 전에는 앱 정산 기록상 받을 돈(실제 송금 없음)을 실제 지급으로 표현하지 않는다', () => {
     render(<FinancialDetails party={party} />)
-    expect(screen.queryByText(/모의 지급/)).toBeNull()
+    expect(screen.queryByText(/앱 정산 기록상 받을 돈(실제 송금 없음)/)).toBeNull()
     expect(screen.getAllByText('3,200원')).toHaveLength(2)
   })
 })
@@ -102,12 +102,12 @@ describe('일행 상태', () => {
 })
 
 describe('이용 내역의 결제 기록', () => {
-  it('선택한 일행 상세에서 환불과 모의 지급 기록을 읽는다', async () => {
+  it('선택한 일행 상세에서 환불과 앱 정산 기록상 받을 돈(실제 송금 없음) 기록을 읽는다', async () => {
     vi.spyOn(api, 'history').mockResolvedValue([{ id: 101, stage: 'SETTLED', direction: 'FROM_HUB', anchorName: '정문', pointName: '역전', windowStart: now, partyId: 11, partyIds: [11], soloFare: 6000, paid: 3200 }])
     vi.spyOn(api, 'fareAccuracy').mockResolvedValue({ settled: 1, within: 1 })
     const detail = vi.spyOn(api, 'party').mockResolvedValue({ ...party, payer: true, status: 'COMPLETED', settlement: { ...party.settlement, finalizedAt: now, mockPayoutAmount: 8800, payments: [{ orderId: 'history-prepay', purpose: 'PREPAY', status: 'APPROVED', amount: 3680, approvedAmount: 3680, refundedAmount: 480, refundRequestedAmount: 480 }] } })
     render(<History onBack={() => {}} />)
-    await screen.findByText('모의 지급 8,800원')
+    await screen.findByText('앱 정산 기록상 받을 돈(실제 송금 없음) 8,800원')
     expect(detail).toHaveBeenCalledWith(11)
     const records = screen.getByRole('region', { name: '결제·환불 기록' })
     expect(within(records).getByText('480원')).toBeTruthy()

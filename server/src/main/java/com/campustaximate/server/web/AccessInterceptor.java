@@ -22,6 +22,8 @@ public class AccessInterceptor implements HandlerInterceptor {
         if (PUBLIC_PATHS.contains(request.getRequestURI())) {
             return true;
         }
+        if(request.getRequestURI().equals("/api/demo/login") && handler instanceof org.springframework.web.method.HandlerMethod method
+                && method.getBeanType()==DemoController.class) return true;
         HttpSession session = request.getSession(false);
         if (session == null || session.getAttribute(LoginTokenFilter.SESSION_KEY) == null) {
             throw ApiException.unauthorized();

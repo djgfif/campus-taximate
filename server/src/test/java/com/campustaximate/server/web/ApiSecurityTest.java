@@ -35,7 +35,8 @@ class ApiSecurityTest {
         List<String> checked = new ArrayList<>();
         for (var info : mappings.getHandlerMethods().keySet()) {
             for (String pattern : info.getPatternValues()) {
-                if (!pattern.startsWith("/api/") || AccessInterceptor.PUBLIC_PATHS.contains(pattern)) {
+                // 시연 계정 빠른 로그인은 demo 프로필의 DemoController에서만 열린다(DemoProfileIsolationTest가 운영 거절을 확인).
+                if (!pattern.startsWith("/api/") || AccessInterceptor.PUBLIC_PATHS.contains(pattern) || pattern.equals("/api/demo/login")) {
                     continue;
                 }
                 String path = pattern.replaceAll("\\{[^}]+}", "1");

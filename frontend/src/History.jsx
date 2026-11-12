@@ -60,15 +60,15 @@ function Detail({ item }) {
   )
 }
 
-export default function History({ onBack }) {
+export default function History({ onBack, admin = false }) {
   const [items, setItems] = useState(null)
   const [selectedId, setSelectedId] = useState(null)
   const [accuracy, setAccuracy] = useState(null)
   const wide = useWide()
   useEffect(() => {
     api.history().then(setItems).catch(() => setItems([]))
-    api.fareAccuracy().then(setAccuracy).catch(() => setAccuracy(null))
-  }, [])
+    if (admin) api.fareAccuracy().then(setAccuracy).catch(() => setAccuracy(null))
+  }, [admin])
   const saved = savedTotal(items || [])
   const selected = items?.find((item) => item.id === selectedId) || items?.[0]
   return (
@@ -85,8 +85,8 @@ export default function History({ onBack }) {
       {items?.length > 0 && (
         <div className="block">
           {saved > 0 && <p className="sub">지금까지 {won(saved)} 아꼈어요</p>}
-          {accuracy?.settled > 0 && (
-            <p className="note">전체 정산 {accuracy.settled}건 중 {accuracy.within}건이 예상 요금의 15% 이내였어요.</p>
+          {admin && accuracy?.settled > 0 && (
+            <section aria-label="관리자 요금 통계"><h2 className="block-title">관리자 요금 통계</h2><p className="note">전체 정산 {accuracy.settled}건 중 {accuracy.within}건이 예상 요금의 15% 이내였어요.</p></section>
           )}
           <div className="list">
             {items.map((item) => (

@@ -6,6 +6,7 @@ import ProfileScreen from './ProfileScreen.jsx'
 import PasswordScreen from './PasswordScreen.jsx'
 import History from './History.jsx'
 import DemoBar from './DemoBar.jsx'
+import DemoAccounts from './DemoAccounts.jsx'
 import Home from './Home.jsx'
 import { HomeRequest, SchoolRequest } from './RequestFlow.jsx'
 import { PartyDetail, PartyScreen } from './PartyScreens.jsx'
@@ -170,10 +171,10 @@ export default function App() {
         <>
           {wide && <Nav tab={tab} onTab={setTab} onMenu={openMenu} />}
           {offline && <Say tone="stop-tone">연결이 끊겼습니다. 다시 연결하는 중입니다.</Say>}
-          {config?.simulatedRoute && <Say tone="calm">모의 경로로 동작 중입니다. 금액과 시간은 실제 값이 아닙니다.</Say>}
+          {config?.simulatedRoute && <Say tone="calm">시연용 경로예요. 금액과 시간은 실제 값이 아닙니다.</Say>}
           {paymentReturn && <PaymentResult key={me.id + location.search} search={location.search} myId={me.id} onUpdated={refresh}
             onReturn={(id) => navigate(id ? `/parties/${id}` : '/', { replace: true })} />}
-          {!paymentReturn && tab === 'history' && <History onBack={() => setTab('home')} />}
+          {!paymentReturn && tab === 'history' && <History admin={me.admin} onBack={() => setTab('home')} />}
           {!paymentReturn && tab === 'home' && !state && <LoadingScreen />}
           {!paymentReturn && tab === 'home' && state && (
             <Flow state={state} config={config} myId={me.id} run={run} refresh={refresh} onMenu={openMenu} onPush={togglePush} pushOn={pushOn} onHistory={() => setTab('history')} />
@@ -182,6 +183,7 @@ export default function App() {
           {menu && (
             <Sheet title={me.nickname} className="pop" onClose={() => setMenu(false)}>
               <p className="sub">{me.email}</p>
+              {config?.demo && <DemoAccounts onLogin={async () => { session.current += 1; setState(null); setResetting(false); setMenu(false); navigate('/'); setMe(await api.me()) }} />}
               <div className="list">
                 <Item title="이용 내역" onClick={() => { setMenu(false); setTab('history') }} />
                 {pushSupported() && <Item title={pushOn ? '알림 끄기' : '알림 받기'} detail="앱을 닫아도 확정과 승차 안내를 받아요" onClick={togglePush} />}
@@ -239,7 +241,7 @@ function Flow({ state, config, myId, run, refresh, onMenu, onHistory, onPush, pu
     return <PartyScreen party={party} now={state.now} myId={myId} config={config} run={run} onUpdated={refresh} onMenu={onMenu}
       onDetail={() => navigate('/parties/' + party.id + '?detail=1')} onHome={home} />
   }
-  if (latest?.status === 'WAITING') return <Waiting latest={latest} config={config} run={run} onMenu={onMenu} onPush={pushOn ? null : onPush} />
+  if (latest?.status === 'WAITING') return <Waiting latest={latest} now={state.now} config={config} run={run} onMenu={onMenu} onPush={pushOn ? null : onPush} />
   if (requestPath && !state.restricted) {
     const Request = requestPath === 'school' ? SchoolRequest : HomeRequest
     return <Request initial={location.state?.initial} config={config} now={state.now} run={run} onClose={() => navigate('/', { replace: true })} />

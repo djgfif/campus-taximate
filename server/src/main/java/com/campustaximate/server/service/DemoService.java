@@ -39,32 +39,43 @@ public class DemoService {
     private final com.campustaximate.server.repository.PaymentOrderRepository paymentOrders;
     private final WaitingInsightService insights;
     private final DemoRouteSelector demoRoutes;
+    private final PartyChatService chat;
+    private final org.springframework.core.env.Environment environment;
 
     @Value("${app.demo.enabled}")
     private boolean enabled;
 
     public boolean enabled() {
-        return enabled;
+        return enabled && environment.acceptsProfiles(org.springframework.core.env.Profiles.of("demo"));
     }
 
     public record MatchOutcome(RequestStatus status, String message) {
     }
 
     /** 내 요청에 맞는 샘플을 만들고, 일행이 정해질 때까지 슬롯을 차례로 돌린다. */
-    public MatchOutcome matchNow(long memberId) {
+    public enum Role { PAYER, PASSENGER }
+
+    public MatchOutcome matchNow(long memberId) { return matchNow(memberId, Role.PAYER); }
+
+    public MatchOutcome matchNow(long memberId, Role role) {
         requireEnabled();
         RideRequest mine = requests.findByActiveMemberId(memberId)
                 .filter(r -> r.getStatus() == RequestStatus.WAITING)
                 .orElseThrow(() -> ApiException.conflict("NO_WAITING_REQUEST", "탑승 요청을 먼저 만들어 주세요."));
         if (insights.of(mine.getId()).sameDirection() == 0) {
-            addSamples(memberId, 2);
+            addSamples(memberId, 2, role);
         }
         for (int i = 0; i < MAX_MATCH_SLOTS; i++) {
             advance(mine.getMode()==com.campustaximate.server.domain.RequestMode.INSTANT?1:5);
             RequestStatus status = requests.findById(mine.getId()).orElseThrow().getStatus();
             if (status != RequestStatus.WAITING) {
-                return new MatchOutcome(status, status == RequestStatus.MATCHED
-                        ? "일행이 만들어졌습니다." : "조건이 맞는 일행이 없어 미성사로 끝났습니다.");
+                if(status==RequestStatus.MATCHED) {
+                    var party=partyService.openParties(memberId).getFirst();
+                    sampleChat(memberId,party,"승차 지점 앞에서 봬요");
+                    if(party.payer()!=(role==Role.PAYER)) throw ApiException.conflict("DEMO_ROLE_MISMATCH","기존 대기 요청과 매칭되어 선택한 역할과 달라요. 현재 일행의 역할을 확인해 주세요.");
+                    return new MatchOutcome(status,party.payer()?"일행이 만들어졌어요. 내가 결제자예요.":"일행이 만들어졌어요. 나는 일행원이에요. 선결제를 체험해 보세요.");
+                }
+                return new MatchOutcome(status,"조건이 맞는 일행이 없어 미성사로 끝났습니다.");
             }
         }
         return new MatchOutcome(RequestStatus.WAITING, "아직 일행이 정해지지 않았습니다.");
@@ -99,8 +110,11 @@ public class DemoService {
     }
 
     /** 로그인한 사람과 같은 성별의 시연 계정으로 샘플 요청을 만든다. */
-    public int addSamples(long memberId, int count) {
+    public int addSamples(long memberId, int count) { return addSamples(memberId,count,Role.PAYER); }
+
+    public int addSamples(long memberId, int count, Role role) {
         requireEnabled();
+        if(count<1 || count>3) throw ApiException.badRequest("INVALID_COUNT","샘플은 1~3명만 만들 수 있어요.");
         Member me = members.findById(memberId).orElseThrow(ApiException::unauthorized);
         Hub hub = hubs.findBySchool(me.getSchool().getId()).get(0);
         RideRequest mine = requests.findByActiveMemberId(memberId).flatMap(r->requests.findById(r.getId())).orElse(null);
@@ -117,9 +131,11 @@ public class DemoService {
                 .filter(m -> !rideRequests.isRestricted(m.getId()))
                 .limit(count)
                 .toList();
-        List<GeoPoint> checked=mine!=null && direction==Direction.FROM_HUB && demoRoutes.realRoutes()
+        if(role==Role.PASSENGER && direction!=Direction.FROM_HUB) throw ApiException.conflict("DEMO_COMMON_PICKUP_REQUIRED","공동 승차 요청에서 선결제를 체험해 주세요.");
+        if(role==Role.PASSENGER && samples.isEmpty()) throw ApiException.conflict("DEMO_NO_SAMPLES","사용 가능한 시연 계정이 없어요. 다른 계정의 진행 중 요청을 먼저 마쳐 주세요.");
+        List<GeoPoint> checked=mine!=null && direction==Direction.FROM_HUB && (demoRoutes.realRoutes() || role==Role.PASSENGER)
                 ?demoRoutes.select(SlotService.toEngine(mine).stream().filter(m->m.anchorId()==mine.getHub().getId()).findFirst().orElseThrow(),
-                    mine.getSoloFare(),mine.origin(),samples.stream().map(Member::getId).toList()):List.of();
+                    mine.getSoloFare(),mine.origin(),samples.stream().map(Member::getId).toList(),role==Role.PASSENGER):List.of();
         for (int i = 0; i < samples.size(); i++) {
             DataSeeder.Dropoff dropoff = DataSeeder.SAMPLE_DROPOFFS.get(i % DataSeeder.SAMPLE_DROPOFFS.size());
             String memo = SAMPLE_MEMOS.get(i % SAMPLE_MEMOS.size());
@@ -161,6 +177,7 @@ public class DemoService {
                 for (var order : paymentOrders.findByPartyIdOrderById(party.id())) {
                     if (isSample(order.getMemberId(), memberId) && order.getStatus() == com.campustaximate.server.domain.PaymentStatus.REQUIRED) {
                         payments.confirm(order.getMemberId(), order.getOrderId(), "demo_" + order.getOrderId(), order.getAmount());
+                        chat.send(order.getMemberId(),party.id(),"결제했어요");
                     }
                 }
             }
@@ -173,6 +190,7 @@ public class DemoService {
                     partyService.board(rider.memberId(), party.id());
                 } else {
                     partyService.arrive(rider.memberId(), party.id());
+                    chat.send(rider.memberId(),party.id(),"도착했어요, "+rider.memo()+"예요");
                 }
             }
             PartyService.PartyView payerView = isSample(party.payerId(), memberId)
@@ -198,12 +216,17 @@ public class DemoService {
         }
     }
 
+    public void sampleChat(long memberId,PartyService.PartyView party,String text) {
+        requireEnabled();
+        party.members().stream().filter(m->isSample(m.memberId(),memberId)).findFirst().ifPresent(m->chat.send(m.memberId(),party.id(),text));
+    }
+
     private boolean isSample(long id, long memberId) {
         return id != memberId && members.findById(id).map(m -> DataSeeder.isSeededDemo(m.getEmail())).orElse(false);
     }
 
-    private void requireEnabled() {
-        if (!enabled) {
+    public void requireEnabled() {
+        if (!enabled()) {
             throw ApiException.notFound("시연 모드가 꺼져 있습니다.");
         }
     }

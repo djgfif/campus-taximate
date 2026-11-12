@@ -27,7 +27,7 @@ export function loadToss() {
 }
 
 export async function startPayment(order, myId, partyId, clientKey) {
-  if (!clientKey) throw new Error('결제 테스트 키 없음')
+  if (!clientKey) throw new Error('카드 결제를 준비하지 못했어요. 잠시 뒤 다시 확인해 주세요.')
   if (!Number.isSafeInteger(Number(myId)) || Number(myId) <= 0) throw new Error('로그인 정보를 다시 확인해 주세요.')
   try { sessionStorage.setItem('taximate-payment:' + order.orderId, JSON.stringify({ partyId, purpose: order.purpose })) } catch { /* 저장 불가 시에도 같은 출처 콜백으로 돌아온다. */ }
   const success = new URL('/', window.location.origin)

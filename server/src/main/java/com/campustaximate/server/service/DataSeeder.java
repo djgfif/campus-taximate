@@ -43,24 +43,30 @@ public class DataSeeder implements ApplicationRunner {
     private final SchoolRepository schools;
     private final HubRepository hubs;
     private final MemberRepository members;
+    private final org.springframework.core.env.Environment environment;
 
     @Value("${app.demo.enabled}")
     private boolean demo;
 
     @Override
     public void run(ApplicationArguments args) {
+        demo = demo && environment.acceptsProfiles(org.springframework.core.env.Profiles.of("demo"));
         if (schools.count() > 0) {
-            if(demo) seedAdmin(schools.findAll().getFirst());
+            if(demo) seedDemo(schools.findAll().getFirst());
             return;
         }
         School school = schools.save(new School("대진대학교", "daejin.ac.kr", "학교 정문", 37.875, 127.155));
         hubs.save(new Hub("학교 정문", "정문 앞 버스 정류장", 37.875, 127.155, Set.of(school)));
         if (demo) {
-            seedAdmin(school);
-            for (int i = 1; i <= DEMO_MEMBERS_PER_GENDER; i++) {
-                seedMember(school, "demo-f" + i, FEMALE_NICKNAMES.get(i - 1), Gender.FEMALE);
-                seedMember(school, "demo-m" + i, MALE_NICKNAMES.get(i - 1), Gender.MALE);
-            }
+            seedDemo(school);
+        }
+    }
+
+    private void seedDemo(School school) {
+        seedAdmin(school);
+        for(int i=1;i<=DEMO_MEMBERS_PER_GENDER;i++) {
+            seedMember(school,"demo-f"+i,FEMALE_NICKNAMES.get(i-1),Gender.FEMALE);
+            seedMember(school,"demo-m"+i,MALE_NICKNAMES.get(i-1),Gender.MALE);
         }
     }
 
@@ -72,6 +78,7 @@ public class DataSeeder implements ApplicationRunner {
     }
 
     private void seedMember(School school, String id, String nickname, Gender gender) {
+        if(members.findByEmail(id+"@daejin.ac.kr").isPresent()) return;
         Member member = new Member(school, id + "@daejin.ac.kr");
         member.setNickname(nickname);
         member.setGender(gender);

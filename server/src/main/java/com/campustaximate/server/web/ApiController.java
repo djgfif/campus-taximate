@@ -467,34 +467,6 @@ public class ApiController {
         settlements.markReceived(memberId(session), id);
     }
 
-    @PostMapping("/demo/run")
-    public void demoRun(HttpSession session) {
-        memberId(session);
-        demo.runNow();
-    }
-
-    @PostMapping("/demo/match")
-    public DemoService.MatchOutcome demoMatch(HttpSession session) {
-        return demo.matchNow(memberId(session));
-    }
-
-    @PostMapping("/demo/advance")
-    public void demoAdvance(@Valid @RequestBody AdvanceBody body, HttpSession session) {
-        memberId(session);
-        demo.advance(body.minutes());
-    }
-
-    @PostMapping("/demo/samples")
-    public Map<String, Integer> demoSamples(@RequestBody(required = false) SampleBody body, HttpSession session) {
-        int count = body == null || body.count() == null ? 2 : body.count();
-        return Map.of("created", demo.addSamples(memberId(session), count));
-    }
-
-    @PostMapping("/demo/act")
-    public void demoAct(HttpSession session) {
-        demo.actAsSamples(memberId(session));
-    }
-
     private long memberId(HttpSession session) {
         Object id = session.getAttribute(SESSION_KEY);
         if (id == null) {

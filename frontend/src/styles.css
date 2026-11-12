@@ -489,3 +489,11 @@ button.item:active { opacity: 0.6; }
 .payment-card .btn + .btn { margin-top: 8px; }
 .history-finance { padding: 18px 0; border-bottom: 1px solid #e5e7ec; }
 .financial-details section { margin: 16px 0; }
+
+.time-picker { border: 0; padding: 0; margin: 24px 0; min-width: 0; }
+.time-picker legend { font-weight: 700; margin-bottom: 12px; }
+.time-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.time-columns .field { min-width: 0; }
+.demo-accounts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+
+a.btn { text-decoration: none; }

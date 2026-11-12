@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import MapView from './MapView.jsx'
 import { api } from './api.js'
 import { pushUndecided } from './push.js'
@@ -21,9 +21,10 @@ export function RequestMap({ item, edge }) {
 }
 
 /** 왜 아직 일행이 없는지 말한다. 다음 확인 시각까지 함께 알려 기다릴지 정하게 한다. */
-function Situation({ insight }) {
+export function Situation({ insight, now }) {
   if (!insight) return null
-  const next = `다음 확인은 ${formatTime(insight.nextCheckAt)}입니다.`
+  const next = new Date(insight.nextCheckAt) > new Date(now)
+    ? `다음 확인은 ${formatDateTime(insight.nextCheckAt)}입니다.` : '지금 조건을 다시 확인하고 있어요.'
   switch (insight.stage) {
     case 'NOT_STARTED':
       return <Say tone="calm" title={`${formatTime(insight.searchStartsAt)}부터 찾기 시작해요`}>출발 가능 시간에 맞춰 일행을 찾습니다.</Say>
@@ -36,9 +37,13 @@ function Situation({ insight }) {
   }
 }
 
-export function Waiting({ latest, config, run, onMenu, onPush }) {
+export function Waiting({ latest, config, now, run, onMenu, onPush }) {
   const [asking, setAsking] = useState(false)
   const toSchool = latest.direction === 'TO_SCHOOL'
+  const anchor = useMemo(() => ({ stamp: new Date(now).getTime(), readAt: performance.now() }), [now])
+  const [, tick] = useState(0)
+  useEffect(() => { const timer = setInterval(() => tick((n) => n + 1), 1000); return () => clearInterval(timer) }, [])
+  const current = Number.isFinite(anchor.stamp) ? anchor.stamp + performance.now() - anchor.readAt : null
   return (
     <Screen aside={<RequestMap item={latest} />} foot={<Btn className="line" onClick={() => setAsking(true)}>요청 취소</Btn>}>
       <TopBar dark onMenu={onMenu} />
@@ -47,7 +52,8 @@ export function Waiting({ latest, config, run, onMenu, onPush }) {
       </Meter>
       <div className="block">
         {latest.mode==='INSTANT'&&<Say>{config?.instantMatching?.matchMinutes??5}분 동안 같이 탈 사람을 찾아요. 확정되면 예상 출발 시각을 알려 드려요.</Say>}
-        <Situation insight={latest.insight} />
+        {config?.demo && <p className="note">시연 시각 {formatDateTime(current)}</p>}
+        <Situation insight={latest.insight} now={current} />
         {onPush && pushUndecided() && (
           <Say tone="calm" title="화면을 닫아도 결과를 받으려면">
             알림을 켜면 일행 확정과 승차 10분 전 안내가 이 기기로 옵니다.

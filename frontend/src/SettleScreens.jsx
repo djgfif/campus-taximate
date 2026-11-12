@@ -66,14 +66,14 @@ export function PayerInput({ party, now, run, onDone, onLater, onUpdated }) {
       {shares && <Rows items={shares.map((s) => [s.payer ? '나 (결제자)' : s.nickname, won(s.amount)])} />}
       {locked && <Say>이의가 있거나 수정할 수 있는 시간이 지났어요.</Say>}
       {(error || preview.value === value && preview.error) && <p role="alert">{error || preview.error}</p>}
-      <p className="note">계좌는 받지 않아요. 입력 뒤 24시간은 요금 이의 기간이며, 정산 확정 뒤에 환불·추가 결제·모의 지급을 처리해요.</p>
+      <p className="note">입력 뒤 24시간은 요금 이의 기간이에요. 정산 확정 뒤 환불·추가 결제를 처리하고 받을 돈을 앱에 기록해요(실제 송금 없음).</p>
       <p className="note">이의가 없고 이의 기간 안일 때만 수정할 수 있어요. 수정하면 이의 기간 24시간을 다시 세요. 사진은 올린 날부터 7일 뒤 지워요.</p>
     </div>
     <PartyChat partyId={party.id} now={now} status={party.status} />
   </Screen>
 }
 
-/** 현재 응답에 있는 금융 기록만 표시한다. 모의 지급은 현금 입금으로 표현하지 않는다. */
+/** 현재 응답에 있는 금융 기록만 표시한다. 앱 정산 기록상 받을 돈(실제 송금 없음)은 현금 입금으로 표현하지 않는다. */
 export function FinancialDetails({ party }) {
   const settlement = party.settlement
   if (!settlement) return <p className="note">아직 정산 기록이 없어요.</p>
@@ -91,7 +91,7 @@ export function FinancialDetails({ party }) {
       <h3>{order.purpose === 'ADDITIONAL' ? '추가 결제 기록' : '선결제 기록'}</h3><PaymentRecord order={order} />
       {(order.refundRequestedAmount > 0 || order.refundedAmount > 0) && <p className="note">환불은 카드 반영까지 3~4영업일 정도 걸려요.</p>}
     </section>)}
-    {party.payer && settlement.finalizedAt && settlement.mockPayoutAmount != null && <Say tone="calm" title={'모의 지급 ' + won(settlement.mockPayoutAmount)}>실제 송금 없음</Say>}
+    {party.payer && settlement.finalizedAt && settlement.mockPayoutAmount != null && <Say tone="calm" title={'앱 정산 기록상 받을 돈(실제 송금 없음) ' + won(settlement.mockPayoutAmount)}>실제 송금 없음</Say>}
   </div>
 }
 
@@ -112,7 +112,7 @@ export function SettlementScreen({ party, myId, now, config, onUpdated, onMenu, 
     <TopBar onMenu={onMenu} /><div className="pad"><h1 className="head">{partyLabel(party.status)}</h1>
       {settlement?.warning && <Say tone="stop-tone">실제 금액이 예상과 {Math.abs(settlement.differencePercent)}% 달라요. 영수증을 확인해 주세요.</Say>}
       {open && <Say title={'요금 이의 기간 ' + remaining(deadline, now) + ' 남음'}>{formatDateTime(deadline)}까지 이의를 낼 수 있어요. {party.status === 'REVIEW_PENDING' ? '접수된 이의는 관리자 검토를 기다려요.' : '이의가 없으면 정산을 확정해요.'}</Say>}
-      {party.status === 'REVIEW_PENDING' && <Say>{party.reviewReason==='RIDE_DISPUTE'?'운행 답변이 엇갈려 관리자 검토 중이에요. 환불·추가 결제·모의 지급은 보류해요.':'요금 이의가 있어 관리자 검토 중이에요. 아직 환불·추가 결제·모의 지급을 진행하지 않아요.'}</Say>}
+      {party.status === 'REVIEW_PENDING' && <Say>{party.reviewReason==='RIDE_DISPUTE'?'운행 답변이 엇갈려 관리자 검토 중이에요. 환불과 추가 결제, 받을 돈의 정산을 보류해요.':'요금 이의가 있어 관리자 검토 중이에요. 환불과 추가 결제, 받을 돈의 정산을 보류해요.'}</Say>}
       <RideConfirmationCard party={party} onUpdated={onUpdated} />
       <FinancialDetails party={party} />
       {onDetail && <Btn className="line" onClick={onDetail}>일행과 경로 자세히</Btn>}
