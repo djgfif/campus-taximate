@@ -64,6 +64,7 @@ export const PARTY_LABEL = {
   REVIEW_PENDING: '관리자 검토 중', SETTLED: '정산 확정', DISSOLVED: '해산', NOT_OPERATED: '운행 미성사', FARE_MISSING: '정산 미입력',
 }
 export const partyLabel = (status) => PARTY_LABEL[status] || '일행 상태 확인 중'
+export const knownPartyStatus = (status) => PARTY_LABEL[status] != null
 export const isPaymentParty = (party) => party.prepayDeadlineAt != null
   || ['RIDE_UNCONFIRMED', 'PREPAYING', 'READY', 'AWAITING_FARE', 'OBJECTION_WINDOW', 'REVIEW_PENDING', 'SETTLED', 'DISSOLVED', 'NOT_OPERATED', 'FARE_MISSING'].includes(party.status)
   || party.settlement?.objectionDeadlineAt != null
@@ -76,4 +77,12 @@ export function requestTimeOptions(now, minimumMinutes = 25) {
   const limit = (seoulDay + 2) * 86400000 - 9 * 3600000
   const first = Math.ceil((stamp + minimumMinutes * 60000) / 300000) * 300000
   return Array.from({ length: Math.max(0, Math.ceil((limit - first) / 300000)) }, (_, i) => new Date(first + i * 300000).toISOString())
+}
+
+/** 모이는 곳 이름 하나. 하교 거점은 "거점 · 정확한 자리", 등교는 내 승차 지점이다. 화면마다 이것만 쓴다. */
+export function meetPlace(party) {
+  if (!party) return ''
+  const { anchorName: anchor, meetingPoint: spot, direction } = party
+  if (direction === 'FROM_HUB' && anchor && spot && anchor !== spot) return `${anchor} · ${spot}`
+  return spot || anchor || ''
 }

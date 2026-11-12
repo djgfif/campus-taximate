@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { Camera } from 'lucide-react'
 import { api } from './api.js'
-import { PartyChat, RideConfirmationCard } from './PartyScreens.jsx'
+import { PartyShell, RideConfirmationCard } from './PartyScreens.jsx'
 import PaymentCard, { PaymentRecord } from './PaymentCard.jsx'
+import { PraiseSection } from './People.jsx'
 import { formatDateTime, isPaymentParty, partyLabel, remaining, TRANSFER_LABEL, won } from './format.js'
 import { BackBar, Btn, Paper, Rows, Say, Screen, Sheet, SidePlain, TopBar } from './ui.jsx'
 
@@ -27,7 +28,7 @@ function ReceiptPaper({ party }) {
   </Paper>
 }
 
-export function PayerInput({ party, now, run, onDone, onLater, onUpdated }) {
+export function PayerInput({ party, run, onDone, onLater, onUpdated }) {
   const correcting = party.settlement != null
   const [amount, setAmount] = useState(correcting ? String(party.settlement.paidAmount) : '')
   const [receipt, setReceipt] = useState(null)
@@ -69,7 +70,6 @@ export function PayerInput({ party, now, run, onDone, onLater, onUpdated }) {
       <p className="note">입력 뒤 24시간은 요금 이의 기간이에요. 정산 확정 뒤 환불·추가 결제를 처리하고 받을 돈을 앱에 기록해요(실제 송금 없음).</p>
       <p className="note">이의가 없고 이의 기간 안일 때만 수정할 수 있어요. 수정하면 이의 기간 24시간을 다시 세요. 사진은 올린 날부터 7일 뒤 지워요.</p>
     </div>
-    <PartyChat partyId={party.id} now={now} status={party.status} />
   </Screen>
 }
 
@@ -108,26 +108,30 @@ export function SettlementScreen({ party, myId, now, config, onUpdated, onMenu, 
     try { await api.objectToFare(party.id, reason.trim()); setAsking(false); await onUpdated?.() }
     catch (e) { setError(e.message) }
   }
-  return <Screen foot={<><Btn className="line" onClick={onHome}>홈으로</Btn></>}>
-    <TopBar onMenu={onMenu} /><div className="pad"><h1 className="head">{partyLabel(party.status)}</h1>
-      {settlement?.warning && <Say tone="stop-tone">실제 금액이 예상과 {Math.abs(settlement.differencePercent)}% 달라요. 영수증을 확인해 주세요.</Say>}
-      {open && <Say title={'요금 이의 기간 ' + remaining(deadline, now) + ' 남음'}>{formatDateTime(deadline)}까지 이의를 낼 수 있어요. {party.status === 'REVIEW_PENDING' ? '접수된 이의는 관리자 검토를 기다려요.' : '이의가 없으면 정산을 확정해요.'}</Say>}
-      {party.status === 'REVIEW_PENDING' && <Say>{party.reviewReason==='RIDE_DISPUTE'?'운행 답변이 엇갈려 관리자 검토 중이에요. 환불과 추가 결제, 받을 돈의 정산을 보류해요.':'요금 이의가 있어 관리자 검토 중이에요. 환불과 추가 결제, 받을 돈의 정산을 보류해요.'}</Say>}
-      <RideConfirmationCard party={party} onUpdated={onUpdated} />
-      <FinancialDetails party={party} />
-      {onDetail && <Btn className="line" onClick={onDetail}>일행과 경로 자세히</Btn>}
-      {open && <Btn className="line" onClick={() => setAsking(true)}>요금 이의</Btn>}
-      {settlement?.canCorrect && onCorrect && <Btn className="line" onClick={onCorrect}>금액 고치기</Btn>}
-      {settlement?.finalizedAt && settlement.payments?.filter((o) => o.purpose === 'ADDITIONAL').map((order) =>
-        <PaymentCard key={order.orderId} knownOrder={order} partyId={party.id} purpose="ADDITIONAL" myId={myId} now={now} config={config} onUpdated={onUpdated} />)}
-      {settlement && <ReceiptPaper party={party} />}
-    </div>
-    <PartyChat partyId={party.id} now={now} status={party.status} />
+  return <>
+    <PartyShell party={party} now={now} onMenu={onMenu} onHome={onHome} dark={false} firstTab="정산"
+      header={<div className="pad party-head"><h1 className="head">{partyLabel(party.status)}</h1></div>}
+      progress={<div className="pad">
+        {settlement?.warning && <Say tone="stop-tone">실제 금액이 예상과 {Math.abs(settlement.differencePercent)}% 달라요. 영수증을 확인해 주세요.</Say>}
+        {open && <Say title={'요금 이의 기간 ' + remaining(deadline, now) + ' 남음'}>{formatDateTime(deadline)}까지 이의를 낼 수 있어요. {party.status === 'REVIEW_PENDING' ? '접수된 이의는 관리자 검토를 기다려요.' : '이의가 없으면 정산을 확정해요.'}</Say>}
+        {party.status === 'REVIEW_PENDING' && <Say>{party.reviewReason==='RIDE_DISPUTE'?'운행 답변이 엇갈려 관리자 검토 중이에요. 환불과 추가 결제, 받을 돈의 정산을 보류해요.':'요금 이의가 있어 관리자 검토 중이에요. 환불과 추가 결제, 받을 돈의 정산을 보류해요.'}</Say>}
+        <RideConfirmationCard party={party} onUpdated={onUpdated} />
+        <FinancialDetails party={party} />
+        <PraiseSection partyId={party.id} now={now} />
+        {open && <Btn className="line" onClick={() => setAsking(true)}>요금 이의</Btn>}
+        {settlement?.canCorrect && onCorrect && <Btn className="line" onClick={onCorrect}>금액 고치기</Btn>}
+        {settlement?.finalizedAt && settlement.payments?.filter((o) => o.purpose === 'ADDITIONAL').map((order) =>
+          <PaymentCard key={order.orderId} knownOrder={order} partyId={party.id} purpose="ADDITIONAL" myId={myId} now={now} config={config} onUpdated={onUpdated} />)}
+      </div>}
+      info={<div className="pad">
+        {settlement && <ReceiptPaper party={party} />}
+        {onDetail && <Btn className="line" onClick={onDetail}>일행과 경로 자세히</Btn>}
+      </div>} />
     {asking && <Sheet title="요금 이의" onClose={() => setAsking(false)}>
       <label className="field">이의 사유<textarea value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} /></label>
       {error && <p role="alert">{error}</p>}<Btn disabled={!reason.trim()} onClick={send}>이의 보내기</Btn>
     </Sheet>}
-  </Screen>
+  </>
 }
 
 export function LegacySettlement({ party, onHome, onMenu }) {

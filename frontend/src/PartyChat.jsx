@@ -3,9 +3,10 @@ import { ImagePlus, RotateCw, Send, X } from 'lucide-react'
 import { api } from './api.js'
 import { ReportSheet } from './MemberSafety.jsx'
 import { formatTime } from './format.js'
-import { Btn } from './ui.jsx'
+import { Avatar, Btn } from './ui.jsx'
 
-const CHAT_PHRASES = ['조금 늦어요', '도착했어요, 어디 계세요?', '인상착의: ', '택시 잡았어요']
+const CHAT_PHRASES = ['어디쯤이세요?', '저 5분 정도 늦어요 ㅠㅠ', '도착했어요!', '저는 ', '택시 잡았어요']
+export const CHAT_RETENTION = '정산이 끝나거나 출발 후 24시간이 지나면 쓰기가 닫혀요. 그때부터 7일 뒤 메시지와 사진을 지워요.'
 const GROUP_GAP_MS = 5 * 60 * 1000
 const NEAR_BOTTOM_PX = 48
 const INPUT_MAX_PX = 120
@@ -35,7 +36,7 @@ function mergeById(current, incoming) {
  * 보낸 메시지는 바로 보이게 하고(보내는 중/실패 다시 보내기), 맨 아래를 보고 있으면 읽음을 알린다.
  * 이용 내역처럼 now가 없으면 5초마다 읽는다.
  */
-export function PartyChat({ partyId, now, status }) {
+export function PartyChat({ partyId, now, status, active = true, full = false }) {
   const [items, setItems] = useState([])
   const [pending, setPending] = useState([])
   const [meta, setMeta] = useState(null)
@@ -111,11 +112,12 @@ export function PartyChat({ partyId, now, status }) {
 
   // 보이는 화면에서 맨 아래까지 봤으면 읽음을 알린다(앞으로만).
   const reportRead = useCallback(() => {
-    if (!lastServerId || lastServerId <= readSent.current || !pinned.current) return
+    // 탭에 가려져 있으면 읽은 것으로 보지 않는다.
+    if (!active || !lastServerId || lastServerId <= readSent.current || !pinned.current) return
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
     readSent.current = lastServerId
     api.readPartyMessages?.(partyId, lastServerId)?.catch?.(() => { readSent.current = 0 })
-  }, [partyId, lastServerId])
+  }, [partyId, lastServerId, active])
   useEffect(() => { reportRead() }, [reportRead])
   useEffect(() => {
     const wake = () => reportRead()
@@ -240,7 +242,8 @@ export function PartyChat({ partyId, now, status }) {
       : <p className="bubble">{message.text}</p>
     rendered.push(
       <li key={message.id} className={`${message.mine ? 'mine' : 'theirs'}${head ? ' chat-head' : ''}${message.pending ? ' chat-pending' : ''}`}>
-        {head && <b className="chat-name">{message.mine ? `나${message.nickname ? ` (${message.nickname})` : ''}` : message.nickname}</b>}
+        {head && !message.mine && <Avatar name={message.nickname} size={34} />}
+        {head && !message.mine && <b className="chat-name">{message.nickname}</b>}
         <div className="chat-line">
           {message.mine && info}
           {bubble}
@@ -261,8 +264,8 @@ export function PartyChat({ partyId, now, status }) {
   })
 
   return (
-    <section className="block party-chat" aria-label="일행 채팅">
-      <h2 className="block-title">일행 채팅</h2>
+    <section className={full ? 'party-chat full' : 'block party-chat'} aria-label="일행 채팅">
+      <h2 className={full ? 'sr-only' : 'block-title'}>일행 채팅</h2>
       {!meta && !error && !denied && <p role="status">메시지를 불러오고 있어요</p>}
       {meta && !denied && (
         <div className="chat-box">
@@ -274,7 +277,7 @@ export function PartyChat({ partyId, now, status }) {
           {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- 스크롤되는 목록이라 키보드로 포커스해 읽을 수 있어야 한다 */}
           <ol ref={list} className="chat-messages" tabIndex={0} onScroll={onScroll}
             aria-label="최근 일행 메시지" aria-live="polite" aria-relevant="additions">
-            {rows.length === 0 && <li className="chat-empty">아직 메시지가 없어요. 문구를 눌러 먼저 인사해 보세요.</li>}
+            {rows.length === 0 && <li className="chat-empty">아직 조용하네요. 먼저 인사해 볼까요?</li>}
             {rendered}
           </ol>
           {unseen && <button type="button" className="chat-new" onClick={toBottom}>새 메시지 ↓</button>}
@@ -285,11 +288,11 @@ export function PartyChat({ partyId, now, status }) {
         <form className="chat-form" onSubmit={(event) => { event.preventDefault(); sendText(text) }}>
           <div className="chat-phrases" role="group" aria-label="자주 쓰는 문구">
             {CHAT_PHRASES.map((phrase) => <Btn key={phrase} className="small line" onClick={() => {
-              if (phrase === '인상착의: ') {
+              if (phrase === '저는 ') {
                 setText(phrase)
                 input.current?.focus()
               } else sendText(phrase, false)
-            }}>{phrase}</Btn>)}
+            }}>{phrase === '저는 ' ? '내 옷차림 알리기' : phrase}</Btn>)}
           </div>
           <div className="chat-compose">
             <button type="button" className="chat-attach" aria-label="사진 보내기" onClick={() => fileInput.current?.click()}>
@@ -298,7 +301,7 @@ export function PartyChat({ partyId, now, status }) {
             <input ref={fileInput} type="file" accept={IMAGE_TYPES.join(',')} hidden aria-hidden="true" tabIndex={-1}
               onChange={(e) => { sendImage(e.target.files?.[0]); e.target.value = '' }} />
             <textarea ref={input} rows={1} maxLength={200} value={text}
-              aria-label="일행에게 보낼 메시지" placeholder="메시지를 입력하세요"
+              aria-label="일행에게 보낼 메시지" placeholder="메시지 보내기"
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
                 // 한글 조합 중 Enter는 글자 확정이고, 휴대폰에서는 Enter가 줄바꿈이다.
@@ -315,7 +318,7 @@ export function PartyChat({ partyId, now, status }) {
         </form>
       )}
       {error && <p role="alert">{error} {!denied && <button type="button" onClick={loadLatest}>다시 불러오기</button>}</p>}
-      <p className="note">정산이 끝나거나 출발 후 24시간이 지나면 쓰기가 닫혀요. 그때부터 7일 뒤 메시지와 사진을 지워요.</p>
+      {!full && <p className="note">{CHAT_RETENTION}</p>}
       {selected && <ReportSheet partyId={partyId} member={selected} onClose={() => setSelected(null)} onSaved={() => setSelected(null)} />}
     </section>
   )

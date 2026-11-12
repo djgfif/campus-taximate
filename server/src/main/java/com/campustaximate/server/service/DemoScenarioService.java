@@ -90,13 +90,13 @@ public class DemoScenarioService {
             if(!clock.now().isBefore(o.getDeadlineAt())) throw ApiException.conflict("DEMO_PAYMENT_LATE","선결제 기한이 지났어요. 새 요청으로 시연해 주세요.");
             var approved=payments.confirm(o.getMemberId(),o.getOrderId(),"demo_"+o.getOrderId(),o.getAmount());
             if(approved.status()!=PaymentStatus.APPROVED) throw ApiException.conflict("DEMO_PAYMENT_PENDING","샘플 결제가 확인 중이에요.");
-            if(p.members().stream().anyMatch(m->m.memberId()==o.getMemberId())) chat.send(o.getMemberId(),p.id(),"결제했어요");
+            if(p.members().stream().anyMatch(m->m.memberId()==o.getMemberId())) chat.send(o.getMemberId(),p.id(),DemoTalk.paid(o.getMemberId()));
         }
     }
     private void arrive(PartyService.PartyView p,long actor,Long absent,boolean includeMe) {
         for(var m:p.members()) if(!m.arrived() && !Objects.equals(absent,m.memberId()) && (includeMe||sample(m.memberId(),actor))) {
             if(p.instant()) readiness.prepare(m.memberId(),p.id(),"ARRIVED"); else parties.arrive(m.memberId(),p.id());
-            if(sample(m.memberId(),actor)) chat.send(m.memberId(),p.id(),"도착했어요, "+m.memo()+"예요");
+            if(sample(m.memberId(),actor)) chat.send(m.memberId(),p.id(),DemoTalk.arrived(m.memberId(),m.memo()));
         }
     }
     public Progress next(long actor) {

@@ -108,3 +108,18 @@ Progress: { now, partyId, stage, next, role, message, investigations: [{ memberI
 - 시스템 알림(자동): 일행 확정, 선결제 완료, 도착, 2분 안 도착, 일행원 빠짐, 합류, 운행 시작, 실제 금액 입력.
 - 일행 목록·조회 응답의 `unreadChat`: 내가 안 읽은 메시지 수. 홈의 진행 중 일행에 빨간 숫자로 보인다.
 - 1분에 10개까지 보낼 수 있다(넘으면 `429` `CHAT_TOO_FAST`). 휴대폰에서는 Enter가 줄바꿈이고 보내기 버튼으로 보낸다.
+
+## 10. 사람이 보이는 기능 (화면 연결됨: `Board.jsx`, `People.jsx`, `SketchMap.jsx`)
+
+| 기능 | 요청 | 응답·규칙 |
+|---|---|---|
+| 지금 모집 중 | `GET /api/board` | `parties[]`: 합류 가능한 하교 일행(같은 성별, 서로 피하기 없음, 합류 마감 전, 자리 남음). 출발 시각·거점·남은 자리·별명·공개 프로필. 다른 사람의 하차 지점은 주지 않는다. `waiting[]`: 시간대(1시간)·방향별 기다리는 사람 수. |
+| 게시판에서 합류 | `POST /api/board/parties/{id}/join` `{pointName, pointLat, pointLon, memo}` | 그 일행 출발 시각을 포함하는 요청을 만들고 바로 합류를 신청한다(5.5 합류 규칙 그대로). 실패하면 만든 요청을 취소하고 오류를 돌려준다. 성공하면 내 요청이 `JOINING`이 되고, 선결제가 승인되면 일행원이 된다. |
+| 같이 타는 사람 | `GET /api/parties/{id}/people` | 일행원만. `profile`(공개한 학과·학번), `rides`(완료한 탑승 수), `noShowFree`, `praises`(받은 칭찬 수), `myTags`(내가 이 사람에게 남긴 칭찬). |
+| 칭찬 | `POST /api/parties/{id}/praises` `{targetId, tags}` | 운행이 끝난 일행(`AWAITING_FARE` 이후)에서 같이 탄 사람에게만. 태그 `ON_TIME`·`KIND`·`QUIET`·`CLEAR_PAY`. 같은 칭찬은 한 번만 쌓인다. 나쁜 평가는 받지 않는다(신고로 처리). |
+| 내 공개 프로필 | `GET`·`PUT /api/me/profile` `{department, admissionYear, showProfile}` | 학과 40자 이하, 학번 두 자리(0~99). `showProfile=false`면 게시판과 일행 화면에 별명만 보인다. |
+| 시연: 다른 학생 일행 | `POST /api/demo/board-party` | 로그인한 사람을 뺀 같은 성별 시연 계정 두 명이 하교 일행을 만든다. 요청이 없을 때만. |
+
+- DB: `V15__profile_trust_review.sql` (`member.department`·`admission_year`·`show_profile`, `ride_review`).
+- 지도: 카카오 지도를 못 불러오면 같은 좌표로 약도(`SketchMap`)를 그린다. 휴대폰 일행 화면과 요청 화면에도 작은 지도가 붙는다.
+- 요청 화면: 출발지를 고르면 가장 가까운 승차 지점이 미리 골라지고, 시간은 "오늘 22:25 ~ 23:25 출발" 한 줄로 접혀 있다(눌러서 바꾸기).

@@ -47,7 +47,7 @@ export function Waiting({ latest, config, now, run, onMenu, onPush }) {
   return (
     <Screen aside={<RequestMap item={latest} />} foot={<Btn className="line" onClick={() => setAsking(true)}>요청 취소</Btn>}>
       <TopBar dark onMenu={onMenu} />
-      <Meter label="결과는 늦어도" value={formatTime(latest.resultBy)} detail="예약과 즉시 요청의 확정 조건에 따라 알려 드려요">
+      <Meter label="결과는 늦어도" value={formatTime(latest.resultBy)} detail="그 전에 일행이 정해지면 바로 알려 드려요">
         <div className="road" aria-hidden="true"><i /></div>
       </Meter>
       <div className="block">

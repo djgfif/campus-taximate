@@ -45,7 +45,8 @@ public class PartyJoinService {
         if(input.stream().anyMatch(m->!m.poolKey().equals(poolKey)))throw ApiException.conflict("JOIN_POOL","기존 일행의 매칭 조건이 바뀌었어요.");
         MatchRequest newcomer=SlotService.toEngine(r).stream().filter(m->m.poolKey().equals(poolKey)).findFirst()
             .orElseThrow(()->ApiException.conflict("JOIN_POOL","승차 지점·방향·성별·시간 기준이 맞지 않아요."));
-        if(!TripPlan.of(newcomer.direction(),settings).eligible(newcomer,AppClock.minuteOf(clock.now())))throw ApiException.conflict("JOIN_TIME","요청 모집 마감이 지났어요.");
+        // 방금 만든 요청도 합류할 수 있게 분 단위로 자르지 않은 현재 시각으로 본다(분으로 자르면 요청 시각보다 앞선다).
+        if(!TripPlan.of(newcomer.direction(),settings).eligible(newcomer,clock.now()))throw ApiException.conflict("JOIN_TIME","요청 모집 마감이 지났어요.");
         if(clock.now().plusSeconds(newcomer.walkSeconds()).isAfter(p.getDepartureAt()))throw ApiException.conflict("JOIN_TIME","기존 출발 시각까지 승차 지점에 도착할 수 없어요.");
         input.add(newcomer);fares.put(r.getId(),r.getSoloFare());origins.put(r.getId(),r.origin());
         var avoids=safety.avoidMap(input.stream().map(MatchRequest::memberId).toList());

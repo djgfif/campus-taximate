@@ -53,6 +53,7 @@ export default function DemoBar({ now, run }) {
       ]} />
       <Btn disabled={busy} onClick={act(() => api.demoMatch(role))}>일행 만들기</Btn>
       <Btn disabled={busy} onClick={act(api.demoNext)}>다음 단계로</Btn>
+      <Btn className="line" disabled={busy} onClick={act(api.demoBoardParty)}>다른 학생 일행 만들기 (모집 중 체험)</Btn>
       <section aria-label="시나리오">
         <h2 className="block-title">시나리오</h2>
         <p className="note">요청이 없으면 시연용 경로를 만들어요. 자동 결제 시나리오는 모의 결제 모드에서 진행해요.</p>

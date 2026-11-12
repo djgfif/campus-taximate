@@ -1,15 +1,18 @@
 import React, { useState } from 'react'
 import { api } from './api.js'
+import { ProfileFields } from './People.jsx'
 import { Brand, Btn, Chips, Screen, toast } from './ui.jsx'
 
 /** 첫 로그인 뒤 한 번만 입력한다. */
 export default function ProfileScreen({ onDone }) {
   const [nickname, setNickname] = useState('')
   const [gender, setGender] = useState('FEMALE')
+  const [extra, setExtra] = useState({ department: '', admissionYear: null, showProfile: true })
 
   const submit = async () => {
     try {
       await api.profile({ nickname, gender })
+      if (extra.department?.trim() || extra.admissionYear != null) await api.saveProfile(extra).catch(() => {})
       await onDone()
     } catch (e) {
       toast(e.message, 'bad')
@@ -31,6 +34,7 @@ export default function ProfileScreen({ onDone }) {
           ]} />
         </div>
         <p className="note">동성끼리만 매칭됩니다.</p>
+        <ProfileFields value={extra} onChange={setExtra} />
       </div>
     </Screen>
   )

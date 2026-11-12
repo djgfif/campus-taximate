@@ -79,8 +79,8 @@ class DemoExperienceFlowTest {
         var before=clock.now();var progress=scenarios.next(me);
         assertThat(clock.now()).isEqualTo(before);assertThat(progress.message()).contains("내 선결제");
         assertThat(orders.findByPartyIdAndMemberIdAndPurpose(p.id(),me,PaymentPurpose.PREPAY).orElseThrow().getStatus()).isEqualTo(PaymentStatus.REQUIRED);
-        assertThat(chat.read(me,p.id(),null).messages()).anyMatch(m->m.text().contains("봬요"));
-        assertThat(chat.read(me,p.id(),null).messages()).anyMatch(m->m.text().equals("결제했어요"));
+        assertThat(chat.read(me,p.id(),null).messages()).anyMatch(m->m.memberId()!=null && m.memberId()!=me); // 샘플 계정의 첫인사
+        assertThat(chat.read(me,p.id(),null).messages()).anyMatch(m->m.text().contains("결제"));
     }
     @Test void payerRoleAndNextStepReachCallDepartureAndSettlement() {
         request();demo.matchNow(me,DemoService.Role.PAYER);assertThat(current().payer()).isTrue();

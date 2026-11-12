@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { api } from './api.js'
 import { startPayment } from './payments.js'
-import { formatDateTime, won } from './format.js'
+import { formatDateTime, remaining, won } from './format.js'
 import { Btn, Rows, Say } from './ui.jsx'
 
 export function PaymentRecord({ order }) {
@@ -15,7 +15,7 @@ export function PaymentRecord({ order }) {
   ]} />
 }
 
-export default function PaymentCard({ partyId, purpose = 'PREPAY', myId, now, config, onUpdated, knownOrder, readOnly = false, clientKey = import.meta.env.VITE_TOSS_CLIENT_KEY || '' }) {
+export default function PaymentCard({ partyId, purpose = 'PREPAY', myId, now, config, onUpdated, knownOrder, readOnly = false, compact = false, clientKey = import.meta.env.VITE_TOSS_CLIENT_KEY || '' }) {
   const key = [partyId, purpose, myId].join(':')
   const [loaded, setLoaded] = useState({})
   const [reload, setReload] = useState(0)
@@ -41,13 +41,15 @@ export default function PaymentCard({ partyId, purpose = 'PREPAY', myId, now, co
       } else await startPayment(order, myId, partyId, clientKey)
     } catch (e) { setActionError(e.message || '결제를 시작하지 못했어요.') }
   }
-  return <section className="payment-card" aria-label={extra ? '추가 결제' : '선결제'}>
+  // 간단히(지금 할 일 카드 안): 아직 아무것도 결제하지 않은 주문은 금액·기한 한 줄과 버튼만 보인다.
+  const plain = compact && order && order.status === 'REQUIRED' && !(order.approvedAmount > 0)
+  return <section className={compact ? 'payment-card compact' : 'payment-card'} aria-label={extra ? '추가 결제' : '선결제'}>
     <h2>{extra ? '추가 결제' : '선결제'}{order ? ' ' + won(order.amount) : ''}</h2>
-    {!extra && <p>처음 안내된 내 몫의 115%를 미리 결제해요.</p>}
+    {!extra && !compact && <p>처음 안내된 내 몫의 115%를 미리 결제해요.</p>}
     {!order && !error && <p role="status">주문을 확인하고 있어요.</p>}
     {order && <>
-      <p>기한 {formatDateTime(order.deadlineAt)}</p>
-      <PaymentRecord order={order} />
+      <p className="due">기한 {formatDateTime(order.deadlineAt)}{compact && now && !late ? ` · ${remaining(order.deadlineAt, now)} 남음` : ''}</p>
+      {!plain && <PaymentRecord order={order} />}
       {order.status === 'APPROVED' ? <Say tone="save-tone">승인 완료</Say>
         : order.status === 'PROCESSING' ? <Say>결제 확인 중이에요. 다시 결제하지 말고 결과를 기다려 주세요.</Say>
           : order.status === 'ADMIN_REQUIRED' ? <Say tone="stop-tone">관리자 확인이 필요한 결제예요.</Say>

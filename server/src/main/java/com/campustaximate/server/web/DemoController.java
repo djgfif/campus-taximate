@@ -55,4 +55,5 @@ public class DemoController {
         return Map.of("created",demo.addSamples(actor(s),b==null||b.count()==null?2:b.count()));
     }
     @PostMapping("/act") public void act(HttpSession s) { demo.actAsSamples(actor(s)); }
+    @PostMapping("/board-party") public Map<String,String> boardParty(HttpSession s) { return Map.of("message",demo.openBoardParty(actor(s))); }
 }

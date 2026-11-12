@@ -38,15 +38,19 @@ describe('날짜·시각 선택', () => {
 describe('학생 안내', () => {
   const party = { id: 1, status: 'PREPAYING', departureAt: '2026-11-12T01:00:00Z', prepayDeadlineAt: '2026-11-12T00:40:00Z', canArrive: true, canCancel: true, payer: true, myRequestId: 1, members: [{ requestId: 1, memberId: 1, nickname: '나', rideOrder: 1 }], myShare: 1000 }
   it('고정 영역에는 주요 버튼 하나만 있고 보조 동작은 본문에 있다', () => {
-    const view = render(<PartyScreen party={party} now={now} myId={1} run={vi.fn()} />)
+    const view = render(<PartyScreen party={party} now={now} myId={1} run={vi.fn()} onHome={vi.fn()} />)
     expect(view.container.querySelectorAll('.foot button')).toHaveLength(1)
-    const secondary = screen.getByRole('region', { name: '일행 보조 메뉴' })
-    expect(within(secondary).getByRole('button', { name: '내 탑승 취소' })).toBeTruthy()
-    expect(within(secondary).getByRole('button', { name: '홈으로' })).toBeTruthy()
+    // 홈은 위쪽 뒤로 버튼, 취소는 정보 탭 맨 아래
+    expect(within(view.container.querySelector('.bar')).getByRole('button', { name: '홈으로' })).toBeTruthy()
+    const secondary = screen.getByRole('region', { name: '일행 보조 메뉴', hidden: true })
+    expect(within(secondary).getByRole('button', { name: '내 탑승 취소', hidden: true })).toBeTruthy()
     expect(screen.getByText(/나는 선결제하지 않아요/)).toBeTruthy()
     expect(screen.queryByText(/결제자 외 일행은/)).toBeNull()
-    expect(screen.getByRole('link', { name: '카카오T 열기' })).toBeTruthy()
+    // 아직 부를 때가 아니면 카카오T도 꺼 둔다
+    expect(screen.getByRole('button', { name: '카카오T 열기' }).disabled).toBe(true)
     expect(screen.getByRole('button', { name: '택시 불렀어요' })).toBeTruthy()
+    view.rerender(<PartyScreen party={{ ...party, canCall: true }} now={now} myId={1} run={vi.fn()} />)
+    expect(screen.getByRole('link', { name: '카카오T 열기' })).toBeTruthy()
   })
   it('카카오T 앱 링크를 열 때 웹 안내도 제공한다', () => {
     render(<KakaoTaxi />)

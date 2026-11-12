@@ -9,6 +9,8 @@ import DemoBar from './DemoBar.jsx'
 import DemoAccounts from './DemoAccounts.jsx'
 import Home from './Home.jsx'
 import { HomeRequest, SchoolRequest } from './RequestFlow.jsx'
+import { Joining } from './Board.jsx'
+import { ProfileSheet } from './People.jsx'
 import { PartyDetail, PartyScreen } from './PartyScreens.jsx'
 import { PayerInput, SettlementScreen } from './SettleScreens.jsx'
 import PaymentResult from './PaymentScreens.jsx'
@@ -45,6 +47,7 @@ export default function App() {
   const [offline, setOffline] = useState(false)
   const [menu, setMenu] = useState(false)
   const [leaving, setLeaving] = useState(false)
+  const [editingProfile, setEditingProfile] = useState(false)
 
   const session = useRef(0)
   const latestRead = useRef(0)
@@ -175,7 +178,7 @@ export default function App() {
         <>
           {wide && <Nav tab={tab} onTab={setTab} onMenu={openMenu} />}
           {offline && <Say tone="stop-tone">연결이 끊겼습니다. 다시 연결하는 중입니다.</Say>}
-          {config?.simulatedRoute && <Say tone="calm">시연용 경로예요. 금액과 시간은 실제 값이 아닙니다.</Say>}
+          {config?.simulatedRoute && <p className="demo-strip" role="note">시연 모드 · 금액과 시간은 예시예요</p>}
           {paymentReturn && <PaymentResult key={me.id + location.search} search={location.search} myId={me.id} onUpdated={refresh}
             onReturn={(id) => navigate(id ? `/parties/${id}` : '/', { replace: true })} />}
           {!paymentReturn && tab === 'history' && <History admin={me.admin} onBack={() => setTab('home')} />}
@@ -189,6 +192,7 @@ export default function App() {
               <p className="sub">{me.email}</p>
               {config?.demo && <DemoAccounts onLogin={async () => { session.current += 1; setState(null); setResetting(false); setMenu(false); navigate('/'); setMe(await api.me()) }} />}
               <div className="list">
+                <Item title="내 프로필" detail="학과·학번을 같이 타는 사람에게 보여 줘요" onClick={() => { setMenu(false); setEditingProfile(true) }} />
                 <Item title="이용 내역" onClick={() => { setMenu(false); setTab('history') }} />
                 {pushSupported() && <Item title={pushOn ? '알림 끄기' : '알림 받기'} detail="앱을 닫아도 확정과 승차 안내를 받아요" onClick={togglePush} />}
                 <Item title="로그아웃" onClick={() => signOut(api.logout)} />
@@ -196,6 +200,7 @@ export default function App() {
               </div>
             </Sheet>
           )}
+          {editingProfile && <ProfileSheet onClose={() => setEditingProfile(false)} />}
           {leaving && (
             <Confirm title="모든 기기에서 로그아웃할까요?" action="로그아웃" onClose={() => setLeaving(false)}
               onConfirm={() => signOut(api.logoutAll)}>
@@ -245,6 +250,7 @@ function Flow({ state, config, myId, run, refresh, onMenu, onHistory, onPush, pu
     return <PartyScreen party={party} now={state.now} myId={myId} config={config} run={run} onUpdated={refresh} onMenu={onMenu}
       onDetail={() => navigate('/parties/' + party.id + '?detail=1')} onHome={home} />
   }
+  if (latest?.status === 'JOINING') return <Joining latest={latest} config={config} now={state.now} myId={myId} run={run} onUpdated={refresh} onMenu={onMenu} />
   if (latest?.status === 'WAITING') return <Waiting latest={latest} now={state.now} config={config} run={run} onMenu={onMenu} onPush={pushOn ? null : onPush} />
   if (requestPath && !state.restricted) {
     const Request = requestPath === 'school' ? SchoolRequest : HomeRequest
@@ -257,6 +263,6 @@ function Flow({ state, config, myId, run, refresh, onMenu, onHistory, onPush, pu
       setSeenRequest(latest.id); startRequest({ direction: latest.direction, initial: latest })
     }} />
   }
-  return <Home state={state} myId={myId} onStart={startRequest} onHistory={onHistory} onMenu={onMenu}
+  return <Home state={state} myId={myId} config={config} onChanged={refresh} onStart={startRequest} onHistory={onHistory} onMenu={onMenu}
     onReopen={(id) => { setHidden((old) => old.filter((p) => p !== id)); navigate('/parties/' + id) }} />
 }

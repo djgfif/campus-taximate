@@ -93,7 +93,7 @@ describe('일행 상태', () => {
     const view = render(<PartyScreen party={waiting} now={now} myId={3} />)
     expect(screen.getByText('무료 취소 마감')).toBeTruthy()
     expect(screen.getByText('무료 취소 마감 전 취소하면 승인된 선결제를 전액 환불해요.')).toBeTruthy()
-    expect(screen.getByText('하차 순서')).toBeTruthy()
+    expect(screen.getByText('같이 타는 사람')).toBeTruthy()
     view.rerender(<PartyScreen party={{ ...waiting, status: 'FUTURE_STATUS' }} now={now} myId={3} />)
     expect(screen.getByText('일행 상태 확인 중')).toBeTruthy()
     expect(screen.queryByText('FUTURE_STATUS')).toBeNull()

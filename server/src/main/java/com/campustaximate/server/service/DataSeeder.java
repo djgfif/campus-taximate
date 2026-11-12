@@ -23,8 +23,14 @@ public class DataSeeder implements ApplicationRunner {
     public static final int DEMO_MEMBERS_PER_GENDER = 4;
     /** 시연 계정 비밀번호. 시연 프로필에서만 만들어진다. */
     public static final String DEMO_PASSWORD = "demo1234";
-    private static final List<String> FEMALE_NICKNAMES = List.of("하늘", "바다", "구름", "별");
-    private static final List<String> MALE_NICKNAMES = List.of("산", "강", "숲", "들");
+    /** 시연 계정 이름. 실제 학생처럼 보이도록 흔한 이름을 쓴다. */
+    private static final List<String> FEMALE_NICKNAMES = List.of("하은", "서연", "지민", "유나");
+    private static final List<String> MALE_NICKNAMES = List.of("준호", "도윤", "민재", "현우");
+    /** 시연 계정의 학과·학번. 실제 학생처럼 보이게 서로 다르게 둔다. */
+    private static final List<String> DEPARTMENTS = List.of("컴퓨터공학과", "경영학과", "간호학과", "디자인학과", "전자공학과", "영어영문학과", "체육학과", "행정학과");
+    private static final List<Integer> YEARS = List.of(22, 23, 21, 24, 23, 22, 25, 21);
+    /** 예전 시드 이름. 이미 만들어진 시연 계정도 새 이름으로 바꾼다. */
+    private static final List<String> OLD_NICKNAMES = List.of("하늘", "바다", "구름", "별", "산", "강", "숲", "들");
 
     public record Dropoff(String name, double lat, double lon) {
     }
@@ -65,8 +71,8 @@ public class DataSeeder implements ApplicationRunner {
     private void seedDemo(School school) {
         seedAdmin(school);
         for(int i=1;i<=DEMO_MEMBERS_PER_GENDER;i++) {
-            seedMember(school,"demo-f"+i,FEMALE_NICKNAMES.get(i-1),Gender.FEMALE);
-            seedMember(school,"demo-m"+i,MALE_NICKNAMES.get(i-1),Gender.MALE);
+            seedMember(school,"demo-f"+i,FEMALE_NICKNAMES.get(i-1),Gender.FEMALE,2*(i-1));
+            seedMember(school,"demo-m"+i,MALE_NICKNAMES.get(i-1),Gender.MALE,2*(i-1)+1);
         }
     }
 
@@ -77,11 +83,20 @@ public class DataSeeder implements ApplicationRunner {
         members.save(admin);
     }
 
-    private void seedMember(School school, String id, String nickname, Gender gender) {
-        if(members.findByEmail(id+"@daejin.ac.kr").isPresent()) return;
+    private void seedMember(School school, String id, String nickname, Gender gender, int index) {
+        var existing = members.findByEmail(id + "@daejin.ac.kr");
+        if (existing.isPresent()) {
+            Member old = existing.get();
+            if (old.getNickname() == null || OLD_NICKNAMES.contains(old.getNickname())) old.setNickname(nickname);
+            if (old.getDepartment() == null) { old.setDepartment(DEPARTMENTS.get(index)); old.setAdmissionYear(YEARS.get(index)); }
+            members.save(old);
+            return;
+        }
         Member member = new Member(school, id + "@daejin.ac.kr");
         member.setNickname(nickname);
         member.setGender(gender);
+        member.setDepartment(DEPARTMENTS.get(index));
+        member.setAdmissionYear(YEARS.get(index));
         member.setPasswordHash(PasswordHasher.hash(DEMO_PASSWORD));
         members.save(member);
     }

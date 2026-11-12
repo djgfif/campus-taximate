@@ -21,9 +21,9 @@ export default function RequestTimePicker({ label, options, value, now, onChange
     <Chips label={label + ' 날짜'} value={parts.slice(0, 10)} onChange={chooseDay}
       options={days.map((day) => ({ value: day, label: day === today ? '오늘' : '내일' }))} />
     <div className="time-columns">
-      <label className="field">{label} 시<select value={parts.slice(11, 13)} onChange={(e) => chooseHour(e.target.value)}>{hours.map((h) => <option key={h} value={h}>{Number(h)}시</option>)}</select></label>
-      <label className="field">{label} 분<select value={chosen} onChange={(e) => onChange(e.target.value)}>{minutes.map((t) => <option key={t} value={t}>{seoulParts(t).slice(14, 16)}분</option>)}</select></label>
+      <label className="field"><span className="sr-only">{label} </span>시<select value={parts.slice(11, 13)} onChange={(e) => chooseHour(e.target.value)}>{hours.map((h) => <option key={h} value={h}>{Number(h)}시</option>)}</select></label>
+      <label className="field"><span className="sr-only">{label} </span>분<select value={chosen} onChange={(e) => onChange(e.target.value)}>{minutes.map((t) => <option key={t} value={t}>{seoulParts(t).slice(14, 16)}분</option>)}</select></label>
     </div>
-    <div className="btns" role="group" aria-label={label + ' 빠른 선택'}>{[30, 60, 120].map((m) => <Btn className="small line" key={m} disabled={!quick(m)} onClick={() => onChange(quick(m))}>{m === 30 ? '30분 뒤' : m / 60 + '시간 뒤'}</Btn>)}</div>
+    <div className="quick" role="group" aria-label={label + ' 빠른 선택'}>{[30, 60, 120].map((m) => <Btn className="small line" key={m} disabled={!quick(m)} onClick={() => onChange(quick(m))}>{m === 30 ? '30분 뒤' : m / 60 + '시간 뒤'}</Btn>)}</div>
   </fieldset>
 }

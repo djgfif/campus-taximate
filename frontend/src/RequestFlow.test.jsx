@@ -23,6 +23,8 @@ afterEach(() => { cleanup(); vi.restoreAllMocks() })
 async function chooseOrigin() {
   fireEvent.change(await screen.findByLabelText('시연 출발지'), { target: { value: '0' } })
 }
+/** 가장 가까운 지점은 미리 골라져 있다. 이미 골라진 상자는 다시 누르지 않는다. */
+const check = (box) => { if (!box.checked) fireEvent.click(box) }
 async function chooseDestination() {
   fireEvent.change(screen.getByLabelText('시연 도착지'), { target: { value: '0' } })
 }
@@ -39,12 +41,19 @@ describe('새 탑승 요청', () => {
     expect(api.createRequest).not.toHaveBeenCalled()
   })
 
+  it('출발지를 고르면 가장 가까운 승차 지점 하나가 미리 골라진다', async () => {
+    render(<RequestForm {...props} />)
+    await chooseOrigin(); await chooseDestination()
+    const choices = await screen.findAllByRole('checkbox')
+    expect(choices.map((c) => c.checked)).toEqual([true, false, false])
+  })
+
   it('3곳을 선택하면 추정 걷기 시간과 미리보기를 보이고 출발지와 함께 보낸다', async () => {
     render(<RequestForm {...props} />)
     await chooseOrigin(); await chooseDestination()
     const choices = await screen.findAllByRole('checkbox')
     expect(choices).toHaveLength(3)
-    for (const choice of choices) fireEvent.click(choice)
+    for (const choice of choices) check(choice)
     expect(screen.getByText('걸어서 약 3분, 추정')).toBeTruthy()
     await screen.findByText('약 16,800원, 30분')
     expect(api.nearbyPoints).toHaveBeenCalledWith({ lat: 37.8, lon: 127.1 })
@@ -64,7 +73,7 @@ describe('새 탑승 요청', () => {
     expect(screen.queryByLabelText('출발 가능 시작')).toBeNull()
     expect(screen.queryByRole('group',{name:'시간 기준'})).toBeNull()
     await chooseOrigin(); await chooseDestination()
-    fireEvent.click((await screen.findAllByRole('checkbox'))[0])
+    check((await screen.findAllByRole('checkbox'))[0])
     await waitFor(() => expect(api.previewRequest).toHaveBeenCalledWith(expect.objectContaining({ mode: 'INSTANT',timeBasis:'DEPART' })))
     const body=api.previewRequest.mock.calls.at(-1)[0]
     expect(body).not.toHaveProperty('windowStart');expect(body).not.toHaveProperty('windowEnd');expect(body).not.toHaveProperty('arriveBy')
@@ -73,7 +82,7 @@ describe('새 탑승 요청', () => {
   it('도착 기준은 허용 10분을 기본으로 하고 출발 범위를 보내지 않는다', async () => {
     render(<RequestForm {...props} schoolDestination />)
     await chooseOrigin()
-    fireEvent.click((await screen.findAllByRole('checkbox'))[0])
+    check((await screen.findAllByRole('checkbox'))[0])
     expect(within(screen.getByRole('group', { name: '일찍 도착 허용' })).getByRole('button', { name: '10분' }).getAttribute('aria-pressed')).toBe('true')
     await waitFor(() => expect(api.previewRequest).toHaveBeenCalledWith(expect.objectContaining({ direction: 'FROM_HUB', timeBasis: 'ARRIVE', earlyArrivalMinutes: 10, pointName: '학교' })))
     const body = api.previewRequest.mock.calls.at(-1)[0]
@@ -85,7 +94,7 @@ describe('새 탑승 요청', () => {
   it('출발지 좌표를 지우면 기존 승차 지점과 미리보기로 제출하지 못한다', async () => {
     render(<RequestForm {...props} />)
     await chooseOrigin(); await chooseDestination()
-    fireEvent.click((await screen.findAllByRole('checkbox'))[0])
+    check((await screen.findAllByRole('checkbox'))[0])
     await screen.findByText('약 16,800원, 30분')
     fireEvent.change(screen.getByLabelText('출발지', { selector: 'input' }), { target: { value: '다른 출발지' } })
     expect(screen.queryByText('약 16,800원, 30분')).toBeNull()
@@ -98,7 +107,7 @@ describe('새 탑승 요청', () => {
     render(<RequestForm {...props} />)
     await chooseOrigin();await chooseDestination()
     const choices=await screen.findAllByRole('checkbox')
-    fireEvent.click(choices[0]);fireEvent.click(choices[1])
+    check(choices[0]);check(choices[1])
     fireEvent.click(screen.getByRole('button',{name:'즉시',exact:true}))
     expect(choices[0].disabled).toBe(false);expect(choices[1].disabled).toBe(true);expect(choices[1].checked).toBe(false)
     await waitFor(()=>expect(api.previewRequest).toHaveBeenLastCalledWith(expect.objectContaining({mode:'INSTANT',pointIds:[1]})))
@@ -106,7 +115,7 @@ describe('새 탑승 요청', () => {
   })
   it('도착 기준을 고른 뒤 즉시로 바꿔도 도착 기준을 보내지 않는다',async()=>{
     render(<RequestForm {...props} schoolDestination />)
-    await chooseOrigin();fireEvent.click((await screen.findAllByRole('checkbox'))[0])
+    await chooseOrigin();check((await screen.findAllByRole('checkbox'))[0])
     fireEvent.click(screen.getByRole('button',{name:'즉시',exact:true}))
     expect(screen.queryByLabelText('늦어도 도착 시각')).toBeNull()
     await waitFor(()=>expect(api.previewRequest).toHaveBeenLastCalledWith(expect.objectContaining({mode:'INSTANT',timeBasis:'DEPART'})))

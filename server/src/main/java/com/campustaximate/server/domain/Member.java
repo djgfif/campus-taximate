@@ -41,6 +41,15 @@ public class Member {
 
     private int noShowCount;
 
+    /** 공개 프로필: 학과와 학번(두 자리). showProfile이 꺼져 있으면 일행에게 보이지 않는다. */
+    @Column(length = 40)
+    private String department;
+
+    private Integer admissionYear;
+
+    @Column(nullable = false)
+    private boolean showProfile = true;
+
     private String loginCode;
 
     private Instant loginCodeExpiresAt;

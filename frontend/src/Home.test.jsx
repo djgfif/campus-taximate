@@ -13,7 +13,7 @@ const settled = { id: 7, status: 'COMPLETED', members: [], payerId: 1 }
 const state = (now) => ({ now, parties: [], restricted: false, settledParty: settled })
 
 describe('홈', () => {
-  it('정산 끝난 일행의 채팅은 상태가 여러 번 갱신돼도 한 번만 보인다', async () => {
+  it('홈에는 채팅을 그리지 않고, 정산 끝난 일행은 내역으로 연다', async () => {
     vi.spyOn(api, 'history').mockResolvedValue([])
     vi.spyOn(api, 'partyMessages').mockResolvedValue({ messages: [], closed: true })
     vi.spyOn(api, 'partyMembers').mockResolvedValue([])
@@ -22,6 +22,7 @@ describe('홈', () => {
     for (let i = 1; i <= 4; i++) {
       view.rerender(<Home {...props} state={state(`2026-11-12T09:0${i}:00Z`)} />)
     }
-    await waitFor(() => expect(screen.getAllByRole('region', { name: '일행 채팅' })).toHaveLength(1))
+    await waitFor(() => expect(screen.getByText('최근 정산 내역 보기')).toBeTruthy())
+    expect(screen.queryAllByRole('region', { name: '일행 채팅' })).toHaveLength(0)
   })
 })

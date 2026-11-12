@@ -58,4 +58,6 @@ public interface RideRequestRepository extends JpaRepository<RideRequest, Long> 
 
     @Query("select r.member.id from RideRequest r where r.party.id = :partyId")
     List<Long> findMemberIdsByPartyId(long partyId);
+
+    long countByMemberIdAndStatusAndNoShowFalse(Long memberId, com.campustaximate.server.domain.RequestStatus status);
 }
