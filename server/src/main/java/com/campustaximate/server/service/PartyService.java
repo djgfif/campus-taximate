@@ -47,6 +47,9 @@ public class PartyService {
     private final com.campustaximate.server.repository.PartyMemberTermRepository terms;
     private final com.campustaximate.server.repository.PartyChangeRepository partyChanges;
     private final com.campustaximate.server.repository.RideConfirmationRepository rideAnswers;
+    private final com.campustaximate.server.repository.PartyMessageRepository chatMessages;
+    private final com.campustaximate.server.repository.PartyChatReadRepository chatReads;
+    private final PartyChatService chatLog;
 
     public record MemberView(long requestId, long memberId, String nickname, String memo, int rideOrder,
                              String pointName, long expectedShare, boolean arrived, boolean noShow,
@@ -72,7 +75,7 @@ public class PartyService {
                             List<MemberView> members, SettlementView settlement, Instant prepayDeadlineAt, Instant freeCancelUntil, Instant startedAt,
                             long groupVersion, String reviewReason, boolean adminReviewRequired,
                             Boolean myRideAnswer, boolean canConfirmRide, boolean canLeaveAfterChange, boolean changeExitFree,
-                            Long myConfirmedShare, boolean myConfirmedMigrated, List<ChangeView> changes, boolean instant, Instant calledAt, boolean callReady, boolean canCall, List<String> notReadyReasons, Long successorId, Instant successionDeadlineAt, String successionStatus) {
+                            Long myConfirmedShare, boolean myConfirmedMigrated, List<ChangeView> changes, boolean instant, Instant calledAt, boolean callReady, boolean canCall, List<String> notReadyReasons, Long successorId, Instant successionDeadlineAt, String successionStatus, long unreadChat) {
     }
 
     public record ChangeView(long version,String reason,Instant changedAt) { }
@@ -86,6 +89,7 @@ public class PartyService {
         }
         mine.setArrived(true);
         mine.setNearbyAt(null);
+        chatLog.system(party, memberId, "%s님이 승차 지점에 도착했어요.");
     }
 
     /** 등교 결제자의 "택시 탔어요". 도착 표시를 겸하고 다음 승차자에게 남은 시간을 보여 준다. */
@@ -240,7 +244,9 @@ public class PartyService {
                 clock.now().isBefore(party.getDepartureAt().minusSeconds(600)),
                 myTerm==null?null:myTerm.getConfirmedShare(),myTerm!=null&&myTerm.isMigratedUnknown(),
                 partyChanges.findByPartyIdOrderByGroupVersion(party.getId()).stream().map(c->new ChangeView(c.getGroupVersion(),c.getReason(),c.getChangedAt())).toList(),
-                party.isInstant(),party.getCalledAt(),ready.callReady(),ready.canCall(),ready.notReadyReasons(),party.getSuccessorId(),party.getSuccessionDeadlineAt(),party.getSuccessionStatus());
+                party.isInstant(),party.getCalledAt(),ready.callReady(),ready.canCall(),ready.notReadyReasons(),party.getSuccessorId(),party.getSuccessionDeadlineAt(),party.getSuccessionStatus(),
+                chatMessages.countUnread(party.getId(), memberId, chatReads.findByPartyIdAndMemberId(party.getId(), memberId)
+                        .map(com.campustaximate.server.domain.PartyChatRead::getLastReadId).orElse(0L)));
     }
 
     private SettlementView toView(Settlement settlement, Party party, boolean payer, long memberId) {

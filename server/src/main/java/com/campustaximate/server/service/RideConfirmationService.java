@@ -21,6 +21,7 @@ public class RideConfirmationService {
     private final NotificationService notifications;
     private final AppClock clock;
     private final NoShowService noShows;
+    private final PartyChatService chatLog;
 
     @Transactional(propagation=Propagation.MANDATORY)
     public void ask(Party party) {
@@ -44,6 +45,7 @@ public class RideConfirmationService {
         if(party.getStartedAt()!=null) return;
         markBoardingUnconfirmed(party);
         noShows.beginRide(party,started);
+        chatLog.system(party,"운행을 시작했어요. 내릴 순서를 기사님께 다시 알려 주세요.");
     }
 
     @Transactional(propagation=Propagation.MANDATORY)

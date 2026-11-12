@@ -99,6 +99,10 @@ export default function App() {
       clearTimeout(soon)
       soon = setTimeout(refresh, 150)
     })
+    // 새 채팅·읽음은 상태 전체를 다시 읽지 않고 그 일행 채팅 창에만 알린다.
+    source.addEventListener('chat', (event) => {
+      window.dispatchEvent(new CustomEvent('taximate:chat', { detail: Number(event.data) }))
+    })
     const timer = setInterval(() => {
       if (!live || Date.now() - last >= LIVE_POLL_MS) {
         last = Date.now()

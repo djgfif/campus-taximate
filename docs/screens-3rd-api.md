@@ -93,3 +93,18 @@ Progress: { now, partyId, stage, next, role, message, investigations: [{ memberI
 기존 POST /api/demo/run, /advance, /samples, /act는 유지한다. advance는 1~2880분, samples는 1~3명이다.
 학생 이용 내역은 예상 요금 정확도 통계를 조회·표시하지 않으며 관리자 계정의 이용 내역에서만 표시한다. 기존 GET /api/stats/fare-accuracy는 유지한다.
 대기 화면은 응답 state.now를 기준으로 경과 시간을 더하고, 지난 nextCheckAt은 시각 대신 "지금 조건을 다시 확인하고 있어요"로 표시한다. 시연에서는 시연 시각을 함께 표시한다.
+
+## 9. 일행 채팅 (카톡 수준, 화면 연결됨: `PartyChat.jsx`)
+| 기능 | API |
+|---|---|
+| 최근 50개 / 새 메시지 / 이전 메시지 | `GET /api/parties/{id}/messages` (`?after=번호` 그 뒤, `?before=번호` 그 앞 50개). 응답에 `hasOlder`, `lastReadId` |
+| 글 보내기 | `POST /api/parties/{id}/messages` `{ "text": "...", "clientId": "임의 문자열" }` — 같은 `clientId`로 다시 보내면 한 번만 저장(재전송 안전) |
+| 사진 보내기 | `POST /api/parties/{id}/messages/image` (multipart `image`, 선택 `clientId`). JPG·PNG·WEBP, 5MB 이하, 파일 앞부분으로 형식 확인 |
+| 사진 보기 | 메시지의 `imageUrl` (`GET /api/parties/{id}/messages/{mid}/image`, 현재 일행원만) |
+| 읽음 표시 | `POST /api/parties/{id}/messages/read` `{ "lastId": 번호 }` — 읽은 위치는 앞으로만 감 |
+| 실시간 | 기존 `/api/events` SSE에 `chat` 이벤트(데이터: 일행 번호). 화면은 `taximate:chat` 창 이벤트로 받아 그 채팅만 다시 읽는다 |
+
+- 메시지 필드: `kind`(`TEXT`·`IMAGE`·`SYSTEM`), `unread`(보낸 사람을 뺀 현재 일행원 중 아직 안 읽은 사람 수, 카톡의 노란 숫자), `imageUrl`, `clientId`(내 메시지만). `SYSTEM`은 `memberId`가 `null`.
+- 시스템 알림(자동): 일행 확정, 선결제 완료, 도착, 2분 안 도착, 일행원 빠짐, 합류, 운행 시작, 실제 금액 입력.
+- 일행 목록·조회 응답의 `unreadChat`: 내가 안 읽은 메시지 수. 홈의 진행 중 일행에 빨간 숫자로 보인다.
+- 1분에 10개까지 보낼 수 있다(넘으면 `429` `CHAT_TOO_FAST`). 휴대폰에서는 Enter가 줄바꿈이고 보내기 버튼으로 보낸다.

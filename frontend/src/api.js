@@ -31,8 +31,15 @@ function settlementForm({ amount, receipt }) {
 }
 
 export const api = {
-  partyMessages: (partyId, after) => request(`/parties/${partyId}/messages${after == null ? '' : `?after=${after}`}`),
-  sendPartyMessage: (partyId, text) => json('POST', `/parties/${partyId}/messages`, { text }),
+  partyMessages: (partyId, after, before) => request(`/parties/${partyId}/messages${after != null ? `?after=${after}` : before != null ? `?before=${before}` : ''}`),
+  sendPartyMessage: (partyId, text, clientId) => json('POST', `/parties/${partyId}/messages`, clientId ? { text, clientId } : { text }),
+  sendPartyImage: (partyId, image, clientId) => {
+    const form = new FormData()
+    form.append('image', image)
+    if (clientId) form.append('clientId', clientId)
+    return request(`/parties/${partyId}/messages/image`, { method: 'POST', body: form })
+  },
+  readPartyMessages: (partyId, lastId) => json('POST', `/parties/${partyId}/messages/read`, { lastId }),
   config: () => request('/config'),
   me: () => request('/me'),
   state: () => request('/state'),

@@ -31,6 +31,7 @@ public class PaymentService {
     private final PartyMemberTermRepository terms;
     private final NotificationService notifications;
     private final PlatformTransactionManager transactionManager;
+    private final PartyChatService chatLog;
 
     public record OrderView(String orderId, long amount, PaymentPurpose purpose, PaymentStatus status,
                             Instant deadlineAt, long approvedAmount, long refundedAmount, long refundRequestedAmount, boolean simulated, boolean refundHeld, String holdReason) { }
@@ -346,6 +347,9 @@ public class PaymentService {
             order.setStatus(PaymentStatus.APPROVED); order.setApprovedAmount(result.amount());
             order.setRefundedAmount(Math.max(order.getRefundedAmount(), result.canceledAmount()));
             if (order.getApprovedAt() == null) order.setApprovedAt(clock.now());
+            if (work.type() == PaymentOperationType.CONFIRM && !wasExpired && order.getPurpose() == PaymentPurpose.PREPAY
+                    && List.of(PartyStatus.PREPAYING, PartyStatus.READY).contains(party.getStatus()))
+                chatLog.system(party, order.getMemberId(), "%s님이 선결제를 마쳤어요.");
             if(work.type()==PaymentOperationType.CONFIRM && joinCompletion.approved(order,party)) {
                 order.setExcludedAt(clock.now());refundTo(order.getId(),order.getAmount(),"합류 만료 또는 일행 변경 뒤 승인 전액 환불");
             } else if(work.type()==PaymentOperationType.CONFIRM && party.getStatus()==PartyStatus.DISSOLVED && order.getPurpose()==PaymentPurpose.PREPAY) {

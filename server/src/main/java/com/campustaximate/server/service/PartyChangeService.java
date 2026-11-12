@@ -15,6 +15,7 @@ public class PartyChangeService {
     private final AppClock clock;
     private final PaymentOrderRepository orders;
     private final BoardingCaseRepository cases;
+    private final PartyChatService chatLog;
 
     @Transactional(propagation=Propagation.MANDATORY)
     public void capture(Party party, List<RideRequest> riders, boolean migrated) {
@@ -46,5 +47,6 @@ public class PartyChangeService {
             c.setDecisionReason("무료 취소 마감 뒤 취소 또는 호출 시각 뒤 변경 이탈");
             c.setNoCompensation(Objects.equals(party.getOriginalPayerId(),term.getMemberId()));cases.save(c);
         }
+        if(!leaving.isEmpty()) chatLog.system(party,"일행원 "+leaving.size()+"명이 빠졌어요. 분담금과 하차 순서를 다시 계산했어요.");
     }
 }

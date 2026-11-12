@@ -282,6 +282,7 @@ public class SlotService {
                     "일행이 확정됐습니다. 출발 시각과 탑승 위치를 확인해 주세요: " + publicUrl);
         }
         payments.preparePrepayments(party, riders, slot);
+        chat.system(party, "일행이 정해졌어요. 결제자는 " + riders.get(payerIndex).getMember().getNickname() + "님이에요. 승차 지점에서 만나요.");
     }
 
     private void expire(MatchRequest expired, Map<Long, RideRequest> snapshot) {

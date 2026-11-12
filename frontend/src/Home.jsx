@@ -51,7 +51,8 @@ export default function Home({ state, myId, onStart, onReopen, onHistory, onMenu
           {(state.transferRestricted || (blocked && !state.restriction)) && <Say tone="stop-tone" title="미납 내역이 있어요">결제 또는 이전 미정산 내역을 확인해 주세요. 해결하면 새 요청을 할 수 있어요.</Say>}
           <div className="list">
             {state.parties.map((party) => (
-              <Item key={party.id} title={party.settlement || party.canSettle ? '진행 중인 정산' : '진행 중인 일행'}
+              <Item key={party.id} title={<>{party.settlement || party.canSettle ? '진행 중인 정산' : '진행 중인 일행'}
+                {party.unreadChat > 0 && <span className="unread-badge" aria-label={`안 읽은 메시지 ${party.unreadChat}개`}>{party.unreadChat > 99 ? '99+' : party.unreadChat}</span>}</>}
                 detail={routeLabel({ direction: party.direction, anchorName: party.anchorName, pointName: party.meetingPoint })}
                 onClick={() => onReopen(party.id)} />
             ))}

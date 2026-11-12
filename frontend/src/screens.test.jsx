@@ -144,7 +144,7 @@ describe('일행 채팅', () => {
     expect(input.maxLength).toBe(200)
     for (const phrase of ['조금 늦어요', '도착했어요, 어디 계세요?', '택시 잡았어요']) {
       fireEvent.click(screen.getByRole('button', { name: phrase, exact: true }))
-      await waitFor(() => expect(send).toHaveBeenLastCalledWith(11, phrase))
+      await waitFor(() => expect(send).toHaveBeenLastCalledWith(11, phrase, expect.any(String)))
       await waitFor(() => expect(screen.getByRole('button', { name: phrase, exact: true }).disabled).toBe(false))
     }
     fireEvent.click(screen.getByRole('button', { name: '인상착의:', exact: true }))
@@ -152,7 +152,7 @@ describe('일행 채팅', () => {
     expect(document.activeElement).toBe(input)
     fireEvent.change(input, { target: { value: '인상착의: 파란 외투예요' } })
     fireEvent.click(screen.getByRole('button', { name: '메시지 보내기' }))
-    await waitFor(() => expect(send).toHaveBeenCalledWith(11, '인상착의: 파란 외투예요'))
+    await waitFor(() => expect(send).toHaveBeenCalledWith(11, '인상착의: 파란 외투예요', expect.any(String)))
     await waitFor(() => expect(input.value).toBe(''))
     fireEvent.click(screen.getByRole('button', { name: '일행님 메시지 신고' }))
     await screen.findByRole('dialog', { name: '일행님 신고·다시 매칭 안 함' })

@@ -41,7 +41,8 @@ public class AdminService {
     public CaseDetail noShowDetail(long actor,long id) {
         requireAdmin(actor);var c=cases.findById(id).orElseThrow(()->ApiException.notFound("없는 조사입니다."));
         return new CaseDetail(summary(c),votes.findByCaseIdOrderById(id),explanations.findByCaseId(id).orElse(null),
-                messages.findTop50ByPartyIdOrderByIdDesc(c.getPartyId()).stream().map(m->new ChatLine(m.getId(),m.getMember().getId(),m.getText(),m.getCreatedAt())).toList());
+                // 판정 근거는 일행원이 쓴 대화만. 시스템 알림(보낸 사람 없음)은 뺀다.
+                messages.findTop50ByPartyIdOrderByIdDesc(c.getPartyId()).stream().filter(m->m.getMember()!=null).map(m->new ChatLine(m.getId(),m.getMember().getId(),m.getText(),m.getCreatedAt())).toList());
     }
     private Party lockParty(long id){return parties.findByIdForUpdate(id).orElseThrow(()->ApiException.notFound("없는 일행입니다."));}
     private static void evidence(String s){if(s==null||s.isBlank()||s.length()>2000)throw ApiException.badRequest("EVIDENCE_REQUIRED","판정 근거를 1~2000자로 입력해 주세요.");}

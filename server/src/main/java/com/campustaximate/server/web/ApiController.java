@@ -312,18 +312,40 @@ public class ApiController {
                 "settledParty", java.util.Optional.ofNullable(parties.latestSettled(id)).<Object>map(p -> p).orElse(""));
     }
 
-    public record MessageBody(String text) { }
+    public record MessageBody(String text, String clientId) { }
+    public record ReadBody(long lastId) { }
 
+    /** after: 그 뒤 새 메시지, before: 그 앞 이전 메시지 50개, 둘 다 없으면 최근 50개. */
     @GetMapping("/parties/{partyId}/messages")
     public com.campustaximate.server.service.PartyChatService.ChatView messages(
-            @PathVariable long partyId, @RequestParam(required = false) Long after, HttpSession session) {
-        return chat.read(memberId(session), partyId, after);
+            @PathVariable long partyId, @RequestParam(required = false) Long after,
+            @RequestParam(required = false) Long before, HttpSession session) {
+        return chat.read(memberId(session), partyId, after, before);
     }
 
     @PostMapping("/parties/{partyId}/messages")
     public com.campustaximate.server.service.PartyChatService.MessageView message(
             @PathVariable long partyId, @RequestBody MessageBody body, HttpSession session) {
-        return chat.send(memberId(session), partyId, body.text());
+        return chat.send(memberId(session), partyId, body.text(), body.clientId());
+    }
+
+    @PostMapping(value = "/parties/{partyId}/messages/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public com.campustaximate.server.service.PartyChatService.MessageView imageMessage(
+            @PathVariable long partyId, @RequestPart("image") MultipartFile image,
+            @RequestParam(required = false) String clientId, HttpSession session) {
+        return chat.sendImage(memberId(session), partyId, image, clientId);
+    }
+
+    @GetMapping("/parties/{partyId}/messages/{messageId}/image")
+    public ResponseEntity<Resource> messageImage(@PathVariable long partyId, @PathVariable long messageId, HttpSession session) {
+        var file = chat.image(memberId(session), partyId, messageId);
+        return ResponseEntity.ok().header("X-Content-Type-Options", "nosniff").header("Cache-Control", "private, max-age=3600")
+                .contentType(MediaType.parseMediaType(file.contentType())).body(new FileSystemResource(file.path()));
+    }
+
+    @PostMapping("/parties/{partyId}/messages/read")
+    public Map<String, Long> readMessages(@PathVariable long partyId, @RequestBody ReadBody body, HttpSession session) {
+        return Map.of("lastReadId", chat.markRead(memberId(session), partyId, body.lastId()));
     }
 
     public record ReportBody(@NotNull ReportReason reason, @Size(max = 200) String memo) { }

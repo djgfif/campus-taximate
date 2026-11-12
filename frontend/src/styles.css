@@ -475,6 +475,25 @@ button.item:active { opacity: 0.6; }
 .chat-send:active:not(:disabled) { transform: scale(0.96); }
 .chat-send:disabled { background: var(--mist); color: #8d94a3; cursor: default; }
 .chat-count { align-self: flex-end; font-size: 12px; color: var(--road); }
+.chat-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; flex: none; }
+.theirs .chat-meta { align-items: flex-start; }
+.chat-meta time { font-size: 11px; color: var(--road); white-space: nowrap; }
+/* 카톡처럼 아직 안 읽은 사람 수를 노란 숫자로 */
+.chat-unread { font-size: 11px; font-weight: 800; color: #d99a00; line-height: 1; }
+.chat-state { font-size: 11px; color: var(--road); white-space: nowrap; }
+.chat-pending .bubble { opacity: 0.7; }
+.chat-retry { display: flex; gap: 10px; margin-top: 4px; }
+.chat-retry button { display: inline-flex; align-items: center; gap: 3px; padding: 6px 2px; font-size: 12px; color: var(--stop); }
+.chat-retry button + button { color: var(--road); }
+.chat-messages li.chat-day, .chat-messages li.chat-system { align-self: center; max-width: 92%; margin: 8px 0 4px; }
+.chat-day span { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 11px; color: var(--road); background: rgba(0, 0, 0, 0.05); }
+.chat-system span { display: inline-block; padding: 5px 12px; border-radius: 12px; font-size: 12px; line-height: 1.45; text-align: center; color: var(--ink); background: rgba(255, 255, 255, 0.75); box-shadow: inset 0 0 0 1px var(--line); }
+.chat-image-link { display: block; line-height: 0; }
+.chat-image { display: block; max-width: 220px; max-height: 260px; border-radius: 14px; object-fit: cover; background: var(--mist); box-shadow: inset 0 0 0 1px var(--line); }
+.chat-older { display: block; margin: 0 auto 8px; padding: 6px 12px; border-radius: 999px; font-size: 12px; color: var(--road); background: var(--mist); }
+.chat-attach { width: 48px; height: 48px; flex: none; display: grid; place-items: center; border-radius: 14px; background: var(--mist); color: var(--ink); }
+.chat-attach:active { transform: scale(0.96); }
+.unread-badge { display: inline-block; min-width: 20px; margin-left: 6px; padding: 1px 6px; border-radius: 999px; font-size: 11px; font-weight: 800; line-height: 18px; text-align: center; color: #fff; background: var(--stop); vertical-align: 1px; }
 
 /* 공동 승차 요청과 결제: 기존 간격·타이포를 따른다. */
 .place-field { margin: 1.5rem 0; }

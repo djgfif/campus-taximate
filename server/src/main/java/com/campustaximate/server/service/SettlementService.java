@@ -58,6 +58,7 @@ public class SettlementService {
     private final RideConfirmationService rideConfirmations;
     private final com.campustaximate.server.repository.SettlementShareRepository allocations;
     private final com.campustaximate.server.repository.FareObjectionRepository objections;
+    private final PartyChatService chatLog;
 
     @Value("${app.upload-dir}")
     private String uploadDir;
@@ -95,6 +96,7 @@ public class SettlementService {
             saveAllocations(party, settlement, riders, shares);
             if(rideConfirmations.hasNegativeAnswer(party.getId())) { party.setStatus(PartyStatus.REVIEW_PENDING); party.setAdminReviewRequired(true); party.setReviewReason("RIDE_DISPUTE"); }
             else party.setStatus(PartyStatus.OBJECTION_WINDOW);
+            chatLog.system(party, String.format("결제자가 실제 금액 %,d원과 영수증을 올렸어요. 24시간 동안 요금 이의를 낼 수 있어요.", amount));
             return;
         }
         Settlement settlement = settlements.save(new Settlement(party, amount, receiptPath, contentType,

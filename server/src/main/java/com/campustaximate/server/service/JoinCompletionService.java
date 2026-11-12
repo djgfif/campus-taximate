@@ -10,6 +10,7 @@ public class JoinCompletionService {
     private final PartyJoinRepository joins;private final PartyJoinMemberRepository members;
     private final RideRequestRepository requests;private final PartyChangeService changes;private final MemberSafetyService safety;
     private final NotificationService notifications;private final AppClock clock;
+    private final PartyChatService chatLog;
     public boolean pending(PaymentOrder order,Party party){
         return joins.findByPaymentOrderId(order.getId()).filter(j->"PENDING".equals(j.getState())&&Objects.equals(party.getPendingJoinId(),j.getId())
                 &&Objects.equals(party.getPayer().getId(),j.getPayerId())&&party.getGroupVersion()==j.getBaseGroupVersion()&&List.of(PartyStatus.PREPAYING,PartyStatus.READY).contains(party.getStatus())
@@ -38,7 +39,7 @@ public class JoinCompletionService {
             rider.setRatioUnits(row.getRatioUnits());rider.setExpectedShare(row.getExpectedShare());rider.setStatus(RequestStatus.MATCHED);
         }
         newcomer.setPendingJoinId(null);party.setPendingJoinId(null);party.setExpectedTotal(join.getTotalFare());join.setState("CONFIRMED");
-        changes.capture(party,List.of(newcomer),false);safety.remember(party,List.of(newcomer));changes.changed(party,Set.of(),"JOIN_CONFIRMED",Set.of());
+        changes.capture(party,List.of(newcomer),false);safety.remember(party,List.of(newcomer));changes.changed(party,Set.of(),"JOIN_CONFIRMED",Set.of());chatLog.system(party,newcomer.getMember().getId(),"%s님이 합류했어요. 기존 분담금은 같거나 줄어요.");
         for(var rider:requests.findByPartyOrderByRideOrder(party))notifications.toMember(rider.getMember(),"[캠퍼스 택시메이트] 합류 확정","일행이 합류했어요. 현재 예상 분담금은 "+rider.getExpectedShare()+"원이에요. 선결제 차액은 정산 때 돌려드려요.");
         return false;
     }

@@ -21,6 +21,7 @@ public class PartyReadinessService {
     private final RideConfirmationService confirmations;
     private final PartyJoinService joins;
     private final PlatformTransactionManager manager;
+    private final PartyChatService chatLog;
     public record State(boolean callReady,boolean canCall,List<String> notReadyReasons) { }
 
     public State state(Party party,long actor,List<RideRequest> riders) {
@@ -51,8 +52,8 @@ public class PartyReadinessService {
         RideRequest mine=requests.findByPartyOrderByRideOrder(party).stream().filter(r->r.getMember().getId()==actor).findFirst()
                 .orElseThrow(()->ApiException.forbidden("현재 일행원만 표시할 수 있어요."));
         if(mine.getStatus()!=RequestStatus.MATCHED) throw ApiException.conflict("NOT_PREPARING","이미 운행을 시작했어요.");
-        if("ARRIVED".equals(state)) {mine.setArrived(true);mine.setNearbyAt(null);}
-        else if("NEARBY".equals(state)) {if(!mine.isArrived())mine.setNearbyAt(clock.now());}
+        if("ARRIVED".equals(state)) {mine.setArrived(true);mine.setNearbyAt(null);chatLog.system(party,actor,"%s님이 승차 지점에 도착했어요.");}
+        else if("NEARBY".equals(state)) {if(!mine.isArrived()){mine.setNearbyAt(clock.now());chatLog.system(party,actor,"%s님이 2분 안에 도착해요.");}}
         else throw ApiException.badRequest("INVALID_READINESS","도착 또는 2분 안 도착 중 골라 주세요.");
     }
 
