@@ -39,6 +39,8 @@ final class RouteGroupVerifier implements GroupVerifier {
     private final Map<Long, GeoPoint> origins;
     private final Instant slot;
     private final MatchingSettings settings;
+    private Instant fixedDeparture;
+    RouteGroupVerifier fixedDeparture(Instant departure){this.fixedDeparture=departure;return this;}
     private final RoutePathStore paths;
     private final Map<Long, Long> requestFares;
 
@@ -81,10 +83,19 @@ final class RouteGroupVerifier implements GroupVerifier {
     @Override
     public boolean recentlyRejected(Candidate candidate) {
         Instant until = rejected.get(candidate.sortedIds());
-        return until != null && now.isBefore(until);
+        boolean blocked=until != null && now.isBefore(until);
+        if(blocked)MatchingDiagnostics.reason(slot,candidate.sortedIds(),"REJECT_CACHE",until);
+        return blocked;
     }
 
+    private Verdict unavailable(Candidate candidate) {
+        MatchingDiagnostics.reason(slot,candidate.sortedIds(),"SECONDARY_UNAVAILABLE",candidate.size());return Verdict.UNAVAILABLE;
+    }
     private Verdict reject(Candidate candidate) {
+        return reject(candidate,"SECONDARY_TIME",candidate.departure());
+    }
+    private Verdict reject(Candidate candidate,String code,Object value) {
+        MatchingDiagnostics.reason(slot,candidate.sortedIds(),code,value);
         rejected.put(candidate.sortedIds(), now.plus(REJECT_KEEP));
         return Verdict.FAIL;
     }
@@ -118,7 +129,7 @@ final class RouteGroupVerifier implements GroupVerifier {
         Instant departure = candidate.departure();
         if (departure == null) departure = slot.plusSeconds(MatchingSettings.everyMinute().leadMinutes() * 60L);
         boolean instant=order.stream().anyMatch(MatchRequest::instant);
-        Instant minimum=instant?TripPlan.of(Direction.FROM_HUB,settings).schedule(order,java.util.Collections.nCopies(order.size(),0),slot).departure():slot.plusSeconds(settings.leadMinutes()*60L);
+        Instant minimum=fixedDeparture!=null?fixedDeparture:instant?TripPlan.of(Direction.FROM_HUB,settings).schedule(order,java.util.Collections.nCopies(order.size(),0),slot).departure():slot.plusSeconds(settings.leadMinutes()*60L);
         if(minimum==null || instant&&order.stream().anyMatch(MatchRequest::arrival)) return reject(candidate);
         List<Integer> seconds = new ArrayList<>();
         List<RouteClient.Route> solo = new ArrayList<>();
@@ -130,7 +141,7 @@ final class RouteGroupVerifier implements GroupVerifier {
                 full = routes.routeAt(hub, stops, departure);
                 List<Integer> legs = legSeconds(full, stops.size());
                 if (legs == null || legs.stream().anyMatch(n -> n < 0)
-                        || legs.stream().mapToLong(Integer::longValue).sum() != full.seconds()) return Verdict.UNAVAILABLE;
+                        || legs.stream().mapToLong(Integer::longValue).sum() != full.seconds()) return unavailable(candidate);
                 seconds.clear();
                 int stopIndex = 0;
                 int elapsed = legs.getFirst();
@@ -143,7 +154,7 @@ final class RouteGroupVerifier implements GroupVerifier {
                 if (first.arrival()) {
                     Instant target = order.stream().map(MatchRequest::arriveBy).min(Instant::compareTo).orElseThrow();
                     Instant revised = minuteFloor(target.minusSeconds(seconds.getLast()));
-                    if (!revised.equals(departure)) {
+                    if (fixedDeparture==null && !revised.equals(departure)) {
                         departure = revised;
                         continue;
                     }
@@ -169,7 +180,7 @@ final class RouteGroupVerifier implements GroupVerifier {
                 if (paths != null) paths.remember(origin, List.of(rider.own()), alone);
             }
         } catch (RouteClient.RouteUnavailableException e) {
-            return Verdict.UNAVAILABLE;
+            return unavailable(candidate);
         }
         return finish(candidate, new VerifiedRoutes(List.copyOf(solo), List.copyOf(seconds), full.fare(), departure, null));
     }
@@ -212,7 +223,7 @@ final class RouteGroupVerifier implements GroupVerifier {
             }
             List<Integer> legs = legSeconds(full, merged.size() - 1);
             if (legs == null) {
-                return Verdict.UNAVAILABLE;
+                return unavailable(candidate);
             }
             if (paths != null) {
                 paths.remember(path.origin(), path.stops(), full);
@@ -233,7 +244,7 @@ final class RouteGroupVerifier implements GroupVerifier {
                 rides.add(index == merged.size() - 2 ? alone.seconds() : secondsAfter(legs, index));
             }
         } catch (RouteClient.RouteUnavailableException e) {
-            return Verdict.UNAVAILABLE;
+            return unavailable(candidate);
         }
         return finish(candidate, new VerifiedRoutes(solo, rides, full.fare(), departure, boardAt));
     }
@@ -278,11 +289,11 @@ final class RouteGroupVerifier implements GroupVerifier {
         long soloTotal = solo.stream().mapToLong(RouteClient.Route::fare).sum();
         if (java.math.BigInteger.valueOf(routesOfGroup.total()).multiply(java.math.BigInteger.TEN)
                 .compareTo(java.math.BigInteger.valueOf(soloTotal).multiply(java.math.BigInteger.valueOf(9))) > 0) {
-            return reject(candidate);
+            return reject(candidate,"SAVINGS",List.of(routesOfGroup.total(),soloTotal));
         }
         for (int i = 0; i < order.size(); i++) {
             if (order.get(i).walkSeconds() + routesOfGroup.rideSeconds().get(i) - solo.get(i).seconds() > MAX_DELAY_SECONDS) {
-                return reject(candidate);
+                return reject(candidate,"SECONDARY_DELAY",order.get(i).walkSeconds()+routesOfGroup.rideSeconds().get(i)-solo.get(i).seconds());
             }
         }
         try {

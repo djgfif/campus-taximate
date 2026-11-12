@@ -32,7 +32,7 @@ public class PaymentLifecycleService {
     private final CompensationService compensation;
     private final CompensationEntryRepository compensationEntries;
     private final PlatformTransactionManager transactionManager;
-    private TransactionTemplate tx() { return new TransactionTemplate(transactionManager); }
+    private TransactionTemplate tx() { return new com.campustaximate.server.common.RetryingTransactionTemplate(transactionManager); }
 
     /** 출발 전에 먼저 처리해 뒤늦은 스케줄러 실행이 운행 미성사를 운행 시작으로 바꾸지 않는다. */
     public void beforeDepartures() {

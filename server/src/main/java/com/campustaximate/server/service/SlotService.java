@@ -71,6 +71,8 @@ public class SlotService {
     private final MemberSafetyService safety;
     private final PlatformTransactionManager transactionManager;
     private final MatchingSettings matchingSettings;
+    private final MatchingDiagnostics diagnostics;
+    private final PartyJoinService joins;
     private final ReentrantLock lock = new ReentrantLock();
     private final Map<List<Long>, Instant> rejected = new ConcurrentHashMap<>();
     @Value("${app.public-url}")
@@ -110,15 +112,16 @@ public class SlotService {
 
     /** 잠금 안에서 부른다. */
     public void process(Instant slot) {
+        guarded("합류 기한 처리",joins::expireDue);
         guarded("선결제 기한 처리", paymentLifecycle::beforeDepartures);
-        List<RideRequest> waiting = requests.findByStatus(RequestStatus.WAITING);
         guarded("출발 처리", () -> settleDepartures(clock.now()));
         guarded("승차 판정", () -> boarding.check(clock.now()));
         guarded("정산 기한 처리", paymentLifecycle::afterDepartures);
         guarded("보관 기간 삭제", settlements::purgeReceipts);
         guarded("일행 채팅 삭제", chat::purgeMessages);
         guarded("로그인 토큰 정리", loginTokens::purgeExpired);
-        matchWaiting(slot, waiting);
+        guarded("합류 후보 처리",()->joins.offerWaiting(slot,requests.findByStatus(RequestStatus.WAITING)));
+        matchWaiting(slot, requests.findByStatus(RequestStatus.WAITING));
     }
 
     /** 부가 작업이 실패해도 매칭과 미성사 처리는 돌아야 한다. */
@@ -131,7 +134,7 @@ public class SlotService {
     }
 
     private void settleDepartures(Instant now) {
-        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        TransactionTemplate tx = new com.campustaximate.server.common.RetryingTransactionTemplate(transactionManager);
         for (Party candidate : parties.findByStatusIn(List.of(PartyStatus.CONFIRMED, PartyStatus.READY)).stream()
                 .filter(p -> p.getDirection() == Direction.FROM_HUB && !p.getDepartureAt().isAfter(now)).toList()) {
             try {
@@ -195,11 +198,12 @@ public class SlotService {
         snapshot.forEach((id, r) -> requestFares.put(id, r.getSoloFare()));
         Map<Long, GeoPoint> origins = new LinkedHashMap<>();
         snapshot.forEach((id, r) -> origins.put(id, r.origin()));
+        diagnostics.inspect(slot,input,legStore.provider());
         RouteGroupVerifier verifier = new RouteGroupVerifier(routes, rejected, now, paths, requestFares, origins, slot,matchingSettings);
         RoundResult result = new MatchingRound(matchingSettings).run(slot, input, legStore.provider(), verifier);
 
         Instant limit = AppClock.nextMinuteAfter(slot);
-        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        TransactionTemplate tx = new com.campustaximate.server.common.RetryingTransactionTemplate(transactionManager);
         for (ConfirmedGroup group : result.confirmed()) {
             if (isLate(limit, slot)) {
                 return;
@@ -240,6 +244,7 @@ public class SlotService {
         Map<Long, Set<Long>> currentAvoids = safety.avoidMap(memberIds);
         if (memberIds.stream().anyMatch(id -> memberIds.stream()
                 .anyMatch(other -> currentAvoids.getOrDefault(id, Set.of()).contains(other)))) {
+            MatchingDiagnostics.reason(slot,group.order().stream().map(MatchRequest::id).toList(),"BLOCKED_BEFORE_SAVE",group.order().size());
             return;
         }
         List<RideRequest> riders = new ArrayList<>();
@@ -247,7 +252,7 @@ public class SlotService {
             RideRequest current = requests.findById(m.id()).orElseThrow();
             if (current.getStatus() != RequestStatus.WAITING
                     || current.getVersion() != snapshot.get(m.id()).getVersion()) {
-                log.info("요청 {}이 바뀌어 조합을 버립니다.", m.id());
+                MatchingDiagnostics.reason(slot,group.order().stream().map(MatchRequest::id).toList(),"SNAPSHOT_CHANGED",List.of(current.getStatus(),current.getVersion()));
                 return;
             }
             riders.add(current);
@@ -290,7 +295,7 @@ public class SlotService {
                 "이번 요청은 같이 탈 일행을 찾지 못했습니다.");
     }
 
-    private static List<MatchRequest> toEngine(RideRequest r) {
+    static List<MatchRequest> toEngine(RideRequest r) {
         if (r.getDirection() == Direction.TO_SCHOOL) {
             return List.of(MatchRequest.toSchool(r.getId(), r.getMember().getId(), r.getSchool().getId(),
                     new GeoPoint(r.getSchool().getLat(), r.getSchool().getLon()), r.getMember().getGender(),

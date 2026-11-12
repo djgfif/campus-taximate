@@ -85,6 +85,8 @@ public class Party {
     private Instant successionDeadlineAt;
     private String successionStatus;
 
+    private Long pendingJoinId;
+
     private long expectedTotal;
 
     @Enumerated(EnumType.STRING)

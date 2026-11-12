@@ -257,7 +257,7 @@ public class SettlementService {
     /** 일행 잠금을 트랜잭션의 첫 읽기로 잡아야 최신 값을 본다. 그래서 일행 번호는 트랜잭션 밖에서 찾는다. */
     public void markSent(long memberId, long transferId, int revision) {
         long partyId = partyIdOf(transferId);
-        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+        new com.campustaximate.server.common.RetryingTransactionTemplate(transactionManager).executeWithoutResult(status -> {
             Party locked = parties.findByIdForUpdate(partyId).orElseThrow();
             if (locked.paymentFlow()) throw ApiException.conflict("PAYMENT_FLOW", "새 일행은 결제 승인으로 처리합니다.");
             TransferRequest transfer = transfers.findById(transferId).orElseThrow();
@@ -278,7 +278,7 @@ public class SettlementService {
 
     public void markReceived(long memberId, long transferId) {
         long partyId = partyIdOf(transferId);
-        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+        new com.campustaximate.server.common.RetryingTransactionTemplate(transactionManager).executeWithoutResult(status -> {
             Party party = parties.findByIdForUpdate(partyId).orElseThrow();
             if (party.paymentFlow()) throw ApiException.conflict("PAYMENT_FLOW", "새 일행은 결제 승인으로 처리합니다.");
             TransferRequest transfer = transfers.findById(transferId).orElseThrow();

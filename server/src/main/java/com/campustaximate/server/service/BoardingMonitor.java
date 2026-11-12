@@ -46,7 +46,7 @@ public class BoardingMonitor {
         } catch (RuntimeException e) {
             log.warn("승차 안내를 다음 판정으로 넘깁니다.", e);
         }
-        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        TransactionTemplate tx = new com.campustaximate.server.common.RetryingTransactionTemplate(transactionManager);
         for (Party candidate : parties.findByStatusIn(List.of(PartyStatus.CONFIRMED, PartyStatus.READY)).stream()
                 .filter(p -> p.getDirection() == Direction.TO_SCHOOL && !p.getDepartureAt().isAfter(now)).toList()) {
             try {

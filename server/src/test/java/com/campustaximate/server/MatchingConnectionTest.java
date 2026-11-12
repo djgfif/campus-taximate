@@ -363,4 +363,16 @@ class MatchingConnectionTest {
         assertThat(requests.findByStatus(RequestStatus.MATCHED)).hasSize(2);
         verify(routes,atLeastOnce()).routeAt(any(),anyList(),eq(NOW.plusSeconds(900)));
     }
+    @Test void E01_secondaryTimeoutCreatesNoPartyAndNextRoundRetriesSuccessfully() throws Exception {
+        create(a,departure(0)).andExpect(status().isOk());create(b,departure(1)).andExpect(status().isOk());
+        var failing=new java.util.concurrent.atomic.AtomicBoolean(true);
+        doAnswer(call->{List<GeoPoint> stops=call.getArgument(1);if(stops.size()>1&&failing.get())throw new RouteClient.RouteUnavailableException("모의 2차 시간 초과",new java.net.SocketTimeoutException());
+            return new RouteClient.Route(5,stops.size()==1?600:1200,stops.size()==1?10000:15000,List.of(),Collections.nCopies(stops.size(),600));
+        }).when(routes).routeAt(any(),anyList(),nullable(Instant.class));
+        AppClock target=org.springframework.test.util.AopTestUtils.getUltimateTargetObject(clock);
+        Instant first=NOW.plusSeconds(900);doReturn(first).when(target).now();slots.runLocked(()->{slots.process(first);return null;});
+        assertThat(parties.count()).isZero();assertThat(requests.findByStatus(RequestStatus.WAITING)).hasSize(2);
+        failing.set(false);Instant next=NOW.plusSeconds(1200);doReturn(next).when(target).now();slots.runLocked(()->{slots.process(next);return null;});
+        assertThat(parties.count()).isEqualTo(1);assertThat(requests.findByStatus(RequestStatus.MATCHED)).hasSize(2);
+    }
 }

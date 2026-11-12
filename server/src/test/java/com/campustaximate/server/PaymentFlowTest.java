@@ -48,6 +48,8 @@ class PaymentFlowTest {
     @Autowired RideConfirmationRepository rideAnswers;
     @Autowired PartyService partyService;
     @Autowired PartyReadinessService readiness;
+    @Autowired PartyJoinService joins;
+    @Autowired PartyJoinRepository partyJoins;
     @SpyBean PartyChangeService changeService;
     @Autowired NoShowService noShows;
     @Autowired AdminService admin;
@@ -984,5 +986,100 @@ class PaymentFlowTest {
         assertThat(rideRequests.leaveAfterChange(ids.get(1),partyId,2)).isFalse();payments.retryDue();
         assertN13(5600,840);assertThat(terms.findByPartyIdAndMemberId(partyId,ids.get(1)).orElseThrow().isRefundHeld()).isFalse();
         assertThat(terms.findByPartyIdAndMemberId(partyId,ids.get(1)).orElseThrow().getExitReason()).isEqualTo("LATE_CANCEL");
+    }
+
+    long waitingJoiner(long memberId,double km){
+        return new TransactionTemplate(manager).execute(tx->{
+            var p=parties.findById(partyId).orElseThrow();RideRequest r=new RideRequest();r.setMember(members.getReferenceById(memberId));r.setActiveMemberId(memberId);
+            r.setDirection(Direction.FROM_HUB);r.setHub(p.getHub());r.setPointName("합류 도착지");r.setPointLat(37.76);r.setPointLon(127.1);
+            r.setRequestedAt(NOW);r.setWindowStart(p.getDepartureAt());r.setWindowEnd(p.getDepartureAt().plusSeconds(1800));r.setSoloFare(9000);r.setSoloKm(km);r.setSoloSeconds(1200);
+            return requests.save(r).getId();
+        });
+    }
+    long fourthMember(){return members.findByEmail("demo-f4@daejin.ac.kr").orElseThrow().getId();}
+    void joinRoutes(long total){
+        com.campustaximate.server.route.RouteClient target=org.springframework.test.util.AopTestUtils.getUltimateTargetObject(routeClient);
+        doAnswer(c->{List<com.campustaximate.matching.GeoPoint> stops=c.getArgument(1);return new com.campustaximate.server.route.RouteClient.Route(20,stops.size()==1?1200:stops.size()*150,
+            stops.size()==1?10000:total,List.of(),stops.size()==1?List.of(1200):Collections.nCopies(stops.size(),150));}).when(target).routeAt(any(),anyList(),nullable(Instant.class));
+        doAnswer(c->{Map<String,com.campustaximate.matching.GeoPoint> points=c.getArgument(1);Map<String,com.campustaximate.matching.RoadLeg> result=new HashMap<>();points.keySet().forEach(id->result.put(id,new com.campustaximate.matching.RoadLeg(1,100)));return result;}).when(target).legs(any(),anyMap());
+    }
+    void approveJoin(PartyJoin join){var order=orders.findById(join.getPaymentOrderId()).orElseThrow();payments.confirm(join.getMemberId(),order.getOrderId(),"join_"+order.getOrderId(),order.getAmount());}
+    @Test void J01_joinPaymentAtomicallyAddsMemberWithoutIncreasingOldSharesOrChangingPayer(){
+        joinRoutes(15000);long member=fourthMember(),request=waitingJoiner(member,12);var before=partyService.view(ids.get(2),partyId);
+        PartyJoin join=joins.offer(member,partyId,request);
+        assertThat(requests.findByStatus(RequestStatus.MATCHED)).hasSize(3);assertThat(requests.findById(request).orElseThrow().getStatus()).isEqualTo(RequestStatus.JOINING);
+        assertThat(partyService.view(ids.get(2),partyId).myShare()).isEqualTo(before.myShare());assertThat(parties.findById(partyId).orElseThrow().getGroupVersion()).isEqualTo(1);
+        assertThat(join.getDeadlineAt()).isEqualTo(NOW.plusSeconds(300));approveJoin(join);
+        var after=partyService.view(ids.get(2),partyId);assertThat(after.members()).hasSize(4);assertThat(after.payerId()).isEqualTo(before.payerId());assertThat(after.departureAt()).isEqualTo(before.departureAt());assertThat(after.groupVersion()).isEqualTo(2);
+        for(var old:before.members())assertThat(after.members().stream().filter(m->m.memberId()==old.memberId()).findFirst().orElseThrow().expectedShare()).isLessThanOrEqualTo(old.expectedShare());
+        assertThat(order(0).getAmount()).isEqualTo(3680);assertThat(order(1).getAmount()).isEqualTo(6440);
+        assertThat(terms.findByPartyIdAndMemberId(partyId,ids.get(0)).orElseThrow().getConfirmedShare()).isEqualTo(3200);
+        assertThat(partyJoins.findById(join.getId()).orElseThrow().getState()).isEqualTo("CONFIRMED");
+    }
+    @Test void J02_joinWithHigherShareForAnExistingMemberIsRejected(){
+        joinRoutes(35000);long member=fourthMember(),request=waitingJoiner(member,12);
+        assertThatThrownBy(()->joins.offer(member,partyId,request)).isInstanceOfSatisfying(ApiException.class,e->assertThat(e.getCode()).isEqualTo("JOIN_SHARE_INCREASE"));
+        assertThat(partyJoins.count()).isZero();assertThat(orders.count()).isEqualTo(2);assertThat(requests.findByStatus(RequestStatus.MATCHED)).hasSize(3);
+    }
+    @Test void J03_joinerCannotBecomeNewLastDropoffPayer(){
+        joinRoutes(15000);long member=fourthMember(),request=waitingJoiner(member,30);
+        assertThatThrownBy(()->joins.offer(member,partyId,request)).isInstanceOfSatisfying(ApiException.class,e->assertThat(e.getCode()).isEqualTo("JOIN_PAYER_CHANGED"));assertThat(partyJoins.count()).isZero();
+    }
+    @Test void J04_reservationJoinClosesAtTMinusLead(){
+        joinRoutes(15000);long member=fourthMember(),request=waitingJoiner(member,12);at(NOW.plusSeconds(300));
+        assertThatThrownBy(()->joins.offer(member,partyId,request)).isInstanceOfSatisfying(ApiException.class,e->assertThat(e.getCode()).isEqualTo("JOIN_CLOSED"));assertThat(partyJoins.count()).isZero();
+    }
+    @Test void J04_instantJoinClosesAtConfirmationPlusPreparation(){
+        joinRoutes(15000);long member=fourthMember(),request=waitingJoiner(member,12);
+        new TransactionTemplate(manager).executeWithoutResult(s->parties.findByIdForUpdate(partyId).orElseThrow().setInstant(true));at(NOW.plusSeconds(180));
+        assertThatThrownBy(()->joins.offer(member,partyId,request)).isInstanceOfSatisfying(ApiException.class,e->assertThat(e.getCode()).isEqualTo("JOIN_CLOSED"));
+    }
+    @Test void J05_unpaidJoinExpiresAfterFiveMinutesWithoutChangingOriginalParty(){
+        joinRoutes(15000);long member=fourthMember(),request=waitingJoiner(member,12);var before=partyService.view(ids.get(2),partyId);PartyJoin join=joins.offer(member,partyId,request);
+        at(join.getDeadlineAt());joins.expireDue();payments.retryDue();var after=partyService.view(ids.get(2),partyId);
+        assertThat(after.members()).isEqualTo(before.members());assertThat(after.expectedTotal()).isEqualTo(before.expectedTotal());assertThat(after.payerId()).isEqualTo(before.payerId());assertThat(after.departureAt()).isEqualTo(before.departureAt());assertThat(after.groupVersion()).isEqualTo(1);
+        assertThat(requests.findById(request).orElseThrow().getStatus()).isEqualTo(RequestStatus.CANCELED);assertThat(partyJoins.findById(join.getId()).orElseThrow().getState()).isEqualTo("EXPIRED");assertThat(parties.findById(partyId).orElseThrow().getPendingJoinId()).isNull();
+        assertThat(order(0).getAmount()).isEqualTo(3680);assertThat(order(1).getAmount()).isEqualTo(6440);verify(gateway,never()).cancel(anyString(),anyLong(),anyString(),anyString());
+    }
+    @Test void J06_twoConcurrentJoinersReserveOnlyOneRemainingSeat()throws Exception{
+        joinRoutes(15000);long first=fourthMember();long second=new TransactionTemplate(manager).execute(tx->{
+            var m=members.findByEmail("join-second@daejin.ac.kr").orElseGet(()->new Member(members.findById(first).orElseThrow().getSchool(),"join-second@daejin.ac.kr"));m.setNickname("합류 테스트");m.setGender(com.campustaximate.matching.Gender.FEMALE);return members.save(m).getId();});
+        long a=waitingJoiner(first,12),b=waitingJoiner(second,13);var barrier=new java.util.concurrent.CyclicBarrier(2);var pool=java.util.concurrent.Executors.newFixedThreadPool(2);
+        try{
+            var results=pool.invokeAll(List.<java.util.concurrent.Callable<Boolean>>of(()->{barrier.await(10,java.util.concurrent.TimeUnit.SECONDS);try{joins.offer(first,partyId,a);return true;}catch(ApiException e){assertThat(e.getCode()).isIn("JOIN_RESERVED","JOIN_CHANGED","JOIN_FULL");return false;}},()->{barrier.await(10,java.util.concurrent.TimeUnit.SECONDS);try{joins.offer(second,partyId,b);return true;}catch(ApiException e){assertThat(e.getCode()).isIn("JOIN_RESERVED","JOIN_CHANGED","JOIN_FULL");return false;}}),20,java.util.concurrent.TimeUnit.SECONDS);
+            int successes=0;for(var result:results)if(result.get(10,java.util.concurrent.TimeUnit.SECONDS))successes++;assertThat(successes).isEqualTo(1);
+        }finally{pool.shutdownNow();}
+        assertThat(partyJoins.findByStateOrderById("PENDING")).hasSize(1);assertThat(requests.findByStatus(RequestStatus.JOINING)).hasSize(1);assertThat(requests.findByStatus(RequestStatus.MATCHED)).hasSize(3);
+        approveJoin(partyJoins.findByStateOrderById("PENDING").getFirst());assertThat(requests.findByStatus(RequestStatus.MATCHED)).hasSize(4);assertThat(parties.findById(partyId).orElseThrow().getGroupVersion()).isEqualTo(2);
+    }
+    @Test void J01_instantJoinWaitsForPaymentBeforeEarlyCallAndKeepsEstimatedT(){
+        joinRoutes(15000);long member=fourthMember(),request=waitingJoiner(member,12);approve(0);approve(1);
+        new TransactionTemplate(manager).executeWithoutResult(tx->{
+            var p=parties.findByIdForUpdate(partyId).orElseThrow();p.setInstant(true);p.setDepartureAt(NOW.plusSeconds(540));
+            requests.findByPartyOrderByRideOrder(p).forEach(r->r.setMode(RequestMode.INSTANT));requests.findById(request).orElseThrow().setMode(RequestMode.INSTANT);
+        });
+        at(NOW.plusSeconds(60));PartyJoin join=joins.offer(member,partyId,request);
+        assertThat(partyService.view(ids.get(2),partyId).canCall()).isFalse();assertThat(partyService.view(ids.get(2),partyId).notReadyReasons()).anyMatch(s->s.contains("합류 선결제"));
+        assertThatThrownBy(()->readiness.call(ids.get(2),partyId)).isInstanceOf(ApiException.class);
+        approveJoin(join);assertThat(parties.findById(partyId).orElseThrow().getDepartureAt()).isEqualTo(NOW.plusSeconds(540));
+        assertThat(parties.findById(partyId).orElseThrow().getGroupVersion()).isEqualTo(2);
+    }
+    @Test void J05_lateApprovalAfterJoinExpiryRefundsAllWithoutChangingOriginalMembers(){
+        joinRoutes(15000);long member=fourthMember(),request=waitingJoiner(member,12);PartyJoin join=joins.offer(member,partyId,request);
+        var pending=orders.findById(join.getPaymentOrderId()).orElseThrow();
+        doAnswer(c->{provider.confirm(c.getArgument(0),c.getArgument(1),c.getArgument(2),c.getArgument(3));throw new PaymentGateway.Unavailable("승인 응답 유실");})
+            .when(gateway).confirm(anyString(),eq(pending.getOrderId()),anyLong(),anyString());
+        doThrow(new PaymentGateway.Unavailable("조회 시간 초과")).when(gateway).get(anyString());approveJoin(join);
+        at(join.getDeadlineAt());joins.expireDue();doAnswer(c->provider.get(c.getArgument(0))).when(gateway).get(anyString());payments.retryDue();payments.retryDue();
+        assertThat(requests.findByStatus(RequestStatus.MATCHED)).hasSize(3);assertThat(parties.findById(partyId).orElseThrow().getGroupVersion()).isEqualTo(1);
+        assertThat(orders.findById(pending.getId()).orElseThrow().getRefundedAmount()).isEqualTo(pending.getAmount());
+        verify(gateway,times(1)).cancel(eq(orders.findById(pending.getId()).orElseThrow().getPaymentKey()),eq(pending.getAmount()),anyString(),anyString());
+    }
+    @Test void J01_roundAutomaticallyOffersJoinButAddsNoMemberBeforeApproval(){
+        joinRoutes(15000);long member=fourthMember(),request=waitingJoiner(member,12);at(NOW.plusSeconds(60));
+        slots.runLocked(()->{slots.process(clock.now());return null;});
+        assertThat(partyJoins.findByStateOrderById("PENDING")).singleElement().satisfies(j->{assertThat(j.getMemberId()).isEqualTo(member);assertThat(j.getRequestId()).isEqualTo(request);});
+        assertThat(requests.findByStatus(RequestStatus.MATCHED)).hasSize(3);assertThat(requests.findByStatus(RequestStatus.JOINING)).hasSize(1);
+        approveJoin(partyJoins.findByStateOrderById("PENDING").getFirst());assertThat(requests.findByStatus(RequestStatus.MATCHED)).hasSize(4);
     }
 }

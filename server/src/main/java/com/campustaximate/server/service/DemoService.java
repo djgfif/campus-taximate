@@ -38,6 +38,7 @@ public class DemoService {
     private final PaymentService payments;
     private final com.campustaximate.server.repository.PaymentOrderRepository paymentOrders;
     private final WaitingInsightService insights;
+    private final DemoRouteSelector demoRoutes;
 
     @Value("${app.demo.enabled}")
     private boolean enabled;
@@ -102,7 +103,8 @@ public class DemoService {
         requireEnabled();
         Member me = members.findById(memberId).orElseThrow(ApiException::unauthorized);
         Hub hub = hubs.findBySchool(me.getSchool().getId()).get(0);
-        RideRequest mine = requests.findByActiveMemberId(memberId).orElse(null);
+        RideRequest mine = requests.findByActiveMemberId(memberId).flatMap(r->requests.findById(r.getId())).orElse(null);
+        if(mine!=null && mine.getHub()!=null)hub=mine.getHub();
         Direction direction = mine == null ? Direction.FROM_HUB : mine.getDirection();
         Instant arriveBy = mine == null ? null : mine.getArriveBy();
         boolean sameWindow = mine != null && mine.getWindowStart() != null;
@@ -115,23 +117,26 @@ public class DemoService {
                 .filter(m -> !rideRequests.isRestricted(m.getId()))
                 .limit(count)
                 .toList();
+        List<GeoPoint> checked=mine!=null && direction==Direction.FROM_HUB && demoRoutes.realRoutes()
+                ?demoRoutes.select(SlotService.toEngine(mine).stream().filter(m->m.anchorId()==mine.getHub().getId()).findFirst().orElseThrow(),
+                    mine.getSoloFare(),mine.origin(),samples.stream().map(Member::getId).toList()):List.of();
         for (int i = 0; i < samples.size(); i++) {
             DataSeeder.Dropoff dropoff = DataSeeder.SAMPLE_DROPOFFS.get(i % DataSeeder.SAMPLE_DROPOFFS.size());
             String memo = SAMPLE_MEMOS.get(i % SAMPLE_MEMOS.size());
-            GeoPoint onTheWay = onTheWay(mine, hub, SAMPLE_RATIOS.get(i % SAMPLE_RATIOS.size()));
+            GeoPoint onTheWay = checked.isEmpty()?onTheWay(mine, hub, SAMPLE_RATIOS.get(i % SAMPLE_RATIOS.size())):checked.get(i);
             long id = samples.get(i).getId();
             try {
                 rideRequests.create(id, new RideRequestService.NewRequest(direction, hub.getId(), start, end, arriveBy,
                         dropoff.name(), onTheWay == null ? dropoff.lat() : onTheWay.lat(),
                         onTheWay == null ? dropoff.lon() : onTheWay.lon(), memo,
-                        mine==null?null:mine.getMode(),null,null,null,null));
+                        mine==null?null:mine.getMode(),mine==null?null:mine.getTimeBasis(),null,null,mine==null?null:mine.getEarlyArrivalMinutes()));
             } catch (ApiException e) {
-                if (onTheWay == null) {
+                if (onTheWay == null || !checked.isEmpty()) {
                     throw e;
                 }
                 rideRequests.create(id, new RideRequestService.NewRequest(direction, hub.getId(), start, end, arriveBy,
                         dropoff.name(), dropoff.lat(), dropoff.lon(), memo,
-                        mine==null?null:mine.getMode(),null,null,null,null));
+                        mine==null?null:mine.getMode(),mine==null?null:mine.getTimeBasis(),null,null,mine==null?null:mine.getEarlyArrivalMinutes()));
             }
         }
         return samples.size();

@@ -54,7 +54,7 @@ public class PartyShrinker {
     }
 
     public void remove(long partyId, Set<Long> requested, Instant now, boolean departed, String reason, Long groupVersion, Set<Long> held) {
-        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        TransactionTemplate tx = new com.campustaximate.server.common.RetryingTransactionTemplate(transactionManager);
         Set<Long> leaving = tx.execute(status -> withNoShows(partyId, requested));
         Plan plan = tx.execute(status -> {
             Party party=parties.findByIdForUpdate(partyId).orElseThrow();

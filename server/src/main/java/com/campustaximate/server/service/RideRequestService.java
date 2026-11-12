@@ -43,6 +43,7 @@ public class RideRequestService {
     private final AppClock clock;
     private final MemberSafetyService safety;
     private final PaymentService payments;
+    private final PartyJoinService joins;
     private final com.campustaximate.server.repository.PartyMemberTermRepository partyTerms;
     @Value("${app.features.sequential-pickup:false}")
     private boolean sequentialPickup;
@@ -77,7 +78,7 @@ public class RideRequestService {
     /** 경로 조회는 트랜잭션 밖에서,모든 값의 저장은 한 트랜잭션에서 한다. */
     public RideRequest create(long memberId, NewRequest input) {
         Instant requestedAt = clock.now();
-        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        TransactionTemplate tx = new com.campustaximate.server.common.RetryingTransactionTemplate(transactionManager);
         Prepared prepared = tx.execute(status -> {
             members.findByIdForUpdate(memberId).orElseThrow(ApiException::unauthorized);
             requireAvailable(memberId);
@@ -135,7 +136,7 @@ public class RideRequestService {
 
     public Preview preview(long memberId, NewRequest input) {
         Instant requestedAt=clock.now();
-        Prepared prepared = new TransactionTemplate(transactionManager).execute(status -> prepare(memberId, input));
+        Prepared prepared = new com.campustaximate.server.common.RetryingTransactionTemplate(transactionManager).execute(status -> prepare(memberId, input));
         Quote quote = quote(memberId, input, prepared, true);
         Instant deadline = input.requestMode()==RequestMode.INSTANT ? requestedAt.plusSeconds(matchingSettings.instantMatchMinutes()*60L)
                 : quote.deadline() != null ? quote.deadline() : input.windowEnd().minus(LEAD);
@@ -230,10 +231,10 @@ public class RideRequestService {
     }
 
     /** 대기 중이면 요청만 취소하고, 매칭됐으면 그 사람만 일행에서 뺀다. */
-    public void cancel(long memberId, long requestId) { cancel(memberId,requestId,false,null); }
+    public void cancel(long memberId, long requestId) { if(!joins.cancelPending(memberId,requestId))cancel(memberId,requestId,false,null); }
 
     public boolean leaveAfterChange(long memberId, long partyId, long version) {
-        Long requestId=new TransactionTemplate(transactionManager).execute(status -> {
+        Long requestId=new com.campustaximate.server.common.RetryingTransactionTemplate(transactionManager).execute(status -> {
             var party=partyRepository.findByIdForUpdate(partyId).orElseThrow(()->ApiException.notFound("없는 일행입니다."));
             if(!party.paymentFlow() || party.getGroupVersion()<=1 || party.getGroupVersion()!=version) throw ApiException.conflict("PARTY_CHANGED", "변경된 일행을 다시 확인해 주세요.");
             return requests.findByPartyOrderByRideOrder(party).stream().filter(r->r.getMember().getId()==memberId)
@@ -244,7 +245,7 @@ public class RideRequestService {
 
     private boolean cancel(long memberId,long requestId,boolean changed,Long version) {
         record Plan(Long partyId,boolean free,long groupVersion,boolean paymentFlow) { }
-        Plan plan=new TransactionTemplate(transactionManager).execute(status -> {
+        Plan plan=new com.campustaximate.server.common.RetryingTransactionTemplate(transactionManager).execute(status -> {
             RideRequest reference=requests.findById(requestId).filter(r->r.getMember().getId()==memberId)
                     .orElseThrow(()->ApiException.notFound("없는 요청입니다."));
             if(reference.getStatus()==RequestStatus.WAITING && !changed) { reference.finish(RequestStatus.CANCELED); return null; }

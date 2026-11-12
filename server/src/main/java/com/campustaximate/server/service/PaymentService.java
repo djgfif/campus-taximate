@@ -24,6 +24,7 @@ public class PaymentService {
     private final PayoutLedgerRepository payouts;
     private final CompensationEntryRepository dissolutionEntries;
     private final PaymentGateway gateway;
+    private final JoinCompletionService joinCompletion;
     private final AppClock clock;
     private final PartyChangeService partyChanges;
     private final com.campustaximate.matching.MatchingSettings matchingSettings;
@@ -37,7 +38,7 @@ public class PaymentService {
                         String paymentKey, String externalOrder, long amount, long orderAmount,
                         long targetRefund, String reason, int attempts) { }
     public boolean simulated() { return gateway.simulated(); }
-    private TransactionTemplate tx() { return new TransactionTemplate(transactionManager); }
+    private TransactionTemplate tx() { return new com.campustaximate.server.common.RetryingTransactionTemplate(transactionManager); }
 
     public static long prepayAmount(long share) { return Math.addExact(Math.multiplyExact(share, 115), 99) / 100; }
     public static Instant prepayDeadline(Instant confirmed, Instant departure, boolean instant) {
@@ -106,7 +107,7 @@ public class PaymentService {
             if (order.getPurpose() == PaymentPurpose.PREPAY) {
                 boolean current = requests.findById(order.getRequestId()).map(r -> r.getStatus() == RequestStatus.MATCHED
                         && r.getParty() != null && r.getParty().getId().equals(party.getId())).orElse(false);
-                if (!clock.now().isBefore(order.getDeadlineAt()) || party.getStatus() != PartyStatus.PREPAYING || !current) {
+                if (!clock.now().isBefore(order.getDeadlineAt()) || !joinCompletion.pending(order,party) && (party.getStatus() != PartyStatus.PREPAYING || !current)) {
                     throw ApiException.conflict("PAYMENT_EXPIRED", "선결제 기한이 지났거나 일행에서 빠진 요청입니다.");
                 }
             } else if (party.getStatus() != PartyStatus.SETTLED && !(party.getStatus()==PartyStatus.DISSOLVED
@@ -345,7 +346,9 @@ public class PaymentService {
             order.setStatus(PaymentStatus.APPROVED); order.setApprovedAmount(result.amount());
             order.setRefundedAmount(Math.max(order.getRefundedAmount(), result.canceledAmount()));
             if (order.getApprovedAt() == null) order.setApprovedAt(clock.now());
-            if(work.type()==PaymentOperationType.CONFIRM && party.getStatus()==PartyStatus.DISSOLVED && order.getPurpose()==PaymentPurpose.PREPAY) {
+            if(work.type()==PaymentOperationType.CONFIRM && joinCompletion.approved(order,party)) {
+                order.setExcludedAt(clock.now());refundTo(order.getId(),order.getAmount(),"합류 만료 또는 일행 변경 뒤 승인 전액 환불");
+            } else if(work.type()==PaymentOperationType.CONFIRM && party.getStatus()==PartyStatus.DISSOLVED && order.getPurpose()==PaymentPurpose.PREPAY) {
                 refundForDissolution(party.getId());
             } else if (work.type() == PaymentOperationType.CONFIRM && (wasExpired
                     || List.of(PartyStatus.NOT_OPERATED, PartyStatus.FARE_MISSING).contains(party.getStatus()))) {

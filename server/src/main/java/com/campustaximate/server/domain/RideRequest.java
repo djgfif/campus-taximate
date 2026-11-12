@@ -40,6 +40,8 @@ import lombok.Setter;
 @NoArgsConstructor
 public class RideRequest {
 
+    private Long pendingJoinId;
+
     private static final Duration LEAD = Duration.ofMinutes(MatchingSettings.everyMinute().leadMinutes());
     private static final Duration BOARD_GRACE = Duration.ofMinutes(3);
 

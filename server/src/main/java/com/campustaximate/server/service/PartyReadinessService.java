@@ -19,6 +19,7 @@ public class PartyReadinessService {
     private final AppClock clock;
     private final PaymentLifecycleService lifecycle;
     private final RideConfirmationService confirmations;
+    private final PartyJoinService joins;
     private final PlatformTransactionManager manager;
     public record State(boolean callReady,boolean canCall,List<String> notReadyReasons) { }
 
@@ -36,7 +37,9 @@ public class PartyReadinessService {
         if(party.isInstant()&&!close) reasons.add("아직 도착 또는 2분 안 도착 표시를 하지 않은 일행이 있어요.");
         boolean time= !clock.now().isBefore(party.isInstant()?party.getDepartureAt():party.getDepartureAt().minusSeconds(600));
         if(!party.isInstant()&&!time) reasons.add("예약 일행은 출발 10분 전부터 호출할 수 있어요.");
-        boolean ready=phase && paid && (party.isInstant()?close:time);
+        boolean pending=party.getPendingJoinId()!=null && joins.activeReservation(party.getPendingJoinId());
+        if(pending)reasons.add("합류 선결제를 기다리고 있어요.");
+        boolean ready=phase && paid && !pending && (party.isInstant()?close:time);
         boolean allowed=phase && (party.isInstant()?ready||time:ready) && party.getCalledAt()==null && party.getPayer().getId()==actor;
         return new State(ready,allowed,List.copyOf(reasons));
     }
@@ -55,12 +58,13 @@ public class PartyReadinessService {
 
     public void call(long actor,long id) {
         // 기한 회차가 늦어져도 호출 전에 처리 중 선결제의 조회·제외를 먼저 끝낸다.
-        new TransactionTemplate(manager).executeWithoutResult(tx->{
+        new com.campustaximate.server.common.RetryingTransactionTemplate(manager).executeWithoutResult(tx->{
             var before=parties.findById(id).orElseThrow(()->ApiException.notFound("없는 일행입니다."));
             if(before.getPayer().getId()!=actor) throw ApiException.forbidden("결제자만 호출을 표시할 수 있어요.");
         });
+        joins.expireDue();
         lifecycle.beforeDepartures();
-        new TransactionTemplate(manager).executeWithoutResult(tx->{
+        new com.campustaximate.server.common.RetryingTransactionTemplate(manager).executeWithoutResult(tx->{
             Party party=parties.findByIdForUpdate(id).orElseThrow();
             if(party.getPayer().getId()!=actor) throw ApiException.forbidden("결제자가 바뀌었어요. 일행을 다시 확인해 주세요.");
             if(party.getCalledAt()!=null) return;

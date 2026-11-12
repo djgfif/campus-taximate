@@ -133,4 +133,12 @@ class MigrationSchemaTest {
             sql.executeUpdate(entry);org.junit.jupiter.api.Assertions.assertThrows(java.sql.SQLException.class,()->sql.executeUpdate(entry));
         }
     }
+    @Test void v13PendingJoinSchemaMatchesEntities() throws Exception {
+        try(var connection=dataSource.getConnection();var sql=connection.createStatement()){
+            try(var row=sql.executeQuery("select pending_join_id from party where 1=0")){assertThat(row.getMetaData().getColumnCount()).isEqualTo(1);}
+            try(var row=sql.executeQuery("select pending_join_id from ride_request where 1=0")){assertThat(row.getMetaData().getColumnCount()).isEqualTo(1);}
+            try(var row=sql.executeQuery("select state,deadline_at,base_group_version,payer_id from party_join where 1=0")){assertThat(row.getMetaData().getColumnCount()).isEqualTo(4);}
+            try(var row=sql.executeQuery("select expected_share,ride_order from party_join_member where 1=0")){assertThat(row.getMetaData().getColumnCount()).isEqualTo(2);}
+        }
+    }
 }
