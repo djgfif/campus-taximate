@@ -83,13 +83,37 @@ class FlowTest {
         hubId = hubs.get(0).get("id").asLong();
     }
 
+    /** 다른 사람의 하차 지점은 결제자만 이름으로 본다. 나머지는 순서만 보고, 경로도 내가 내리는 곳까지만 받는다. */
+    @Test
+    void otherMembersDropoffIsVisibleOnlyToPayer() throws Exception {
+        List<MockHttpSession> users = threeRequests();
+        advanceToConfirmation();
+        MockHttpSession payer = payerOf(users);
+        long id = onlyParty(payer).get("id").asLong();
+        for (JsonNode m : onlyParty(payer).get("members")) assertThat(m.get("pointName").asText()).isEqualTo("샘플");
+        for (MockHttpSession user : users) {
+            if (user == payer) continue;
+            JsonNode party = onlyParty(user);
+            long me = party.get("myRequestId").asLong();
+            int myOrder = 0;
+            for (JsonNode m : party.get("members")) {
+                if (m.get("requestId").asLong() == me) { assertThat(m.get("pointName").asText()).isEqualTo("샘플"); myOrder = m.get("rideOrder").asInt(); }
+                else assertThat(m.get("pointName").asText()).isEqualTo(m.get("rideOrder").asInt() + "번째 하차");
+            }
+            JsonNode routes = read(mvc.perform(get("/api/parties/" + id + "/routes").session(user))
+                    .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+            assertThat(routes.get("shared")).hasSize(myOrder + 1);
+        }
+    }
+
     @Test
     void memberCanCompareRoutesAndConfirmedMetrics() throws Exception {
         List<MockHttpSession> users = threeRequests();
         advanceToConfirmation();
         JsonNode party = onlyParty(users.get(0));
         long id = party.get("id").asLong();
-        JsonNode routes = read(mvc.perform(get("/api/parties/" + id + "/routes").session(users.get(0)))
+        // 결제자는 전체 경로(승차 지점 + 하차 3곳)를 본다.
+        JsonNode routes = read(mvc.perform(get("/api/parties/" + id + "/routes").session(payerOf(users)))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
         assertThat(routes.get("shared")).hasSize(4);
         assertThat(routes.get("solo")).hasSize(2);

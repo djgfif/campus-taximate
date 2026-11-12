@@ -59,8 +59,9 @@ export default function Home({ state, myId, onStart, onReopen, onHistory, onMenu
         </div>
       )}
       {state.settledParty && <div className="block"><Item title="최근 정산 내역 보기" onClick={() => onReopen(state.settledParty.id)} /></div>}
-      {state.settledParty && <PartyChat key={state.settledParty.id} partyId={state.settledParty.id} now={state.now} status={state.settledParty.status} />}
-      {state.settledParty && <SettledFeedback key={state.settledParty.id} party={state.settledParty} myId={myId} />}
+      {/* 형제끼리 key가 같으면 갱신 때마다 채팅이 겹쳐 그려진다. 종류별로 다른 key를 쓴다. */}
+      {state.settledParty && <PartyChat key={`chat-${state.settledParty.id}`} partyId={state.settledParty.id} now={state.now} status={state.settledParty.status} />}
+      {state.settledParty && <SettledFeedback key={`feedback-${state.settledParty.id}`} party={state.settledParty} myId={myId} />}
       <div className="ways">
         <button type="button" className="way" disabled={blocked} onClick={() => onStart({ direction: 'TO_SCHOOL' })}>
           <b>등교</b>

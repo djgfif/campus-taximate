@@ -14,6 +14,7 @@
 | `canLeaveAfterChange`, `changeExitFree`, `groupVersion`, `changes` | 일행이 바뀌었을 때 빠지기 | "변경돼서 빠지기" 버튼, 무료 여부 안내 (이미 연결됨) |
 | `myConfirmedShare`, `myConfirmedMigrated` | 확정 때 내 예상 분담금 | 현재 분담금과 함께 표시 |
 | `successorId`, `successionDeadlineAt`, `successionStatus` | 결제자 승계 요청 | **새 화면 필요** (3장) |
+| `members[].pointName` | 하차 지점 | **결제자에게만 모든 사람의 지점 이름**이 온다. 결제자가 아니면 내 지점만 이름이고, 다른 사람은 `"2번째 하차"`처럼 순서만 온다(안전). `/api/parties/{id}/routes`의 공동 경로도 결제자가 아니면 내가 내리는 곳까지만 온다 |
 
 ## 2. 즉시 일행 준비·호출 (명세 5.7, 이미 화면 있음)
 - `POST /api/parties/{id}/readiness` `{ "state": "ARRIVED" | "NEARBY" }` — 도착했어요 / 2분 안 도착

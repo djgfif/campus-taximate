@@ -172,7 +172,10 @@ public class PartyService {
                 .orElseThrow(() -> ApiException.forbidden("내 일행이 아닙니다."));
         TripPlan plan = TripPlan.of(party.getDirection());
         GeoPoint anchor = party.anchorPoint();
-        return new RoutePlan(plan.sharedPath(anchor, riders.stream().map(RideRequest::point).toList()),
+        // 공동 승차에서 결제자가 아니면 내가 내리는 곳까지만 보여 준다. 뒤에 내리는 사람의 집 근처가 드러나지 않게 한다.
+        List<RideRequest> visible = party.getDirection() == Direction.FROM_HUB && !party.getPayer().getId().equals(memberId)
+                ? riders.subList(0, riders.indexOf(mine) + 1) : riders;
+        return new RoutePlan(plan.sharedPath(anchor, visible.stream().map(RideRequest::point).toList()),
                 party.getDirection() == Direction.FROM_HUB
                         ? new TripPath(mine.origin(), List.of(mine.point())) : plan.soloPath(anchor, mine.point()));
     }
@@ -199,9 +202,12 @@ public class PartyService {
         var termList=terms.findByPartyIdOrderById(party.getId());
         var myTerm=termList.stream().filter(t->t.getMemberId()==memberId).findFirst().orElse(null);
         var myAnswer=rideAnswers.findByPartyIdAndMemberId(party.getId(),memberId).orElse(null);
+        // 다른 사람의 하차 지점은 결제자(기사님께 순서를 알려야 함)에게만 보이고, 나머지에게는 순서만 보인다.
+        boolean seesStops = payer || toSchool;
         List<MemberView> members = riders.stream()
                 .map(r -> new MemberView(r.getId(), r.getMember().getId(), r.getMember().getNickname(), r.getMemo(),
-                        r.getRideOrder(), r.getPointName(), r.getExpectedShare(), r.isArrived(), r.isNoShow(),
+                        r.getRideOrder(), seesStops || r.getMember().getId() == memberId ? r.getPointName() : r.getRideOrder() + "번째 하차",
+                        r.getExpectedShare(), r.isArrived(), r.isNoShow(),
                         r.getSoloFare(), r.getSoloSeconds(), r.getSharedSeconds(), r.getBoardAt(), r.arriveDeadline(),
                         termList.stream().filter(t->t.getRequestId().equals(r.getId())).map(com.campustaximate.server.domain.PartyMemberTerm::getConfirmedShare).findFirst().orElse(null),
                         termList.stream().filter(t->t.getRequestId().equals(r.getId())).map(com.campustaximate.server.domain.PartyMemberTerm::getConfirmedPrepay).findFirst().orElse(null),
