@@ -22,6 +22,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 public class Member {
+    private boolean admin;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

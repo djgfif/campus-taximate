@@ -259,7 +259,7 @@ public class RideRequestService {
         Set<Long> held=plan.free()||!plan.paymentFlow()?Set.of():Set.of(requestId);
         shrinker.remove(plan.partyId(),Set.of(requestId),clock.now(),false,
                 plan.free()?(changed?"CHANGE_EXIT_FREE":"FREE_CANCEL"):"LATE_CANCEL",plan.groupVersion(),held);
-        boolean free=plan.free() && !partyTerms.findByPartyIdAndRequestId(plan.partyId(),requestId).map(com.campustaximate.server.domain.PartyMemberTerm::isRefundHeld).orElse(false);
+        boolean free=plan.free() && !partyTerms.findByPartyIdAndRequestId(plan.partyId(),requestId).map(t->t.isRefundHeld() || "LATE_CANCEL".equals(t.getExitReason())).orElse(false);
         if(free) payments.refundMember(plan.partyId(),memberId,"무료 취소");
         return free;
     }

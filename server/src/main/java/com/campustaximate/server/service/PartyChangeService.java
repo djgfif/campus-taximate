@@ -14,6 +14,7 @@ public class PartyChangeService {
     private final PartyChangeRepository changes;
     private final AppClock clock;
     private final PaymentOrderRepository orders;
+    private final BoardingCaseRepository cases;
 
     @Transactional(propagation=Propagation.MANDATORY)
     public void capture(Party party, List<RideRequest> riders, boolean migrated) {
@@ -38,6 +39,12 @@ public class PartyChangeService {
         for (PartyMemberTerm term:terms.findByPartyIdOrderById(party.getId())) if(leaving.contains(term.getRequestId())&&term.getExitedAt()==null) {
             term.setExitedAt(at); term.setExitReason(reason); term.setRefundHeld(held.contains(term.getRequestId()));
         }
-        if (!held.isEmpty()) { party.setAdminReviewRequired(true); party.setReviewReason("LATE_CANCELLATION_COMPENSATION"); }
+        if ("LATE_CANCEL".equals(reason)) for(var term:terms.findByPartyIdOrderById(party.getId())) {
+            if(!leaving.contains(term.getRequestId()) || cases.findByPartyIdAndRequestId(party.getId(),term.getRequestId()).isPresent()) continue;
+            BoardingCase c=new BoardingCase();c.setPartyId(party.getId());c.setRequestId(term.getRequestId());c.setMemberId(term.getMemberId());
+            c.setKind("LATE_CANCEL");c.setStatus("CONFIRMED");c.setOpenedAt(at);c.setDeadlineAt(at);c.setDecidedAt(at);
+            c.setDecisionReason("무료 취소 마감 뒤 취소 또는 호출 시각 뒤 변경 이탈");
+            c.setNoCompensation(Objects.equals(party.getOriginalPayerId(),term.getMemberId()));cases.save(c);
+        }
     }
 }

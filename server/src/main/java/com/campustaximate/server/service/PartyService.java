@@ -72,7 +72,7 @@ public class PartyService {
                             List<MemberView> members, SettlementView settlement, Instant prepayDeadlineAt, Instant freeCancelUntil, Instant startedAt,
                             long groupVersion, String reviewReason, boolean adminReviewRequired,
                             Boolean myRideAnswer, boolean canConfirmRide, boolean canLeaveAfterChange, boolean changeExitFree,
-                            Long myConfirmedShare, boolean myConfirmedMigrated, List<ChangeView> changes, boolean instant, Instant calledAt, boolean callReady, boolean canCall, List<String> notReadyReasons) {
+                            Long myConfirmedShare, boolean myConfirmedMigrated, List<ChangeView> changes, boolean instant, Instant calledAt, boolean callReady, boolean canCall, List<String> notReadyReasons, Long successorId, Instant successionDeadlineAt, String successionStatus) {
     }
 
     public record ChangeView(long version,String reason,Instant changedAt) { }
@@ -96,6 +96,7 @@ public class PartyService {
         if (party.getDirection() != Direction.TO_SCHOOL || !party.getPayer().getId().equals(memberId)) {
             throw ApiException.forbidden("등교 결제자만 표시할 수 있습니다.");
         }
+        if (party.getStatus()==PartyStatus.PAYER_PENDING) throw ApiException.conflict("PAYER_PENDING","결제자 승계 답변을 기다리고 있어요.");
         if (!canMarkBoarding(mine)) {
             throw ApiException.conflict("BAD_STATE", "승차를 표시할 수 없는 상태입니다.");
         }
@@ -133,7 +134,7 @@ public class PartyService {
     @Transactional(readOnly = true)
     public List<PartyView> openParties(long memberId) {
         return requests.findOpenByMember(memberId, List.of(PartyStatus.CONFIRMED, PartyStatus.SETTLING, PartyStatus.PREPAYING, PartyStatus.READY,
-                PartyStatus.AWAITING_FARE, PartyStatus.RIDE_UNCONFIRMED, PartyStatus.OBJECTION_WINDOW, PartyStatus.REVIEW_PENDING, PartyStatus.SETTLED)).stream()
+                PartyStatus.AWAITING_FARE, PartyStatus.PAYER_PENDING, PartyStatus.RIDE_UNCONFIRMED, PartyStatus.OBJECTION_WINDOW, PartyStatus.REVIEW_PENDING, PartyStatus.SETTLED)).stream()
                 .map(r -> toView(memberId, r.getParty()))
                 .toList();
     }
@@ -233,7 +234,7 @@ public class PartyService {
                 clock.now().isBefore(party.getDepartureAt().minusSeconds(600)),
                 myTerm==null?null:myTerm.getConfirmedShare(),myTerm!=null&&myTerm.isMigratedUnknown(),
                 partyChanges.findByPartyIdOrderByGroupVersion(party.getId()).stream().map(c->new ChangeView(c.getGroupVersion(),c.getReason(),c.getChangedAt())).toList(),
-                party.isInstant(),party.getCalledAt(),ready.callReady(),ready.canCall(),ready.notReadyReasons());
+                party.isInstant(),party.getCalledAt(),ready.callReady(),ready.canCall(),ready.notReadyReasons(),party.getSuccessorId(),party.getSuccessionDeadlineAt(),party.getSuccessionStatus());
     }
 
     private SettlementView toView(Settlement settlement, Party party, boolean payer, long memberId) {

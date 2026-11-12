@@ -14,6 +14,9 @@ import org.hibernate.type.SqlTypes;
 @NoArgsConstructor
 @Table(uniqueConstraints = @UniqueConstraint(name = "uk_payment_obligation", columnNames = {"party_id", "member_id", "purpose"}))
 public class PaymentOrder {
+    private Instant adminHandledAt;
+    private Long adminHandledBy;
+    @Column(length=2000) private String adminNote;
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     @Version private long version;

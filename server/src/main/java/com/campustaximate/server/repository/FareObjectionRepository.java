@@ -8,5 +8,7 @@ import java.util.*;
 
 public interface FareObjectionRepository extends JpaRepository<FareObjection, Long> {
     boolean existsBySettlementId(Long settlementId);
+    boolean existsBySettlementIdAndResolvedAtIsNull(Long settlementId);
+    List<FareObjection> findBySettlementIdOrderById(Long settlementId);
     boolean existsBySettlementIdAndMemberId(Long settlementId, Long memberId);
 }

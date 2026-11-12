@@ -73,6 +73,7 @@ public class RideHistoryService {
         return switch (status) {
             case PREPAYING -> Stage.PREPAYING;
             case READY -> Stage.READY;
+            case PAYER_PENDING -> Stage.REVIEW_PENDING;
             case RIDE_UNCONFIRMED -> Stage.RIDE_UNCONFIRMED;
             case AWAITING_FARE -> Stage.AWAITING_AMOUNT;
             case OBJECTION_WINDOW -> Stage.OBJECTION_WINDOW;

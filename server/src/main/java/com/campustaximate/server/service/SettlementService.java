@@ -71,6 +71,7 @@ public class SettlementService {
         Party party = lockAsPayer(memberId, partyId);
         List<RideRequest> riders = requests.findByPartyOrderByRideOrder(party);
         requireDeparted(party, riders);
+        riders = requests.findByPartyOrderByRideOrder(party);
         if (!party.paymentFlow()) requireAccount(bankName, accountNumber);
         List<Long> shares = shares(amount, riders, party);
         create(party, riders, shares, amount, store(receipt), receipt.getContentType(), bankName, accountNumber);
@@ -82,6 +83,7 @@ public class SettlementService {
         Party party = lockAsPayer(memberId, partyId);
         List<RideRequest> riders = requests.findByPartyOrderByRideOrder(party);
         requireDeparted(party, riders);
+        riders = requests.findByPartyOrderByRideOrder(party);
         create(party, riders, shares(amount, riders, party), amount, null, null, bankName, accountNumber);
     }
 
@@ -191,14 +193,25 @@ public class SettlementService {
         deleteFile(oldPath);
     }
 
+    /** 관리자 검토로 확정된 실제 금액. 이의 기간은 다시 열지 않는다. */
+    @Transactional(propagation=org.springframework.transaction.annotation.Propagation.MANDATORY)
+    public void correctByAdmin(Party party,Settlement settlement,long amount) {
+        var riders=requests.findByPartyOrderByRideOrder(party);
+        var values=shares(amount,riders,party);
+        settlement.setPaidAmount(amount);settlement.setRevision(settlement.getRevision()+1);
+        saveAllocations(party,settlement,riders,values);
+    }
+
     private void saveAllocations(Party party, Settlement settlement, List<RideRequest> riders, List<Long> values) {
         List<com.campustaximate.server.domain.SettlementShare> old = allocations.findBySettlementIdOrderByRideOrder(settlement.getId());
+        old.stream().filter(s->riders.stream().noneMatch(r->r.getMember().getId().equals(s.getMemberId()))).forEach(allocations::delete);
         for (int i = 0; i < riders.size(); i++) {
             RideRequest rider = riders.get(i);
             var share = old.stream().filter(a -> a.getMemberId().equals(rider.getMember().getId())).findFirst()
                     .orElseGet(com.campustaximate.server.domain.SettlementShare::new);
             share.setSettlementId(settlement.getId()); share.setPartyId(party.getId()); share.setMemberId(rider.getMember().getId());
             share.setRatioUnits(rider.getRatioUnits()); share.setRideOrder(rider.getRideOrder()); share.setAmount(values.get(i));
+            share.setRawAmount(null); share.setCompensationCredit(0);
             share.setPayer(rider.getMember().getId().equals(party.getPayer().getId())); allocations.save(share);
         }
     }

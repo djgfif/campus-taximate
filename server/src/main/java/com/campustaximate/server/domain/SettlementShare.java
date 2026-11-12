@@ -14,6 +14,8 @@ import org.hibernate.type.SqlTypes;
 @NoArgsConstructor
 @Table(uniqueConstraints = @UniqueConstraint(name = "uk_settlement_share", columnNames = {"settlement_id", "member_id"}))
 public class SettlementShare {
+    private Long rawAmount;
+    private long compensationCredit;
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY) private Long id;
     private Long settlementId;
     private Long partyId;

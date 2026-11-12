@@ -27,12 +27,20 @@ public class PaymentLifecycleService {
     private final RideConfirmationService rideConfirmations;
     private final NotificationService notifications;
     private final AppClock clock;
+    private final NoShowService noShows;
+    private final BoardingCaseRepository boardingCases;
+    private final CompensationService compensation;
+    private final CompensationEntryRepository compensationEntries;
     private final PlatformTransactionManager transactionManager;
     private TransactionTemplate tx() { return new TransactionTemplate(transactionManager); }
 
     /** 출발 전에 먼저 처리해 뒤늦은 스케줄러 실행이 운행 미성사를 운행 시작으로 바꾸지 않는다. */
     public void beforeDepartures() {
         payments.reconcileExcludedPrepayments();
+        // V10에서 해산 후 남겨 둔 직전 취소 보류도 다음 회차에 같은 원칙으로 해제한다.
+        for(var party:parties.findByStatus(PartyStatus.DISSOLVED)) if(party.paymentFlow() && party.getStartedAt()==null
+                && orders.findByPartyIdOrderById(party.getId()).stream().anyMatch(payments::refundHeld)) payments.refundForDissolution(party.getId());
+        for(var party:parties.findByStatus(PartyStatus.PAYER_PENDING)) noShows.expireSuccession(party.getId());
         for (Party candidate : parties.findByStatus(PartyStatus.PREPAYING)) {
             if (!candidate.paymentFlow() || clock.now().isBefore(candidate.getPrepayDeadlineAt())) continue;
             // PG 조회는 일행 트랜잭션 밖에서 하고 적용 직전에 잠금으로 최신 상태를 확인한다.
@@ -81,6 +89,7 @@ public class PaymentLifecycleService {
     }
 
     public void afterDepartures() {
+        for(var c:boardingCases.findByStatusAndDeadlineAtLessThanEqual("PENDING",clock.now())) noShows.adjudicate(c.getId());
         for(Party candidate:parties.findByStatus(PartyStatus.RIDE_UNCONFIRMED)) tx().executeWithoutResult(status->{
             Party party=parties.findByIdForUpdate(candidate.getId()).orElseThrow();
             if(party.getStatus()==PartyStatus.RIDE_UNCONFIRMED && !clock.now().isBefore(party.getDepartureAt().plusSeconds(24*3600))) rideConfirmations.notOperated(party);
@@ -119,14 +128,18 @@ public class PaymentLifecycleService {
         if (party.getStatus() != PartyStatus.OBJECTION_WINDOW) return;
         Settlement settlement = settlements.findByParty(party).orElseThrow();
         if (clock.now().isBefore(settlement.getObjectionDeadlineAt())) return;
-        if (objections.existsBySettlementId(settlement.getId())) { party.setStatus(PartyStatus.REVIEW_PENDING); return; }
+        if (objections.existsBySettlementIdAndResolvedAtIsNull(settlement.getId())) { party.setStatus(PartyStatus.REVIEW_PENDING); return; }
+        if(noShows.unresolved(partyId)) return;
         party.setStatus(PartyStatus.SETTLED); settlement.setFinalizedAt(clock.now());
         List<SettlementShare> allocations = shares.findBySettlementIdOrderByRideOrder(settlement.getId());
+        compensation.apply(party,settlement,allocations);
+        var compensations=compensationEntries.findBySettlementIdOrderByRequestId(settlement.getId());
         for (PaymentOrder order : orders.findByPartyIdOrderById(partyId)) {
             if (order.getPurpose() != PaymentPurpose.PREPAY || order.getApprovedAmount() == 0 || payments.refundHeld(order)) continue;
             SettlementShare share = allocations.stream().filter(s -> s.getMemberId().equals(order.getMemberId())).findFirst().orElse(null);
-            // 새 결제자로 바뀐 사람의 선결제와 기존 정책상 보전하지 않는 이탈자의 금액도 여기서 돌려준다.
-            long refund = share == null || share.isPayer() ? order.getApprovedAmount() : Math.max(0, order.getApprovedAmount() - share.getAmount());
+            // 승계자 선결제는 전액, 이탈자 선결제는 확정된 보전 부담을 뺀 차액을 돌려준다.
+            long due=share==null?compensations.stream().filter(e->e.getMemberId().equals(order.getMemberId())).mapToLong(CompensationEntry::getCharge).sum():share.isPayer()?0:share.getAmount();
+            long refund = Math.max(0, order.getApprovedAmount() - due);
             payments.refundTo(order.getId(), refund, "정산 확정 차액 환불");
         }
         for (SettlementShare share : allocations) {
@@ -139,6 +152,10 @@ public class PaymentLifecycleService {
                 requests.findByPartyOrderByRideOrder(party).stream().filter(r -> r.getMember().getId().equals(share.getMemberId())).findFirst()
                         .ifPresent(r -> notifications.toMember(r.getMember(), "[캠퍼스 택시메이트] 추가 결제 요청", "정산 차액 " + (share.getAmount() - prepay) + "원을 24시간 안에 결제해 주세요."));
             }
+        }
+        for(var e:compensations) if(e.getCharge()>0) {
+            long prepay=orders.findByPartyIdAndMemberIdAndPurpose(partyId,e.getMemberId(),PaymentPurpose.PREPAY).map(PaymentOrder::getApprovedAmount).orElse(0L);
+            if(e.getCharge()>prepay) payments.createObligation(partyId,e.getMemberId(),e.getRequestId(),settlement.getId(),PaymentPurpose.ADDITIONAL,e.getCharge()-prepay,clock.now().plusSeconds(86400));
         }
         SettlementShare payer = allocations.stream().filter(SettlementShare::isPayer).findFirst().orElseThrow();
         if (!payouts.existsBySettlementId(settlement.getId())) {

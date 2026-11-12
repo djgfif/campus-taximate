@@ -19,4 +19,7 @@ public class FareObjection {
     private Long memberId;
     @Column(length = 500) private String reason;
     private Instant createdAt;
+    private Instant resolvedAt;
+    private String resolution;
+    private Long adminId;
 }

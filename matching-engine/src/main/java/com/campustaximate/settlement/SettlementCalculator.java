@@ -104,4 +104,20 @@ public final class SettlementCalculator {
         }
         return result;
     }
+    /** 여러 이탈자의 상한 비율로 부담을 나눈다. 소수부 동률이면 요청 번호가 빠른 순서다. */
+    public static List<Long> compensationBurdens(long total, List<Long> caps, List<Long> requestIds) {
+        if (caps == null || caps.isEmpty() || caps.size() > 4 || requestIds == null || caps.size() != requestIds.size()
+                || new java.util.HashSet<>(requestIds).size() != requestIds.size()
+                || requestIds.stream().anyMatch(id -> id == null || id <= 0)
+                || caps.stream().anyMatch(c -> c == null || c < 0 || c > 10_000_000L))
+            throw new IllegalArgumentException("보전 상한과 요청 번호를 확인해 주세요.");
+        long sum = caps.stream().mapToLong(Long::longValue).sum();
+        if (total < 0 || total > sum) throw new IllegalArgumentException("보전 총액은 상한 합 이하여야 합니다.");
+        List<Integer> order = java.util.stream.IntStream.range(0, caps.size()).boxed()
+                .sorted(java.util.Comparator.comparing(requestIds::get)).toList();
+        List<Long> sorted = compensation(order.stream().map(caps::get).toList(), total);
+        List<Long> result = new java.util.ArrayList<>(java.util.Collections.nCopies(caps.size(), 0L));
+        for (int i = 0; i < order.size(); i++) result.set(order.get(i), sorted.get(i));
+        return List.copyOf(result);
+    }
 }

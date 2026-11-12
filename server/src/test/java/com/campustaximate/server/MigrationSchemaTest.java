@@ -104,4 +104,33 @@ class MigrationSchemaTest {
             try(var rows=sql.executeQuery("select nearby_at from ride_request where 1=0")){assertThat(rows.getMetaData().getColumnCount()).isEqualTo(1);}
         }
     }
+    @Test void v11AdminDefaultsAndBoardingTablesArePresent() throws Exception {
+        JdbcTemplate jdbc=new JdbcTemplate(dataSource);
+        for(String table:new String[]{"boarding_case","boarding_vote","boarding_explanation","compensation_entry","admin_audit"})
+            assertThat(jdbc.queryForObject("select count(*) from "+table,Long.class)).isNotNull();
+        assertThat(jdbc.queryForObject("select count(*) from member where admin is null",Long.class)).isZero();
+        try(var connection=dataSource.getConnection();var sql=connection.createStatement()){
+            try(var row=sql.executeQuery("select original_payer_id,successor_id,succession_status,succession_deadline_at from party where 1=0")){assertThat(row.getMetaData().getColumnCount()).isEqualTo(4);}
+        }
+    }
+    @Test void v12AllowsDissolutionPayoutWithoutSettlementAndPreventsDuplicateJournals() throws Exception {
+        String url="jdbc:h2:mem:migration_v12_"+java.util.UUID.randomUUID().toString().replace("-","")+";MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1";
+        org.flywaydb.core.Flyway.configure().dataSource(url,"sa","").target("11").load().migrate();
+        try(var connection=java.sql.DriverManager.getConnection(url,"sa","");var sql=connection.createStatement()) {
+            sql.executeUpdate("insert into school(id,lat,lon,email_domain,gate_name,name) values(1,37,127,'v12.ac.kr','정문','학교')");
+            sql.executeUpdate("insert into hub(id,lat,lon,meeting_point,name) values(1,37,127,'정문 앞','정문')");
+            sql.executeUpdate("insert into member(id,school_id,email,login_code_failures,login_failures_today,no_show_count) values(1,1,'a@v12.ac.kr',0,0,0)");
+            for(int id=1;id<=2;id++)sql.executeUpdate("insert into party(id,hub_id,payer_id,departure_at,expected_total,version,direction,status,payment_flow_version) values("+id+",1,1,current_timestamp,13600,0,'FROM_HUB','DISSOLVED',2)");
+            sql.executeUpdate("insert into settlement(id,party_id,paid_amount,revision,requested_at,stored_at) values(1,1,16800,0,current_timestamp,current_timestamp)");
+            sql.executeUpdate("insert into payout_ledger(settlement_id,party_id,member_id,amount,recorded_at) values(1,1,1,8800,current_timestamp)");
+            org.flywaydb.core.Flyway.configure().dataSource(url,"sa","").load().migrate();
+            try(var row=sql.executeQuery("select amount,settlement_id from payout_ledger where party_id=1")) {
+                assertThat(row.next()).isTrue();assertThat(row.getLong(1)).isEqualTo(8800);assertThat(row.getLong(2)).isEqualTo(1);
+            }
+            sql.executeUpdate("insert into payout_ledger(settlement_id,party_id,member_id,amount,recorded_at) values(null,2,1,5600,current_timestamp)");
+            org.junit.jupiter.api.Assertions.assertThrows(java.sql.SQLException.class,()->sql.executeUpdate("insert into payout_ledger(settlement_id,party_id,member_id,amount,recorded_at) values(null,2,1,5600,current_timestamp)"));
+            String entry="insert into compensation_entry(party_id,settlement_id,request_id,member_id,raw_share,credit,charge,net_share) values(2,null,100,1,0,0,5600,5600)";
+            sql.executeUpdate(entry);org.junit.jupiter.api.Assertions.assertThrows(java.sql.SQLException.class,()->sql.executeUpdate(entry));
+        }
+    }
 }

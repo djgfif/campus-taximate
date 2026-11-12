@@ -14,6 +14,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
+@lombok.Setter
 @Getter
 @NoArgsConstructor
 public class Hub {

@@ -20,6 +20,7 @@ public class RideConfirmationService {
     private final PaymentService payments;
     private final NotificationService notifications;
     private final AppClock clock;
+    private final NoShowService noShows;
 
     @Transactional(propagation=Propagation.MANDATORY)
     public void ask(Party party) {
@@ -41,14 +42,13 @@ public class RideConfirmationService {
     @Transactional(propagation=Propagation.MANDATORY)
     public void start(Party party,Instant started) {
         if(party.getStartedAt()!=null) return;
-        List<RideRequest> riders=requests.findByPartyOrderByRideOrder(party);
         markBoardingUnconfirmed(party);
-        riders.forEach(rider->rider.finish(RequestStatus.COMPLETED));
-        party.setStartedAt(started); party.setStatus(PartyStatus.AWAITING_FARE);
+        noShows.beginRide(party,started);
     }
 
     @Transactional(propagation=Propagation.MANDATORY)
     public void notOperated(Party party) {
+        noShows.notOperated(party);
         party.setStatus(PartyStatus.NOT_OPERATED);
         requests.findByPartyOrderByRideOrder(party).forEach(r->r.finish(RequestStatus.CANCELED));
         payments.refundAll(party.getId(),"운행 미성사 확인");
@@ -59,7 +59,7 @@ public class RideConfirmationService {
     @Transactional
     public void answer(long actor,long partyId,boolean rode) {
         Party party=parties.findByIdForUpdate(partyId).orElseThrow(()->ApiException.notFound("없는 일행입니다."));
-        terms.findByPartyIdAndMemberId(partyId,actor).filter(t->t.getExitedAt()==null)
+        terms.findByPartyIdAndMemberId(partyId,actor).filter(t->t.getExitedAt()==null || "BOARDING_UNCONFIRMED".equals(t.getExitReason()))
                 .orElseThrow(()->ApiException.forbidden("현재 일행원만 운행을 확인할 수 있어요."));
         if(!party.paymentFlow() || party.getRideAskedAt()==null) throw ApiException.conflict("RIDE_NOT_ASKED", "아직 운행 확인 대상이 아니에요.");
         var old=answers.findByPartyIdAndMemberId(partyId,actor).orElse(null);

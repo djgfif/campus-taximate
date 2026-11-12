@@ -115,7 +115,7 @@ public class ApiController {
     public record ProfileBody(@NotBlank @Size(max = 20) String nickname, @NotNull Gender gender) {
     }
 
-    public record MeView(long id, String email, String nickname, Gender gender, boolean needsPassword, boolean needsProfile) {
+    public record MeView(long id, String email, String nickname, Gender gender, boolean needsPassword, boolean needsProfile, boolean admin) {
     }
 
     public record RequestBodyDto(@NotNull Direction direction, Long hubId, Instant windowStart, Instant windowEnd,
@@ -263,7 +263,7 @@ public class ApiController {
     public MeView me(HttpSession session) {
         long id = memberId(session);
         Member member = members.findById(id).orElseThrow(ApiException::unauthorized);
-        return new MeView(id, member.getEmail(), member.getNickname(), member.getGender(), !member.hasPassword(), !member.hasProfile());
+        return new MeView(id, member.getEmail(), member.getNickname(), member.getGender(), !member.hasPassword(), !member.hasProfile(), member.isAdmin());
     }
 
     /** 내 상태가 바뀌면 신호를 보낸다. 연결이 안 되는 환경에서는 화면이 주기적으로 읽는다. */

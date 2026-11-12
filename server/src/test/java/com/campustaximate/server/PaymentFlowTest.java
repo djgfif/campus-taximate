@@ -48,6 +48,15 @@ class PaymentFlowTest {
     @Autowired RideConfirmationRepository rideAnswers;
     @Autowired PartyService partyService;
     @Autowired PartyReadinessService readiness;
+    @SpyBean PartyChangeService changeService;
+    @Autowired NoShowService noShows;
+    @Autowired AdminService admin;
+    @Autowired BoardingCaseRepository boardingCases;
+    @Autowired BoardingVoteRepository boardingVotes;
+    @Autowired BoardingExplanationRepository boardingExplanations;
+    @Autowired CompensationEntryRepository compensationEntries;
+    @Autowired AdminAuditRepository adminAudits;
+    @Autowired MemberRestrictionRepository memberRestrictions;
     @Autowired PlatformTransactionManager manager;
     @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
     @MockBean PaymentGateway gateway;
@@ -61,6 +70,7 @@ class PaymentFlowTest {
     void prepare() {
         PaymentTestSupport.clear(jdbc); transfers.deleteAll(); settlements.deleteAll(); requests.deleteAll(); parties.deleteAll();
         at(NOW); jdbc.update("delete from mail_outbox");
+        jdbc.update("delete from member_restriction"); jdbc.update("update member set no_show_count=0");
         provider = new SimulatedPaymentGateway();
         doReturn(true).when(gateway).simulated();
         doAnswer(c -> provider.confirm(c.getArgument(0), c.getArgument(1), c.getArgument(2), c.getArgument(3)))
@@ -261,11 +271,18 @@ class PaymentFlowTest {
         rideRequests.cancel(ids.get(0),request);payments.retryDue();
         assertThat(order(0).getRefundedAmount()).isEqualTo(3680);
     }
-    @Test void lateCancellationKeepsExistingNoCompensationPolicyUntilSettlement() {
-        approve(0);approve(1);at(NOW.plusSeconds(11*60));lifecycle.beforeDepartures();
+    @Test void C02_lateCancellationCompensatesAtSettlementWithoutNoShow() {
+        approve(0);approve(1);
+        new TransactionTemplate(manager).executeWithoutResult(tx->{var p=parties.findByIdForUpdate(partyId).orElseThrow();p.setDepartureAt(NOW.plusSeconds(7200));p.setPrepayDeadlineAt(NOW.plusSeconds(3600));orders.findByPartyIdOrderById(partyId).forEach(o->o.setDeadlineAt(NOW.plusSeconds(3600)));});
+        at(NOW.plusSeconds(6000));lifecycle.beforeDepartures();
         long request=requests.findAll().stream().filter(r->r.getMember().getId().equals(ids.get(0))).findFirst().orElseThrow().getId();
         rideRequests.cancel(ids.get(0),request);payments.retryDue();
         assertThat(order(0).getRefundedAmount()).isZero();
+        assertThat(requests.findById(request).orElseThrow().isNoShow()).isFalse();
+        at(NOW.plusSeconds(7200));slots.runLocked(()->{slots.process(clock.now());return null;});
+        submit(20000);finalizeFare();
+        var charge=compensationEntries.findByPartyIdOrderByRequestId(partyId).stream().filter(e->e.getMemberId().equals(ids.get(0))).findFirst().orElseThrow();
+        assertThat(charge.getCharge()).isEqualTo(3200);assertThat(order(0).getRefundedAmount()).isEqualTo(480);
         assertThat(requests.findById(request).orElseThrow().isNoShow()).isFalse();
     }
 
@@ -367,10 +384,12 @@ class PaymentFlowTest {
         assertThat(partyChanges.findByPartyIdOrderByGroupVersion(partyId)).singleElement().satisfies(c->{assertThat(c.getGroupVersion()).isEqualTo(2);assertThat(c.getReason()).isEqualTo("PREPAY_UNPAID");assertThat(c.getChangedAt()).isEqualTo(clock.now());});
         assertThat(partyService.view(ids.get(0),partyId).myConfirmedShare()).isEqualTo(3200);
     }
-    @Test void n08PayerRodeStartsFareInputAndOnlyRecordsUnconfirmedBoarding() {
+    @Test void n08PayerRodeStartsFareInputAndInvestigatesUnconfirmedMembers() {
         unconfirmed();rideConfirmations.answer(ids.get(2),partyId,true);
         assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.AWAITING_FARE);
-        assertThat(requests.findByStatus(RequestStatus.COMPLETED)).hasSize(3);
+        assertThat(requests.findByStatus(RequestStatus.COMPLETED)).hasSize(1);
+        assertThat(requests.findByStatus(RequestStatus.CANCELED)).hasSize(2);
+        assertThat(boardingCases.findByPartyIdOrderByRequestId(partyId)).hasSize(2).allMatch(BoardingCase::pending);
         assertThat(terms.findByPartyIdOrderById(partyId)).allMatch(t->t.getBoardingUnconfirmedAt()!=null);
         assertThat(members.findAll().stream().filter(m->ids.contains(m.getId()))).allMatch(m->m.getNoShowCount()==0);
         assertThat(partyService.view(ids.get(2),partyId).canSettle()).isTrue();
@@ -388,7 +407,7 @@ class PaymentFlowTest {
     @Test void fareWithinTPlus24IsAcceptedWithoutPayerAnswer() {
         unconfirmed();at(NOW.plusSeconds(1800+23*3600));submit(16800);
         assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.OBJECTION_WINDOW);
-        assertThat(allocations.findAll()).hasSize(3);assertThat(order(0).getRefundedAmount()).isZero();
+        assertThat(allocations.findAll()).hasSize(1);assertThat(boardingCases.findByPartyIdOrderByRequestId(partyId)).hasSize(2);assertThat(order(0).getRefundedAmount()).isZero();
     }
     @Test void contradictoryAnswersHoldAllRefundsAndStopSettlement() {
         unconfirmed();rideConfirmations.answer(ids.get(0),partyId,true);rideConfirmations.answer(ids.get(2),partyId,false);
@@ -430,22 +449,27 @@ class PaymentFlowTest {
         changedGroup();at(NOW.plusSeconds(1199));
         assertThat(rideRequests.leaveAfterChange(ids.get(0),partyId,2)).isTrue();payments.retryDue();
         assertThat(order(0).getRefundedAmount()).isEqualTo(3680);
+        assertThat(payouts.count()).isZero();assertThat(compensationEntries.count()).isZero();
         assertThat(terms.findByPartyIdAndMemberId(partyId,ids.get(0)).orElseThrow().isRefundHeld()).isFalse();
     }
     @Test void s30AtCallChangeExitIsNotFreeEvenIfPartyDissolves() {
         changedGroup();at(NOW.plusSeconds(1200));
         assertThat(rideRequests.leaveAfterChange(ids.get(0),partyId,2)).isFalse();payments.retryDue();
-        assertThat(order(0).getRefundedAmount()).isZero();assertThat(order(0).getRefundTarget()).isZero();
-        assertThat(terms.findByPartyIdAndMemberId(partyId,ids.get(0)).orElseThrow().isRefundHeld()).isTrue();
+        assertThat(order(0).getRefundedAmount()).isEqualTo(480);assertThat(order(0).getRefundTarget()).isEqualTo(480);
+        assertThat(terms.findByPartyIdAndMemberId(partyId,ids.get(0)).orElseThrow().isRefundHeld()).isFalse();
         assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.DISSOLVED);
+        assertThat(payouts.findAll()).singleElement().satisfies(p->{assertThat(p.getMemberId()).isEqualTo(ids.get(2));assertThat(p.getAmount()).isEqualTo(3200);});
     }
+
     @Test void s30AfterCallAndStaleGroupVersionAreHandledSeparately() {
         changedGroup();at(NOW.plusSeconds(1201));
         assertThatThrownBy(()->rideRequests.leaveAfterChange(ids.get(0),partyId,1)).isInstanceOf(ApiException.class);
         assertThat(parties.findById(partyId).orElseThrow().getGroupVersion()).isEqualTo(2);
         assertThat(rideRequests.leaveAfterChange(ids.get(0),partyId,2)).isFalse();payments.retryDue();
-        assertThat(order(0).getRefundedAmount()).isZero();
+        assertThat(order(0).getRefundedAmount()).isEqualTo(480);
+        assertThat(payouts.findAll()).singleElement().satisfies(p->{assertThat(p.getMemberId()).isEqualTo(ids.get(2));assertThat(p.getAmount()).isEqualTo(3200);});
     }
+
     @Test void deadlineLookupRacingApprovalDoesNotExcludeOrDoubleCharge() throws Exception {
         approve(0);PaymentOrder b=order(1);
         var entered=new java.util.concurrent.CountDownLatch(1);var release=new java.util.concurrent.CountDownLatch(1);
@@ -489,7 +513,8 @@ class PaymentFlowTest {
                 .session(session).contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{\"groupVersion\":2}"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.freeRefund").value(false));
-        assertThat(order(0).getRefundedAmount()).isZero();
+        assertThat(order(0).getRefundedAmount()).isEqualTo(480);
+        assertThat(payouts.findAll()).singleElement().satisfies(p->{assertThat(p.getMemberId()).isEqualTo(ids.get(2));assertThat(p.getAmount()).isEqualTo(3200);});
     }
 
     @Test void changeExitRechecksCallDeadlineAfterRouteLookup() {
@@ -613,5 +638,351 @@ class PaymentFlowTest {
         assertThat(order(1).getExcludedAt()).isEqualTo(clock.now());
         assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.READY);
         assertThat(partyService.view(ids.get(2),partyId).canCall()).isTrue();
+    }
+
+    long adminId(){return members.findByEmail("demo-admin@daejin.ac.kr").orElseThrow().getId();}
+    RideRequest rider(int index){return requests.findAll().stream().filter(r->r.getMember().getId().equals(ids.get(index))).findFirst().orElseThrow();}
+    BoardingCase investigation(int index){return boardingCases.findByPartyIdAndRequestId(partyId,rider(index).getId()).orElseThrow();}
+    void departWithout(int index){
+        approve(0);approve(1);at(NOW.plusSeconds(600));lifecycle.beforeDepartures();
+        new TransactionTemplate(manager).executeWithoutResult(tx->requests.findById(rider(index).getId()).orElseThrow().setArrived(false));
+        at(NOW.plusSeconds(1800));
+        new TransactionTemplate(manager).executeWithoutResult(tx->rideConfirmations.start(parties.findByIdForUpdate(partyId).orElseThrow(),clock.now()));
+    }
+    void reviewB(){departWithout(1);submit(15500);at(investigation(1).getDeadlineAt());lifecycle.afterDepartures();assertThat(investigation(1).getStatus()).isEqualTo("REVIEW");}
+    CompensationEntry comp(int index){return compensationEntries.findByPartyIdOrderByRequestId(partyId).stream().filter(e->e.getMemberId().equals(ids.get(index))).findFirst().orElseThrow();}
+
+    @Test void N01_confirmedBNoShowCharges4300Refunds2140AndPayerReceives7500(){
+        departWithout(1);noShows.vote(ids.get(0),partyId,ids.get(1),false);submit(15500);
+        assertThat(boardingCases.findAll()).singleElement().satisfies(c->assertThat(c.getStatus()).isEqualTo("PENDING"));
+        assertThat(order(1).getRefundedAmount()).isZero();assertThat(payouts.count()).isZero();
+        finalizeFare();
+        assertThat(comp(1).getCharge()).isEqualTo(4300);assertThat(order(1).getRefundedAmount()).isEqualTo(2140);
+        assertThat(comp(0).getNetShare()).isEqualTo(3200);assertThat(comp(2).getNetShare()).isEqualTo(8000);
+        assertThat(payouts.findAll()).singleElement().satisfies(p->assertThat(p.getAmount()).isEqualTo(7500));
+        assertThat(rider(1).isNoShow()).isTrue();assertThat(members.findById(ids.get(1)).orElseThrow().getNoShowCount()).isEqualTo(1);
+        assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.COMPLETED);
+    }
+    @Test void N02_driverRefusalIsNotNoShowAndRefundsEveryDeposit(){
+        approve(0);approve(1);
+        new TransactionTemplate(manager).executeWithoutResult(tx->rideConfirmations.notOperated(parties.findByIdForUpdate(partyId).orElseThrow()));
+        payments.retryDue();
+        assertThat(order(0).getRefundedAmount()).isEqualTo(3680);assertThat(order(1).getRefundedAmount()).isEqualTo(6440);
+        assertThat(boardingCases.count()).isZero();assertThat(requests.findAll()).noneMatch(RideRequest::isNoShow);
+    }
+    @Test void N03_acceptedExplanationRefundsAllBAndMakesNoNoShowRecord(){
+        departWithout(1);noShows.vote(ids.get(0),partyId,ids.get(1),false);
+        noShows.explain(ids.get(1),investigation(1).getId(),"기사님이 승차를 거절했어요.");submit(15500);finalizeFare();
+        assertThat(investigation(1).getStatus()).isEqualTo("REVIEW");assertThat(payouts.count()).isZero();
+        admin.decideNoShow(adminId(),investigation(1).getId(),"NOT_NO_SHOW","기사 거절 소명 확인");lifecycle.afterDepartures();
+        assertThat(order(1).getRefundedAmount()).isEqualTo(6440);assertThat(comp(1).getCharge()).isZero();assertThat(rider(1).isNoShow()).isFalse();
+        assertThat(members.findById(ids.get(1)).orElseThrow().getNoShowCount()).isZero();
+    }
+    @Test void N04_conflictingPeerVotesRequireReviewAndHoldAllSettlementEffects(){
+        departWithout(1);noShows.vote(ids.get(0),partyId,ids.get(1),false);noShows.vote(ids.get(2),partyId,ids.get(1),true);
+        submit(24000);finalizeFare();
+        assertThat(investigation(1).getStatus()).isEqualTo("REVIEW");assertThat(payouts.count()).isZero();assertThat(compensationEntries.count()).isZero();
+        assertThat(orders.findAll()).hasSize(2);verify(gateway,never()).cancel(anyString(),anyLong(),anyString(),anyString());
+    }
+    @Test void N05_onlyTwoConfirmedNoShowsWithinThirtyDaysCauseSevenDayRestriction(){
+        // 지난 일행의 확정 노쇼 한 건과 이번 조사 중 한 건을 구분한다.
+        new TransactionTemplate(manager).executeWithoutResult(tx->{
+            var template=rider(1);RideRequest old=new RideRequest();old.setMember(members.findById(ids.get(1)).orElseThrow());
+            old.setDirection(Direction.FROM_HUB);old.setHub(hubs.findAll().getFirst());old.setPointName("지난 도착지");old.setRequestedAt(NOW.minusSeconds(86400));old.setStatus(RequestStatus.CANCELED);old.setNoShow(true);old.setNoShowAt(NOW.minusSeconds(86400));requests.save(old);
+            var m=members.findById(ids.get(1)).orElseThrow();m.setNoShowCount(1);
+        });
+        // rider() 대신 현재 일행 요청을 지정해 과거 기록과 섞이지 않게 한다.
+        approve(0);approve(1);at(NOW.plusSeconds(600));lifecycle.beforeDepartures();
+        new TransactionTemplate(manager).executeWithoutResult(tx->{var p=parties.findByIdForUpdate(partyId).orElseThrow();requests.findByPartyOrderByRideOrder(p).stream().filter(r->r.getMember().getId().equals(ids.get(1))).forEach(r->r.setArrived(false));});
+        at(NOW.plusSeconds(1800));new TransactionTemplate(manager).executeWithoutResult(tx->rideConfirmations.start(parties.findByIdForUpdate(partyId).orElseThrow(),clock.now()));
+        var c=boardingCases.findByPartyIdOrderByRequestId(partyId).getFirst();noShows.vote(ids.get(0),partyId,ids.get(1),false);
+        assertThat(memberRestrictions.findAll()).isEmpty();at(c.getDeadlineAt());noShows.adjudicate(c.getId());
+        assertThat(memberRestrictions.findAll()).singleElement().satisfies(r->{assertThat(r.getReason()).isEqualTo("NO_SHOW_REPEATED");assertThat(r.getExpiresAt()).isEqualTo(clock.now().plusSeconds(7*86400));});
+        noShows.adjudicate(c.getId());assertThat(members.findById(ids.get(1)).orElseThrow().getNoShowCount()).isEqualTo(2);
+    }
+    void absentPayerOffer(){
+        approve(0);approve(1);at(NOW.plusSeconds(600));lifecycle.beforeDepartures();
+        new TransactionTemplate(manager).executeWithoutResult(tx->requests.findById(rider(2).getId()).orElseThrow().setArrived(false));
+        at(NOW.plusSeconds(1800));noShows.vote(ids.get(0),partyId,ids.get(2),false);
+        assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.PAYER_PENDING);
+    }
+    @Test void N06_payerSuccessionKeepsDepositUntilFinalizationAndHasNoCompensationFromOriginalPayer(){
+        absentPayerOffer();noShows.succession(ids.get(1),partyId,true);
+        assertThat(parties.findById(partyId).orElseThrow().getPayer().getId()).isEqualTo(ids.get(1));assertThat(order(1).getRefundedAmount()).isZero();
+        settlementService.submit(ids.get(1),partyId,12000,receipt(),null,null);finalizeFare();
+        assertThat(order(1).getRefundedAmount()).isEqualTo(6440);assertThat(comp(2).getCharge()).isZero();assertThat(rider(2).isNoShow()).isTrue();
+        assertThat(investigation(2).isNoCompensation()).isTrue();
+    }
+    @Test void N07_compensationCap5600Splits12800IncreaseByItsRatio(){
+        departWithout(1);noShows.vote(ids.get(0),partyId,ids.get(1),false);submit(24000);finalizeFare();
+        assertThat(comp(1).getCharge()).isEqualTo(5600);assertThat(comp(0).getCredit()).isEqualTo(1600);assertThat(comp(2).getCredit()).isEqualTo(4000);
+        assertThat(order(1).getRefundedAmount()).isEqualTo(840);
+    }
+    @Test void N10_refusedSuccessionDoesNotOfferNextCandidateAndRefundsOthers(){
+        absentPayerOffer();noShows.succession(ids.get(1),partyId,false);payments.retryDue();
+        assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.NOT_OPERATED);
+        assertThat(order(0).getRefundedAmount()).isEqualTo(3680);assertThat(order(1).getRefundedAmount()).isEqualTo(6440);
+        assertThatThrownBy(()->noShows.succession(ids.get(0),partyId,true)).isInstanceOf(ApiException.class);
+        at(investigation(2).getDeadlineAt());lifecycle.afterDepartures();assertThat(rider(2).isNoShow()).isTrue();
+        assertThat(compensationEntries.count()).isZero();assertThat(payouts.count()).isZero();
+    }
+    @Test void N10_unansweredSuccessionExpiresWithoutAnotherOffer(){
+        absentPayerOffer();at(NOW.plusSeconds(2100));lifecycle.beforeDepartures();payments.retryDue();
+        assertThat(parties.findById(partyId).orElseThrow().getSuccessionStatus()).isEqualTo("REFUSED");
+        assertThat(order(0).getRefundedAmount()).isEqualTo(3680);assertThat(order(1).getRefundedAmount()).isEqualTo(6440);
+    }
+    @Test void N11_twoAbsenteesShareTheSameCompensationTotalWithinBothCaps(){
+        long fourth=members.findByEmail("demo-f4@daejin.ac.kr").orElseThrow().getId();
+        new TransactionTemplate(manager).executeWithoutResult(tx->{
+            var p=parties.findByIdForUpdate(partyId).orElseThrow();RideRequest r=new RideRequest();r.setMember(members.getReferenceById(fourth));r.setDirection(Direction.FROM_HUB);r.setHub(p.getHub());r.setPointName("추가 도착지");r.setRequestedAt(NOW);r.setParty(p);r.setRideOrder(2);r.setRatioUnits(9000L);r.setSoloFare(9000);r.setExpectedShare(4000L);r.setStatus(RequestStatus.MATCHED);r.setArrived(false);requests.save(r);
+            payments.createObligation(partyId,fourth,r.getId(),null,PaymentPurpose.PREPAY,4600,p.getPrepayDeadlineAt());
+            changeService.capture(p,List.of(r),false);
+        });
+        var extra=orders.findByPartyIdAndMemberIdAndPurpose(partyId,fourth,PaymentPurpose.PREPAY).orElseThrow();payments.confirm(fourth,extra.getOrderId(),"fourth",extra.getAmount());
+        departWithout(1);noShows.vote(ids.get(0),partyId,ids.get(1),false);noShows.vote(ids.get(2),partyId,fourth,false);submit(24000);finalizeFare();
+        var values=compensationEntries.findByPartyIdOrderByRequestId(partyId);
+        assertThat(values.stream().mapToLong(CompensationEntry::getCharge).sum()).isEqualTo(values.stream().mapToLong(CompensationEntry::getCredit).sum()).isEqualTo(9600);
+        assertThat(comp(1).getCharge()).isEqualTo(5600);assertThat(values.stream().filter(e->e.getMemberId().equals(fourth)).findFirst().orElseThrow().getCharge()).isEqualTo(4000);
+    }
+    @Test void N12_unresolvableConflictMeansNotNoShowAndFullRefund(){
+        departWithout(1);noShows.vote(ids.get(0),partyId,ids.get(1),false);noShows.vote(ids.get(2),partyId,ids.get(1),true);submit(15500);finalizeFare();
+        admin.decideNoShow(adminId(),investigation(1).getId(),"UNDETERMINED","추가 증거가 없어 판단 불가");lifecycle.afterDepartures();
+        assertThat(investigation(1).getStatus()).isEqualTo("EXONERATED");assertThat(order(1).getRefundedAmount()).isEqualTo(6440);assertThat(rider(1).isNoShow()).isFalse();
+    }
+    @Test void lateChangedExitUsesSameSettlementCompensation(){
+        approve(0);approve(1);at(NOW.plusSeconds(600));lifecycle.beforeDepartures();
+        new TransactionTemplate(manager).executeWithoutResult(tx->parties.findByIdForUpdate(partyId).orElseThrow().setGroupVersion(2));
+        at(NOW.plusSeconds(1201));assertThat(rideRequests.leaveAfterChange(ids.get(1),partyId,2)).isFalse();
+        assertThat(investigation(1).getKind()).isEqualTo("LATE_CANCEL");assertThat(investigation(1).getStatus()).isEqualTo("CONFIRMED");
+        at(NOW.plusSeconds(1800));slots.runLocked(()->{slots.process(clock.now());return null;});submit(15500);finalizeFare();
+        assertThat(comp(1).getCharge()).isEqualTo(4300);assertThat(order(1).getRefundedAmount()).isEqualTo(2140);assertThat(rider(1).isNoShow()).isFalse();
+    }
+    @Test void A01_adminPathsRejectNormalMemberAndAllowAdmin() throws Exception {
+        var user=new org.springframework.mock.web.MockHttpSession();user.setAttribute("memberId",ids.get(0));
+        var administrator=new org.springframework.mock.web.MockHttpSession();administrator.setAttribute("memberId",adminId());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/admin/no-shows").session(user)).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isForbidden());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/admin/no-shows").session(administrator)).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
+        assertThatThrownBy(()->admin.noShowReviews(ids.get(0))).isInstanceOf(ApiException.class);
+    }
+    @Test void adminDecisionIsIdempotentAndAutomaticallySettlesAfterInvestigation() throws Exception {
+        reviewB();var session=new org.springframework.mock.web.MockHttpSession();session.setAttribute("memberId",adminId());long id=investigation(1).getId();
+        String json="{\"decision\":\"NO_SHOW\",\"evidence\":\"탑승 확인 자료 검토\"}";
+        for(int i=0;i<2;i++) mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/admin/no-shows/"+id+"/decision").session(session).contentType(org.springframework.http.MediaType.APPLICATION_JSON).content(json)).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
+        assertThat(adminAudits.count()).isEqualTo(1);assertThat(order(1).getRefundedAmount()).isEqualTo(2140);assertThat(payouts.count()).isEqualTo(1);
+        assertThat(members.findById(ids.get(1)).orElseThrow().getNoShowCount()).isEqualTo(1);
+        verify(gateway,times(1)).cancel(eq(order(1).getPaymentKey()),eq(2140L),anyString(),anyString());
+    }
+    @Test void adminFareRejectionResumesSettlementAndCannotBeAppliedTwice(){
+        depart();submit(16800);settlementService.objectToFare(ids.get(0),partyId,"확인 요청");
+        at(NOW.plusSeconds(1800+86400));admin.decideFare(adminId(),partyId,false,null,"영수증 원금과 일치");lifecycle.afterDepartures();
+        admin.decideFare(adminId(),partyId,false,null,"영수증 원금과 일치");lifecycle.afterDepartures();
+        assertThat(payouts.count()).isEqualTo(1);assertThat(adminAudits.count()).isEqualTo(1);assertThat(order(0).getRefundedAmount()).isEqualTo(480);
+    }
+    @Test void explanationDeadlineAndPeerPermissionsAreStrict(){
+        departWithout(1);long id=investigation(1).getId();
+        assertThatThrownBy(()->noShows.vote(ids.get(1),partyId,ids.get(1),false)).isInstanceOf(ApiException.class);
+        assertThatThrownBy(()->noShows.explain(ids.get(0),id,"대신 소명")).isInstanceOf(ApiException.class);
+        at(investigation(1).getDeadlineAt());assertThatThrownBy(()->noShows.explain(ids.get(1),id,"기한 지난 소명")).isInstanceOf(ApiException.class);
+        noShows.adjudicate(id);assertThat(investigation(1).getStatus()).isEqualTo("REVIEW");
+    }
+    @Test void C05_unpaidBThenAChangeExitAfterCallIsNotFreeAndKeepsOriginalCap(){
+        changedGroup();at(NOW.plusSeconds(1201));
+        assertThat(rideRequests.leaveAfterChange(ids.get(0),partyId,2)).isFalse();payments.retryDue();
+        assertThat(investigation(0).getKind()).isEqualTo("LATE_CANCEL");assertThat(investigation(0).getStatus()).isEqualTo("CONFIRMED");
+        assertThat(terms.findByPartyIdAndMemberId(partyId,ids.get(0)).orElseThrow().getConfirmedShare()).isEqualTo(3200);
+        assertThat(compensationEntries.count()).isEqualTo(2);assertThat(comp(0).getCharge()).isEqualTo(3200);assertThat(comp(2).getCredit()).isEqualTo(3200);assertThat(order(0).getRefundedAmount()).isEqualTo(480);assertThat(rider(0).isNoShow()).isFalse();
+        assertThat(payouts.findAll()).singleElement().satisfies(p->{assertThat(p.getMemberId()).isEqualTo(ids.get(2));assertThat(p.getAmount()).isEqualTo(3200);});
+    }
+
+    @Test void adminFareAcceptanceRecalculatesActualSharesAndWritesOneAudit(){
+        depart();submit(24000);settlementService.objectToFare(ids.get(0),partyId,"실제 금액은 영수증의 16800원");
+        admin.decideFare(adminId(),partyId,true,16800L,"영수증 금액 확인");lifecycle.afterDepartures();
+        assertThat(settlements.findAll().getFirst().getPaidAmount()).isEqualTo(16800);
+        assertThat(order(0).getRefundedAmount()).isEqualTo(480);assertThat(order(1).getRefundedAmount()).isEqualTo(840);
+        assertThat(adminAudits.findAll()).singleElement().satisfies(a->{assertThat(a.getActorId()).isEqualTo(adminId());assertThat(a.getEvidence()).isEqualTo("영수증 금액 확인");});
+    }
+    @Test void adminRideDisputeWithoutReceiptMeansNotOperatedAndFullRefund(){
+        unconfirmed();rideConfirmations.answer(ids.get(0),partyId,true);rideConfirmations.answer(ids.get(2),partyId,false);
+        admin.decideRide(adminId(),partyId,"영수증이 없어 운행 미성사로 판정");lifecycle.afterDepartures();
+        assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.NOT_OPERATED);
+        assertThat(order(0).getRefundedAmount()).isEqualTo(3680);assertThat(order(1).getRefundedAmount()).isEqualTo(6440);
+    }
+    @Test void adminRideDisputeWithReceiptResumesFareSettlement(){
+        depart();submit(16800);
+        new TransactionTemplate(manager).executeWithoutResult(tx->parties.findByIdForUpdate(partyId).orElseThrow().setRideAskedAt(clock.now()));
+        rideConfirmations.answer(ids.get(0),partyId,false);rideConfirmations.answer(ids.get(2),partyId,true);
+        assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.REVIEW_PENDING);
+        admin.decideRide(adminId(),partyId,"결제자 영수증으로 운행 확인");finalizeFare();
+        assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.COMPLETED);assertThat(payouts.count()).isEqualTo(1);
+    }
+    @Test void adminReviewListOmitsChatAndDetailContainsOnlyTheInvestigatedParty() throws Exception {
+        reviewB();long id=investigation(1).getId();
+        new TransactionTemplate(manager).executeWithoutResult(tx->{
+            var p=parties.findByIdForUpdate(partyId).orElseThrow();jdbc.update("insert into party_message(party_id,member_id,text,created_at) values(?,?,?,?)",partyId,ids.get(0),"해당 일행 자료",java.sql.Timestamp.from(clock.now()));
+            var other=parties.save(new Party(Direction.FROM_HUB,p.getHub(),null,members.getReferenceById(ids.get(0)),NOW,10000));
+            jdbc.update("insert into party_message(party_id,member_id,text,created_at) values(?,?,?,?)",other.getId(),ids.get(0),"다른 일행 비공개 자료",java.sql.Timestamp.from(clock.now()));
+        });
+        assertThat(admin.noShowDetail(adminId(),id).chat()).singleElement().satisfies(m->assertThat(m.text()).isEqualTo("해당 일행 자료"));
+        var session=new org.springframework.mock.web.MockHttpSession();session.setAttribute("memberId",adminId());
+        var response=mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/admin/no-shows").session(session)).andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(response).doesNotContain("해당 일행 자료","다른 일행 비공개 자료","chat");
+    }
+    @Test void adminRestrictionGrantReleaseAndHubVisibilityAreAuditedAndIdempotent(){
+        var restriction=admin.restrict(adminId(),ids.get(0),NOW.plusSeconds(86400),"신고 내용 확인","restriction-one");
+        admin.restrict(adminId(),ids.get(0),NOW.plusSeconds(86400),"신고 내용 확인","restriction-one");
+        assertThat(memberRestrictions.count()).isEqualTo(1);assertThat(rideRequests.isRestricted(ids.get(0))).isTrue();
+        admin.release(adminId(),restriction.getId(),"제한 해제 확인");assertThat(rideRequests.isRestricted(ids.get(0))).isFalse();
+        long school=members.findWithSchoolById(ids.get(0)).orElseThrow().getSchool().getId();
+        var input=new AdminService.HubInput("새 승차 지점","정차 메모",37.8,127.1,Set.of(school),true,false);
+        var hub=admin.saveHub(adminId(),null,input,"현장 확인 대기","hub-one");admin.saveHub(adminId(),null,input,"현장 확인 대기","hub-one");
+        assertThat(hubs.findBySchool(school)).noneMatch(h->h.getId().equals(hub.id()));
+        admin.saveHub(adminId(),hub.id(),new AdminService.HubInput(input.name(),input.meetingPoint(),input.lat(),input.lon(),input.schoolIds(),true,true),"현장 확인 완료","hub-two");
+        assertThat(hubs.findBySchool(school)).anyMatch(h->h.getId().equals(hub.id()));
+        admin.saveHub(adminId(),hub.id(),new AdminService.HubInput(input.name(),input.meetingPoint(),input.lat(),input.lon(),input.schoolIds(),false,true),"운영 중단","hub-three");
+        assertThat(hubs.findBySchool(school)).noneMatch(h->h.getId().equals(hub.id()));assertThat(adminAudits.count()).isEqualTo(5);
+    }
+    @Test void adminOverdueHandledFlagDoesNotForgePaymentApprovalOrRemoveDebtRestriction(){
+        depart();submit(24000);finalizeFare();var extra=orders.findByPartyIdAndMemberIdAndPurpose(partyId,ids.get(0),PaymentPurpose.ADDITIONAL).orElseThrow();
+        at(extra.getDeadlineAt());lifecycle.afterDepartures();
+        admin.handleOverdue(adminId(),extra.getId(),"추가 결제 안내 처리");admin.handleOverdue(adminId(),extra.getId(),"추가 결제 안내 처리");
+        var result=orders.findById(extra.getId()).orElseThrow();assertThat(result.getStatus()).isEqualTo(PaymentStatus.OVERDUE);assertThat(result.getAdminHandledBy()).isEqualTo(adminId());
+        assertThat(rideRequests.isRestricted(ids.get(0))).isTrue();assertThat(adminAudits.count()).isEqualTo(1);
+    }
+    @Test void concurrentAdminDecisionsAndAutomaticSettlementProduceOneCompensationAndRefund() throws Exception {
+        reviewB();long id=investigation(1).getId();long administrator=adminId();
+        var pool=java.util.concurrent.Executors.newFixedThreadPool(3);
+        try {
+            var tasks=List.<java.util.concurrent.Callable<Void>>of(
+                ()->{admin.decideNoShow(administrator,id,"NO_SHOW","탑승 자료 검토");lifecycle.afterDepartures();return null;},
+                ()->{admin.decideNoShow(administrator,id,"NO_SHOW","탑승 자료 검토");lifecycle.afterDepartures();return null;},
+                ()->{lifecycle.afterDepartures();return null;});
+            for(var result:pool.invokeAll(tasks)) result.get(10,java.util.concurrent.TimeUnit.SECONDS);
+        }finally{pool.shutdownNow();}
+        assertThat(adminAudits.count()).isEqualTo(1);assertThat(compensationEntries.findByPartyIdOrderByRequestId(partyId)).hasSize(3);
+        assertThat(payouts.count()).isEqualTo(1);assertThat(order(1).getRefundedAmount()).isEqualTo(2140);
+        verify(gateway,times(1)).cancel(eq(order(1).getPaymentKey()),eq(2140L),anyString(),anyString());
+    }
+    @Test void automaticNoShowAndSameAdminDecisionCountOnlyOnce(){
+        departWithout(1);noShows.vote(ids.get(0),partyId,ids.get(1),false);submit(15500);finalizeFare();
+        assertThat(investigation(1).getStatus()).isEqualTo("CONFIRMED");
+        admin.decideNoShow(adminId(),investigation(1).getId(),"NO_SHOW","자동 판정 자료 확인");lifecycle.afterDepartures();
+        admin.decideNoShow(adminId(),investigation(1).getId(),"NO_SHOW","자동 판정 자료 확인");lifecycle.afterDepartures();
+        assertThat(members.findById(ids.get(1)).orElseThrow().getNoShowCount()).isEqualTo(1);assertThat(adminAudits.count()).isEqualTo(1);assertThat(payouts.count()).isEqualTo(1);
+        verify(gateway,times(1)).cancel(eq(order(1).getPaymentKey()),eq(2140L),anyString(),anyString());
+    }
+    @Test void ownInvestigationsRemainDiscoverableAfterRemovalAndAdminReceiptRequiresRole() throws Exception {
+        departWithout(1);submit(15500);
+        var user=new org.springframework.mock.web.MockHttpSession();user.setAttribute("memberId",ids.get(1));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/boarding-cases").session(user))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].investigation.memberId").value(ids.get(1)))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].investigation.partyId").value(partyId));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/admin/parties/"+partyId+"/receipt").session(user))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isForbidden());
+        var administrator=new org.springframework.mock.web.MockHttpSession();administrator.setAttribute("memberId",adminId());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/admin/parties/"+partyId+"/receipt").session(administrator))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().contentType("image/png"));
+    }
+    @Test void N02_rideDisputePreventsPrematureNoShowAndDriverRefusalRefundsWithoutRecord(){
+        departWithout(1);
+        new TransactionTemplate(manager).executeWithoutResult(tx->parties.findByIdForUpdate(partyId).orElseThrow().setRideAskedAt(clock.now()));
+        rideConfirmations.answer(ids.get(0),partyId,false);rideConfirmations.answer(ids.get(2),partyId,true);
+        at(investigation(1).getDeadlineAt());lifecycle.afterDepartures();
+        assertThat(investigation(1).getStatus()).isEqualTo("PENDING");assertThat(rider(1).isNoShow()).isFalse();
+        admin.decideRide(adminId(),partyId,"기사 거절로 운행하지 못했고 영수증 없음");lifecycle.afterDepartures();
+        assertThat(investigation(1).getStatus()).isEqualTo("EXONERATED");assertThat(rider(1).isNoShow()).isFalse();
+        assertThat(order(0).getRefundedAmount()).isEqualTo(3680);assertThat(order(1).getRefundedAmount()).isEqualTo(6440);
+        assertThat(payments.get(ids.get(1),order(1).getOrderId()).refundHeld()).isFalse();
+    }
+
+    /** N-13: 확정 때 A 8000/B 5600인 두 사람. 변경 이탈용 버전은 이전 변경을 마친 상태다. */
+    void prepareN13(long survivorSolo) {
+        PaymentTestSupport.clear(jdbc);transfers.deleteAll();settlements.deleteAll();requests.deleteAll();parties.deleteAll();
+        at(NOW);
+        partyId=new TransactionTemplate(manager).execute(tx->{
+            Party p=parties.save(new Party(Direction.FROM_HUB,hubs.findAll().getFirst(),null,members.getReferenceById(ids.get(2)),NOW.plusSeconds(7200),13600));
+            p.setGroupVersion(2);
+            List<RideRequest> pair=new ArrayList<>();
+            for(int member:new int[]{1,2}) {
+                RideRequest r=new RideRequest();r.setMember(members.getReferenceById(ids.get(member)));r.setActiveMemberId(ids.get(member));
+                r.setDirection(Direction.FROM_HUB);r.setHub(p.getHub());r.setPointName(member==2?"A 도착지":"B 도착지");
+                r.setPointLat(37.7-member*0.01);r.setPointLon(127.1);r.setRequestedAt(NOW);r.setParty(p);r.setRideOrder(member);
+                r.setWindowStart(p.getDepartureAt());r.setWindowEnd(p.getDepartureAt().plusSeconds(1800));
+                r.setSoloFare(member==2?survivorSolo:10500);r.setRatioUnits(r.getSoloFare());r.setSoloKm(10);r.setSoloSeconds(1200);
+                r.setExpectedShare(member==2?8000L:5600L);r.setStatus(RequestStatus.MATCHED);r.setArrived(true);pair.add(requests.save(r));
+            }
+            payments.preparePrepayments(p,pair,NOW);return p.getId();
+        });
+    }
+    void assertN13(long charge,long refund) {
+        assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.DISSOLVED);
+        assertThat(order(1).getRefundedAmount()).isEqualTo(refund);assertThat(comp(1).getCharge()).isEqualTo(charge);assertThat(comp(2).getCredit()).isEqualTo(charge);
+        assertThat(payouts.findAll()).singleElement().satisfies(p->{assertThat(p.getMemberId()).isEqualTo(ids.get(2));assertThat(p.getAmount()).isEqualTo(charge);assertThat(p.getSettlementId()).isNull();});
+        assertThat(settlements.count()).isZero();assertThat(requests.findAll()).noneMatch(RideRequest::isNoShow);
+        assertThat(members.findAll().stream().filter(m->ids.contains(m.getId()))).allMatch(m->m.getNoShowCount()==0);
+    }
+    @Test void N13_changeExitAfterCallCharges5600Refunds840AndPaysSurvivor5600() {
+        prepareN13(15000);approve(1);at(NOW.plusSeconds(6601));
+        assertThat(rideRequests.leaveAfterChange(ids.get(1),partyId,2)).isFalse();payments.retryDue();
+        assertN13(5600,840);
+        assertThat(orders.findByPartyIdAndMemberIdAndPurpose(partyId,ids.get(2),PaymentPurpose.PREPAY)).isEmpty();
+        assertThat(terms.findByPartyIdAndMemberId(partyId,ids.get(2)).orElseThrow().getConfirmedShare()).isEqualTo(8000);
+        verify(gateway,times(1)).cancel(eq(order(1).getPaymentKey()),eq(840L),anyString(),anyString());
+    }
+    @Test void N13_generalLateCancellationUsesSameDissolutionCompensation() {
+        prepareN13(15000);approve(1);at(NOW.plusSeconds(6000));
+        rideRequests.cancel(ids.get(1),rider(1).getId());payments.retryDue();assertN13(5600,840);
+    }
+    @Test void N13_increaseBelowCapCharges2000AndRefunds4440() {
+        prepareN13(10000);approve(1);at(NOW.plusSeconds(6601));
+        assertThat(rideRequests.leaveAfterChange(ids.get(1),partyId,2)).isFalse();payments.retryDue();assertN13(2000,4440);
+    }
+    @Test void N13_freeChangeExitBeforeCallStillRefundsAllWithoutCompensation() {
+        prepareN13(15000);approve(1);at(NOW.plusSeconds(6599));
+        assertThat(rideRequests.leaveAfterChange(ids.get(1),partyId,2)).isTrue();payments.retryDue();
+        assertThat(order(1).getRefundedAmount()).isEqualTo(6440);assertThat(compensationEntries.count()).isZero();assertThat(payouts.count()).isZero();
+        assertThat(requests.findAll()).noneMatch(RideRequest::isNoShow);
+    }
+    @Test void N13_repeatedDissolutionRefundCreatesOneJournalAndOneGatewayCancel() {
+        prepareN13(15000);approve(1);at(NOW.plusSeconds(6601));
+        rideRequests.leaveAfterChange(ids.get(1),partyId,2);
+        for(int i=0;i<5;i++) {
+            payments.refundForDissolution(partyId,Set.of(rider(1).getId()));payments.refundForDissolution(partyId);payments.retryDue();
+            lifecycle.beforeDepartures();lifecycle.afterDepartures();
+        }
+        assertN13(5600,840);assertThat(compensationEntries.count()).isEqualTo(2);
+        verify(gateway,times(1)).cancel(eq(order(1).getPaymentKey()),eq(840L),anyString(),anyString());
+    }
+    @Test void N13_departingPayerAlsoBearsCompensationAndSurvivorDepositIsFullyRefunded() {
+        prepareN13(15000);approve(1);at(NOW.plusSeconds(6000));
+        rideRequests.cancel(ids.get(2),rider(2).getId());payments.retryDue();
+        assertThat(comp(2).getCharge()).isEqualTo(4900);assertThat(comp(1).getCredit()).isEqualTo(4900);
+        assertThat(order(1).getRefundedAmount()).isEqualTo(6440);
+        assertThat(payouts.findAll()).singleElement().satisfies(p->{assertThat(p.getMemberId()).isEqualTo(ids.get(1));assertThat(p.getAmount()).isEqualTo(4900);});
+        PaymentOrder extra=orders.findByPartyIdAndMemberIdAndPurpose(partyId,ids.get(2),PaymentPurpose.ADDITIONAL).orElseThrow();
+        assertThat(extra.getAmount()).isEqualTo(4900);assertThat(extra.getDeadlineAt()).isEqualTo(clock.now().plusSeconds(86400));
+        payments.confirm(ids.get(2),extra.getOrderId(),"payer_compensation",extra.getAmount());payments.retryDue();
+        assertThat(orders.findById(extra.getId()).orElseThrow().getRefundedAmount()).isZero();
+        assertThat(requests.findAll()).noneMatch(RideRequest::isNoShow);
+    }
+    @Test void N13_lateApprovalUsesConfirmedChargeInsteadOfFullRefund() {
+        prepareN13(15000);PaymentOrder b=order(1);
+        doAnswer(c->{provider.confirm(c.getArgument(0),c.getArgument(1),c.getArgument(2),c.getArgument(3));throw new PaymentGateway.Unavailable("승인 응답 유실");})
+                .when(gateway).confirm(anyString(),eq(b.getOrderId()),anyLong(),anyString());
+        doThrow(new PaymentGateway.Unavailable("상태 조회 장애")).when(gateway).get(anyString());
+        approve(1);assertThat(order(1).getStatus()).isEqualTo(PaymentStatus.PROCESSING);
+        at(NOW.plusSeconds(6000));rideRequests.cancel(ids.get(1),rider(1).getId());
+        doAnswer(c->provider.get(c.getArgument(0))).when(gateway).get(anyString());payments.retryDue();payments.retryDue();
+        assertN13(5600,840);verify(gateway,times(1)).cancel(eq(order(1).getPaymentKey()),eq(840L),anyString(),anyString());
+    }
+    @Test void N13_changeExitRechecksCallDeadlineEvenWhenDissolutionClearsRefundHold() {
+        prepareN13(15000);approve(1);at(NOW.plusSeconds(6599));
+        doAnswer(c->{at(NOW.plusSeconds(6601));return c.callRealMethod();})
+            // 트랜잭션 프록시를 거치지 않게 스파이 본체에 스텁한다(MANDATORY 전파라 프록시로 부르면 실제 메서드가 실행된다).
+            .when(org.springframework.test.util.AopTestUtils.<PartyChangeService>getUltimateTargetObject(changeService)).changed(any(Party.class),anySet(),anyString(),anySet());
+        assertThat(rideRequests.leaveAfterChange(ids.get(1),partyId,2)).isFalse();payments.retryDue();
+        assertN13(5600,840);assertThat(terms.findByPartyIdAndMemberId(partyId,ids.get(1)).orElseThrow().isRefundHeld()).isFalse();
+        assertThat(terms.findByPartyIdAndMemberId(partyId,ids.get(1)).orElseThrow().getExitReason()).isEqualTo("LATE_CANCEL");
     }
 }

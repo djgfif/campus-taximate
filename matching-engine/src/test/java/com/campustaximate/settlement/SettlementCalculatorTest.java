@@ -153,4 +153,19 @@ class SettlementCalculatorTest {
         assertEquals(List.of(0L, 500L), SettlementCalculator.compensation(List.of(-300L, 500L), 5600));
         assertEquals(List.of(0L, 0L), SettlementCalculator.compensation(List.of(-300L, 0L), 5600));
     }
+    @Test
+    void N11_multipleAbsenteesPreserveBothTotalsAndCapsForThousandCases() {
+        Random random = new Random(20261111);
+        for (int n=0;n<1000;n++) {
+            List<Long> caps=List.of((long)random.nextInt(20001),(long)random.nextInt(20001));
+            List<Long> increases=List.of((long)random.nextInt(20001),(long)random.nextInt(20001));
+            List<Long> credits=SettlementCalculator.compensation(increases,caps.get(0)+caps.get(1));
+            long total=credits.stream().mapToLong(Long::longValue).sum();
+            List<Long> charges=SettlementCalculator.compensationBurdens(total,caps,List.of(9L,2L));
+            assertEquals(total,charges.stream().mapToLong(Long::longValue).sum());
+            for(int i=0;i<2;i++) assertTrue(charges.get(i)>=0 && charges.get(i)<=caps.get(i));
+        }
+        assertEquals(List.of(0L,1L),SettlementCalculator.compensationBurdens(1,List.of(5L,5L),List.of(9L,2L)));
+        assertThrows(IllegalArgumentException.class,()->SettlementCalculator.compensationBurdens(11,List.of(5L,5L),List.of(1L,2L)));
+    }
 }

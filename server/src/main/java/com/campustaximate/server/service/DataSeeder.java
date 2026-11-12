@@ -50,16 +50,25 @@ public class DataSeeder implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         if (schools.count() > 0) {
+            if(demo) seedAdmin(schools.findAll().getFirst());
             return;
         }
         School school = schools.save(new School("대진대학교", "daejin.ac.kr", "학교 정문", 37.875, 127.155));
         hubs.save(new Hub("학교 정문", "정문 앞 버스 정류장", 37.875, 127.155, Set.of(school)));
         if (demo) {
+            seedAdmin(school);
             for (int i = 1; i <= DEMO_MEMBERS_PER_GENDER; i++) {
                 seedMember(school, "demo-f" + i, FEMALE_NICKNAMES.get(i - 1), Gender.FEMALE);
                 seedMember(school, "demo-m" + i, MALE_NICKNAMES.get(i - 1), Gender.MALE);
             }
         }
+    }
+
+    private void seedAdmin(School school) {
+        Member admin=members.findByEmail("demo-admin@daejin.ac.kr").orElseGet(()->new Member(school,"demo-admin@daejin.ac.kr"));
+        admin.setNickname("시연 관리자");admin.setGender(Gender.FEMALE);admin.setAdmin(true);
+        if(admin.getPasswordHash()==null) admin.setPasswordHash(PasswordHasher.hash(DEMO_PASSWORD));
+        members.save(admin);
     }
 
     private void seedMember(School school, String id, String nickname, Gender gender) {

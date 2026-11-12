@@ -80,6 +80,11 @@ public class Party {
     private String reviewReason;
     private boolean adminReviewRequired;
 
+    private Long originalPayerId;
+    private Long successorId;
+    private Instant successionDeadlineAt;
+    private String successionStatus;
+
     private long expectedTotal;
 
     @Enumerated(EnumType.STRING)
