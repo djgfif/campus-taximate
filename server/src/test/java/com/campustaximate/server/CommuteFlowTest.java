@@ -311,7 +311,8 @@ class CommuteFlowTest {
         advanceToDeadline();
         JsonNode party = onlyParty(users.get(2));
         assertThat(party.get("members")).hasSize(4);
-        assertThat(party.get("status").asText()).isEqualTo("READY");
+        // S39: 선결제 기한이 출발 20분 전으로 늦어져 이 시점엔 아직 기한 전일 수 있다. 핵심은 모두 기한 전에 결제한 것.
+        assertThat(party.get("status").asText()).isIn("PREPAYING", "READY");
         assertThat(paymentOrders.findByPartyIdOrderById(party.get("id").asLong())).hasSize(3)
                 .allMatch(order -> order.getStatus() == com.campustaximate.server.domain.PaymentStatus.APPROVED
                         && order.getApprovedAt().isBefore(order.getDeadlineAt()));

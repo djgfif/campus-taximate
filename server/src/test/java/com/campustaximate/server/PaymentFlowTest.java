@@ -176,6 +176,8 @@ class PaymentFlowTest {
         assertThat(PaymentService.prepayDeadline(NOW,NOW.plusSeconds(1800),false)).isEqualTo(NOW.plusSeconds(600));
         assertThat(PaymentService.prepayDeadline(NOW,NOW.plusSeconds(1800),true)).isEqualTo(NOW.plusSeconds(180));
         assertThat(PaymentService.prepayDeadline(NOW,NOW.plusSeconds(1500),false)).isEqualTo(NOW.plusSeconds(300));
+        // S39: 전날 확정이어도 기한은 출발 20분 전(예전에는 확정 + 60분)
+        assertThat(PaymentService.prepayDeadline(NOW,NOW.plusSeconds(86400),false)).isEqualTo(NOW.plusSeconds(86400-1200));
         assertThat(PaymentService.prepayAmount(1)).isEqualTo(2);
     }
     @Test void correctionRestartsObjectionWindowButStopsAfterObjectionOrSettlement() {
@@ -933,7 +935,7 @@ class PaymentFlowTest {
         verify(gateway,times(1)).cancel(eq(order(1).getPaymentKey()),eq(840L),anyString(),anyString());
     }
     @Test void N13_generalLateCancellationUsesSameDissolutionCompensation() {
-        prepareN13(15000);approve(1);at(NOW.plusSeconds(6000));
+        prepareN13(15000);approve(1);at(NOW.plusSeconds(6060)) /* S39: 무료 취소 마감(T−20분=6000초) 1분 뒤 */;
         rideRequests.cancel(ids.get(1),rider(1).getId());payments.retryDue();assertN13(5600,840);
     }
     @Test void N13_increaseBelowCapCharges2000AndRefunds4440() {
@@ -957,7 +959,7 @@ class PaymentFlowTest {
         verify(gateway,times(1)).cancel(eq(order(1).getPaymentKey()),eq(840L),anyString(),anyString());
     }
     @Test void N13_departingPayerAlsoBearsCompensationAndSurvivorDepositIsFullyRefunded() {
-        prepareN13(15000);approve(1);at(NOW.plusSeconds(6000));
+        prepareN13(15000);approve(1);at(NOW.plusSeconds(6060)) /* S39: 무료 취소 마감(T−20분=6000초) 1분 뒤 */;
         rideRequests.cancel(ids.get(2),rider(2).getId());payments.retryDue();
         assertThat(comp(2).getCharge()).isEqualTo(4900);assertThat(comp(1).getCredit()).isEqualTo(4900);
         assertThat(order(1).getRefundedAmount()).isEqualTo(6440);
@@ -974,7 +976,7 @@ class PaymentFlowTest {
                 .when(gateway).confirm(anyString(),eq(b.getOrderId()),anyLong(),anyString());
         doThrow(new PaymentGateway.Unavailable("상태 조회 장애")).when(gateway).get(anyString());
         approve(1);assertThat(order(1).getStatus()).isEqualTo(PaymentStatus.PROCESSING);
-        at(NOW.plusSeconds(6000));rideRequests.cancel(ids.get(1),rider(1).getId());
+        at(NOW.plusSeconds(6060)) /* S39: 무료 취소 마감(T−20분=6000초) 1분 뒤 */;rideRequests.cancel(ids.get(1),rider(1).getId());
         doAnswer(c->provider.get(c.getArgument(0))).when(gateway).get(anyString());payments.retryDue();payments.retryDue();
         assertN13(5600,840);verify(gateway,times(1)).cancel(eq(order(1).getPaymentKey()),eq(840L),anyString(),anyString());
     }

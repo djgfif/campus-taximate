@@ -42,11 +42,11 @@ public class PaymentService {
     private TransactionTemplate tx() { return new com.campustaximate.server.common.RetryingTransactionTemplate(transactionManager); }
 
     public static long prepayAmount(long share) { return Math.addExact(Math.multiplyExact(share, 115), 99) / 100; }
+    /** 선결제 기한 [S39]: 예약은 출발 20분 전, 즉시는 확정 + 3분. 확정 + 5분보다 이르면 확정 + 5분(안전장치). */
     public static Instant prepayDeadline(Instant confirmed, Instant departure, boolean instant) {
-        Instant minimum = confirmed.plusSeconds(300);
         if (instant) return confirmed.plusSeconds(com.campustaximate.matching.MatchingSettings.everyMinute().instantPrepMinutes()*60L);
-        Instant normal = confirmed.plusSeconds(3600);
-        if (departure.minusSeconds(1200).isBefore(normal)) normal = departure.minusSeconds(1200);
+        Instant minimum = confirmed.plusSeconds(300);
+        Instant normal = departure.minusSeconds(1200);
         return normal.isBefore(minimum) ? minimum : normal;
     }
 

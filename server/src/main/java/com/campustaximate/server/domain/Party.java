@@ -68,10 +68,9 @@ public class Party {
     public Instant paymentCheckUntil() { return instant?departureAt:departureAt.minusSeconds(600); }
 
     public boolean paymentFlow() { return paymentFlowVersion >= 2; }
+    /** 무료 취소 마감 = 선결제 기한 [S39]. 결제 기한과 같아서 "출발 20분 전까지 결제, 그때까지 무료 취소" 하나로 기억한다. */
     public Instant freeCancelUntil() {
-        if (prepayDeadlineAt == null) return departureAt.minusSeconds(1800);
-        Instant before = departureAt.minusSeconds(1800);
-        return prepayDeadlineAt.isAfter(before) ? prepayDeadlineAt : before;
+        return prepayDeadlineAt != null ? prepayDeadlineAt : departureAt.minusSeconds(1200);
     }
 
     /** 재계산 버전. JPA 낙관적 잠금 version과 별개다. */
