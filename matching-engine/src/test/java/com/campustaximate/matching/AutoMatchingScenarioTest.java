@@ -16,7 +16,7 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 /**
- * 자동 매칭 테스트 시나리오 S-01 (3차 발표 27장).
+ * 자동 매칭 테스트 시나리오 S-01 (3차 발표 29장).
  * 서버 스케줄러처럼 1분마다 회차를 돌리고, 확정되거나 실패한 요청은 다음 회차에서 뺀다.
  * 시각은 발표 자료와 같게 17:28~18:15로 둔다(엔진은 시간대와 무관하게 5분 정렬만 본다).
  */
@@ -48,7 +48,7 @@ class AutoMatchingScenarioTest {
         MatchRequest f = req(6, Gender.FEMALE, 4.5, "17:34", "18:10", "18:40", false)
                 .withAvoidMemberIds(Set.of(a.memberId()));
         // 즉시는 출발 가능 시간을 입력하지 않는다(S37). 엔진은 즉시 요청의 범위를 보지 않으므로 요청 시각부터 1시간으로 둔다.
-        MatchRequest g = req(7, Gender.FEMALE, 5.5, "17:41", "17:41", "18:41", true);
+        MatchRequest g = req(7, Gender.FEMALE, 5.5, "18:02", "18:02", "19:02", true);
 
         List<MatchRequest> pending = new ArrayList<>(List.of(a, b, c, d, e, f, g));
         MatchingRound round = new MatchingRound(MatchingSettings.everyMinute());
@@ -72,13 +72,13 @@ class AutoMatchingScenarioTest {
 
         // 17:30 A·B 둘뿐, 10분 안 지남 → 대기. 17:35 예약 회차에 4명 확정.
         // F는 A를 차단해서 ABCD와 BCDF 중 기다린 시간이 긴 ABCD.
-        assertEquals(List.of("17:35 [1, 2, 3, 4]", "17:41 [6, 7]"), new ArrayList<>(confirmedAt.keySet()));
+        assertEquals(List.of("17:35 [1, 2, 3, 4]", "18:02 [6, 7]"), new ArrayList<>(confirmedAt.keySet()));
         ConfirmedGroup first = confirmedAt.get("17:35 [1, 2, 3, 4]");
         assertEquals(hm("18:10"), first.departure());
         assertEquals(d, first.payer());
-        // 17:41 즉시 G가 들어오자 1분 회차에서 바로 F와 확정. 예상 T 17:49(S37)가 예약자 F의 출발 가능 시작보다
-        // 일러서 F 범위 시작 18:10으로 맞춘다.
-        ConfirmedGroup second = confirmedAt.get("17:41 [6, 7]");
+        // 18:02 즉시 G가 들어오자 1분 회차에서 바로 F와 확정. 즉시 예상 T = 18:02 + 3(결제 준비) + 5(배차 여유) = 18:10이
+        // 예약자 F의 출발 가능 범위(18:10~18:40) 안이라 함께 묶인다. 즉시 요청자는 8분 뒤 출발한다.
+        ConfirmedGroup second = confirmedAt.get("18:02 [6, 7]");
         assertEquals(hm("18:10"), second.departure());
         assertEquals(g, second.payer());
         // 남자 E는 같이 탈 사람이 없어 모집 마감(18:40 − 25분 = 18:15) 회차에 실패

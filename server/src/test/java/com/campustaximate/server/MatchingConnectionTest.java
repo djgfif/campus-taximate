@@ -353,15 +353,26 @@ class MatchingConnectionTest {
         verify(routes,atLeastOnce()).routeAt(any(),anyList(),eq(NOW.plusSeconds(660)));
         assertThat(jdbc.queryForObject("select count(*) from mail_outbox where subject=?",Integer.class,"[캠퍼스 택시메이트] 승차 지점으로 출발")).isEqualTo(1);
     }
-    @Test void mixedInstantAndReservationRaisesEngineTIntoReservationWindow() throws Exception {
+    /** 즉시 일행은 즉시 출발한다. 예약자의 출발 가능 범위가 그 시각보다 늦게 시작하면 T를 미루지 않고 묶지 않는다. */
+    @Test void instantIsNotHeldBackForLaterReservationWindow() throws Exception {
         var instant=departure(0);instant.put("mode","INSTANT");instant.remove("windowStart");instant.remove("windowEnd");
         var reservation=departure(1);reservation.put("windowStart",NOW.plusSeconds(900).toString());reservation.put("windowEnd",NOW.plusSeconds(1800).toString());
         create(a,instant).andExpect(status().isOk());create(b,reservation).andExpect(status().isOk());
         Instant slot=NOW.plusSeconds(60);doReturn(slot).when(clock).now();slots.runLocked(()->{slots.process(slot);return null;});
+        assertThat(parties.findAll()).isEmpty();
+        assertThat(requests.findByStatus(RequestStatus.WAITING)).hasSize(2);
+    }
+    /** 예약자의 출발 가능 범위가 즉시 예상 T를 포함하면 함께 묶이고, 출발은 즉시 규칙(확정 + 준비 + 배차 여유)을 따른다. */
+    @Test void mixedInstantAndReservationDepartsAtInstantT() throws Exception {
+        var instant=departure(0);instant.put("mode","INSTANT");instant.remove("windowStart");instant.remove("windowEnd");
+        var reservation=departure(1);reservation.put("windowStart",NOW.plusSeconds(300).toString());reservation.put("windowEnd",NOW.plusSeconds(1800).toString());
+        create(a,instant).andExpect(status().isOk());create(b,reservation).andExpect(status().isOk());
+        Instant slot=NOW.plusSeconds(60);doReturn(slot).when(clock).now();slots.runLocked(()->{slots.process(slot);return null;});
         assertThat(parties.findAll()).hasSize(1);var party=parties.findAll().getFirst();
-        assertThat(party.getDepartureAt()).isEqualTo(NOW.plusSeconds(900));assertThat(party.getPrepayDeadlineAt()).isEqualTo(slot.plusSeconds(180));
+        assertThat(party.getDepartureAt()).isBetween(slot.plusSeconds(480),slot.plusSeconds(840));
+        assertThat(party.getPrepayDeadlineAt()).isEqualTo(slot.plusSeconds(180));
         assertThat(requests.findByStatus(RequestStatus.MATCHED)).hasSize(2);
-        verify(routes,atLeastOnce()).routeAt(any(),anyList(),eq(NOW.plusSeconds(900)));
+        verify(routes,atLeastOnce()).routeAt(any(),anyList(),eq(party.getDepartureAt()));
     }
     @Test void E01_secondaryTimeoutCreatesNoPartyAndNextRoundRetriesSuccessfully() throws Exception {
         create(a,departure(0)).andExpect(status().isOk());create(b,departure(1)).andExpect(status().isOk());

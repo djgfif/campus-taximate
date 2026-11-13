@@ -118,7 +118,7 @@ final class FromHubPlan implements TripPlan {
 
     /**
      * 즉시 요청이 있는 일행(S37, 명세 5.7): 예상 T = 확정 + max(결제 준비, 가장 긴 걷기) + 배차 여유(1분 단위 올림).
-     * 즉시 요청은 출발 기준만 받고, 섞인 예약 요청자의 출발 가능 범위 안이어야 한다.
+     * 즉시 요청은 출발 기준만 받는다. 예약 요청자는 이 예상 T가 자기 출발 가능 범위 안일 때만 섞인다(T를 미루지 않음).
      * 출발 기준: T = 출발 가능 교집합 안에서 확정 + P 이후 가장 이른 5분 단위 시각.
      * 도착 기준: 목표 도착 = 늦어도 시각 중 가장 이른 것. T = 목표 − 마지막 하차자 동승 시간(분 단위 버림).
      * 각자 하차 시각이 자기 도착 범위 안이고 T ≥ 확정 + P여야 한다.
@@ -170,16 +170,10 @@ final class FromHubPlan implements TripPlan {
         int walk = order.stream().mapToInt(MatchRequest::walkSeconds).max().orElse(0);
         long ready = Math.max(settings.instantPrepMinutes() * 60L, walk);
         Instant t = ceilMinute(slot.plusSeconds(ready + settings.instantDispatchMinutes() * 60L));
+        // 즉시 일행은 늘 즉시 출발한다. 예약 요청자는 이 T가 자기 출발 가능 범위 안일 때만 함께 묶인다.
+        // (범위가 더 늦게 시작하는 예약자에 맞춰 T를 미루지 않는다. 즉시 요청자가 오래 기다리게 되기 때문이다.)
         for (MatchRequest r : order) {
-            if (r.instant()) {
-                continue;
-            }
-            if (r.windowStart().isAfter(t)) {
-                t = ceilMinute(r.windowStart());
-            }
-        }
-        for (MatchRequest r : order) {
-            if (!r.instant() && t.isAfter(r.windowEnd())) {
+            if (!r.instant() && (t.isBefore(r.windowStart()) || t.isAfter(r.windowEnd()))) {
                 return Schedule.FAIL;
             }
         }

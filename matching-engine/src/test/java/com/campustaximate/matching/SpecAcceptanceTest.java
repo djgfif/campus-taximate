@@ -225,16 +225,22 @@ class SpecAcceptanceTest {
         assertEquals(DAY.plusSeconds(hm("18:10")), plan.schedule(List.of(c), List.of(600), slot).departure());
     }
 
-    /** S37: 예약 요청자가 섞이면 예상 T는 그 사람 출발 가능 범위 안. 범위를 넘기면 일행이 안 된다. 즉시는 도착 기준 불가. */
+    /**
+     * S37: 즉시 일행은 늘 즉시 출발한다. 예약 요청자는 즉시 예상 T가 자기 출발 가능 범위 안일 때만 섞인다.
+     * 범위가 더 늦게 시작하면 T를 미루지 않고 일행이 안 된다. 즉시는 도착 기준 불가.
+     */
     @Test
     void instantGroupRespectsReservationWindow() {
         FromHubPlan plan = new FromHubPlan(settings);
         Instant slot = DAY.plusSeconds(hm("18:02"));
         var now = Fixtures.of(1, 101, HUB, Gender.FEMALE, slot, slot.plusSeconds(1800), at(3, 0)).requested(slot, true);
+        Instant instantT = plan.schedule(List.of(now), List.of(600), slot).departure();
+        var inside = Fixtures.of(4, 104, HUB, Gender.FEMALE, DAY.plusSeconds(hm("18:05")), DAY.plusSeconds(hm("18:50")),
+                at(4, 0));
+        assertEquals(instantT, plan.schedule(List.of(now, inside), List.of(600, 900), slot).departure());
         var later = Fixtures.of(2, 102, HUB, Gender.FEMALE, DAY.plusSeconds(hm("18:20")), DAY.plusSeconds(hm("18:50")),
                 at(4, 0));
-        assertEquals(DAY.plusSeconds(hm("18:20")),
-                plan.schedule(List.of(now, later), List.of(600, 900), slot).departure());
+        assertFalse(plan.schedule(List.of(now, later), List.of(600, 900), slot).ok());
         var early = Fixtures.of(3, 103, HUB, Gender.FEMALE, DAY.plusSeconds(hm("17:50")), DAY.plusSeconds(hm("18:05")),
                 at(4, 0));
         assertFalse(plan.schedule(List.of(now, early), List.of(600, 900), slot).ok());
