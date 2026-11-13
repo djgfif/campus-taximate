@@ -26,6 +26,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * 빠진 사람만 빼고 남은 사람으로 일행을 다시 계산한다. 새 사람을 찾지 않는다.
  * 1명만 남으면 해산한다. 선결제 일행은 재조회 실패 때 저장된 예상값을 유지한다.
+ * 빠진 사람이 부담 없이 나간 경우(미납 제외, 무료 취소, 변경 뒤 무료 이탈)에는 남은 사람으로
+ * 지연 15분·절약 10% 조건을 다시 검사하고, 못 채우면 해산한다 [S43]. 마감 뒤 취소와 노쇼는
+ * 빠진 사람이 늘어난 금액을 부담하므로 다시 검사하지 않는다.
  */
 @Component
 @RequiredArgsConstructor
@@ -41,8 +44,11 @@ public class PartyShrinker {
     private final AppClock clock;
     private final PartyChangeService changes;
 
+    private static final int MAX_DELAY_SECONDS = 15 * 60;
+    private static final Set<String> FREE_EXITS = Set.of("PREPAY_UNPAID", "FREE_CANCEL", "CHANGE_EXIT_FREE");
+
     private record Stay(long id, GeoPoint own, Instant boardAt, int rideSeconds, double soloKm, int soloSeconds,
-                        long soloFare) {
+                        long soloFare, int walkSeconds) {
     }
 
     private record Plan(long version, Direction direction, GeoPoint anchor, long total, List<Stay> stays, boolean paymentFlow) {
@@ -68,7 +74,7 @@ public class PartyShrinker {
             return;
         }
         Recalculated result = recalculateOrKeep(plan, departed);
-        if (result == null) {
+        if (result == null || !departed && FREE_EXITS.contains(reason) && result.fresh() && !meetsConditions(plan, result)) {
             cancel(tx, partyId, leaving, now, departed, reason, held, plan.version());
             return;
         }
@@ -86,6 +92,23 @@ public class PartyShrinker {
         }
     }
 
+    /** 확정 때와 같은 식이다. 동승 요금 ≤ 단독 요금 합 × 0.9, 걷기 + 동승 − 단독 ≤ 15분. */
+    private boolean meetsConditions(Plan plan, Recalculated result) {
+        long soloTotal = result.solo().stream().mapToLong(RouteClient.Route::fare).sum();
+        if (java.math.BigInteger.valueOf(result.total()).multiply(java.math.BigInteger.TEN)
+                .compareTo(java.math.BigInteger.valueOf(soloTotal).multiply(java.math.BigInteger.valueOf(9))) > 0) {
+            return false;
+        }
+        for (int i = 0; i < result.ids().size(); i++) {
+            long id = result.ids().get(i);
+            int walk = plan.stays().stream().filter(stay -> stay.id() == id).findFirst().orElseThrow().walkSeconds();
+            if (walk + result.rideSeconds().get(i) - result.solo().get(i).seconds() > MAX_DELAY_SECONDS) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /** 저장된 단독 값과 예상 요금을 그대로 쓴다. 실제 금액은 결제 뒤 같은 비율로 나눈다. */
     private Recalculated keepStoredValues(Plan plan) {
         TripPlan trip = TripPlan.of(plan.direction());
@@ -96,7 +119,7 @@ public class PartyShrinker {
         try {
             return new Recalculated(plan.stays().stream().map(Stay::id).toList(), solo,
                     plan.stays().stream().map(Stay::rideSeconds).toList(), plan.total(),
-                    SettlementCalculator.shares(plan.total(), units, trip.payerIndex(plan.stays().size())));
+                    SettlementCalculator.shares(plan.total(), units, trip.payerIndex(plan.stays().size())), false);
         } catch (IllegalArgumentException e) {
             return null;
         }
@@ -117,15 +140,19 @@ public class PartyShrinker {
         List<Stay> stays = new ArrayList<>();
         for (RideRequest rider : requests.findByPartyOrderByRideOrder(party)) {
             if (!leaving.contains(rider.getId())) {
+                int walk = party.getHub() == null ? 0 : rider.getPoints().stream()
+                        .filter(point -> point.getHub().getId().equals(party.getHub().getId()))
+                        .mapToInt(com.campustaximate.server.domain.RideRequestPoint::getWalkSeconds).findFirst().orElse(0);
                 stays.add(new Stay(rider.getId(), rider.point(), rider.getBoardAt(), rider.getSharedSeconds(),
-                        rider.getSoloKm(), rider.getSoloSeconds(), rider.getSoloFare()));
+                        rider.getSoloKm(), rider.getSoloSeconds(), rider.getSoloFare(), walk));
             }
         }
         return new Plan(party.getVersion(), party.getDirection(), party.anchorPoint(), party.getExpectedTotal(), stays, party.paymentFlow());
     }
 
+    /** fresh는 경로를 새로 조회해 얻은 값이라는 뜻이다. 저장값을 그대로 쓴 경우에는 조건을 다시 검사하지 않는다. */
     private record Recalculated(List<Long> ids, List<RouteClient.Route> solo, List<Integer> rideSeconds,
-                                long total, List<Long> shares) {
+                                long total, List<Long> shares, boolean fresh) {
     }
 
     private Recalculated recalculate(Plan plan) {
@@ -157,7 +184,7 @@ public class PartyShrinker {
         }
         List<Long> units = SettlementCalculator.ratioUnits(shown.stream().map(RouteClient.Route::fare).toList());
         return new Recalculated(stays.stream().map(Stay::id).toList(), shown, rides, total,
-                SettlementCalculator.shares(total, units, trip.payerIndex(stays.size())));
+                SettlementCalculator.shares(total, units, trip.payerIndex(stays.size())), true);
     }
 
     /** 하교. 거점에서 앞사람 지점을 차례로 거친 누적 경로로 각자 시간을 구한다. */

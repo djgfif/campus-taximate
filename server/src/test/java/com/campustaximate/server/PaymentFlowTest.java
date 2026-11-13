@@ -85,12 +85,13 @@ class PaymentFlowTest {
         partyId = new TransactionTemplate(manager).execute(status -> {
             Party party = parties.save(new Party(Direction.FROM_HUB, hubs.findAll().getFirst(), null,
                     members.findById(ids.get(2)).orElseThrow(), NOW.plusSeconds(1800), 16800));
+            // 도착지는 승차 지점에서 한 방향으로 5·9·13km. 시연 경로 계산으로도 둘만 남았을 때 15분·10%를 채운다(S43).
             long[] fares={6000,10500,15000}, expected={3200,5600,8000};
             List<RideRequest> riders = new ArrayList<>();
             for(int i=0;i<3;i++) {
                 RideRequest r=new RideRequest(); r.setMember(members.findById(ids.get(i)).orElseThrow());
                 r.setActiveMemberId(ids.get(i)); r.setDirection(Direction.FROM_HUB); r.setHub(party.getHub());
-                r.setPointName("도착지 " + i); r.setPointLat(37.785-i*0.04); r.setPointLon(127.105-i*0.02);
+                r.setPointName("도착지 " + i); r.setPointLat(37.833-i*0.0335); r.setPointLon(127.134-i*0.0165);
                 r.setSoloFare(fares[i]); r.setSoloKm(10+i*5); r.setSoloSeconds(1200); r.setRatioUnits(fares[i]);
                 r.setExpectedShare(expected[i]); r.setRideOrder(i+1); r.setParty(party); r.setStatus(RequestStatus.MATCHED); r.setArrived(true);
                 r.setWindowStart(party.getDepartureAt()); r.setWindowEnd(party.getDepartureAt().plusSeconds(1800)); r.setRequestedAt(NOW);
@@ -145,6 +146,40 @@ class PaymentFlowTest {
         assertThat(removed.getStatus()).isEqualTo(RequestStatus.CANCELED); assertThat(removed.isNoShow()).isFalse();
         assertThat(order(0).getAmount()).isEqualTo(3680);
         assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.READY);
+    }
+    /** 남은 두 명의 동승 예상 요금을 정한다. 단독 요금 합은 A 6,000 + C 15,000 = 21,000원이고 90%는 18,900원이다. */
+    void remainingPairFare(long total){
+        com.campustaximate.server.route.RouteClient target=org.springframework.test.util.AopTestUtils.getUltimateTargetObject(routeClient);
+        org.mockito.stubbing.Answer<Object> answer=c->{List<com.campustaximate.matching.GeoPoint> stops=c.getArgument(1);
+            return stops.size()==1?new com.campustaximate.server.route.RouteClient.Route(10,1200,10000,List.of(),List.of(1200))
+                    :new com.campustaximate.server.route.RouteClient.Route(20,1500,total,List.of(),List.of(750,750));};
+        doAnswer(answer).when(target).routeAt(any(),anyList(),nullable(Instant.class));
+        doAnswer(answer).when(target).route(any(),anyList());
+    }
+    @Test void p11UnpaidRemovalDissolvesPartyWhenRemainingPairMissesTenPercentSaving() {
+        remainingPairFare(18901);
+        approve(0); at(NOW.plusSeconds(600)); lifecycle.beforeDepartures(); payments.retryDue();
+        assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.DISSOLVED);
+        assertThat(requests.findByStatus(RequestStatus.MATCHED)).isEmpty();
+        assertThat(order(0).getRefundedAmount()).isEqualTo(3680);
+    }
+    @Test void p11UnpaidRemovalKeepsPartyWhenRemainingPairSavesExactlyTenPercent() {
+        remainingPairFare(18900);
+        approve(0); at(NOW.plusSeconds(600)); lifecycle.beforeDepartures();
+        assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.READY);
+        assertThat(requests.findByStatus(RequestStatus.MATCHED)).hasSize(2);
+        assertThat(parties.findById(partyId).orElseThrow().getExpectedTotal()).isEqualTo(18900);
+    }
+    @Test void p11UnpaidRemovalDissolvesPartyWhenDelayExceedsFifteenMinutes() {
+        // 동승 1,500초, 단독 1,200초라 지연은 300초로 통과한다. 단독 시간을 500초로 줄이면 지연 1,000초(> 900초).
+        com.campustaximate.server.route.RouteClient target=org.springframework.test.util.AopTestUtils.getUltimateTargetObject(routeClient);
+        org.mockito.stubbing.Answer<Object> answer=c->{List<com.campustaximate.matching.GeoPoint> stops=c.getArgument(1);
+            return stops.size()==1?new com.campustaximate.server.route.RouteClient.Route(10,500,10000,List.of(),List.of(500))
+                    :new com.campustaximate.server.route.RouteClient.Route(20,1500,16800,List.of(),List.of(750,750));};
+        doAnswer(answer).when(target).routeAt(any(),anyList(),nullable(Instant.class));
+        doAnswer(answer).when(target).route(any(),anyList());
+        approve(0); at(NOW.plusSeconds(600)); lifecycle.beforeDepartures();
+        assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.DISSOLVED);
     }
     @Test void p07FiveIdenticalRefundsCallGatewayOnce() {
         depart(); submit(16800); finalizeFare();
