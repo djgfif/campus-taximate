@@ -307,8 +307,8 @@ class MatchingConnectionTest {
         doReturn(slot).when(clock).now();
         slots.runLocked(() -> { slots.process(slot); return null; });
         assertThat(parties.findAll()).hasSize(1);
-        assertThat(parties.findAll().getFirst().getDepartureAt()).isEqualTo(NOW.plusSeconds(60+480));
-        verify(routes,atLeastOnce()).routeAt(any(),anyList(),eq(NOW.plusSeconds(60+480)));
+        assertThat(parties.findAll().getFirst().getDepartureAt()).isEqualTo(NOW.plusSeconds(60+600));
+        verify(routes,atLeastOnce()).routeAt(any(),anyList(),eq(NOW.plusSeconds(60+600)));
         assertThat(requests.findByStatus(RequestStatus.MATCHED)).allMatch(r->r.getRequestedAt().equals(NOW)&&r.getPoints().getFirst().getWalkSeconds()<=180);
     }
 
@@ -339,7 +339,7 @@ class MatchingConnectionTest {
         assertThat(request.getPoints().getFirst().isWalkEstimated()).isTrue();
     }
 
-    @Test void i03FourMinuteWalkingUsesEngineTAndThreeMinutePrepayDeadline() throws Exception {
+    @Test void i03InstantUsesEngineTAndFiveMinutePrepayDeadline() throws Exception {
         for(int i=0;i<2;i++) {
             var body=departure(i);body.put("mode","INSTANT");body.remove("windowStart");body.remove("windowEnd");
             body.put("origin",Map.of("lat",37.001,"lon",127));create(i==0?a:b,body).andExpect(status().isOk());
@@ -347,10 +347,10 @@ class MatchingConnectionTest {
         Instant slot=NOW.plusSeconds(120);doReturn(slot).when(clock).now();
         slots.runLocked(()->{slots.process(slot);return null;});
         assertThat(parties.findAll()).hasSize(1);var party=parties.findAll().getFirst();
-        assertThat(party.isInstant()).isTrue();assertThat(party.getDepartureAt()).isEqualTo(NOW.plusSeconds(660));
-        assertThat(party.getPrepayDeadlineAt()).isEqualTo(NOW.plusSeconds(300));
-        assertThat(party.freeCancelUntil()).isEqualTo(NOW.plusSeconds(300));
-        verify(routes,atLeastOnce()).routeAt(any(),anyList(),eq(NOW.plusSeconds(660)));
+        assertThat(party.isInstant()).isTrue();assertThat(party.getDepartureAt()).isEqualTo(NOW.plusSeconds(720));
+        assertThat(party.getPrepayDeadlineAt()).isEqualTo(NOW.plusSeconds(420));
+        assertThat(party.freeCancelUntil()).isEqualTo(NOW.plusSeconds(420));
+        verify(routes,atLeastOnce()).routeAt(any(),anyList(),eq(NOW.plusSeconds(720)));
         assertThat(jdbc.queryForObject("select count(*) from mail_outbox where subject=?",Integer.class,"[캠퍼스 택시메이트] 승차 지점으로 출발")).isEqualTo(1);
     }
     /** 즉시 일행은 즉시 출발한다. 예약자의 출발 가능 범위가 그 시각보다 늦게 시작하면 T를 미루지 않고 묶지 않는다. */
@@ -370,7 +370,7 @@ class MatchingConnectionTest {
         Instant slot=NOW.plusSeconds(60);doReturn(slot).when(clock).now();slots.runLocked(()->{slots.process(slot);return null;});
         assertThat(parties.findAll()).hasSize(1);var party=parties.findAll().getFirst();
         assertThat(party.getDepartureAt()).isBetween(slot.plusSeconds(480),slot.plusSeconds(840));
-        assertThat(party.getPrepayDeadlineAt()).isEqualTo(slot.plusSeconds(180));
+        assertThat(party.getPrepayDeadlineAt()).isEqualTo(slot.plusSeconds(300));
         assertThat(requests.findByStatus(RequestStatus.MATCHED)).hasSize(2);
         verify(routes,atLeastOnce()).routeAt(any(),anyList(),eq(party.getDepartureAt()));
     }

@@ -76,10 +76,10 @@ class AutoMatchingScenarioTest {
         ConfirmedGroup first = confirmedAt.get("17:35 [1, 2, 3, 4]");
         assertEquals(hm("18:10"), first.departure());
         assertEquals(d, first.payer());
-        // 18:02 즉시 G가 들어오자 1분 회차에서 바로 F와 확정. 즉시 예상 T = 18:02 + 3(결제 준비) + 5(배차 여유) = 18:10이
-        // 예약자 F의 출발 가능 범위(18:10~18:40) 안이라 함께 묶인다. 즉시 요청자는 8분 뒤 출발한다.
+        // 18:02 즉시 G가 들어오자 1분 회차에서 바로 F와 확정. 즉시 예상 T = 18:02 + 5(결제 준비) + 5(배차 여유) = 18:12가
+        // 예약자 F의 출발 가능 범위(18:10~18:40) 안이라 함께 묶인다. 즉시 요청자는 10분 뒤 출발한다.
         ConfirmedGroup second = confirmedAt.get("18:02 [6, 7]");
-        assertEquals(hm("18:10"), second.departure());
+        assertEquals(hm("18:12"), second.departure());
         assertEquals(g, second.payer());
         // 남자 E는 같이 탈 사람이 없어 모집 마감(18:40 − 25분 = 18:15) 회차에 실패
         assertEquals(Map.of("18:15", List.of(e)), expiredAt);

@@ -45,7 +45,7 @@ app:
   matching:
     join-payment-minutes: 5
     instant-match-minutes: 5
-    instant-prep-minutes: 3
+    instant-prep-minutes: 5
     instant-dispatch-minutes: 5
     instant-max-walk-seconds: 300
   payment:

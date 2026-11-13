@@ -174,7 +174,7 @@ class PaymentFlowTest {
     }
     @Test void reservationAndInstantDeadlinesFollowConfirmedSlot() {
         assertThat(PaymentService.prepayDeadline(NOW,NOW.plusSeconds(1800),false)).isEqualTo(NOW.plusSeconds(600));
-        assertThat(PaymentService.prepayDeadline(NOW,NOW.plusSeconds(1800),true)).isEqualTo(NOW.plusSeconds(180));
+        assertThat(PaymentService.prepayDeadline(NOW,NOW.plusSeconds(1800),true)).isEqualTo(NOW.plusSeconds(300));
         assertThat(PaymentService.prepayDeadline(NOW,NOW.plusSeconds(1500),false)).isEqualTo(NOW.plusSeconds(300));
         // S39: 전날 확정이어도 기한은 출발 20분 전(예전에는 확정 + 60분)
         assertThat(PaymentService.prepayDeadline(NOW,NOW.plusSeconds(86400),false)).isEqualTo(NOW.plusSeconds(86400-1200));
@@ -288,6 +288,21 @@ class PaymentFlowTest {
         var charge=compensationEntries.findByPartyIdOrderByRequestId(partyId).stream().filter(e->e.getMemberId().equals(ids.get(0))).findFirst().orElseThrow();
         assertThat(charge.getCharge()).isEqualTo(3200);assertThat(order(0).getRefundedAmount()).isEqualTo(480);
         assertThat(requests.findById(request).orElseThrow().isNoShow()).isFalse();
+    }
+
+    /** 결제사가 확정적으로 거절하면 재시도하지 않고, 새 결제 키로 다시 결제할 수 있다. */
+    @Test void rejectedApprovalReturnsOrderToPayableAndAcceptsNewPayment() {
+        PaymentOrder o=order(0);
+        doThrow(new PaymentGateway.Rejected("REJECT_CARD_PAYMENT",null)).when(gateway).confirm(eq("declined_key"),anyString(),anyLong(),anyString());
+        payments.confirm(ids.get(0),o.getOrderId(),"declined_key",o.getAmount());
+        assertThat(order(0).getStatus()).isEqualTo(PaymentStatus.REQUIRED);
+        assertThat(order(0).getPaymentKey()).isNull();
+        verify(gateway,times(1)).confirm(eq("declined_key"),anyString(),anyLong(),anyString());
+        assertThatThrownBy(()->payments.confirm(ids.get(0),o.getOrderId(),"declined_key",o.getAmount()))
+                .isInstanceOfSatisfying(ApiException.class,e->assertThat(e.getCode()).isEqualTo("PAYMENT_REJECTED"));
+        approve(0);
+        assertThat(order(0).getStatus()).isEqualTo(PaymentStatus.APPROVED);
+        assertThat(order(0).getApprovedAmount()).isEqualTo(o.getAmount());
     }
 
     @Test void lostApprovalResponseIsRecoveredWithoutSecondCharge() {
@@ -1033,7 +1048,7 @@ class PaymentFlowTest {
     }
     @Test void J04_instantJoinClosesAtConfirmationPlusPreparation(){
         joinRoutes(15000);long member=fourthMember(),request=waitingJoiner(member,12);
-        new TransactionTemplate(manager).executeWithoutResult(s->parties.findByIdForUpdate(partyId).orElseThrow().setInstant(true));at(NOW.plusSeconds(180));
+        new TransactionTemplate(manager).executeWithoutResult(s->parties.findByIdForUpdate(partyId).orElseThrow().setInstant(true));at(NOW.plusSeconds(300));
         assertThatThrownBy(()->joins.offer(member,partyId,request)).isInstanceOfSatisfying(ApiException.class,e->assertThat(e.getCode()).isEqualTo("JOIN_CLOSED"));
     }
     @Test void J05_unpaidJoinExpiresAfterFiveMinutesWithoutChangingOriginalParty(){

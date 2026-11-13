@@ -16,7 +16,7 @@ public record MatchingSettings(int maxDelayMinutes, double minSavingRate, int ma
                             int maxVerifications, int leadMinutes, int slotMinutes,
                             int reservationSlotMinutes, int earlyConfirmMinutes, long searchMillis) {
         this(maxDelayMinutes, minSavingRate, maxCandidates, maxGroupSize, maxVerifications, leadMinutes, slotMinutes,
-                reservationSlotMinutes, earlyConfirmMinutes, searchMillis, 5, 3, 5);
+                reservationSlotMinutes, earlyConfirmMinutes, searchMillis, 5, 5, 5);
     }
 
     public MatchingSettings(int maxDelayMinutes, double minSavingRate, int maxCandidates, int maxGroupSize,

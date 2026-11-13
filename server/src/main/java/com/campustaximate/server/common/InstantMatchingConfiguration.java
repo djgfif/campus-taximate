@@ -12,7 +12,7 @@ import org.springframework.validation.annotation.Validated;
 @Configuration @ConfigurationProperties(prefix="app.matching") @Validated @Getter @Setter
 public class InstantMatchingConfiguration {
     @Min(1) private int instantMatchMinutes=5;
-    @Min(1) private int instantPrepMinutes=3;
+    @Min(1) private int instantPrepMinutes=5;
     @Min(1) private int instantDispatchMinutes=5;
     @Min(0) private int instantMaxWalkSeconds=300;
     @Bean public MatchingSettings matchingSettings() {

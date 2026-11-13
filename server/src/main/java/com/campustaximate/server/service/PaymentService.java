@@ -42,7 +42,7 @@ public class PaymentService {
     private TransactionTemplate tx() { return new com.campustaximate.server.common.RetryingTransactionTemplate(transactionManager); }
 
     public static long prepayAmount(long share) { return Math.addExact(Math.multiplyExact(share, 115), 99) / 100; }
-    /** 선결제 기한 [S39]: 예약은 출발 20분 전, 즉시는 확정 + 3분. 확정 + 5분보다 이르면 확정 + 5분(안전장치). */
+    /** 선결제 기한 [S39]: 예약은 출발 20분 전, 즉시는 확정 + 5분(S41: 결제창과 카드사 인증에 3분은 빠듯했다). 확정 + 5분보다 이르면 확정 + 5분(안전장치). */
     public static Instant prepayDeadline(Instant confirmed, Instant departure, boolean instant) {
         if (instant) return confirmed.plusSeconds(com.campustaximate.matching.MatchingSettings.everyMinute().instantPrepMinutes()*60L);
         Instant minimum = confirmed.plusSeconds(300);
@@ -115,9 +115,12 @@ public class PaymentService {
                     && dissolutionEntries.findByPartyIdOrderByRequestId(party.getId()).stream().anyMatch(e->e.getMemberId().equals(memberId) && e.getCharge()>0))) {
                 throw ApiException.conflict("NOT_SETTLED", "정산 확정 뒤에만 추가 결제할 수 있습니다.");
             }
-            order.setPaymentKey(paymentKey);
-            String key = orderId + ":confirm";
+            // 결제 키마다 작업을 따로 둔다. 거절된 결제 뒤에 새 결제 키로 다시 승인할 수 있어야 한다.
+            String key = orderId + ":confirm:" + shortHash(paymentKey);
             PaymentOperation op = operations.findByIdempotencyKey(key).orElse(null);
+            if (op != null && op.getStatus() == PaymentOperationStatus.CANCELED)
+                throw ApiException.conflict("PAYMENT_REJECTED", "결제사가 거절한 결제예요. 다시 결제해 주세요.");
+            order.setPaymentKey(paymentKey);
             if (op != null) return op.getId();
             order.setStatus(PaymentStatus.PROCESSING);
             op = new PaymentOperation(); op.setPaymentOrderId(order.getId()); op.setType(PaymentOperationType.CONFIRM);
@@ -320,10 +323,24 @@ public class PaymentService {
                 PaymentOperation op = operations.lockById(work.operationId()).orElseThrow();
                 if (op.getStatus() == PaymentOperationStatus.SUCCEEDED) return;
                 op.setLeaseUntil(null); op.setLastError(failure.getClass().getSimpleName());
+                if (failure instanceof PaymentGateway.Rejected rejected && work.type() == PaymentOperationType.CONFIRM) {
+                    // 확정 거절: 재시도하지 않고 주문을 결제 전 상태로 돌려 새 결제를 받을 수 있게 한다.
+                    op.setStatus(PaymentOperationStatus.CANCELED); op.setCompletedAt(clock.now());
+                    op.setLastError("Rejected:" + rejected.code());
+                    if (order.getStatus() == PaymentStatus.PROCESSING) { order.setStatus(PaymentStatus.REQUIRED); order.setPaymentKey(null); }
+                    return;
+                }
                 if (op.getAttempts() >= 4) { op.setStatus(PaymentOperationStatus.ADMIN_REQUIRED); order.setStatus(PaymentStatus.ADMIN_REQUIRED); }
                 else op.setStatus(PaymentOperationStatus.PENDING);
             });
         }
+    }
+
+    private static String shortHash(String value) {
+        try {
+            byte[] digest = java.security.MessageDigest.getInstance("SHA-256").digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return java.util.HexFormat.of().formatHex(digest, 0, 8);
+        } catch (java.security.NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
     }
 
     private PaymentGateway.Payment lookup(Work work) {

@@ -36,6 +36,21 @@ class TossPaymentGatewayTest {
         server.expect(requestTo("https://mock.invalid/v1/payments/orders/order")).andRespond(withSuccess(RESULT,MediaType.APPLICATION_JSON));
         assertThat(gateway.get("pk").approved()).isTrue(); assertThat(gateway.getByOrderId("order").orderId()).isEqualTo("order"); server.verify();
     }
+    @Test void definiteRejectionIsNotRetried() {
+        server.expect(requestTo("https://mock.invalid/v1/payments/confirm")).andRespond(withStatus(HttpStatus.NOT_FOUND)
+                .contentType(MediaType.APPLICATION_JSON).body("{\"code\":\"NOT_FOUND_PAYMENT\",\"message\":\"none\"}"));
+        assertThatThrownBy(()->gateway.confirm("pk","order",3680,"k")).isInstanceOfSatisfying(PaymentGateway.Rejected.class,
+                e->assertThat(e.code()).isEqualTo("NOT_FOUND_PAYMENT"));server.verify();
+    }
+    @Test void alreadyProcessedAndProviderErrorsStayRecoverable() {
+        assertThat(TossPaymentGateway.definite(400,"ALREADY_PROCESSED_PAYMENT")).isFalse();
+        assertThat(TossPaymentGateway.definite(400,"PROVIDER_ERROR")).isFalse();
+        assertThat(TossPaymentGateway.definite(401,"UNAUTHORIZED_KEY")).isFalse();
+        assertThat(TossPaymentGateway.definite(409,"IDEMPOTENT_REQUEST_PROCESSING")).isFalse();
+        assertThat(TossPaymentGateway.definite(500,"FAILED_INTERNAL_SYSTEM_PROCESSING")).isFalse();
+        assertThat(TossPaymentGateway.definite(403,"REJECT_CARD_PAYMENT")).isTrue();
+        assertThat(TossPaymentGateway.definite(404,"NOT_FOUND_PAYMENT_SESSION")).isTrue();
+    }
     @Test void failedApiBecomesRecoverableUnavailable() {
         server.expect(anything()).andRespond(withServerError());
         assertThatThrownBy(()->gateway.get("pk")).isInstanceOf(PaymentGateway.Unavailable.class);server.verify();

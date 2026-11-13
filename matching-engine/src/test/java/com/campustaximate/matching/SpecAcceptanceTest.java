@@ -124,8 +124,8 @@ class SpecAcceptanceTest {
 
         RoundResult result = everyMinute.run(slot, List.of(a, b), LEGS, PASS);
         assertEquals(1, result.confirmed().size());
-        // S37: 확정 8:31 + max(결제 3분, 걷기 0분) + 배차 여유 5분 = 8:39
-        assertEquals(slot.plusSeconds(480), result.confirmed().get(0).departure());
+        // S37·S41: 확정 8:31 + max(결제 5분, 걷기 0분) + 배차 여유 5분 = 8:41
+        assertEquals(slot.plusSeconds(600), result.confirmed().get(0).departure());
         assertTrue(everyMinute.run(slot, List.of(c, d), LEGS, PASS).confirmed().isEmpty());
     }
 
@@ -208,7 +208,7 @@ class SpecAcceptanceTest {
         assertEquals(List.of(a), everyMinute.run(DAY.plusSeconds(hm("18:05")), List.of(a), LEGS, PASS).expired());
     }
 
-    /** I-03 (S37): 18:02 확정, 일행 최대 걷기 4분 → 예상 T = 18:02 + max(3, 4) + 5 = 18:11. */
+    /** I-03 (S37, S41): 18:02 확정 → 예상 T = 18:02 + max(5, 가장 긴 걷기) + 5 = 18:12. 걷기 상한이 5분이라 늘 확정 10분 뒤다. */
     @Test
     void i03InstantDepartureFollowsLongestWalk() {
         FromHubPlan plan = new FromHubPlan(settings);
@@ -219,10 +219,10 @@ class SpecAcceptanceTest {
                 .requested(asked, true);
         b = b.atPoint(240, b.anchorKm(), b.anchorSeconds());
         Instant slot = DAY.plusSeconds(hm("18:02"));
-        assertEquals(DAY.plusSeconds(hm("18:11")), plan.schedule(List.of(a, b), List.of(600, 900), slot).departure());
-        // 걷기가 3분보다 짧으면 결제 준비 3분이 기준: 18:02 + 3 + 5 = 18:10
+        assertEquals(DAY.plusSeconds(hm("18:12")), plan.schedule(List.of(a, b), List.of(600, 900), slot).departure());
+        // 걷기가 짧아도 결제 준비 5분이 기준: 18:02 + 5 + 5 = 18:12
         var c = a.atPoint(60, a.anchorKm(), a.anchorSeconds());
-        assertEquals(DAY.plusSeconds(hm("18:10")), plan.schedule(List.of(c), List.of(600), slot).departure());
+        assertEquals(DAY.plusSeconds(hm("18:12")), plan.schedule(List.of(c), List.of(600), slot).departure());
     }
 
     /**
