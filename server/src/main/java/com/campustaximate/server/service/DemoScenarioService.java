@@ -31,7 +31,7 @@ public class DemoScenarioService {
     private final RideConfirmationService confirmations;
     private final NoShowService noShows;
     private final PartyJoinService joins;
-    private final PartyChatService chat;
+    private final DemoChat chat;
 
     private PartyService.PartyView party(long actor) {
         return parties.openParties(actor).stream().findFirst().orElseGet(()->requests.findFirstByMemberIdAndPartyIsNotNullOrderByIdDesc(actor)

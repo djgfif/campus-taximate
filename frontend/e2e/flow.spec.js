@@ -16,9 +16,20 @@ async function login(page, id) {
 
 async function demo(page, action) {
   await page.getByRole('button', { name: '시연', exact: true }).click()
-  await page.getByRole('dialog', { name: '시연' }).getByRole('button', { name: action }).click()
+  const sheet = page.getByRole('dialog', { name: '시연' })
+  const button = sheet.getByRole('button', { name: action, exact: true })
+  // 샘플 행동과 시각 이동은 '직접 조작' 접힘 안에 있다.
+  if (!(await button.isVisible())) await sheet.getByText('직접 조작', { exact: true }).click()
+  // 시연 동작이 서버에서 중간에 실패해도 창에는 경고가 안 남을 수 있어 응답 코드를 직접 확인한다.
+  const response = page.waitForResponse((r) => r.url().includes('/api/demo/') && r.request().method() === 'POST', { timeout: 60000 })
+  await button.click()
+  expect((await response).status(), `${action} 응답`).toBeLessThan(400)
+  // 시연 창은 진행 상태를 보여 주려고 열린 채로 남는다. 처리가 끝나 버튼이 다시 켜지면 직접 닫는다.
   // 2~3명은 모집 마감까지 슬롯을 돌리므로 CI에서는 몇 초 넘게 걸릴 수 있다.
-  await expect(page.getByRole('dialog', { name: '시연' })).toBeHidden({ timeout: 60000 })
+  await expect(button).toBeEnabled({ timeout: 60000 })
+  await expect(sheet.getByRole('alert')).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(sheet).toBeHidden()
 }
 
 test('승차 지점 요청부터 이의 기간과 정산 완료까지 화면으로 끝낸다', async ({ page }, info) => {
@@ -34,7 +45,10 @@ test('승차 지점 요청부터 이의 기간과 정산 완료까지 화면으�
 
   await demo(page, '일행 만들기')
   await expect(page.getByText('내가 결제자')).toBeVisible()
+  // 일행 화면은 진행·채팅·정보 탭으로 나뉜다. 마감 시각은 정보 탭에 있다.
+  await page.getByRole('tab', { name: '정보' }).click()
   await expect(page.getByText('무료 취소 마감', { exact: true })).toBeVisible()
+  await page.getByRole('tab', { name: '진행' }).click()
   // 샘플 회원의 선결제와 도착을 실제 회원과 같은 API로 처리한다.
   await demo(page, '샘플 일행 행동')
   await page.getByRole('button', { name: '기사님께 보여 줄 화면' }).click()
@@ -53,7 +67,7 @@ test('승차 지점 요청부터 이의 기간과 정산 완료까지 화면으�
   await expect(page.getByRole('heading', { name: '이의 기간', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: '요금 이의', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: /^(보냄|받음)$/ })).toHaveCount(0)
-  await expect(page.getByText(/모의 지급/)).toHaveCount(0)
+  await expect(page.getByText(/앱 정산 기록상 받을 돈/)).toHaveCount(0)
 
   await demo(page, '+24시간')
   await demo(page, '+5분')
@@ -62,9 +76,10 @@ test('승차 지점 요청부터 이의 기간과 정산 완료까지 화면으�
   await demo(page, '+5분')
   await page.goto('/history')
   await expect(page.getByText('정산 완료', { exact: true }).first()).toBeVisible()
-  await expect(page.getByText(/모의 지급 [\d,]+원/).first()).toBeVisible()
+  await expect(page.getByText(/앱 정산 기록상 받을 돈\(실제 송금 없음\) [\d,]+원/).first()).toBeVisible()
   await expect(page.getByText('실제 송금 없음').first()).toBeVisible()
-  await expect(page.getByText(/전체 정산 \d+건 중/)).toBeVisible()
+  // 전체 요금 통계는 관리자에게만 보인다(11/12 변경). 학생 계정에는 없어야 한다.
+  await expect(page.getByText(/전체 정산 \d+건 중/)).toHaveCount(0)
 })
 
 test('주소로 이동하고 뒤로 가기가 앱 안에서 동작한다', async ({ page }, info) => {

@@ -39,7 +39,7 @@ public class DemoService {
     private final com.campustaximate.server.repository.PaymentOrderRepository paymentOrders;
     private final WaitingInsightService insights;
     private final DemoRouteSelector demoRoutes;
-    private final PartyChatService chat;
+    private final DemoChat chat;
     private final org.springframework.core.env.Environment environment;
 
     @Value("${app.demo.enabled}")
