@@ -37,6 +37,7 @@ import org.springframework.test.web.servlet.ResultActions;
 @ActiveProfiles("demo")
 @TestPropertySource(properties = "app.upload-dir=target/test-uploads")
 class MemberSafetyFlowTest {
+    @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbc;
     @Autowired private MockMvc mvc;
     @Autowired private ObjectMapper json;
     @Autowired private AppClock clock;
@@ -70,6 +71,7 @@ class MemberSafetyFlowTest {
         avoids.deleteAll();
         restrictions.deleteAll();
         assignments.deleteAll();
+        PaymentTestSupport.clear(jdbc);
         transfers.deleteAll();
         settlements.deleteAll();
         requests.deleteAll();
@@ -161,7 +163,7 @@ class MemberSafetyFlowTest {
     void avoidedMembersAreNotMatchedAgain() throws Exception {
         long a = id("demo-f1"), b = id("demo-f2");
         for (int i = 0; i < 3; i++) createRequest(session(id("demo-f" + (i + 1))), i).andExpect(status().isOk());
-        advanceToDeadline();
+        advanceToConfirmation();
         JsonNode former = state(session(a)).get("parties").get(0);
         assertThat(former.get("members")).hasSize(3);
         List<RideRequest> old = requests.findByStatus(RequestStatus.MATCHED);
@@ -172,7 +174,7 @@ class MemberSafetyFlowTest {
         JsonNode history = body(mvc.perform(get("/api/history").session(session(a))).andExpect(status().isOk()));
         assertThat(history.get(0).get("partyIds").get(0).asLong()).isEqualTo(former.get("id").asLong());
         for (int i = 0; i < 4; i++) createRequest(session(id("demo-f" + (i + 1))), i).andExpect(status().isOk());
-        advanceToDeadline();
+        advanceToConfirmation();
         List<RideRequest> matched = requests.findByStatus(RequestStatus.MATCHED);
         assertThat(matched).hasSize(3);
         assertThat(matched.stream().map(RideRequest::getParty).map(Party::getId).distinct()).hasSize(1);
@@ -288,13 +290,12 @@ class MemberSafetyFlowTest {
         return body(mvc.perform(get("/api/state").session(session)).andExpect(status().isOk()));
     }
 
-    /** 4명이 안 되면 모집 마감 슬롯에 확정한다. 대기 중 요청의 가장 이른 마감까지 시간을 보낸다. */
-    private void advanceToDeadline() {
-        java.time.Instant deadline = requests.findAll().stream()
-                .filter(r -> r.getStatus() == com.campustaximate.server.domain.RequestStatus.WAITING)
-                .map(com.campustaximate.server.domain.RideRequest::resultBy)
-                .min(java.time.Instant::compareTo).orElseThrow();
-        long minutes = java.time.Duration.between(clock.now(), deadline).toMinutes() + 1;
-        demo.advance((int) Math.max(5, minutes));
+    /** 예약 2~3명은 최초 요청 10분 뒤 첫 예약 회차에 확정한다. */
+    private void advanceToConfirmation() {
+        for (int minute = 0; minute < 20; minute++) {
+            if (!requests.findByStatus(com.campustaximate.server.domain.RequestStatus.MATCHED).isEmpty()) return;
+            demo.advance(1);
+        }
+        assertThat(requests.findByStatus(com.campustaximate.server.domain.RequestStatus.MATCHED)).isNotEmpty();
     }
 }

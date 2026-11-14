@@ -49,10 +49,13 @@ export function Brand() {
   return <span className="brand"><i aria-hidden="true" />택시메이트</span>
 }
 
-export function TopBar({ dark, onMenu }) {
+export function TopBar({ dark, onMenu, onHome }) {
   return (
     <header className={dark ? 'bar dark' : 'bar'}>
-      <Brand />
+      {onHome ? <div className="bar-left">
+        <button type="button" className="icon-btn home-btn" aria-label="홈으로" onClick={onHome}><ChevronLeft size={26} /></button>
+        <Brand />
+      </div> : <Brand />}
       {onMenu && <button type="button" className="icon-btn" aria-label="내 정보" onClick={onMenu}><User size={22} /></button>}
     </header>
   )
@@ -76,9 +79,9 @@ export function BackBar({ onBack, title, step, total }) {
 
 export const Money = ({ value }) => <>{Number(value).toLocaleString()}<small>원</small></>
 
-export function Meter({ label, value, detail, tag, children }) {
+export function Meter({ label, value, detail, tag, children, compact = false }) {
   return (
-    <section className="meter">
+    <section className={compact ? 'meter compact' : 'meter'}>
       <span>{label}</span>
       <strong>{value}</strong>
       {detail && <em>{detail}</em>}
@@ -133,13 +136,22 @@ export function Rail({ items }) {
       {items.map((item) => (
         <li key={item.key} className={[item.me && 'me', item.end && 'end', item.off && 'off'].filter(Boolean).join(' ')}>
           <span className="pin">{item.pin}</span>
-          <div className="stop"><b>{item.name}</b>{item.detail && <small>{item.detail}</small>}</div>
+          <div className="stop">{item.avatar ? <span className="who">{item.avatar}<b>{item.name}</b>{item.badge && <em className="badge">{item.badge}</em>}</span> : <b>{item.name}</b>}{item.detail && <small>{item.detail}</small>}{item.sub && <small className="sub">{item.sub}</small>}</div>
           {item.time && <span className="time">{item.time}</span>}
           {item.state && <span className={item.ok ? 'state ok' : 'state'}>{item.state}</span>}
         </li>
       ))}
     </ol>
   )
+}
+
+const AVATAR_TONES = ['#ffe3a3', '#cfe8ff', '#d7f2df', '#ffd9d2', '#e6dcff', '#f3e1c7']
+
+/** 사람을 사람처럼: 이름 첫 글자를 담은 동그란 프로필. 같은 이름은 늘 같은 색이다. */
+export function Avatar({ name = '', size = 32 }) {
+  const text = String(name).trim()
+  const tone = AVATAR_TONES[[...text].reduce((sum, ch) => sum + ch.codePointAt(0), 0) % AVATAR_TONES.length]
+  return <span className="avatar" aria-hidden="true" style={{ width: size, height: size, fontSize: Math.round(size * 0.42), background: tone }}>{text.slice(0, 1) || '?'}</span>
 }
 
 export function Item({ title, detail, onClick, right, danger }) {

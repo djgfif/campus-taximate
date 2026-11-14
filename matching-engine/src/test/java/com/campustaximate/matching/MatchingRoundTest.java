@@ -38,11 +38,11 @@ class MatchingRoundTest {
         return requests;
     }
 
-    /** 기본 요청의 모집 마감 슬롯. 끝 시각 30분 전. */
-    private static final Instant DEADLINE = SLOT.plusSeconds(1800);
+    /** 기본 요청의 모집 마감 회차. 출발 가능 끝(SLOT+60분) − P(25분). */
+    private static final Instant DEADLINE = SLOT.plusSeconds(2100);
 
     @Test
-    void fourPeopleConfirmImmediatelyWithPayerLastAndDepartureSlotPlusThirty() {
+    void fourPeopleConfirmImmediatelyWithPayerLastAndDepartureAfterLead() {
         var a = request(1, at(3, 0));
         var b = request(2, at(5, 0));
         var c = request(3, at(7, 0));
@@ -54,7 +54,8 @@ class MatchingRoundTest {
         ConfirmedGroup group = result.confirmed().get(0);
         assertEquals(List.of(a, b, c, d), group.order());
         assertEquals(d, group.payer());
-        assertEquals(SLOT.plusSeconds(1800), group.departure());
+        // 확정 + P(25분) 이후 가장 이른 5분 단위 시각
+        assertEquals(SLOT.plusSeconds(1500), group.departure());
     }
 
     @Test
@@ -70,7 +71,7 @@ class MatchingRoundTest {
         ConfirmedGroup group = result.confirmed().get(0);
         assertEquals(List.of(a, b, c), group.order());
         assertEquals(c, group.payer());
-        assertEquals(DEADLINE.plusSeconds(1800), group.departure());
+        assertEquals(DEADLINE.plusSeconds(1500), group.departure());
     }
 
     @Test
@@ -79,7 +80,7 @@ class MatchingRoundTest {
         var b = request(2, at(5, 0), 30);
 
         assertTrue(round.run(SLOT, List.of(a, b), LEGS, PASS).confirmed().isEmpty());
-        assertEquals(1, round.run(SLOT.plusSeconds(1800), List.of(a, b), LEGS, PASS).confirmed().size());
+        assertEquals(1, round.run(DEADLINE, List.of(a, b), LEGS, PASS).confirmed().size());
     }
 
     @Test
@@ -97,16 +98,19 @@ class MatchingRoundTest {
                 assertTrue(!(ids.contains(b.memberId()) && ids.contains(c.memberId())));
                 return Verdict.PASS;
             });
-            assertEquals(1, result.confirmed().size());
-            var group = result.confirmed().getFirst().order();
-            assertEquals(3, group.size());
-            assertTrue(group.contains(a) && group.contains(d));
-            assertTrue(group.stream().anyMatch(r -> r.memberId() == b.memberId() || r.memberId() == c.memberId()));
+            // 매칭 인원을 최대로 하므로 B와 C를 갈라 4명 모두 태운다(명세 4.4).
+            assertEquals(4, result.confirmed().stream().mapToInt(g -> g.order().size()).sum());
+            for (ConfirmedGroup g : result.confirmed()) {
+                Set<Long> members = new HashSet<>(g.order().stream().map(MatchRequest::memberId).toList());
+                assertTrue(!(members.contains(b.memberId()) && members.contains(c.memberId())));
+            }
         }
         // 기준자와의 직접 회피도 제외한다. 두 명만 남은 회피 쌍은 마감에도 성사되지 않는다.
         var blocked = a.withAvoidMemberIds(Set.of(b.memberId()));
-        assertTrue(round.run(SLOT.plusSeconds(1800), List.of(blocked, b), LEGS, PASS).confirmed().isEmpty());
-        assertEquals(1, round.run(DEADLINE, List.of(blocked, b, c, d), LEGS, PASS).confirmed().size());
+        assertTrue(round.run(DEADLINE, List.of(blocked, b), LEGS, PASS).confirmed().isEmpty());
+        RoundResult four = round.run(DEADLINE, List.of(blocked, b, c, d), LEGS, PASS);
+        assertEquals(4, four.confirmed().stream().mapToInt(g -> g.order().size()).sum());
+        assertTrue(four.confirmed().stream().noneMatch(g -> g.order().contains(blocked) && g.order().contains(b)));
     }
 
     @Test
@@ -121,7 +125,7 @@ class MatchingRoundTest {
     }
 
     @Test
-    void requestOutsideWindowIsIgnoredAndNotExpired() {
+    void laterWindowWaitsInPoolAndDoesNotExpire() {
         var a = request(1, at(3, 0));
         var b = request(2, at(5, 0));
         Instant departure = SLOT.plusSeconds(1800);
@@ -135,7 +139,7 @@ class MatchingRoundTest {
     }
 
     @Test
-    void anchorStopsAfterThreeChecks() {
+    void anchorUsesAtMostThreeChecks() {
         List<MatchRequest> requests = new ArrayList<>();
         for (int i = 1; i <= 6; i++) {
             requests.add(request(i, at(2 + i, 0)));
@@ -151,7 +155,7 @@ class MatchingRoundTest {
 
         RoundResult result = round.run(SLOT, requests, LEGS, failFirstAnchor);
 
-        assertEquals(3, firstAnchorChecks.get());
+        assertTrue(firstAnchorChecks.get() <= 3);
         assertTrue(result.confirmed().stream().noneMatch(g -> g.order().contains(requests.get(0))));
     }
 
@@ -177,8 +181,9 @@ class MatchingRoundTest {
 
         RoundResult result = round.run(DEADLINE, List.of(a, b, c, d), LEGS, skipFour);
 
-        assertEquals(1, checks.get());
-        assertEquals(3, result.confirmed().get(0).order().size());
+        // 4명 조합은 건너뛰고, 남은 것 중 인원이 최대인 두 쌍(4명)을 확인한다.
+        assertEquals(2, checks.get());
+        assertEquals(4, result.confirmed().stream().mapToInt(g -> g.order().size()).sum());
     }
 
     @Test
@@ -191,7 +196,9 @@ class MatchingRoundTest {
 
         RoundResult result = round.run(DEADLINE, List.of(a, b, c, d), LEGS, rejectFour);
 
-        assertEquals(3, result.confirmed().get(0).order().size());
+        // 4명이 떨어지면 다시 골라 두 쌍으로 4명을 모두 태운다.
+        assertEquals(2, result.confirmed().size());
+        assertTrue(result.confirmed().stream().allMatch(g -> g.order().size() == 2));
     }
 
     @Test
@@ -208,7 +215,7 @@ class MatchingRoundTest {
             return Verdict.UNAVAILABLE;
         });
 
-        // 기준자 a와 b가 각각 첫 조합에서 멈춘다. 중단이 없으면 a만 3번 부른다.
+        // 통신 실패가 나면 그 조합을 만든 기준자는 이번 회차에 더 묻지 않는다. 4명 조합은 a 것과 b 것만 남는다.
         assertEquals(2, calls.get());
         assertTrue(result.confirmed().isEmpty());
         assertTrue(result.expired().isEmpty());
@@ -216,10 +223,10 @@ class MatchingRoundTest {
 
     @Test
     void unmatchedRequestExpiresOnlyAtLastSlot() {
-        var alone = request(1, at(3, 0), 5);
+        var alone = request(1, at(3, 0), 5); // 끝 SLOT+35분 → 마감 SLOT+10분
 
-        assertTrue(round.run(SLOT, List.of(alone), LEGS, PASS).expired().isEmpty());
-        assertEquals(List.of(alone), round.run(SLOT.plusSeconds(300), List.of(alone), LEGS, PASS).expired());
+        assertTrue(round.run(SLOT.plusSeconds(300), List.of(alone), LEGS, PASS).expired().isEmpty());
+        assertEquals(List.of(alone), round.run(SLOT.plusSeconds(600), List.of(alone), LEGS, PASS).expired());
     }
 
     @Test
@@ -243,9 +250,9 @@ class MatchingRoundTest {
 
     @Test
     void expiredOrderDoesNotDependOnInputOrder() {
-        var first = Fixtures.of(1, 101, HUB, Gender.FEMALE, SLOT, SLOT.plusSeconds(1800), at(3, 0));
+        var first = Fixtures.of(1, 101, HUB, Gender.FEMALE, SLOT, SLOT.plusSeconds(1500), at(3, 0));
         var second = Fixtures.of(2, 102, new Hub(2, HUB.location()), Gender.FEMALE,
-                SLOT, SLOT.plusSeconds(1800), at(3, 0));
+                SLOT, SLOT.plusSeconds(1500), at(3, 0));
 
         assertEquals(List.of(first, second), round.run(SLOT, List.of(second, first), LEGS, PASS).expired());
     }

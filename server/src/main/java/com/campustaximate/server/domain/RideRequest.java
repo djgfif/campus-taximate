@@ -1,6 +1,12 @@
 package com.campustaximate.server.domain;
 
 import jakarta.persistence.EntityListeners;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.PrePersist;
+import java.util.ArrayList;
+import java.util.List;
+import com.campustaximate.matching.MatchingSettings;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import com.campustaximate.server.service.ChangeListener;
@@ -34,7 +40,9 @@ import lombok.Setter;
 @NoArgsConstructor
 public class RideRequest {
 
-    private static final Duration LEAD = Duration.ofMinutes(30);
+    private Long pendingJoinId;
+
+    private static final Duration LEAD = Duration.ofMinutes(MatchingSettings.everyMinute().leadMinutes());
     private static final Duration BOARD_GRACE = Duration.ofMinutes(3);
 
     @Id
@@ -62,6 +70,40 @@ public class RideRequest {
     /** 등교만 값이 있다. */
     @ManyToOne(fetch = FetchType.LAZY)
     private School school;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private RequestMode mode = RequestMode.RESERVATION;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private TimeBasis timeBasis = TimeBasis.DEPART;
+
+    private int earlyArrivalMinutes = 10;
+    private Double originLat;
+    private Double originLon;
+    private String originName;
+
+    @Column(nullable = false)
+    private Instant requestedAt;
+
+    @OneToMany(mappedBy = "request", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<RideRequestPoint> points = new ArrayList<>();
+
+    @PrePersist
+    void stampRequest() {
+        if (requestedAt == null) requestedAt = Instant.now();
+    }
+
+    /** 옛 데이터의 출발지는 단일 승차 지점이다. */
+    public GeoPoint origin() {
+        if (originLat != null && originLon != null) return new GeoPoint(originLat, originLon);
+        return hub != null ? new GeoPoint(hub.getLat(), hub.getLon()) : point();
+    }
+
+    public Instant earliestArrival() {
+        return arriveBy == null ? null : arriveBy.minusSeconds(earlyArrivalMinutes * 60L);
+    }
 
     private Instant windowStart;
 
@@ -108,6 +150,8 @@ public class RideRequest {
     private Long expectedShare;
 
     private boolean arrived;
+    /** 도착 약속이며 실제 탑승 확인은 아니다. 도착 표시 때 지운다. */
+    private Instant nearbyAt;
 
     /** 등교에서 승차 시각 3분 뒤까지 도착 표시가 없었다. 마지막 판정 때 일행에서 빠진다. */
     private boolean noShow;
@@ -127,6 +171,7 @@ public class RideRequest {
 
     /** 결과를 늦어도 언제 알 수 있는지. 이 슬롯이 마지막 매칭 기회다. */
     public Instant resultBy() {
+        if(mode==RequestMode.INSTANT) return deadlineSlot!=null?deadlineSlot:requestedAt.plusSeconds(MatchingSettings.everyMinute().instantMatchMinutes()*60L);
         return deadlineSlot != null ? deadlineSlot : windowEnd.minus(LEAD);
     }
 
@@ -174,6 +219,7 @@ public class RideRequest {
         ratioUnits = null;
         expectedShare = null;
         arrived = false;
+        nearbyAt = null;
         noShow = false;
     }
 }

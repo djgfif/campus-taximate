@@ -1,17 +1,12 @@
 package com.campustaximate.server.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.times;
-
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 import com.campustaximate.matching.*;
 import com.campustaximate.server.route.RouteClient;
 import java.time.Instant;
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
 import org.junit.jupiter.api.Test;
 
 class RouteGroupVerifierTest {
@@ -22,81 +17,76 @@ class RouteGroupVerifierTest {
     private Candidate candidate(int size) {
         return new Candidate(java.util.stream.IntStream.rangeClosed(1, size)
                 .mapToObj(i -> new MatchRequest(i, i, hub, Gender.FEMALE, now, now.plusSeconds(3600),
-                        new GeoPoint(37 + i * 0.01, 127), i, 100)).toList(), 10);
+                        new GeoPoint(37 + i * 0.01, 127), i, 100)).toList(), 10, now.plusSeconds(1500), List.of());
+    }
+
+    private void quote(long total, int middleSeconds, int soloSeconds) {
+        when(routes.routeAt(any(), anyList(), any())).thenAnswer(call -> {
+            List<GeoPoint> stops = call.getArgument(1);
+            if (stops.size() == 1) return new RouteClient.Route(5, soloSeconds, 10000, List.of(), List.of(soloSeconds));
+            return new RouteClient.Route(5, 1200, total, List.of(), List.of(100, middleSeconds - 100, 1200 - middleSeconds));
+        });
     }
 
     private Verdict check(long total, int middleSeconds) {
-        Candidate c = candidate(3);
-        when(routes.route(any(), any())).thenAnswer(call -> {
-            List<GeoPoint> stops = call.getArgument(1);
-            return new RouteClient.Route(5, stops.size() == 2 ? middleSeconds : 1200,
-                    stops.size() == 3 ? total : 10000);
-        });
-        return new RouteGroupVerifier(routes, new HashMap<>(), now).verify(c);
+        quote(total, middleSeconds, 1200);
+        return new RouteGroupVerifier(routes, new HashMap<>(), now).verify(candidate(3));
     }
 
     @Test
     void soloFareStaysAsShownAtRequestEvenIfRouteQuoteChanges() {
+        quote(20000, 600, 1200);
         Candidate c = candidate(3);
-        when(routes.route(any(), any())).thenAnswer(call -> {
-            List<GeoPoint> stops = call.getArgument(1);
-            return new RouteClient.Route(5, 1200, stops.size() == 3 ? 20000 : 10000);
-        });
-        var fares = new HashMap<Long, Long>();
-        c.order().forEach(rider -> fares.put(rider.id(), 12000L));
-        var groupVerifier = new RouteGroupVerifier(routes, new HashMap<>(), now, null, fares);
-        assertThat(groupVerifier.verify(c)).isEqualTo(Verdict.PASS);
-        assertThat(groupVerifier.routesOf(c.order()).solo()).allMatch(route -> route.fare() == 12000);
+        Map<Long, Long> fares = new HashMap<>();
+        c.order().forEach(r -> fares.put(r.id(), 12000L));
+        var verifier = new RouteGroupVerifier(routes, new HashMap<>(), now, null, fares);
+        assertThat(verifier.verify(c)).isEqualTo(Verdict.PASS);
+        assertThat(verifier.routesOf(c.order()).solo()).allMatch(r -> r.fare() == 12000);
     }
 
     @Test
     void totalFareAtNinetyPercentPassesEvenWithoutIndividualSaving() {
-        assertThat(check(27000, 1200)).isEqualTo(Verdict.PASS);
+        assertThat(check(27000, 600)).isEqualTo(Verdict.PASS);
     }
 
     @Test
     void totalFareAboveNinetyPercentFails() {
-        assertThat(check(27001, 1200)).isEqualTo(Verdict.FAIL);
+        assertThat(check(27001, 600)).isEqualTo(Verdict.FAIL);
     }
 
     @Test
     void intermediateRiderUsesOwnCumulativeSummaryTime() {
-        // 마지막 시간보다 작은 중간 누적 시간도 그 사람의 혼자 시간과 비교한다.
-        when(routes.route(any(), any())).thenAnswer(call -> {
-            List<GeoPoint> stops = call.getArgument(1);
-            int seconds = stops.size() == 1 ? (stops.getFirst().lat() > 37.025 ? 200 : 100)
-                    : stops.size() == 2 ? 1001 : 1100;
-            return new RouteClient.Route(5, seconds, 10000);
-        });
-        assertThat(new RouteGroupVerifier(routes, new HashMap<>(), now).verify(candidate(3)))
-                .isEqualTo(Verdict.FAIL);
+        // 전체 경로의 중간 하차 누적 1001초, 그 사람의 단독 100초이면 지연 901초다.
+        quote(10000, 1001, 1200);
+        GeoPoint middle = candidate(3).order().get(1).own();
+        when(routes.routeAt(eq(hub.location()), eq(List.of(middle)), any()))
+                .thenReturn(new RouteClient.Route(5, 100, 10000));
+        assertThat(new RouteGroupVerifier(routes, new HashMap<>(), now).verify(candidate(3))).isEqualTo(Verdict.FAIL);
     }
 
     @Test
     void exactlyFifteenMinutesPassesAndDecreasingFareIsAllowed() {
-        when(routes.route(any(), any())).thenAnswer(call -> {
-            List<GeoPoint> stops = call.getArgument(1);
-            return new RouteClient.Route(5, stops.size() == 1 ? 100 : 1000,
-                    stops.size() == 1 ? 10000 : 9000);
-        });
-        assertThat(new RouteGroupVerifier(routes, new HashMap<>(), now).verify(candidate(3)))
-                .isEqualTo(Verdict.PASS);
+        quote(9000, 1000, 1200);
+        GeoPoint middle = candidate(3).order().get(1).own();
+        when(routes.routeAt(eq(hub.location()), eq(List.of(middle)), any()))
+                .thenReturn(new RouteClient.Route(5, 100, 10000));
+        assertThat(new RouteGroupVerifier(routes, new HashMap<>(), now).verify(candidate(3))).isEqualTo(Verdict.PASS);
     }
 
     private Candidate sameDropoff(int size) {
         return new Candidate(java.util.stream.IntStream.rangeClosed(1, size)
                 .mapToObj(i -> new MatchRequest(i, i, hub, Gender.FEMALE, now, now.plusSeconds(3600),
-                        new GeoPoint(37.01, 127), 5, 100)).toList(), 5);
+                        new GeoPoint(37.01, 127), 5, 100)).toList(), 5, now.plusSeconds(1500), List.of());
     }
 
     @Test
     void sameDropoffSharesOneRouteAndPayerFareStaysSolo() {
-        when(routes.route(any(), any())).thenReturn(new RouteClient.Route(5, 100, 10000));
-        var groupVerifier = new RouteGroupVerifier(routes, new HashMap<>(), now);
+        when(routes.routeAt(any(), anyList(), any())).thenReturn(new RouteClient.Route(5, 100, 10000));
+        var verifier = new RouteGroupVerifier(routes, new HashMap<>(), now);
         Candidate c = sameDropoff(3);
-        assertThat(groupVerifier.verify(c)).isEqualTo(Verdict.PASS);
-        verify(routes, times(3)).route(any(), any());
-        assertThat(groupVerifier.routesOf(c.order()).total()).isEqualTo(10000);
+        assertThat(verifier.verify(c)).isEqualTo(Verdict.PASS);
+        verify(routes, times(4)).routeAt(any(), anyList(), eq(c.departure()));
+        assertThat(verifier.routesOf(c.order()).total()).isEqualTo(10000);
     }
 
     @Test
@@ -105,14 +95,41 @@ class RouteGroupVerifierTest {
         var store = new RoadLegStore(routes);
         store.prepare(requests, now);
         assertThat(store.provider().leg(requests.get(0), requests.get(1))).contains(new RoadLeg(0, 0));
-        org.mockito.Mockito.verifyNoInteractions(routes);
+        verifyNoInteractions(routes);
     }
 
     @Test
     void fourRidersRequireOnlySevenCalls() {
-        when(routes.route(any(), any())).thenReturn(new RouteClient.Route(5, 100, 10000));
-        assertThat(new RouteGroupVerifier(routes, new HashMap<>(), now).verify(candidate(4)))
-                .isEqualTo(Verdict.PASS);
-        verify(routes, times(7)).route(any(), any());
+        // 전체 경로 1회와 사람별 단독 시간 4회로 줄었다.
+        when(routes.routeAt(any(), anyList(), any())).thenAnswer(call -> {
+            List<GeoPoint> stops = call.getArgument(1);
+            return new RouteClient.Route(5, stops.size() * 100, 10000, List.of(), Collections.nCopies(stops.size(), 100));
+        });
+        Candidate c = candidate(4);
+        assertThat(new RouteGroupVerifier(routes, new HashMap<>(), now).verify(c)).isEqualTo(Verdict.PASS);
+        verify(routes, times(5)).routeAt(any(), anyList(), eq(c.departure()));
+    }
+
+    @Test
+    void walkingIsIncludedInDelayAndFailureIsCached() {
+        quote(10000, 1000, 1200);
+        Candidate base = candidate(3);
+        GeoPoint middle = base.order().get(1).own();
+        when(routes.routeAt(eq(hub.location()), eq(List.of(middle)), any())).thenReturn(new RouteClient.Route(5, 100, 10000));
+        List<MatchRequest> order = new ArrayList<>(base.order());
+        order.set(1, order.get(1).atPoint(1, 2, 100));
+        Candidate c = new Candidate(order, 10, base.departure(), List.of());
+        var cache = new HashMap<List<Long>, Instant>();
+        var verifier = new RouteGroupVerifier(routes, cache, now);
+        assertThat(verifier.check(c).verdict()).isEqualTo(Verdict.FAIL);
+        assertThat(verifier.recentlyRejected(c)).isTrue();
+    }
+
+    @Test
+    void unavailableRouteIsNotCachedAsRejected() {
+        when(routes.routeAt(any(), anyList(), any())).thenThrow(new RouteClient.RouteUnavailableException("모의 장애", null));
+        var verifier = new RouteGroupVerifier(routes, new HashMap<>(), now);
+        assertThat(verifier.check(candidate(3)).verdict()).isEqualTo(Verdict.UNAVAILABLE);
+        assertThat(verifier.recentlyRejected(candidate(3))).isFalse();
     }
 }

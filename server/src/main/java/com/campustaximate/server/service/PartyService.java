@@ -38,11 +38,23 @@ public class PartyService {
     private final TransferRequestRepository transfers;
     private final AppClock clock;
     private final RoutePathStore paths;
+    private final com.campustaximate.server.repository.PaymentOrderRepository paymentOrders;
+    private final com.campustaximate.server.repository.SettlementShareRepository allocations;
+    private final com.campustaximate.server.repository.PayoutLedgerRepository payouts;
+    private final PaymentService payments;
+    private final PartyReadinessService readiness;
+    private final RideConfirmationService rideConfirmations;
+    private final com.campustaximate.server.repository.PartyMemberTermRepository terms;
+    private final com.campustaximate.server.repository.PartyChangeRepository partyChanges;
+    private final com.campustaximate.server.repository.RideConfirmationRepository rideAnswers;
+    private final com.campustaximate.server.repository.PartyMessageRepository chatMessages;
+    private final com.campustaximate.server.repository.PartyChatReadRepository chatReads;
+    private final PartyChatService chatLog;
 
     public record MemberView(long requestId, long memberId, String nickname, String memo, int rideOrder,
                              String pointName, long expectedShare, boolean arrived, boolean noShow,
                              long soloFare, int soloSeconds, int sharedSeconds, Instant boardAt,
-                             Instant arriveDeadline) {
+                             Instant arriveDeadline, Long confirmedShare, Long confirmedPrepay, boolean migratedUnknown, boolean boardingUnconfirmed, boolean nearby) {
     }
 
     public record TransferView(long id, long senderId, String senderNickname, long amount, TransferStatus status) {
@@ -51,7 +63,8 @@ public class PartyService {
     /** 계좌는 일행에게만 내려가고, 지운 뒤에는 비어 있다. */
     public record SettlementView(long paidAmount, int revision, boolean warning, int differencePercent,
                                  boolean canCorrect, boolean receiptAvailable, String bankName, String accountNumber,
-                                 List<TransferView> transfers) {
+                                 List<TransferView> transfers, Instant objectionDeadlineAt, Instant finalizedAt,
+                                 List<SettlementService.ShareView> shares, List<PaymentService.OrderView> payments, Long mockPayoutAmount) {
     }
 
     public record PartyView(long id, Direction direction, PartyStatus status, String anchorName, String meetingPoint,
@@ -59,8 +72,13 @@ public class PartyService {
                             Instant callAt, Instant arriveDeadline, long expectedTotal, long soloTotal,
                             long payerId, String payerNickname, boolean payer, boolean canArrive, boolean canBoard,
                             boolean canCancel, boolean canSettle, long myRequestId, long myShare, long mySoloFare,
-                            List<MemberView> members, SettlementView settlement) {
+                            List<MemberView> members, SettlementView settlement, Instant prepayDeadlineAt, Instant freeCancelUntil, Instant startedAt,
+                            long groupVersion, String reviewReason, boolean adminReviewRequired,
+                            Boolean myRideAnswer, boolean canConfirmRide, boolean canLeaveAfterChange, boolean changeExitFree,
+                            Long myConfirmedShare, boolean myConfirmedMigrated, List<ChangeView> changes, boolean instant, Instant calledAt, boolean callReady, boolean canCall, List<String> notReadyReasons, Long successorId, Instant successionDeadlineAt, String successionStatus, long unreadChat) {
     }
+
+    public record ChangeView(long version,String reason,Instant changedAt) { }
 
     @Transactional
     public void arrive(long memberId, long partyId) {
@@ -70,6 +88,8 @@ public class PartyService {
             throw ApiException.conflict("BAD_STATE", "도착을 표시할 수 없는 상태입니다.");
         }
         mine.setArrived(true);
+        mine.setNearbyAt(null);
+        chatLog.system(party, memberId, "%s님이 승차 지점에 도착했어요.");
     }
 
     /** 등교 결제자의 "택시 탔어요". 도착 표시를 겸하고 다음 승차자에게 남은 시간을 보여 준다. */
@@ -80,12 +100,14 @@ public class PartyService {
         if (party.getDirection() != Direction.TO_SCHOOL || !party.getPayer().getId().equals(memberId)) {
             throw ApiException.forbidden("등교 결제자만 표시할 수 있습니다.");
         }
+        if (party.getStatus()==PartyStatus.PAYER_PENDING) throw ApiException.conflict("PAYER_PENDING","결제자 승계 답변을 기다리고 있어요.");
         if (!canMarkBoarding(mine)) {
             throw ApiException.conflict("BAD_STATE", "승차를 표시할 수 없는 상태입니다.");
         }
         mine.setArrived(true);
         if (party.getBoardedAt() == null) {
             party.setBoardedAt(clock.now());
+            if(party.paymentFlow()) rideConfirmations.markBoardingUnconfirmed(party);
         }
     }
 
@@ -115,7 +137,8 @@ public class PartyService {
 
     @Transactional(readOnly = true)
     public List<PartyView> openParties(long memberId) {
-        return requests.findOpenByMember(memberId, List.of(PartyStatus.CONFIRMED, PartyStatus.SETTLING)).stream()
+        return requests.findOpenByMember(memberId, List.of(PartyStatus.CONFIRMED, PartyStatus.SETTLING, PartyStatus.PREPAYING, PartyStatus.READY,
+                PartyStatus.AWAITING_FARE, PartyStatus.PAYER_PENDING, PartyStatus.RIDE_UNCONFIRMED, PartyStatus.OBJECTION_WINDOW, PartyStatus.REVIEW_PENDING, PartyStatus.SETTLED)).stream()
                 .map(r -> toView(memberId, r.getParty()))
                 .toList();
     }
@@ -153,8 +176,12 @@ public class PartyService {
                 .orElseThrow(() -> ApiException.forbidden("내 일행이 아닙니다."));
         TripPlan plan = TripPlan.of(party.getDirection());
         GeoPoint anchor = party.anchorPoint();
-        return new RoutePlan(plan.sharedPath(anchor, riders.stream().map(RideRequest::point).toList()),
-                plan.soloPath(anchor, mine.point()));
+        // 공동 승차에서 결제자가 아니면 내가 내리는 곳까지만 보여 준다. 뒤에 내리는 사람의 집 근처가 드러나지 않게 한다.
+        List<RideRequest> visible = party.getDirection() == Direction.FROM_HUB && !party.getPayer().getId().equals(memberId)
+                ? riders.subList(0, riders.indexOf(mine) + 1) : riders;
+        return new RoutePlan(plan.sharedPath(anchor, visible.stream().map(RideRequest::point).toList()),
+                party.getDirection() == Direction.FROM_HUB
+                        ? new TripPath(mine.origin(), List.of(mine.point())) : plan.soloPath(anchor, mine.point()));
     }
 
     public RouteView routeView(RoutePlan plan) {
@@ -175,17 +202,28 @@ public class PartyService {
         boolean payer = party.getPayer().getId() == memberId;
         boolean toSchool = party.getDirection() == Direction.TO_SCHOOL;
         boolean boarded = riders.stream().allMatch(r -> r.getStatus() == RequestStatus.COMPLETED);
-        SettlementView settlement = settlements.findByParty(party).map(s -> toView(s, party, payer)).orElse(null);
+        SettlementView settlement = settlements.findByParty(party).map(s -> toView(s, party, payer, memberId)).orElse(null);
+        var termList=terms.findByPartyIdOrderById(party.getId());
+        var myTerm=termList.stream().filter(t->t.getMemberId()==memberId).findFirst().orElse(null);
+        var myAnswer=rideAnswers.findByPartyIdAndMemberId(party.getId(),memberId).orElse(null);
+        // 다른 사람의 하차 지점은 결제자(기사님께 순서를 알려야 함)에게만 보이고, 나머지에게는 순서만 보인다.
+        boolean seesStops = payer || toSchool;
         List<MemberView> members = riders.stream()
                 .map(r -> new MemberView(r.getId(), r.getMember().getId(), r.getMember().getNickname(), r.getMemo(),
-                        r.getRideOrder(), r.getPointName(), r.getExpectedShare(), r.isArrived(), r.isNoShow(),
-                        r.getSoloFare(), r.getSoloSeconds(), r.getSharedSeconds(), r.getBoardAt(), r.arriveDeadline()))
+                        r.getRideOrder(), seesStops || r.getMember().getId() == memberId ? r.getPointName() : r.getRideOrder() + "번째 하차",
+                        r.getExpectedShare(), r.isArrived(), r.isNoShow(),
+                        r.getSoloFare(), r.getSoloSeconds(), r.getSharedSeconds(), r.getBoardAt(), r.arriveDeadline(),
+                        termList.stream().filter(t->t.getRequestId().equals(r.getId())).map(com.campustaximate.server.domain.PartyMemberTerm::getConfirmedShare).findFirst().orElse(null),
+                        termList.stream().filter(t->t.getRequestId().equals(r.getId())).map(com.campustaximate.server.domain.PartyMemberTerm::getConfirmedPrepay).findFirst().orElse(null),
+                        termList.stream().anyMatch(t->t.getRequestId().equals(r.getId())&&t.isMigratedUnknown()),
+                        termList.stream().anyMatch(t->t.getRequestId().equals(r.getId())&&t.getBoardingUnconfirmedAt()!=null),r.getNearbyAt()!=null))
                 .toList();
         Instant myStart = mine.getBoardAt() != null ? mine.getBoardAt() : party.getDepartureAt();
         Instant payerBoardAt = riders.stream()
                 .filter(r -> r.getMember().getId().equals(party.getPayer().getId()))
                 .findFirst().map(RideRequest::getBoardAt).orElse(null);
         long soloTotal = riders.stream().mapToLong(RideRequest::getSoloFare).sum();
+        var ready=readiness.state(party,memberId,riders);
         return new PartyView(party.getId(), party.getDirection(), party.getStatus(), party.anchorName(),
                 party.getHub() != null ? party.getHub().getMeetingPoint() : mine.getPointName(),
                 party.getDepartureAt(), party.getBoardedAt(), mine.getBoardAt(),
@@ -195,22 +233,42 @@ public class PartyService {
                 !mine.isArrived() && canMarkArrival(mine),
                 toSchool && payer && party.getBoardedAt() == null && canMarkBoarding(mine),
                 mine.canCancelAt(clock.now()),
-                payer && boarded && settlement == null, mine.getId(), mine.getExpectedShare(), mine.getSoloFare(),
-                members, settlement);
+                payer && settlement == null && (party.paymentFlow()
+                    ? List.of(PartyStatus.AWAITING_FARE,PartyStatus.RIDE_UNCONFIRMED).contains(party.getStatus())
+                        && clock.now().isBefore((party.getStartedAt()==null?party.getDepartureAt():party.getStartedAt()).plusSeconds(24*3600))
+                    : boarded), mine.getId(), mine.getExpectedShare(), mine.getSoloFare(),
+                members, settlement, party.getPrepayDeadlineAt(), party.freeCancelUntil(), party.getStartedAt(),
+                party.getGroupVersion(),party.getReviewReason(),party.isAdminReviewRequired(),
+                myAnswer==null?null:myAnswer.isRode(), party.paymentFlow() && party.getRideAskedAt()!=null && myAnswer==null && myTerm!=null && myTerm.getExitedAt()==null,
+                party.paymentFlow() && party.getGroupVersion()>1 && mine.canCancelAt(clock.now()),
+                clock.now().isBefore(party.getDepartureAt().minusSeconds(600)),
+                myTerm==null?null:myTerm.getConfirmedShare(),myTerm!=null&&myTerm.isMigratedUnknown(),
+                partyChanges.findByPartyIdOrderByGroupVersion(party.getId()).stream().map(c->new ChangeView(c.getGroupVersion(),c.getReason(),c.getChangedAt())).toList(),
+                party.isInstant(),party.getCalledAt(),ready.callReady(),ready.canCall(),ready.notReadyReasons(),party.getSuccessorId(),party.getSuccessionDeadlineAt(),party.getSuccessionStatus(),
+                chatMessages.countUnread(party.getId(), memberId, chatReads.findByPartyIdAndMemberId(party.getId(), memberId)
+                        .map(com.campustaximate.server.domain.PartyChatRead::getLastReadId).orElse(0L)));
     }
 
-    private SettlementView toView(Settlement settlement, Party party, boolean payer) {
+    private SettlementView toView(Settlement settlement, Party party, boolean payer, long memberId) {
         List<TransferRequest> list = transfers.findBySettlementOrderById(settlement);
         long expected = party.getExpectedTotal();
         long difference = settlement.getPaidAmount() - expected;
         boolean warning = Math.abs(difference) > expected * WARNING_RATE;
         int percent = expected == 0 ? 0 : (int) Math.round(difference * 100.0 / expected);
-        boolean canCorrect = payer && list.stream().allMatch(t -> t.getStatus() == TransferStatus.REQUESTED);
+        boolean canCorrect = payer && (party.paymentFlow()
+                ? party.getStatus() == PartyStatus.OBJECTION_WINDOW && clock.now().isBefore(settlement.getObjectionDeadlineAt())
+                : list.stream().allMatch(t -> t.getStatus() == TransferStatus.REQUESTED));
         List<TransferView> views = list.stream()
                 .map(t -> new TransferView(t.getId(), t.getSender().getId(), t.getSender().getNickname(),
                         t.getAmount(), t.getStatus()))
                 .toList();
         return new SettlementView(settlement.getPaidAmount(), settlement.getRevision(), warning, percent, canCorrect,
-                settlement.getReceiptPath() != null, settlement.getBankName(), settlement.getAccountNumber(), views);
+                settlement.getReceiptPath() != null, settlement.getBankName(), settlement.getAccountNumber(), views,
+                settlement.getObjectionDeadlineAt(), settlement.getFinalizedAt(),
+                allocations.findBySettlementIdOrderByRideOrder(settlement.getId()).stream().map(a ->
+                        new SettlementService.ShareView(a.getMemberId(), "", a.getAmount(), a.isPayer())).toList(),
+                paymentOrders.findByPartyIdOrderById(party.getId()).stream().filter(o -> o.getMemberId() == memberId)
+                        .map(o -> payments.get(memberId, o.getOrderId())).toList(),
+                payouts.findBySettlementId(settlement.getId()).map(com.campustaximate.server.domain.PayoutLedger::getAmount).orElse(null));
     }
 }

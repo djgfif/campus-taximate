@@ -15,6 +15,8 @@ import com.campustaximate.server.common.ApiException;
 import com.campustaximate.server.common.AppClock;
 import com.campustaximate.server.domain.EndReason;
 import com.campustaximate.server.domain.Hub;
+import com.campustaximate.server.domain.RequestMode;
+import com.campustaximate.server.domain.TimeBasis;
 import com.campustaximate.server.domain.Member;
 import com.campustaximate.server.domain.RequestStatus;
 import com.campustaximate.server.domain.RideRequest;
@@ -78,6 +80,7 @@ public class ApiController {
     private final LoginTokenService tokens;
     private final RideRequestService rideRequests;
     private final PartyService parties;
+    private final com.campustaximate.server.common.InstantMatchingConfiguration instantSettings;
     private final SettlementService settlements;
     private final DemoService demo;
     private final WaitingInsightService insights;
@@ -112,18 +115,26 @@ public class ApiController {
     public record ProfileBody(@NotBlank @Size(max = 20) String nickname, @NotNull Gender gender) {
     }
 
-    public record MeView(long id, String email, String nickname, Gender gender, boolean needsPassword, boolean needsProfile) {
+    public record MeView(long id, String email, String nickname, Gender gender, boolean needsPassword, boolean needsProfile, boolean admin) {
     }
 
     public record RequestBodyDto(@NotNull Direction direction, Long hubId, Instant windowStart, Instant windowEnd,
                                  Instant arriveBy, @NotBlank @Size(max = 100) String pointName,
                                  @NotNull @DecimalMin("-90") @DecimalMax("90") Double pointLat,
-                                 @NotNull @DecimalMin("-180") @DecimalMax("180") Double pointLon, @Size(max = 100) String memo) {
+                                 @NotNull @DecimalMin("-180") @DecimalMax("180") Double pointLon, @Size(max = 100) String memo,
+                                 RequestMode mode, TimeBasis timeBasis, @Valid OriginBody origin,
+                                 List<Long> pointIds, Integer earlyArrivalMinutes) {
         RideRequestService.NewRequest toInput() {
             return new RideRequestService.NewRequest(direction, hubId, windowStart, windowEnd, arriveBy, pointName,
-                    pointLat, pointLon, memo);
+                    pointLat, pointLon, memo, mode, timeBasis,
+                    origin == null ? null : new RideRequestService.Origin(origin.lat(), origin.lon(), origin.name()),
+                    pointIds, earlyArrivalMinutes);
         }
     }
+
+    public record OriginBody(@NotNull @DecimalMin("-90") @DecimalMax("90") Double lat,
+                             @NotNull @DecimalMin("-180") @DecimalMax("180") Double lon,
+                             @Size(max = 100) String name) { }
 
     public record SentBody(@NotNull Integer revision) {
     }
@@ -139,11 +150,11 @@ public class ApiController {
                               String pointName, double pointLat, double pointLon, long soloFare, int soloMinutes,
                               String memo, WaitingInsightService.Insight insight,
                               RideHistoryService.Stage stage, Long paid, EndReason endReason,
-                              double anchorLat, double anchorLon, Long partyPaid, Integer partySize, Long partyId, List<Long> partyIds) {
+                              double anchorLat, double anchorLon, Long partyPaid, Integer partySize, Long partyId, List<Long> partyIds, RequestMode mode, TimeBasis timeBasis) {
         RequestView withPartyIds(List<Long> ids) {
             return new RequestView(id, status, direction, hubId, anchorName, windowStart, windowEnd, arriveBy,
                     resultBy, pointName, pointLat, pointLon, soloFare, soloMinutes, memo, insight, stage, paid,
-                    endReason, anchorLat, anchorLon, partyPaid, partySize, partyId, ids.isEmpty() ? partyIds : ids);
+                    endReason, anchorLat, anchorLon, partyPaid, partySize, partyId, ids.isEmpty() ? partyIds : ids, mode, timeBasis);
         }
 
         static RequestView of(RideRequest r) {
@@ -169,7 +180,7 @@ public class ApiController {
                     r.isNoShow() ? EndReason.NO_SHOW : r.getEndReason(),
                     r.getHub() != null ? r.getHub().getLat() : r.getSchool().getLat(),
                     r.getHub() != null ? r.getHub().getLon() : r.getSchool().getLon(), partyPaid, partySize, r.getParty() == null ? null : r.getParty().getId(),
-                    r.getParty() == null ? List.of() : List.of(r.getParty().getId()));
+                    r.getParty() == null ? List.of() : List.of(r.getParty().getId()),r.getMode(),r.getTimeBasis());
         }
     }
 
@@ -182,7 +193,9 @@ public class ApiController {
     @GetMapping("/config")
     public Map<String, Object> config() {
         return Map.of("demo", demo.enabled(), "simulatedRoute", routes.simulated(), "now", clock.now(),
-                "mailEnabled", mail.enabled(), "sampleDropoffs", DataSeeder.SAMPLE_DROPOFFS);
+                "mailEnabled", mail.enabled(), "sampleDropoffs", DataSeeder.SAMPLE_DROPOFFS,"instantMatching",Map.of(
+                    "matchMinutes",instantSettings.getInstantMatchMinutes(),"prepMinutes",instantSettings.getInstantPrepMinutes(),
+                    "dispatchMinutes",instantSettings.getInstantDispatchMinutes(),"maxWalkSeconds",instantSettings.getInstantMaxWalkSeconds()));
     }
 
     @PostMapping("/auth/code")
@@ -250,7 +263,7 @@ public class ApiController {
     public MeView me(HttpSession session) {
         long id = memberId(session);
         Member member = members.findById(id).orElseThrow(ApiException::unauthorized);
-        return new MeView(id, member.getEmail(), member.getNickname(), member.getGender(), !member.hasPassword(), !member.hasProfile());
+        return new MeView(id, member.getEmail(), member.getNickname(), member.getGender(), !member.hasPassword(), !member.hasProfile(), member.isAdmin());
     }
 
     /** 내 상태가 바뀌면 신호를 보낸다. 연결이 안 되는 환경에서는 화면이 주기적으로 읽는다. */
@@ -299,18 +312,40 @@ public class ApiController {
                 "settledParty", java.util.Optional.ofNullable(parties.latestSettled(id)).<Object>map(p -> p).orElse(""));
     }
 
-    public record MessageBody(String text) { }
+    public record MessageBody(String text, String clientId) { }
+    public record ReadBody(long lastId) { }
 
+    /** after: 그 뒤 새 메시지, before: 그 앞 이전 메시지 50개, 둘 다 없으면 최근 50개. */
     @GetMapping("/parties/{partyId}/messages")
     public com.campustaximate.server.service.PartyChatService.ChatView messages(
-            @PathVariable long partyId, @RequestParam(required = false) Long after, HttpSession session) {
-        return chat.read(memberId(session), partyId, after);
+            @PathVariable long partyId, @RequestParam(required = false) Long after,
+            @RequestParam(required = false) Long before, HttpSession session) {
+        return chat.read(memberId(session), partyId, after, before);
     }
 
     @PostMapping("/parties/{partyId}/messages")
     public com.campustaximate.server.service.PartyChatService.MessageView message(
             @PathVariable long partyId, @RequestBody MessageBody body, HttpSession session) {
-        return chat.send(memberId(session), partyId, body.text());
+        return chat.send(memberId(session), partyId, body.text(), body.clientId());
+    }
+
+    @PostMapping(value = "/parties/{partyId}/messages/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public com.campustaximate.server.service.PartyChatService.MessageView imageMessage(
+            @PathVariable long partyId, @RequestPart("image") MultipartFile image,
+            @RequestParam(required = false) String clientId, HttpSession session) {
+        return chat.sendImage(memberId(session), partyId, image, clientId);
+    }
+
+    @GetMapping("/parties/{partyId}/messages/{messageId}/image")
+    public ResponseEntity<Resource> messageImage(@PathVariable long partyId, @PathVariable long messageId, HttpSession session) {
+        var file = chat.image(memberId(session), partyId, messageId);
+        return ResponseEntity.ok().header("X-Content-Type-Options", "nosniff").header("Cache-Control", "private, max-age=3600")
+                .contentType(MediaType.parseMediaType(file.contentType())).body(new FileSystemResource(file.path()));
+    }
+
+    @PostMapping("/parties/{partyId}/messages/read")
+    public Map<String, Long> readMessages(@PathVariable long partyId, @RequestBody ReadBody body, HttpSession session) {
+        return Map.of("lastReadId", chat.markRead(memberId(session), partyId, body.lastId()));
     }
 
     public record ReportBody(@NotNull ReportReason reason, @Size(max = 200) String memo) { }
@@ -403,6 +438,13 @@ public class ApiController {
         parties.board(memberId(session), id);
     }
 
+    public record ObjectionBody(@NotBlank @Size(max=500) String reason) { }
+
+    @PostMapping("/parties/{id}/settlement/objections")
+    public void objectToFare(@PathVariable long id, @Valid @RequestBody ObjectionBody body, HttpSession session) {
+        settlements.objectToFare(memberId(session), id, body.reason());
+    }
+
     @GetMapping("/parties/{id}/settlement/preview")
     public List<SettlementService.ShareView> previewSettlement(@PathVariable long id, @RequestParam long amount,
                                                                HttpSession session) {
@@ -445,34 +487,6 @@ public class ApiController {
     @PostMapping("/transfers/{id}/received")
     public void received(@PathVariable long id, HttpSession session) {
         settlements.markReceived(memberId(session), id);
-    }
-
-    @PostMapping("/demo/run")
-    public void demoRun(HttpSession session) {
-        memberId(session);
-        demo.runNow();
-    }
-
-    @PostMapping("/demo/match")
-    public DemoService.MatchOutcome demoMatch(HttpSession session) {
-        return demo.matchNow(memberId(session));
-    }
-
-    @PostMapping("/demo/advance")
-    public void demoAdvance(@Valid @RequestBody AdvanceBody body, HttpSession session) {
-        memberId(session);
-        demo.advance(body.minutes());
-    }
-
-    @PostMapping("/demo/samples")
-    public Map<String, Integer> demoSamples(@RequestBody(required = false) SampleBody body, HttpSession session) {
-        int count = body == null || body.count() == null ? 2 : body.count();
-        return Map.of("created", demo.addSamples(memberId(session), count));
-    }
-
-    @PostMapping("/demo/act")
-    public void demoAct(HttpSession session) {
-        demo.actAsSamples(memberId(session));
     }
 
     private long memberId(HttpSession session) {

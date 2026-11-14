@@ -21,7 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class RideHistoryService {
 
     public enum Stage { WAITING, CANCELED, UNMATCHED, NO_SHOW, MATCHED, AWAITING_AMOUNT, SETTLING, SETTLED, UNSETTLED,
-        PARTY_CANCELED, LEFT_ALONE }
+        PARTY_CANCELED, LEFT_ALONE, PREPAYING, READY, OBJECTION_WINDOW, REVIEW_PENDING, NOT_OPERATED, FARE_MISSING, DISSOLVED, RIDE_UNCONFIRMED }
 
     /** paid는 내가 낸 돈, partyPaid는 실제 결제 금액이고, 정산 전에는 null이다. */
     public record Entry(RideRequest request, Stage stage, Long paid, Long partyPaid, Integer partySize) {
@@ -33,6 +33,7 @@ public class RideHistoryService {
     private final RideRequestRepository requests;
     private final SettlementRepository settlements;
     private final TransferRequestRepository transfers;
+    private final com.campustaximate.server.repository.PaymentOrderRepository paymentOrders;
 
     @Transactional(readOnly = true)
     public List<Entry> of(long memberId) {
@@ -50,6 +51,7 @@ public class RideHistoryService {
         if (r.getEndReason() == EndReason.LEFT_ALONE) {
             return new Entry(r, Stage.LEFT_ALONE);
         }
+        if(party!=null && List.of(PartyStatus.NOT_OPERATED,PartyStatus.RIDE_UNCONFIRMED,PartyStatus.REVIEW_PENDING).contains(party.getStatus())) return new Entry(r,stage(r,party));
         if (party == null || r.getStatus() == RequestStatus.CANCELED || r.getStatus() == RequestStatus.UNMATCHED) {
             return new Entry(r, withoutParty(r.getStatus()));
         }
@@ -69,6 +71,17 @@ public class RideHistoryService {
     private static Stage stage(RideRequest r, Party party) {
         PartyStatus status = party.getStatus();
         return switch (status) {
+            case PREPAYING -> Stage.PREPAYING;
+            case READY -> Stage.READY;
+            case PAYER_PENDING -> Stage.REVIEW_PENDING;
+            case RIDE_UNCONFIRMED -> Stage.RIDE_UNCONFIRMED;
+            case AWAITING_FARE -> Stage.AWAITING_AMOUNT;
+            case OBJECTION_WINDOW -> Stage.OBJECTION_WINDOW;
+            case REVIEW_PENDING -> Stage.REVIEW_PENDING;
+            case SETTLED -> Stage.SETTLING;
+            case NOT_OPERATED -> Stage.NOT_OPERATED;
+            case FARE_MISSING -> Stage.FARE_MISSING;
+            case DISSOLVED -> Stage.DISSOLVED;
             case SETTLING -> Stage.SETTLING;
             case COMPLETED -> Stage.SETTLED;
             case UNSETTLED -> Stage.UNSETTLED;
@@ -81,6 +94,12 @@ public class RideHistoryService {
         Settlement settlement = settlements.findByParty(party).orElse(null);
         if (settlement == null) {
             return null;
+        }
+        if (party.paymentFlow()) {
+            long net = paymentOrders.findByPartyIdOrderById(party.getId()).stream().filter(o -> o.getMemberId() == memberId)
+                    .mapToLong(o -> o.getApprovedAmount() - o.getRefundedAmount()).sum();
+            // 모의 지급은 실제 송금이 아니므로 현금 지출에서 차감하지 않는다.
+            return party.getPayer().getId() == memberId ? settlement.getPaidAmount() + net : net;
         }
         List<TransferRequest> list = transfers.findBySettlementOrderById(settlement);
         return list.stream().filter(t -> t.getSender().getId() == memberId).map(TransferRequest::getAmount).findFirst()

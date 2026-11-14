@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import DemoAccounts from './DemoAccounts.jsx'
 import { api } from './api.js'
 import { Brand, Btn, Say, Screen, toast } from './ui.jsx'
 
@@ -67,7 +68,7 @@ export default function AuthScreen({ config, onLogin }) {
             <input type="password" value={password} autoComplete="current-password"
               onChange={(e) => setPassword(e.target.value)} />
           </label>
-          {config?.demo && <p className="note">시연 계정: demo-f1@daejin.ac.kr, demo-m1@daejin.ac.kr (비밀번호 demo1234)</p>}
+          {config?.demo && <DemoAccounts onLogin={() => onLogin(false)} />}
         </div>
       </Screen>
     )

@@ -1,10 +1,15 @@
 package com.campustaximate.matching;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-/** 도로 값으로 15분, 10% 조건을 거른다. 요금 대신 거리로 절약을 본다. */
+/**
+ * 1차 검사(명세 4.3). 구간 값으로 지연 15분과 시간 조건을 본다.
+ * 지연 = 걷는 시간 + 동승 시간 − 단독 시간. 거리 절약은 걸러내지 않고 순위에만 쓴다.
+ * 요금 10% 조건은 2차(카카오) 검사가 본다.
+ */
 public final class EstimateCalculator {
 
     private final MatchingSettings settings;
@@ -13,8 +18,13 @@ public final class EstimateCalculator {
         this.settings = settings;
     }
 
-    /** 방향의 승하차 순서로 시험해 조건을 통과하면 조합을 돌려준다. */
+    /** 시간 조건 없이 지연만 본다. */
     public Optional<Candidate> evaluate(List<MatchRequest> group, LegProvider legs) {
+        return evaluate(group, legs, null);
+    }
+
+    /** slot이 있으면 출발 시각을 정하고 출발·도착 범위를 본다. */
+    public Optional<Candidate> evaluate(List<MatchRequest> group, LegProvider legs, Instant slot) {
         TripPlan plan = TripPlan.of(group.get(0).direction(), settings);
         List<MatchRequest> order = plan.order(group);
 
@@ -28,16 +38,15 @@ public final class EstimateCalculator {
         }
         List<Integer> rides = plan.rideSeconds(order, roads);
         for (int i = 0; i < order.size(); i++) {
-            if (rides.get(i) - order.get(i).soloSeconds() > settings.maxDelayMinutes() * 60) {
+            MatchRequest r = order.get(i);
+            if (r.walkSeconds() + rides.get(i) - r.soloSeconds() > settings.maxDelayMinutes() * 60) {
                 return Optional.empty();
             }
         }
-        double totalKm = plan.totalKm(order, roads);
-        double soloKm = order.stream().mapToDouble(MatchRequest::soloKm).sum();
-        if (totalKm > soloKm * (1 - settings.minSavingRate())) {
+        TripPlan.Schedule schedule = plan.schedule(order, rides, slot);
+        if (!schedule.ok()) {
             return Optional.empty();
         }
-        return Optional.of(new Candidate(order, totalKm));
+        return Optional.of(new Candidate(order, plan.totalKm(order, roads), schedule.departure(), rides));
     }
-
 }

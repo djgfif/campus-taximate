@@ -13,6 +13,9 @@ import org.springframework.data.jpa.repository.Query;
 
 public interface PartyRepository extends JpaRepository<Party, Long> {
 
+    List<Party> findByStatus(PartyStatus status);
+    List<Party> findByStatusIn(java.util.Collection<PartyStatus> statuses);
+
     /** 금액 수정, 보냄, 취소처럼 일행을 바꾸는 작업을 한 줄로 세운다. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from Party p where p.id = :id")

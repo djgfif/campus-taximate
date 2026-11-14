@@ -38,6 +38,7 @@ public class BoardingMonitor {
     private final PlatformTransactionManager transactionManager;
     private final ReminderService reminders;
     private final MemberSafetyService safety;
+    private final RideConfirmationService rideConfirmations;
 
     public void check(Instant now) {
         try {
@@ -45,9 +46,9 @@ public class BoardingMonitor {
         } catch (RuntimeException e) {
             log.warn("승차 안내를 다음 판정으로 넘깁니다.", e);
         }
-        TransactionTemplate tx = new TransactionTemplate(transactionManager);
-        for (Party candidate : parties.findByDirectionAndStatusAndDepartureAtLessThanEqual(
-                Direction.TO_SCHOOL, PartyStatus.CONFIRMED, now)) {
+        TransactionTemplate tx = new com.campustaximate.server.common.RetryingTransactionTemplate(transactionManager);
+        for (Party candidate : parties.findByStatusIn(List.of(PartyStatus.CONFIRMED, PartyStatus.READY)).stream()
+                .filter(p -> p.getDirection() == Direction.TO_SCHOOL && !p.getDepartureAt().isAfter(now)).toList()) {
             try {
                 Set<Long> leaving = tx.execute(status -> judge(candidate.getId(), now));
                 if (leaving != null && !leaving.isEmpty()) {
@@ -63,13 +64,17 @@ public class BoardingMonitor {
     private Set<Long> judge(long partyId, Instant now) {
         Party party = parties.findByIdForUpdate(partyId).orElseThrow();
         List<RideRequest> riders = requests.findByPartyOrderByRideOrder(party);
-        if (party.getStatus() != PartyStatus.CONFIRMED) {
+        if (party.getStatus() != PartyStatus.CONFIRMED && party.getStatus() != PartyStatus.READY) {
             return Set.of();
         }
         if (riders.stream().noneMatch(r -> r.getStatus() == RequestStatus.MATCHED)) {
             if (!party.getDepartureAt().plus(SETTLEMENT_LIMIT).isAfter(now)) {
                 party.setStatus(PartyStatus.UNSETTLED);
             }
+            return Set.of();
+        }
+        if(party.paymentFlow()) {
+            if(party.getBoardedAt()!=null) rideConfirmations.start(party,party.getBoardedAt());
             return Set.of();
         }
         for (RideRequest rider : riders) {
@@ -86,6 +91,10 @@ public class BoardingMonitor {
         riders.stream().filter(RideRequest::isNoShow).forEach(r -> leaving.add(r.getId()));
         if (leaving.isEmpty()) {
             riders.forEach(r -> r.finish(RequestStatus.COMPLETED));
+            if (party.paymentFlow()) {
+                party.setStatus(PartyStatus.AWAITING_FARE);
+                if (party.getStartedAt() == null) party.setStartedAt(party.getDepartureAt());
+            }
         }
         return leaving;
     }

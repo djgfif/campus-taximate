@@ -9,6 +9,8 @@ import com.campustaximate.matching.ToSchoolPlan;
 import com.campustaximate.matching.TripPath;
 import com.campustaximate.matching.TripPlan;
 import com.campustaximate.matching.Verdict;
+import com.campustaximate.matching.Verification;
+import com.campustaximate.matching.MatchingSettings;
 import com.campustaximate.server.route.RouteClient;
 import com.campustaximate.settlement.SettlementCalculator;
 import java.time.Duration;
@@ -23,18 +25,26 @@ import java.util.Map;
 final class RouteGroupVerifier implements GroupVerifier {
 
     private static final int MAX_DELAY_SECONDS = 15 * 60;
-    private static final double MIN_SAVING_RATE = 0.10;
     private static final Duration REJECT_KEEP = Duration.ofMinutes(30);
     private static final int MAX_BACKTRACK_QUERIES = 3;
 
     private final RouteClient routes;
     private final Map<List<Long>, Instant> rejected;
     private final Instant now;
-    private final Map<List<Long>, VerifiedRoutes> verified = new HashMap<>();
+    private record RouteKey(long anchorId, List<Long> ids) { }
+    private static RouteKey key(List<MatchRequest> order) {
+        return new RouteKey(order.getFirst().anchorId(), order.stream().map(MatchRequest::id).toList());
+    }
+    private final Map<RouteKey, VerifiedRoutes> verified = new HashMap<>();
+    private final Map<Long, GeoPoint> origins;
+    private final Instant slot;
+    private final MatchingSettings settings;
+    private Instant fixedDeparture;
+    RouteGroupVerifier fixedDeparture(Instant departure){this.fixedDeparture=departure;return this;}
     private final RoutePathStore paths;
     private final Map<Long, Long> requestFares;
 
-    /** rideSeconds는 각자 차 안에 있는 시간이다. departure와 boardAt은 등교만 값이 있다. */
+    /** rideSeconds는 각자 차 안에 있는 시간이다. departure는 검증한 출발 시각이고 boardAt은 순차 승차만 값이 있다. */
     record VerifiedRoutes(List<RouteClient.Route> solo, List<Integer> rideSeconds, long total,
                           Instant departure, List<Instant> boardAt) {
     }
@@ -50,6 +60,19 @@ final class RouteGroupVerifier implements GroupVerifier {
     /** requestFares는 요청할 때 보여 준 단독 요금이다. 시간만 같은 시점으로 다시 조회한다. */
     RouteGroupVerifier(RouteClient routes, Map<List<Long>, Instant> rejected, Instant now, RoutePathStore paths,
                        Map<Long, Long> requestFares) {
+        this(routes, rejected, now, paths, requestFares, Map.of(), minuteFloor(now));
+    }
+
+    RouteGroupVerifier(RouteClient routes, Map<List<Long>, Instant> rejected, Instant now, RoutePathStore paths,
+                       Map<Long, Long> requestFares, Map<Long, GeoPoint> origins, Instant slot) {
+        this(routes,rejected,now,paths,requestFares,origins,slot,MatchingSettings.everyMinute());
+    }
+
+    RouteGroupVerifier(RouteClient routes, Map<List<Long>,Instant> rejected, Instant now, RoutePathStore paths,
+                       Map<Long,Long> requestFares, Map<Long,GeoPoint> origins, Instant slot,MatchingSettings settings) {
+        this.settings=settings;
+        this.origins = origins;
+        this.slot = slot;
         this.requestFares = requestFares;
         this.paths = paths;
         this.routes = routes;
@@ -60,56 +83,106 @@ final class RouteGroupVerifier implements GroupVerifier {
     @Override
     public boolean recentlyRejected(Candidate candidate) {
         Instant until = rejected.get(candidate.sortedIds());
-        return until != null && now.isBefore(until);
+        boolean blocked=until != null && now.isBefore(until);
+        if(blocked)MatchingDiagnostics.reason(slot,candidate.sortedIds(),"REJECT_CACHE",until);
+        return blocked;
     }
 
+    private Verdict unavailable(Candidate candidate) {
+        MatchingDiagnostics.reason(slot,candidate.sortedIds(),"SECONDARY_UNAVAILABLE",candidate.size());return Verdict.UNAVAILABLE;
+    }
     private Verdict reject(Candidate candidate) {
+        return reject(candidate,"SECONDARY_TIME",candidate.departure());
+    }
+    private Verdict reject(Candidate candidate,String code,Object value) {
+        MatchingDiagnostics.reason(slot,candidate.sortedIds(),code,value);
         rejected.put(candidate.sortedIds(), now.plus(REJECT_KEEP));
         return Verdict.FAIL;
     }
 
     /** 통과한 조합의 같은 시점 경로 값. */
     VerifiedRoutes routesOf(List<MatchRequest> order) {
-        return verified.get(order.stream().map(MatchRequest::id).toList());
+        return verified.get(key(order));
     }
 
     @Override
     public Verdict verify(Candidate candidate) {
-        return candidate.order().get(0).direction() == Direction.TO_SCHOOL
-                ? verifyToSchool(candidate) : verifyFromHub(candidate);
+        return check(candidate).verdict();
     }
 
+    @Override
+    public Verification check(Candidate candidate) {
+        if (candidate.order().getFirst().direction() == Direction.TO_SCHOOL) {
+            Verdict verdict = verifyToSchool(candidate);
+            return new Verification(verdict, verdict == Verdict.PASS ? routesOf(candidate.order()).departure() : null);
+        }
+        Verdict verdict = verifyFromHub(candidate);
+        return new Verification(verdict, verdict == Verdict.PASS ? routesOf(candidate.order()).departure() : null);
+    }
+
+    /** 전체 경로 한 번의 구간 누적값으로 개인별 하차를 계산한다. */
     private Verdict verifyFromHub(Candidate candidate) {
         List<MatchRequest> order = candidate.order();
-        GeoPoint hub = order.get(0).anchor();
-        List<GeoPoint> stops = new ArrayList<>();
-        List<RouteClient.Route> cumulative = new ArrayList<>();
+        MatchRequest first = order.getFirst();
+        GeoPoint hub = first.anchor();
+        List<GeoPoint> stops = GeoPoint.mergeStops(order.stream().map(MatchRequest::own).toList());
+        Instant departure = candidate.departure();
+        if (departure == null) departure = slot.plusSeconds(MatchingSettings.everyMinute().leadMinutes() * 60L);
+        boolean instant=order.stream().anyMatch(MatchRequest::instant);
+        Instant minimum=fixedDeparture!=null?fixedDeparture:instant?TripPlan.of(Direction.FROM_HUB,settings).schedule(order,java.util.Collections.nCopies(order.size(),0),slot).departure():slot.plusSeconds(settings.leadMinutes()*60L);
+        if(minimum==null || instant&&order.stream().anyMatch(MatchRequest::arrival)) return reject(candidate);
         List<Integer> seconds = new ArrayList<>();
         List<RouteClient.Route> solo = new ArrayList<>();
+        RouteClient.Route full = null;
+        boolean fits = false;
         try {
-            for (MatchRequest rider : order) {
-                boolean sameStop = !stops.isEmpty() && stops.getLast().isSameStop(rider.own());
-                stops.add(rider.own());
-                RouteClient.Route route = sameStop ? cumulative.getLast() : routes.route(hub, List.copyOf(stops));
-                cumulative.add(route);
-                seconds.add(route.seconds());
-                RouteClient.Route alone = stops.size() == 1 ? route : routes.route(hub, List.of(rider.own()));
-                solo.add(shownFare(rider, alone));
-                if (paths != null) {
-                    paths.remember(hub, stops, route);
-                    paths.remember(hub, List.of(rider.own()), alone);
+            for (int attempt = 0; attempt < MAX_BACKTRACK_QUERIES; attempt++) {
+                if (departure.isBefore(minimum)) return reject(candidate);
+                full = routes.routeAt(hub, stops, departure);
+                List<Integer> legs = legSeconds(full, stops.size());
+                if (legs == null || legs.stream().anyMatch(n -> n < 0)
+                        || legs.stream().mapToLong(Integer::longValue).sum() != full.seconds()) return unavailable(candidate);
+                seconds.clear();
+                int stopIndex = 0;
+                int elapsed = legs.getFirst();
+                for (MatchRequest rider : order) {
+                    while (!stops.get(stopIndex).isSameStop(rider.own())) {
+                        elapsed += legs.get(++stopIndex);
+                    }
+                    seconds.add(elapsed);
                 }
+                if (first.arrival()) {
+                    Instant target = order.stream().map(MatchRequest::arriveBy).min(Instant::compareTo).orElseThrow();
+                    Instant revised = minuteFloor(target.minusSeconds(seconds.getLast()));
+                    if (fixedDeparture==null && !revised.equals(departure)) {
+                        departure = revised;
+                        continue;
+                    }
+                    for (int i = 0; i < order.size(); i++) {
+                        Instant drop = departure.plusSeconds(seconds.get(i));
+                        MatchRequest rider = order.get(i);
+                        if (drop.isBefore(rider.earliestArrival()) || drop.isAfter(rider.arriveBy())) return reject(candidate);
+                    }
+                } else if (order.stream().anyMatch(r -> r.arrival())) {
+                    return reject(candidate);
+                } else {
+                    for (MatchRequest rider : order) if (!rider.instant() && !rider.canDepartAt(departure)) return reject(candidate);
+                }
+                fits = true;
+                break;
+            }
+            if (!fits) return reject(candidate);
+            if (paths != null) paths.remember(hub, stops, full);
+            for (MatchRequest rider : order) {
+                GeoPoint origin = origins.getOrDefault(rider.id(), hub);
+                RouteClient.Route alone = routes.routeAt(origin, List.of(rider.own()), departure);
+                solo.add(shownFare(rider, alone));
+                if (paths != null) paths.remember(origin, List.of(rider.own()), alone);
             }
         } catch (RouteClient.RouteUnavailableException e) {
-            return Verdict.UNAVAILABLE;
+            return unavailable(candidate);
         }
-        for (int i = 1; i < order.size(); i++) {
-            if (seconds.get(i) < seconds.get(i - 1)) {
-                return reject(candidate);
-            }
-        }
-        long total = cumulative.get(cumulative.size() - 1).fare();
-        return finish(candidate, new VerifiedRoutes(List.copyOf(solo), List.copyOf(seconds), total, null, null));
+        return finish(candidate, new VerifiedRoutes(List.copyOf(solo), List.copyOf(seconds), full.fare(), departure, null));
     }
 
     /**
@@ -150,7 +223,7 @@ final class RouteGroupVerifier implements GroupVerifier {
             }
             List<Integer> legs = legSeconds(full, merged.size() - 1);
             if (legs == null) {
-                return Verdict.UNAVAILABLE;
+                return unavailable(candidate);
             }
             if (paths != null) {
                 paths.remember(path.origin(), path.stops(), full);
@@ -171,7 +244,7 @@ final class RouteGroupVerifier implements GroupVerifier {
                 rides.add(index == merged.size() - 2 ? alone.seconds() : secondsAfter(legs, index));
             }
         } catch (RouteClient.RouteUnavailableException e) {
-            return Verdict.UNAVAILABLE;
+            return unavailable(candidate);
         }
         return finish(candidate, new VerifiedRoutes(solo, rides, full.fare(), departure, boardAt));
     }
@@ -214,12 +287,13 @@ final class RouteGroupVerifier implements GroupVerifier {
         List<MatchRequest> order = candidate.order();
         List<RouteClient.Route> solo = routesOfGroup.solo();
         long soloTotal = solo.stream().mapToLong(RouteClient.Route::fare).sum();
-        if (routesOfGroup.total() > soloTotal * (1 - MIN_SAVING_RATE)) {
-            return reject(candidate);
+        if (java.math.BigInteger.valueOf(routesOfGroup.total()).multiply(java.math.BigInteger.TEN)
+                .compareTo(java.math.BigInteger.valueOf(soloTotal).multiply(java.math.BigInteger.valueOf(9))) > 0) {
+            return reject(candidate,"SAVINGS",List.of(routesOfGroup.total(),soloTotal));
         }
         for (int i = 0; i < order.size(); i++) {
-            if (routesOfGroup.rideSeconds().get(i) - solo.get(i).seconds() > MAX_DELAY_SECONDS) {
-                return reject(candidate);
+            if (order.get(i).walkSeconds() + routesOfGroup.rideSeconds().get(i) - solo.get(i).seconds() > MAX_DELAY_SECONDS) {
+                return reject(candidate,"SECONDARY_DELAY",order.get(i).walkSeconds()+routesOfGroup.rideSeconds().get(i)-solo.get(i).seconds());
             }
         }
         try {
@@ -230,7 +304,7 @@ final class RouteGroupVerifier implements GroupVerifier {
         } catch (IllegalArgumentException e) {
             return reject(candidate);
         }
-        verified.put(order.stream().map(MatchRequest::id).toList(), routesOfGroup);
+        verified.put(key(order), routesOfGroup);
         return Verdict.PASS;
     }
 }

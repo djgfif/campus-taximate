@@ -25,7 +25,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 빠진 사람만 빼고 남은 사람으로 일행을 다시 계산한다. 새 사람을 찾지 않는다.
- * 1명만 남거나 다시 조회하지 못하면 일행을 취소한다.
+ * 1명만 남으면 해산한다. 선결제 일행은 재조회 실패 때 저장된 예상값을 유지한다.
+ * 빠진 사람이 부담 없이 나간 경우(미납 제외, 무료 취소, 변경 뒤 무료 이탈)에는 남은 사람으로
+ * 지연 15분·절약 10% 조건을 다시 검사하고, 못 채우면 해산한다 [S43]. 마감 뒤 취소와 노쇼는
+ * 빠진 사람이 늘어난 금액을 부담하므로 다시 검사하지 않는다.
  */
 @Component
 @RequiredArgsConstructor
@@ -39,29 +42,43 @@ public class PartyShrinker {
     private final NotificationService notifications;
     private final PlatformTransactionManager transactionManager;
     private final AppClock clock;
+    private final PartyChangeService changes;
+
+    private static final int MAX_DELAY_SECONDS = 15 * 60;
+    private static final Set<String> FREE_EXITS = Set.of("PREPAY_UNPAID", "FREE_CANCEL", "CHANGE_EXIT_FREE");
 
     private record Stay(long id, GeoPoint own, Instant boardAt, int rideSeconds, double soloKm, int soloSeconds,
-                        long soloFare) {
+                        long soloFare, int walkSeconds) {
     }
 
-    private record Plan(long version, Direction direction, GeoPoint anchor, long total, List<Stay> stays) {
+    private record Plan(long version, Direction direction, GeoPoint anchor, long total, List<Stay> stays, boolean paymentFlow) {
     }
 
     /** departed이면 남은 사람은 탑승 완료가 된다. */
     public void remove(long partyId, Set<Long> requested, Instant now, boolean departed) {
-        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        remove(partyId,requested,now,departed,departed?"NO_SHOW_LEGACY":"MEMBER_LEFT",null,Set.of());
+    }
+
+    public void remove(long partyId, Set<Long> requested, Instant now, boolean departed, String reason, Long groupVersion, Set<Long> held) {
+        TransactionTemplate tx = new com.campustaximate.server.common.RetryingTransactionTemplate(transactionManager);
         Set<Long> leaving = tx.execute(status -> withNoShows(partyId, requested));
-        Plan plan = tx.execute(status -> plan(partyId, leaving));
+        Plan plan = tx.execute(status -> {
+            Party party=parties.findByIdForUpdate(partyId).orElseThrow();
+            if(groupVersion!=null && party.getGroupVersion()!=groupVersion) throw ApiException.conflict("PARTY_CHANGED", "일행이 바뀌었어요. 다시 확인해 주세요.");
+            changes.capture(party,requests.findByPartyOrderByRideOrder(party),true);
+            if(!requests.findByPartyOrderByRideOrder(party).stream().map(RideRequest::getId).toList().containsAll(leaving)) throw ApiException.conflict("NOT_IN_PARTY", "이미 일행에서 빠진 요청입니다.");
+            return plan(partyId,leaving);
+        });
         if (plan.stays().size() < 2) {
-            cancel(tx, partyId, leaving, now, departed);
+            cancel(tx, partyId, leaving, now, departed, reason, held, plan.version());
             return;
         }
         Recalculated result = recalculateOrKeep(plan, departed);
-        if (result == null) {
-            cancel(tx, partyId, leaving, now, departed);
+        if (result == null || !departed && FREE_EXITS.contains(reason) && result.fresh() && !meetsConditions(plan, result)) {
+            cancel(tx, partyId, leaving, now, departed, reason, held, plan.version());
             return;
         }
-        tx.executeWithoutResult(status -> apply(partyId, leaving, plan, result, departed));
+        tx.executeWithoutResult(status -> apply(partyId, leaving, plan, result, departed, reason, held));
     }
 
     /** 이미 택시를 탄 일행은 조회가 실패해도 취소하지 않는다. 취소하면 결제자가 낸 돈을 나눌 길이 없어진다. */
@@ -69,10 +86,27 @@ public class PartyShrinker {
         try {
             return recalculate(plan);
         } catch (RouteClient.RouteUnavailableException e) {
-            return departed ? keepStoredValues(plan) : null;
+            return departed || plan.paymentFlow() ? keepStoredValues(plan) : null;
         } catch (IllegalArgumentException e) {
             return null;
         }
+    }
+
+    /** 확정 때와 같은 식이다. 동승 요금 ≤ 단독 요금 합 × 0.9, 걷기 + 동승 − 단독 ≤ 15분. */
+    private boolean meetsConditions(Plan plan, Recalculated result) {
+        long soloTotal = result.solo().stream().mapToLong(RouteClient.Route::fare).sum();
+        if (java.math.BigInteger.valueOf(result.total()).multiply(java.math.BigInteger.TEN)
+                .compareTo(java.math.BigInteger.valueOf(soloTotal).multiply(java.math.BigInteger.valueOf(9))) > 0) {
+            return false;
+        }
+        for (int i = 0; i < result.ids().size(); i++) {
+            long id = result.ids().get(i);
+            int walk = plan.stays().stream().filter(stay -> stay.id() == id).findFirst().orElseThrow().walkSeconds();
+            if (walk + result.rideSeconds().get(i) - result.solo().get(i).seconds() > MAX_DELAY_SECONDS) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** 저장된 단독 값과 예상 요금을 그대로 쓴다. 실제 금액은 결제 뒤 같은 비율로 나눈다. */
@@ -85,7 +119,7 @@ public class PartyShrinker {
         try {
             return new Recalculated(plan.stays().stream().map(Stay::id).toList(), solo,
                     plan.stays().stream().map(Stay::rideSeconds).toList(), plan.total(),
-                    SettlementCalculator.shares(plan.total(), units, trip.payerIndex(plan.stays().size())));
+                    SettlementCalculator.shares(plan.total(), units, trip.payerIndex(plan.stays().size())), false);
         } catch (IllegalArgumentException e) {
             return null;
         }
@@ -106,15 +140,19 @@ public class PartyShrinker {
         List<Stay> stays = new ArrayList<>();
         for (RideRequest rider : requests.findByPartyOrderByRideOrder(party)) {
             if (!leaving.contains(rider.getId())) {
+                int walk = party.getHub() == null ? 0 : rider.getPoints().stream()
+                        .filter(point -> point.getHub().getId().equals(party.getHub().getId()))
+                        .mapToInt(com.campustaximate.server.domain.RideRequestPoint::getWalkSeconds).findFirst().orElse(0);
                 stays.add(new Stay(rider.getId(), rider.point(), rider.getBoardAt(), rider.getSharedSeconds(),
-                        rider.getSoloKm(), rider.getSoloSeconds(), rider.getSoloFare()));
+                        rider.getSoloKm(), rider.getSoloSeconds(), rider.getSoloFare(), walk));
             }
         }
-        return new Plan(party.getVersion(), party.getDirection(), party.anchorPoint(), party.getExpectedTotal(), stays);
+        return new Plan(party.getVersion(), party.getDirection(), party.anchorPoint(), party.getExpectedTotal(), stays, party.paymentFlow());
     }
 
+    /** fresh는 경로를 새로 조회해 얻은 값이라는 뜻이다. 저장값을 그대로 쓴 경우에는 조건을 다시 검사하지 않는다. */
     private record Recalculated(List<Long> ids, List<RouteClient.Route> solo, List<Integer> rideSeconds,
-                                long total, List<Long> shares) {
+                                long total, List<Long> shares, boolean fresh) {
     }
 
     private Recalculated recalculate(Plan plan) {
@@ -146,7 +184,7 @@ public class PartyShrinker {
         }
         List<Long> units = SettlementCalculator.ratioUnits(shown.stream().map(RouteClient.Route::fare).toList());
         return new Recalculated(stays.stream().map(Stay::id).toList(), shown, rides, total,
-                SettlementCalculator.shares(total, units, trip.payerIndex(stays.size())));
+                SettlementCalculator.shares(total, units, trip.payerIndex(stays.size())), true);
     }
 
     /** 하교. 거점에서 앞사람 지점을 차례로 거친 누적 경로로 각자 시간을 구한다. */
@@ -174,19 +212,21 @@ public class PartyShrinker {
         return route.fare();
     }
 
-    private void cancel(TransactionTemplate tx, long partyId, Set<Long> leaving, Instant now, boolean departed) {
+    private void cancel(TransactionTemplate tx, long partyId, Set<Long> leaving, Instant now, boolean departed, String reason, Set<Long> held, long version) {
         tx.executeWithoutResult(status -> {
             Party party = parties.findByIdForUpdate(partyId).orElseThrow();
-            requireOpen(party, leaving, departed);
+            if(party.getVersion()!=version) throw ApiException.conflict("CONFLICT", "일행이 바뀌었어요. 다시 확인해 주세요.");
+            requireOpen(party, leaving, departed, reason);
+            changes.changed(party,leaving,reason,held);
             canceler.cancel(party, leaving, now);
         });
     }
 
     /** 경로를 조회하는 동안 출발 처리가 끝났거나 빠질 사람의 탑승 시각이 지났으면 바꾸지 않는다. */
-    private void requireOpen(Party party, Set<Long> leaving, boolean departed) {
+    private void requireOpen(Party party, Set<Long> leaving, boolean departed, String reason) {
         List<RideRequest> riders = requests.findByPartyOrderByRideOrder(party);
         boolean closed = riders.stream().anyMatch(rider -> rider.getStatus() != RequestStatus.MATCHED);
-        boolean tooLate = !departed && riders.stream()
+        boolean tooLate = !departed && !"PREPAY_UNPAID".equals(reason) && riders.stream()
                 .filter(rider -> leaving.contains(rider.getId()) && !rider.isNoShow())
                 .anyMatch(rider -> !rider.canCancelAt(clock.now()));
         if (closed || tooLate) {
@@ -194,12 +234,13 @@ public class PartyShrinker {
         }
     }
 
-    private void apply(long partyId, Set<Long> leaving, Plan plan, Recalculated result, boolean departed) {
+    private void apply(long partyId, Set<Long> leaving, Plan plan, Recalculated result, boolean departed, String reason, Set<Long> held) {
         Party party = parties.findByIdForUpdate(partyId).orElseThrow();
         if (party.getVersion() != plan.version()) {
             throw ApiException.conflict("CONFLICT", "일행이 바뀌었습니다. 다시 시도해 주세요.");
         }
-        requireOpen(party, leaving, departed);
+        requireOpen(party, leaving, departed, reason);
+        changes.changed(party,leaving,reason,held);
         List<RideRequest> stay = new ArrayList<>();
         for (RideRequest rider : requests.findByPartyOrderByRideOrder(party)) {
             if (leaving.contains(rider.getId())) {
@@ -230,6 +271,10 @@ public class PartyShrinker {
             }
             notifications.toMember(rider.getMember(), "[캠퍼스 택시메이트] 일행 변경",
                     "일행 중 한 명이 빠져 분담금과 결제자가 다시 계산됐습니다. 앱에서 확인해 주세요.");
+        }
+        if (departed && party.paymentFlow()) {
+            party.setStatus(com.campustaximate.server.domain.PartyStatus.AWAITING_FARE);
+            if (party.getStartedAt() == null) party.setStartedAt(clock.now());
         }
         party.setExpectedTotal(result.total());
         party.setPayer(stay.get(trip.payerIndex(stay.size())).getMember());

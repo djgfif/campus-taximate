@@ -33,6 +33,7 @@ import org.springframework.test.web.servlet.ResultActions;
 @AutoConfigureMockMvc
 @ActiveProfiles("demo")
 class PartyChatFlowTest {
+    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
     @Autowired AppClock clock;
@@ -63,6 +64,7 @@ class PartyChatFlowTest {
     void clean() {
         messages.deleteAll();
         assignments.deleteAll();
+        PaymentTestSupport.clear(jdbc);
         transfers.deleteAll();
         settlements.deleteAll();
         requests.deleteAll();
@@ -175,6 +177,84 @@ class PartyChatFlowTest {
         mvc.perform(post(url(party)).session(session(a)).contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest());
         assertThat(messages.count()).isEqualTo(2);
+    }
+
+    /** 카톡처럼 내 메시지 옆에 안 읽은 사람 수가 보이고, 읽으면 줄어든다. 읽은 위치는 뒤로 가지 않는다. */
+    @Test
+    void readReceiptsCountOtherMembersWhoHaveNotReadYet() throws Exception {
+        Party party = party(a, b, c);
+        long first = body(send(a, party, "정문 앞이에요")).get("id").asLong();
+        JsonNode mine = body(read(a, party)).get("messages").get(0);
+        assertThat(mine.get("unread").asInt()).isEqualTo(2);
+        assertThat(chat.unread(b, party.getId())).isEqualTo(1);
+        mvc.perform(post(url(party) + "/read").session(session(b)).contentType(MediaType.APPLICATION_JSON).content("{\"lastId\":" + first + "}"))
+                .andExpect(status().isOk());
+        assertThat(body(read(a, party)).get("messages").get(0).get("unread").asInt()).isEqualTo(1);
+        assertThat(chat.unread(b, party.getId())).isZero();
+        assertThat(chat.markRead(b, party.getId(), 0)).isEqualTo(first);
+        verify(changes, atLeastOnce()).chatChanged(eq(party.getId()), anyCollection());
+    }
+
+    @Test
+    void sameClientIdIsSavedOnceEvenWhenRetried() throws Exception {
+        Party party = party(a, b);
+        String bodyJson = json.writeValueAsString(Map.of("text", "택시 잡았어요", "clientId", "c-1234"));
+        long one = body(mvc.perform(post(url(party)).session(session(a)).contentType(MediaType.APPLICATION_JSON).content(bodyJson))).get("id").asLong();
+        long two = body(mvc.perform(post(url(party)).session(session(a)).contentType(MediaType.APPLICATION_JSON).content(bodyJson))).get("id").asLong();
+        assertThat(two).isEqualTo(one);
+        assertThat(messages.count()).isEqualTo(1);
+    }
+
+    @Test
+    void moreThanTenMessagesInAMinuteAreRejected() throws Exception {
+        Party party = party(a, b);
+        for (int i = 0; i < 10; i++) send(a, party, "메시지 " + i).andExpect(status().isOk());
+        send(a, party, "열한 번째").andExpect(status().isTooManyRequests());
+        clock.moveTo(clock.now().plusSeconds(61));
+        send(a, party, "1분 뒤").andExpect(status().isOk());
+    }
+
+    @Test
+    void olderMessagesArePagedBeforeTheOldestShownOne() throws Exception {
+        Party party = party(a, b);
+        Member sender = members.findById(a).orElseThrow();
+        for (int i = 0; i < 60; i++) messages.save(new PartyMessage(party, sender, "m" + i, clock.now()));
+        JsonNode latest = body(read(a, party));
+        assertThat(latest.get("messages")).hasSize(50);
+        assertThat(latest.get("hasOlder").asBoolean()).isTrue();
+        long oldestShown = latest.get("messages").get(0).get("id").asLong();
+        JsonNode older = body(mvc.perform(get(url(party) + "?before=" + oldestShown).session(session(a))));
+        assertThat(older.get("messages")).hasSize(10);
+        assertThat(older.get("messages").get(0).get("text").asText()).isEqualTo("m0");
+    }
+
+    @Test
+    void imagesAreCheckedByBytesAndServedOnlyToMembers() throws Exception {
+        Party party = party(a, b);
+        byte[] png = {(byte) 0x89, 'P', 'N', 'G', 13, 10, 26, 10, 0, 0, 0, 0};
+        JsonNode sent = body(mvc.perform(multipart(url(party) + "/image")
+                .file(new org.springframework.mock.web.MockMultipartFile("image", "a.png", "image/png", png))
+                .param("clientId", "img-1").session(session(a))).andExpect(status().isOk()));
+        assertThat(sent.get("kind").asText()).isEqualTo("IMAGE");
+        String imageUrl = sent.get("imageUrl").asText();
+        mvc.perform(get(imageUrl).session(session(b))).andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().contentType("image/png"));
+        mvc.perform(get(imageUrl).session(session(outsider))).andExpect(status().isForbidden());
+        mvc.perform(multipart(url(party) + "/image")
+                .file(new org.springframework.mock.web.MockMultipartFile("image", "fake.png", "image/png", "not image".getBytes()))
+                .session(session(a))).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void systemNoticesHaveNoSenderAndNoUnreadCount() throws Exception {
+        Party party = party(a, b);
+        chat.system(party, a, "%s님이 선결제를 마쳤어요.");
+        JsonNode notice = body(read(b, party)).get("messages").get(0);
+        assertThat(notice.get("kind").asText()).isEqualTo("SYSTEM");
+        assertThat(notice.get("memberId").isNull()).isTrue();
+        assertThat(notice.get("unread").asInt()).isZero();
+        assertThat(notice.get("text").asText()).endsWith("님이 선결제를 마쳤어요.");
+        assertThat(chat.unread(b, party.getId())).isEqualTo(1);
     }
 
     private void assertClosed(Party party) throws Exception {

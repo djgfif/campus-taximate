@@ -138,21 +138,21 @@ describe('일행 채팅', () => {
     const view = render(<PartyChat {...props} />)
     expect(screen.getByRole('region', { name: '일행 채팅' })).toBeTruthy()
     await screen.findByText('기다리고 있어요')
-    expect(screen.getByText('나 (내별명)')).toBeTruthy()
+    expect(screen.queryByText('나 (내별명)')).toBeNull() // 내 말풍선에는 카톡처럼 이름을 붙이지 않는다
     expect(screen.getAllByRole('button', { name: /메시지 신고/ })).toHaveLength(1)
     const input = screen.getByRole('textbox', { name: '일행에게 보낼 메시지' })
     expect(input.maxLength).toBe(200)
-    for (const phrase of ['조금 늦어요', '도착했어요, 어디 계세요?', '택시 잡았어요']) {
+    for (const phrase of ['어디쯤이세요?', '도착했어요!', '택시 잡았어요']) {
       fireEvent.click(screen.getByRole('button', { name: phrase, exact: true }))
-      await waitFor(() => expect(send).toHaveBeenLastCalledWith(11, phrase))
+      await waitFor(() => expect(send).toHaveBeenLastCalledWith(11, phrase, expect.any(String)))
       await waitFor(() => expect(screen.getByRole('button', { name: phrase, exact: true }).disabled).toBe(false))
     }
-    fireEvent.click(screen.getByRole('button', { name: '인상착의:', exact: true }))
-    expect(input.value).toBe('인상착의: ')
+    fireEvent.click(screen.getByRole('button', { name: '내 옷차림 알리기', exact: true }))
+    expect(input.value).toBe('저는 ')
     expect(document.activeElement).toBe(input)
-    fireEvent.change(input, { target: { value: '인상착의: 파란 외투예요' } })
+    fireEvent.change(input, { target: { value: '저는 파란 외투 입었어요' } })
     fireEvent.click(screen.getByRole('button', { name: '메시지 보내기' }))
-    await waitFor(() => expect(send).toHaveBeenCalledWith(11, '인상착의: 파란 외투예요'))
+    await waitFor(() => expect(send).toHaveBeenCalledWith(11, '저는 파란 외투 입었어요', expect.any(String)))
     await waitFor(() => expect(input.value).toBe(''))
     fireEvent.click(screen.getByRole('button', { name: '일행님 메시지 신고' }))
     await screen.findByRole('dialog', { name: '일행님 신고·다시 매칭 안 함' })

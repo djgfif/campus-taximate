@@ -37,7 +37,7 @@ import org.springframework.test.web.servlet.ResultActions;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("demo")
-@TestPropertySource(properties = "app.upload-dir=target/test-uploads")
+@TestPropertySource(properties = {"app.upload-dir=target/test-uploads", "app.features.sequential-pickup=true"})
 class CommuteFlowTest {
 
     /** 학교에서 가까운 순서. */
@@ -47,6 +47,10 @@ class CommuteFlowTest {
     @Autowired private ObjectMapper json;
     @Autowired private AppClock clock;
     @Autowired private DemoService demo;
+    @Autowired private com.campustaximate.server.service.PaymentService payments;
+    @Autowired private com.campustaximate.server.repository.PaymentOrderRepository paymentOrders;
+    @Autowired private com.campustaximate.server.repository.SettlementShareRepository allocations;
+    @Autowired private com.campustaximate.server.repository.PayoutLedgerRepository payouts;
     @Autowired private MemberRepository members;
     @Autowired private RideRequestRepository requests;
     @Autowired private PartyRepository parties;
@@ -59,6 +63,7 @@ class CommuteFlowTest {
 
     @BeforeEach
     void reset() {
+        PaymentTestSupport.clear(jdbc);
         transfers.deleteAll();
         settlements.deleteAll();
         requests.deleteAll();
@@ -111,26 +116,11 @@ class CommuteFlowTest {
         long total = onlyParty(farthest).get("expectedTotal").asLong();
         submit(partyId, total, "OO은행", "123-456-789", farthest).andExpect(status().isOk());
 
-        JsonNode settlement = onlyParty(users.get(0)).get("settlement");
-        assertThat(settlement.get("bankName").asText()).isEqualTo("OO은행");
-        assertThat(settlement.get("accountNumber").asText()).isEqualTo("123-456-789");
-        assertThat(settlement.get("transfers")).hasSize(2);
-        long sent = 0;
-        long payerId = onlyParty(farthest).get("payerId").asLong();
-        for (JsonNode transfer : settlement.get("transfers")) {
-            assertThat(transfer.get("senderId").asLong()).isNotEqualTo(payerId);
-            sent += transfer.get("amount").asLong();
-        }
-        assertThat(sent).isLessThan(total);
-        assertThat(total - sent).isGreaterThan(sent / 2);
-
-        for (JsonNode transfer : settlement.get("transfers")) {
-            MockHttpSession sender = sessionOf(users, transfer.get("senderId").asLong());
-            mvc.perform(post("/api/transfers/" + transfer.get("id").asLong() + "/sent").session(sender)
-                    .contentType(MediaType.APPLICATION_JSON).content("{\"revision\":0}")).andExpect(status().isOk());
-            mvc.perform(post("/api/transfers/" + transfer.get("id").asLong() + "/received").session(farthest))
-                    .andExpect(status().isOk());
-        }
+        assertThat(transfers.count()).isZero();
+        assertThat(settlements.findAll().getFirst().getAccountNumber()).isNull();
+        advance(24 * 60 + 1);
+        assertThat(payouts.findAll()).hasSize(1);
+        assertThat(allocations.findAll().stream().mapToLong(a -> a.getAmount()).sum()).isEqualTo(total);
         assertThat(state(farthest).get("parties")).isEmpty();
         var stored = settlements.findAll().get(0);
         assertThat(stored.getBankName()).isNull();
@@ -143,6 +133,7 @@ class CommuteFlowTest {
         List<MockHttpSession> users = threeRequests();
         advanceToDeadline();
         JsonNode party = onlyParty(users.get(2));
+        legacyParty(party.get("id").asLong());
         long partyId = party.get("id").asLong();
         boarded(partyId, users.get(2)).andExpect(status().isOk());
 
@@ -160,6 +151,7 @@ class CommuteFlowTest {
         List<MockHttpSession> users = threeRequests();
         advanceToDeadline();
         JsonNode party = onlyParty(users.get(2));
+        legacyParty(party.get("id").asLong());
         long partyId = party.get("id").asLong();
         Instant lastBoard = Instant.parse(party.get("members").get(2).get("boardAt").asText());
         boarded(partyId, users.get(2)).andExpect(status().isOk());
@@ -185,6 +177,7 @@ class CommuteFlowTest {
         List<MockHttpSession> users = threeRequests();
         advanceToDeadline();
         JsonNode party = onlyParty(users.get(2));
+        legacyParty(party.get("id").asLong());
         long partyId = party.get("id").asLong();
         arrive(partyId, users.get(1)).andExpect(status().isOk());
         arrive(partyId, users.get(0)).andExpect(status().isOk());
@@ -206,7 +199,9 @@ class CommuteFlowTest {
                 .andExpect(status().isOk());
         JsonNode transfersView = onlyParty(users.get(0)).get("settlement").get("transfers");
         assertThat(transfersView).hasSize(1);
-        assertThat(transfersView.get(0).get("senderId").asLong()).isEqualTo(idOf(users.get(0)));
+        assertThat(allocations.findAll()).isEmpty();
+        long remainingId = idOf(users.get(0));
+        assertThat(transfersView.get(0).get("senderId").asLong()).isEqualTo(remainingId);
     }
 
     @Test
@@ -214,6 +209,7 @@ class CommuteFlowTest {
         List<MockHttpSession> users = threeRequests();
         advanceToDeadline();
         JsonNode party = onlyParty(users.get(2));
+        legacyParty(party.get("id").asLong());
         boarded(party.get("id").asLong(), users.get(2)).andExpect(status().isOk());
 
         passAllBoardings(party);
@@ -230,6 +226,7 @@ class CommuteFlowTest {
         List<MockHttpSession> users = threeRequests();
         advanceToDeadline();
         JsonNode party = onlyParty(users.get(2));
+        legacyParty(party.get("id").asLong());
         long partyId = party.get("id").asLong();
         boarded(partyId, users.get(2)).andExpect(status().isOk());
         arrive(partyId, users.get(0)).andExpect(status().isOk());
@@ -238,7 +235,8 @@ class CommuteFlowTest {
         JsonNode state = state(users.get(1));
         assertThat(state.get("parties")).isEmpty();
         assertThat(state.get("latestRequest").get("endReason").asText()).isEqualTo("NO_SHOW");
-        createRequest(users.get(1), POINTS[1], arriveBy.plus(Duration.ofDays(1))).andExpect(status().isOk());
+        // 예약 상한(다음 날 23:59) 안에 들도록 하루가 아닌 12시간 뒤로 잡는다. 하루 뒤는 저녁에 실행하면 상한을 넘는다.
+        createRequest(users.get(1), POINTS[1], arriveBy.plus(Duration.ofHours(12))).andExpect(status().isOk());
 
         passAllBoardings(party);
 
@@ -267,6 +265,7 @@ class CommuteFlowTest {
         List<MockHttpSession> users = threeRequests();
         advanceToDeadline();
         JsonNode party = onlyParty(users.get(2));
+        legacyParty(party.get("id").asLong());
         long partyId = party.get("id").asLong();
         boarded(partyId, users.get(2)).andExpect(status().isOk());
         moveTo(Instant.parse(party.get("departureAt").asText()).plusSeconds(60));
@@ -312,6 +311,12 @@ class CommuteFlowTest {
         advanceToDeadline();
         JsonNode party = onlyParty(users.get(2));
         assertThat(party.get("members")).hasSize(4);
+        // S39: 선결제 기한이 출발 20분 전으로 늦어져 이 시점엔 아직 기한 전일 수 있다. 핵심은 모두 기한 전에 결제한 것.
+        assertThat(party.get("status").asText()).isIn("PREPAYING", "READY");
+        assertThat(paymentOrders.findByPartyIdOrderById(party.get("id").asLong())).hasSize(3)
+                .allMatch(order -> order.getStatus() == com.campustaximate.server.domain.PaymentStatus.APPROVED
+                        && order.getApprovedAt().isBefore(order.getDeadlineAt()));
+        legacyParty(party.get("id").asLong());
         JsonNode riders = party.get("members");
         moveTo(Instant.parse(riders.get(0).get("arriveDeadline").asText()).plusSeconds(60));
 
@@ -331,6 +336,7 @@ class CommuteFlowTest {
         List<MockHttpSession> users = threeRequests();
         advanceToDeadline();
         JsonNode party = onlyParty(users.get(2));
+        legacyParty(party.get("id").asLong());
         long partyId = party.get("id").asLong();
         long total = party.get("expectedTotal").asLong();
         boarded(partyId, users.get(2)).andExpect(status().isOk());
@@ -352,23 +358,19 @@ class CommuteFlowTest {
     void reuploadRestartsTheSevenDayKeep() throws Exception {
         List<MockHttpSession> users = settledReady();
         MockHttpSession payer = users.get(2);
-        JsonNode party = onlyParty(payer);
-        long partyId = party.get("id").asLong();
-        long total = party.get("expectedTotal").asLong();
-        submit(partyId, total, "OO은행", "123-456-789", payer).andExpect(status().isOk());
-        demo.advance(48 * 60);
-        demo.advance(48 * 60);
-        demo.advance(48 * 60);
-        demo.advance(25 * 60);
-        assertThat(onlyParty(users.get(0)).get("settlement").get("accountNumber").isNull()).isTrue();
-
-        MockMultipartFile receipt = new MockMultipartFile("receipt", "n.png", "image/png", new byte[] {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 4});
-        mvc.perform(multipart("/api/parties/" + partyId + "/settlement/correction").file(receipt)
-                .param("amount", String.valueOf(total)).param("bankName", "OO은행")
-                .param("accountNumber", "123-456-789").session(payer)).andExpect(status().isOk());
-        demo.advance(10);
-
-        assertThat(onlyParty(users.get(0)).get("settlement").get("accountNumber").asText()).isEqualTo("123-456-789");
+        long id = onlyParty(payer).get("id").asLong();
+        long total = onlyParty(payer).get("expectedTotal").asLong();
+        submit(id, total, "", "", payer).andExpect(status().isOk());
+        Instant previous = settlements.findAll().getFirst().getStoredAt();
+        advance(60);
+        MockMultipartFile receipt = new MockMultipartFile("receipt", "n.png", "image/png", new byte[] {(byte) 0x89, 80, 78, 71, 13, 10, 26, 10, 1});
+        mvc.perform(multipart("/api/parties/" + id + "/settlement/correction").file(receipt)
+                .param("amount", String.valueOf(total)).session(payer)).andExpect(status().isOk());
+        assertThat(settlements.findAll().getFirst().getStoredAt()).isAfter(previous);
+        assertThat(settlements.findAll().getFirst().getObjectionDeadlineAt()).isEqualTo(settlements.findAll().getFirst().getStoredAt().plusSeconds(24 * 3600));
+        advance(24 * 60 + 1);
+        mvc.perform(multipart("/api/parties/" + id + "/settlement/correction").file(receipt)
+                .param("amount", String.valueOf(total)).session(payer)).andExpect(status().isConflict());
     }
 
     @Test
@@ -417,7 +419,7 @@ class CommuteFlowTest {
     @Test
     void requestTooCloseToArrivalIsRejected() throws Exception {
         MockHttpSession a = login("demo-f1");
-        createRequest(a, POINTS[0], AppClock.slotOf(clock.now()).plus(Duration.ofMinutes(90)))
+        createRequest(a, POINTS[0], AppClock.slotOf(clock.now()).plus(Duration.ofMinutes(60)))
                 .andExpect(status().isBadRequest());
         createRequest(a, POINTS[0], arriveBy.plusSeconds(60)).andExpect(status().isBadRequest());
     }
@@ -457,27 +459,13 @@ class CommuteFlowTest {
     void accountIsRequiredEncryptedHiddenFromOutsidersAndDeletedAfterSevenDays() throws Exception {
         List<MockHttpSession> users = settledReady();
         MockHttpSession payer = users.get(2);
-        long partyId = onlyParty(payer).get("id").asLong();
+        long id = onlyParty(payer).get("id").asLong();
         long total = onlyParty(payer).get("expectedTotal").asLong();
-
-        submit(partyId, total, "", "123-456-789", payer).andExpect(status().isBadRequest());
-        submit(partyId, total, "OO은행", "계좌", payer).andExpect(status().isBadRequest());
-        submit(partyId, total, "OO은행", "123-456-789", payer).andExpect(status().isOk());
-
-        String raw = jdbc.queryForObject("select account_number from settlement", String.class);
-        assertThat(raw).isNotNull().doesNotContain("123-456-789");
-
-        MockHttpSession outsider = login("demo-f4");
-        mvc.perform(get("/api/parties/" + partyId).session(outsider)).andExpect(status().isForbidden());
-
-        demo.advance(48 * 60);
-        demo.advance(48 * 60);
-        demo.advance(48 * 60);
-        demo.advance(25 * 60);
-        var stored = settlements.findAll().get(0);
-        assertThat(stored.getAccountNumber()).isNull();
-        assertThat(stored.getBankName()).isNull();
-        assertThat(stored.getPaidAmount()).isEqualTo(total);
+        submit(id, total, "입력해도 저장하지 않음", "계좌", payer).andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("select account_number from settlement", String.class)).isNull();
+        assertThat(settlements.findAll().getFirst().getBankName()).isNull();
+        mvc.perform(get("/api/parties/" + id).session(login("demo-f4"))).andExpect(status().isForbidden());
+        assertThat(transfers.count()).isZero();
     }
 
     @Test
@@ -494,8 +482,18 @@ class CommuteFlowTest {
         demo.actAsSamples(idOf(me));
         JsonNode settled = onlyParty(me);
         if (!settled.get("payer").asBoolean()) {
-            assertThat(settled.get("settlement").get("accountNumber").asText()).isNotBlank();
+            assertThat(settled.get("settlement").get("accountNumber").isNull()).isTrue();
+            assertThat(settled.get("status").asText()).isEqualTo("OBJECTION_WINDOW");
         }
+    }
+
+    /** 순차 승차의 자동 노쇼·승계는 레거시 일행에서 유지한다. */
+    private void legacyParty(long id) {
+        var party=parties.findById(id).orElseThrow(); party.setPaymentFlowVersion(0);
+        party.setPrepayDeadlineAt(null); party.setConfirmedAt(null);
+        jdbc.update("delete from payment_operation where payment_order_id in (select id from payment_order where party_id=?)",id);
+        jdbc.update("delete from payment_order where party_id=?",id);
+        party.setStatus(com.campustaximate.server.domain.PartyStatus.CONFIRMED); parties.save(party);
     }
 
     private List<MockHttpSession> settledReady() throws Exception {
@@ -518,7 +516,7 @@ class CommuteFlowTest {
     private void moveTo(Instant target) {
         long seconds = Duration.between(clock.now(), target).getSeconds();
         if (seconds > 0) {
-            demo.advance((int) ((seconds + 59) / 60));
+            advance((int) ((seconds + 59) / 60));
         }
     }
 
@@ -617,6 +615,19 @@ class CommuteFlowTest {
                 .map(com.campustaximate.server.domain.RideRequest::resultBy)
                 .min(java.time.Instant::compareTo).orElseThrow();
         long minutes = java.time.Duration.between(clock.now(), deadline).toMinutes() + 1;
-        demo.advance((int) Math.max(5, minutes));
+        advance((int) Math.max(5, minutes));
+    }
+    private void advance(int minutes) {
+        if (minutes < 1 || minutes > 48 * 60) {
+            demo.advance(minutes); // 유효 범위 밖 입력은 기존 시연 검증을 그대로 따른다.
+            return;
+        }
+        PaymentTestSupport.approveEligible(payments, paymentOrders, parties, clock);
+        // 네 명은 모집 마감 전에도 확정된다. 중간에 생긴 주문도 기한 전에 승인한다.
+        for (int elapsed = 0; elapsed < minutes; elapsed++) {
+            demo.advance(1);
+            PaymentTestSupport.approveEligible(payments, paymentOrders, parties, clock);
+        }
+        payments.retryDue();
     }
 }

@@ -14,6 +14,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
+@lombok.Setter
 @Getter
 @NoArgsConstructor
 public class Hub {
@@ -28,6 +29,10 @@ public class Hub {
     /** 일행이 만나는 정확한 위치 문구. */
     @Column(nullable = false)
     private String meetingPoint;
+
+    private boolean fieldChecked = true;
+
+    private boolean active = true;
 
     private double lat;
 

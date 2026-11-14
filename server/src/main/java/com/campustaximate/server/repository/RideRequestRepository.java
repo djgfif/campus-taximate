@@ -15,7 +15,11 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface RideRequestRepository extends JpaRepository<RideRequest, Long> {
 
-    @EntityGraph(attributePaths = {"member", "hub", "school"})
+    @Override
+    @EntityGraph(attributePaths = {"points", "points.hub", "hub", "school", "member"})
+    Optional<RideRequest> findById(Long id);
+
+    @EntityGraph(attributePaths = {"member", "hub", "school", "points", "points.hub"})
     List<RideRequest> findByStatus(RequestStatus status);
 
     @EntityGraph(attributePaths = {"member"})
@@ -42,7 +46,7 @@ public interface RideRequestRepository extends JpaRepository<RideRequest, Long> 
 
     @Query("select r from RideRequest r join fetch r.party p join fetch r.member left join fetch r.hub h "
             + "where r.status = com.campustaximate.server.domain.RequestStatus.MATCHED and r.noShow = false and r.remindedAt is null "
-            + "and p.status = com.campustaximate.server.domain.PartyStatus.CONFIRMED "
+            + "and p.status in (com.campustaximate.server.domain.PartyStatus.CONFIRMED, com.campustaximate.server.domain.PartyStatus.PREPAYING, com.campustaximate.server.domain.PartyStatus.READY) "
             + "and coalesce(r.boardAt, p.departureAt) > :now and coalesce(r.boardAt, p.departureAt) <= :until")
     List<RideRequest> findDueReminders(Instant now, Instant until);
 
@@ -54,4 +58,6 @@ public interface RideRequestRepository extends JpaRepository<RideRequest, Long> 
 
     @Query("select r.member.id from RideRequest r where r.party.id = :partyId")
     List<Long> findMemberIdsByPartyId(long partyId);
+
+    long countByMemberIdAndStatusAndNoShowFalse(Long memberId, com.campustaximate.server.domain.RequestStatus status);
 }
