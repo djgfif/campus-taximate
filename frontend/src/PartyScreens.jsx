@@ -364,7 +364,7 @@ function NextAction({ party, now, myId, mine, config, run, onUpdated, onDriver }
     extra = <RideConfirmationCard party={party} onUpdated={onUpdated} />
   } else if (party.status === 'PREPAYING' && !party.payer) {
     title = '선결제를 마쳐 주세요'
-    detail = '내 몫보다 조금 넉넉히(115%) 내 두고, 내린 뒤 실제 요금으로 나눠 남는 돈은 돌려받아요.'
+    detail = '내 몫에 여유 15%를 더해 미리 내고, 내린 뒤 실제 요금으로 나눠 남는 돈은 돌려받아요.'
     extra = <PaymentCard compact partyId={party.id} myId={myId} now={now} config={config} onUpdated={onUpdated} />
   } else if (waiting && party.payer) {
     if (party.calledAt) {
@@ -490,7 +490,7 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
           <summary>규칙 자세히</summary>
           <ul>
             <li>{free ? '무료 취소 마감 전 취소하면 승인된 선결제를 전액 환불해요.' : '무료 취소 마감이 지나 취소하면 남은 일행의 늘어난 몫을 보전해요.'}</li>
-            <li>선결제는 확정 때 내 몫의 115%예요. 길이 막히면 요금이 늘 수 있어서 조금 더 받아 두고, 실제 요금으로 나눈 뒤 남으면 돌려주고 모자라면 더 받아요.</li>
+            <li>선결제는 확정 때 내 몫에 여유 15%를 더한 금액이에요. 길이 막히면 요금이 늘 수 있어서 조금 더 받아 두고, 실제 요금으로 나눈 뒤 남으면 돌려주고 모자라면 더 받아요.</li>
             {party.instant && <li>즉시 일행은 선결제 기한이 확정 뒤 {config?.instantMatching?.prepMinutes ?? 3}분이고, 모두 준비되면 바로 호출해요.</li>}
             <li>택시는 결제자가 카카오T로 직접 불러요. 앱은 부른 사실만 기록해요.</li>
             <li>운행 시작 표시가 없으면 탔는지 물어보고, 미운행이 확인될 때만 환불해요.</li>

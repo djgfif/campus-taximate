@@ -47,6 +47,7 @@ class MatchingConnectionTest {
     @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
     @MockBean RouteClient routes;
     @SpyBean AppClock clock;
+    @SpyBean com.campustaximate.server.route.WalkEstimator walks;
     List<Hub> points;
     long a, b;
 
@@ -327,6 +328,16 @@ class MatchingConnectionTest {
         assertThat(requests.findByStatus(RequestStatus.WAITING)).isEmpty();
         assertThat(jdbc.queryForObject("select count(*) from mail_outbox where subject=? and recipient=?", Integer.class,
                 "[캠퍼스 택시메이트] 미성사", "demo-f1@daejin.ac.kr")).isEqualTo(1);
+    }
+
+    @Test
+    void E02_walkUnavailableRejectsRequestWithoutSaving() throws Exception {
+        doThrow(new com.campustaximate.server.route.WalkUnavailableException()).when(walks).estimate(any(), any());
+        var body = departure(0);
+        body.put("origin", Map.of("lat", 37.004, "lon", 127));
+        create(a, body).andExpect(status().isServiceUnavailable())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.code").value("WALK_UNAVAILABLE"));
+        assertThat(requests.findByStatus(RequestStatus.WAITING)).isEmpty();
     }
 
     @Test
