@@ -403,6 +403,12 @@ public class ApiController {
         parties.board(memberId(session), id);
     }
 
+    @PostMapping("/parties/{id}/boarding-code")
+    public void confirmBoarding(@PathVariable long id, @RequestBody PartyService.BoardingCodeBody body,
+                                HttpSession session) {
+        parties.confirmBoarding(memberId(session), id, body.code());
+    }
+
     @GetMapping("/parties/{id}/settlement/preview")
     public List<SettlementService.ShareView> previewSettlement(@PathVariable long id, @RequestParam long amount,
                                                                HttpSession session) {
