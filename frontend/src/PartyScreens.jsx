@@ -328,6 +328,12 @@ function SchoolPayer({ party, now, myId, run, onDetail, onHome, onMenu }) {
             {handedOver ? '앞 승차자가 오지 않아 내가 결제자가 됐습니다.' : '첫 승차자가 결제자입니다.'} {REAL_NAME}
           </Say>
         )}
+        {boarded && party.boardingCode && (
+          <Say tone="calm" title="동승자에게 탑승 인증번호를 알려 주세요">
+            <strong className="boarding-code" aria-label={`탑승 인증번호 ${party.boardingCode}`}>{party.boardingCode}</strong>
+            이 번호를 입력한 동승자만 탑승 확인됩니다.
+          </Say>
+        )}
         <Rail items={stops} />
       </div>
       <div className="band" />
@@ -347,12 +353,14 @@ function SchoolPayer({ party, now, myId, run, onDetail, onHome, onMenu }) {
 
 function SchoolRider({ party, now, run, onDetail, onHome, onMenu }) {
   const [asking, setAsking] = useState(false)
+  const [boardingCode, setBoardingCode] = useState('')
   const boarded = party.boardedAt != null
   const mine = party.members.find((m) => m.requestId === party.myRequestId)
   const missed = !mine.arrived && !party.canArrive
   const wide = useWide()
-  const primary = party.canArrive
-    ? <Btn onClick={() => run(() => api.arrive(party.id), '도착을 표시했어요')}>도착했어요</Btn>
+  const primary = party.canArrive && boarded
+    ? <Btn disabled={boardingCode.length !== 6}
+        onClick={() => run(async () => { await api.confirmBoarding(party.id, boardingCode); setBoardingCode('') }, '탑승을 확인했어요')}>인증번호 확인</Btn>
     : mine.arrived && party.canCancel ? <Arrived /> : null
   return (
     <Screen aside={<RouteSide party={party} mine={mine} />} foot={<Foot party={party} primary={primary} onCancel={() => setAsking(true)} onHome={onHome} />}>
@@ -367,13 +375,21 @@ function SchoolRider({ party, now, run, onDetail, onHome, onMenu }) {
         ) : mine.arrived ? (
           <Say title="도착을 표시했어요">택시가 오면 타 주세요. 택시는 {party.payerNickname}님이 잡습니다.</Say>
         ) : boarded ? (
-          <Say title="승차 지점에서 기다려 주세요">{party.payerNickname}님이 택시를 타고 출발했어요.</Say>
+          <Say title="결제자에게 인증번호를 받아 입력해 주세요">번호가 확인되면 탑승 완료로 표시됩니다.</Say>
         ) : wide && party.canArrive ? null : (
           <Say title="승차 시각에 맞춰 나와 주세요">{party.payerNickname}님이 택시를 타면 남은 시간을 알려 드려요.</Say>
         )}
-        {party.canArrive && (
-          <Say tone="calm" title={`${formatTime(party.arriveDeadline)}까지 눌러 주세요`}>이때까지 도착 표시가 없으면 일행에서 빠지고 노쇼로 기록돼요. 30일 안에 두 번이면 7일 동안 새 요청을 할 수 없어요.</Say>
+        {party.canArrive && boarded && (
+          <>
+            <label className="field code">탑승 인증번호
+              <input inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={boardingCode}
+                placeholder="숫자 6자리" aria-label="탑승 인증번호"
+                onChange={(e) => setBoardingCode(e.target.value.replace(/\D/g, '').slice(0, 6))} />
+            </label>
+            <Say tone="calm" title={`${formatTime(party.arriveDeadline)}까지 입력해 주세요`}>인증번호가 확인되지 않으면 일행에서 빠지고 노쇼로 기록됩니다.</Say>
+          </>
         )}
+        {party.canArrive && !boarded && <Say tone="calm" title={`${formatTime(party.arriveDeadline)}까지 탑승해야 해요`}>결제자가 택시를 탄 뒤 알려 주는 인증번호를 입력하면 탑승 확인됩니다.</Say>}
         <Rows items={[['내 예상 분담금', won(party.myShare), 'big'], ['학교 도착', formatTime(party.arrivalAt)]]} />
         <div className="list"><Item title="분담금과 경로 자세히" onClick={onDetail} /></div>
       </div>
