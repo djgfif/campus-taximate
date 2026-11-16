@@ -109,6 +109,9 @@ public class RideRequest {
 
     private boolean arrived;
 
+    /** 일행별 탑승 코드 입력 실패 횟수. 무차별 대입을 제한한다. */
+    private int boardingCodeFailures;
+
     /** 등교에서 승차 시각 3분 뒤까지 도착 표시가 없었다. 마지막 판정 때 일행에서 빠진다. */
     private boolean noShow;
 
