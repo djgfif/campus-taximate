@@ -21,6 +21,7 @@ import com.campustaximate.server.repository.TransferRequestRepository;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.security.SecureRandom;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +32,8 @@ public class PartyService {
 
     private static final double WARNING_RATE = 0.15;
     private static final Duration CALL_BEFORE = Duration.ofMinutes(10);
+    private static final SecureRandom RANDOM = new SecureRandom();
+    private static final int MAX_BOARDING_CODE_FAILURES = 5;
 
     private final PartyRepository parties;
     private final RideRequestRepository requests;
@@ -59,13 +62,19 @@ public class PartyService {
                             Instant callAt, Instant arriveDeadline, long expectedTotal, long soloTotal,
                             long payerId, String payerNickname, boolean payer, boolean canArrive, boolean canBoard,
                             boolean canCancel, boolean canSettle, long myRequestId, long myShare, long mySoloFare,
-                            List<MemberView> members, SettlementView settlement) {
+                            List<MemberView> members, SettlementView settlement, String boardingCode) {
+    }
+
+    public record BoardingCodeBody(String code) {
     }
 
     @Transactional
     public void arrive(long memberId, long partyId) {
         Party party = parties.findByIdForUpdate(partyId).orElseThrow(() -> ApiException.notFound("없는 일행입니다."));
         RideRequest mine = mineOf(party, memberId);
+        if (party.getDirection() == Direction.TO_SCHOOL) {
+            throw ApiException.conflict("BOARDING_CODE_REQUIRED", "결제자가 알려 준 탑승 인증번호를 입력해 주세요.");
+        }
         if (!canMarkArrival(mine)) {
             throw ApiException.conflict("BAD_STATE", "도착을 표시할 수 없는 상태입니다.");
         }
@@ -86,7 +95,41 @@ public class PartyService {
         mine.setArrived(true);
         if (party.getBoardedAt() == null) {
             party.setBoardedAt(clock.now());
+            List<RideRequest> riders = requests.findByPartyOrderByRideOrder(party);
+            Instant lastDeadline = riders.stream().map(RideRequest::arriveDeadline)
+                    .max(Instant::compareTo).orElse(clock.now());
+            party.setBoardingCode(String.format("%06d", RANDOM.nextInt(1_000_000)));
+            party.setBoardingCodeExpiresAt(lastDeadline.plus(Duration.ofMinutes(5)));
         }
+    }
+
+    /** 결제자가 공유한 코드를 입력한 동승자의 탑승을 확인한다. */
+    @Transactional(noRollbackFor = ApiException.class)
+    public void confirmBoarding(long memberId, long partyId, String code) {
+        Party party = parties.findByIdForUpdate(partyId).orElseThrow(() -> ApiException.notFound("없는 일행입니다."));
+        if (party.getDirection() != Direction.TO_SCHOOL || party.getBoardedAt() == null
+                || party.getBoardingCode() == null || party.getStatus() != PartyStatus.CONFIRMED) {
+            throw ApiException.conflict("BAD_STATE", "결제자가 탑승 인증번호를 만든 뒤 입력할 수 있습니다.");
+        }
+        RideRequest rider = mineOf(party, memberId);
+        if (party.getPayer().getId().equals(memberId)) {
+            throw ApiException.conflict("BAD_STATE", "결제자는 이미 탑승 확인됐습니다.");
+        }
+        if (rider.isArrived()) {
+            throw ApiException.conflict("ALREADY_CONFIRMED", "이미 탑승 확인됐습니다.");
+        }
+        if (clock.now().isAfter(rider.arriveDeadline())
+                || party.getBoardingCodeExpiresAt() == null || clock.now().isAfter(party.getBoardingCodeExpiresAt())) {
+            throw ApiException.conflict("CODE_EXPIRED", "탑승 인증 시간이 지났습니다.");
+        }
+        if (rider.getBoardingCodeFailures() >= MAX_BOARDING_CODE_FAILURES) {
+            throw ApiException.conflict("TOO_MANY_ATTEMPTS", "인증번호 입력 횟수를 초과했습니다. 결제자에게 도움을 요청해 주세요.");
+        }
+        if (code == null || !code.matches("\\d{6}") || !code.equals(party.getBoardingCode())) {
+            rider.setBoardingCodeFailures(rider.getBoardingCodeFailures() + 1);
+            throw ApiException.badRequest("INVALID_BOARDING_CODE", "인증번호가 맞지 않습니다. 다시 확인해 주세요.");
+        }
+        rider.setArrived(true);
     }
 
     private RideRequest mineOf(Party party, long memberId) {
@@ -196,7 +239,7 @@ public class PartyService {
                 toSchool && payer && party.getBoardedAt() == null && canMarkBoarding(mine),
                 mine.canCancelAt(clock.now()),
                 payer && boarded && settlement == null, mine.getId(), mine.getExpectedShare(), mine.getSoloFare(),
-                members, settlement);
+                members, settlement, payer && toSchool ? party.getBoardingCode() : null);
     }
 
     private SettlementView toView(Settlement settlement, Party party, boolean payer) {
