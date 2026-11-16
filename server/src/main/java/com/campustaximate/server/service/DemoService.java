@@ -148,19 +148,30 @@ public class DemoService {
     public void actAsSamples(long memberId) {
         requireEnabled();
         for (PartyService.PartyView party : partyService.openParties(memberId)) {
+            if (party.direction() == Direction.TO_SCHOOL && isSample(party.payerId(), memberId)
+                    && party.boardedAt() == null && party.canBoard()) {
+                partyService.board(party.payerId(), party.id());
+            }
+            PartyService.PartyView payerView = party.direction() == Direction.TO_SCHOOL
+                    && isSample(party.payerId(), memberId) ? partyService.view(party.payerId(), party.id()) : null;
             for (PartyService.MemberView rider : party.members()) {
                 if (!isSample(rider.memberId(), memberId) || rider.arrived() || party.settlement() != null
                         || rider.noShow() || clock.now().isAfter(rider.arriveDeadline())) {
                     continue;
                 }
                 if (party.direction() == Direction.TO_SCHOOL && rider.memberId() == party.payerId()) {
-                    partyService.board(rider.memberId(), party.id());
+                    continue;
+                } else if (party.direction() == Direction.TO_SCHOOL) {
+                    if (payerView != null && payerView.boardingCode() != null) {
+                        partyService.confirmBoarding(rider.memberId(), party.id(), payerView.boardingCode());
+                    }
                 } else {
                     partyService.arrive(rider.memberId(), party.id());
                 }
             }
-            PartyService.PartyView payerView = isSample(party.payerId(), memberId)
-                    ? partyService.view(party.payerId(), party.id()) : null;
+            if (payerView == null && isSample(party.payerId(), memberId)) {
+                payerView = partyService.view(party.payerId(), party.id());
+            }
             if (payerView != null && payerView.canSettle()) {
                 settlementService.submitForDemo(party.payerId(), party.id(), party.expectedTotal(),
                         "OO은행", "000-0000-0000");

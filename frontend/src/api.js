@@ -59,6 +59,7 @@ export const api = {
   partyRoutes: (partyId) => request(`/parties/${partyId}/routes`),
   arrive: (partyId) => json('POST', `/parties/${partyId}/arrive`),
   boarded: (partyId) => json('POST', `/parties/${partyId}/boarded`),
+  confirmBoarding: (partyId, code) => json('POST', `/parties/${partyId}/boarding-code`, { code }),
   settlementPreview: (partyId, amount) => request(`/parties/${partyId}/settlement/preview?amount=${amount}`),
   submitSettlement: (partyId, fields) =>
     request(`/parties/${partyId}/settlement`, { method: 'POST', body: settlementForm(fields) }),

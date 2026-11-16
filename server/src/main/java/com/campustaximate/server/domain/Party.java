@@ -53,6 +53,12 @@ public class Party {
     /** 첫 승차자가 "택시 탔어요"를 누른 시각. */
     private Instant boardedAt;
 
+    /** 등교 일행에서 동승자가 실제 탑승을 확인할 때 쓰는 단기 코드. */
+    @Column(length = 6)
+    private String boardingCode;
+
+    private Instant boardingCodeExpiresAt;
+
     /** 전원 받음 처리 시각. 채팅 보관 기간의 기준이다. */
     private Instant settledAt;
 

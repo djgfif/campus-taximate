@@ -163,6 +163,7 @@ a { color: inherit; }
 .field select { background-image: linear-gradient(45deg, transparent 50%, var(--road) 50%), linear-gradient(135deg, var(--road) 50%, transparent 50%); background-position: calc(100% - 20px) 50%, calc(100% - 15px) 50%; background-size: 5px 5px; background-repeat: no-repeat; }
 .two { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 8px; }
 .code input { font-size: 26px; font-weight: 700; letter-spacing: 0.32em; text-align: center; }
+.boarding-code { display: block; margin: 10px 0 4px; font-size: 32px; letter-spacing: 0.3em; }
 .amount { position: relative; }
 .amount input { min-height: 72px; padding-right: 44px; font-size: 32px; font-weight: 800; letter-spacing: -0.02em; text-align: right; }
 .amount em { position: absolute; right: 16px; bottom: 21px; font-style: normal; font-size: 20px; font-weight: 700; color: var(--road); }

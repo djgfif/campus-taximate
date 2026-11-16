@@ -285,6 +285,45 @@
         }
       }
     },
+    "/api/parties/{id}/boarding-code": {
+      "post": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "confirmBoarding",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "pattern": "^[0-9]{6}$"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/parties/{id}/arrive": {
       "post": {
         "tags": [
@@ -1506,6 +1545,10 @@
           "mySoloFare": {
             "type": "integer",
             "format": "int64"
+          },
+          "boardingCode": {
+            "type": "string",
+            "description": "Only returned to the payer for a school-bound party."
           },
           "members": {
             "type": "array",
