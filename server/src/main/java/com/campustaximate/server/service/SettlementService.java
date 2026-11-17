@@ -46,6 +46,8 @@ public class SettlementService {
 
     private static final long MAX_AMOUNT = 10_000_000;
     private static final Duration RECEIPT_KEEP = Duration.ofDays(7);
+    /** 실제 금액을 올린 뒤 요금 이의를 받는 기간. */
+    private static final Duration OBJECTION_WINDOW = Duration.ofHours(24);
     private static final Set<String> RECEIPT_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
 
     private final PartyRepository parties;
@@ -91,8 +93,10 @@ public class SettlementService {
     private void create(Party party, List<RideRequest> riders, List<Long> shares, long amount, String receiptPath,
                         String contentType, String bankName, String accountNumber) {
         if (party.paymentFlow()) {
-            Settlement settlement = settlements.save(new Settlement(party, amount, receiptPath, contentType, null, null, clock.now()));
-            settlement.setObjectionDeadlineAt(clock.now().plusSeconds(24 * 3600));
+            // 저장 시각과 이의 마감은 같은 순간에서 잰다. 시계를 두 번 읽으면 마감이 저장+24시간보다 미세하게 늦어진다.
+            Instant storedAt = clock.now();
+            Settlement settlement = settlements.save(new Settlement(party, amount, receiptPath, contentType, null, null, storedAt));
+            settlement.setObjectionDeadlineAt(storedAt.plus(OBJECTION_WINDOW));
             saveAllocations(party, settlement, riders, shares);
             if(rideConfirmations.hasNegativeAnswer(party.getId())) { party.setStatus(PartyStatus.REVIEW_PENDING); party.setAdminReviewRequired(true); party.setReviewReason("RIDE_DISPUTE"); }
             else party.setStatus(PartyStatus.OBJECTION_WINDOW);
@@ -164,8 +168,9 @@ public class SettlementService {
             List<Long> values = shares(amount, riders, party);
             String previous = settlement.getReceiptPath();
             settlement.setReceiptPath(store(receipt)); settlement.setReceiptContentType(receipt.getContentType());
-            settlement.setPaidAmount(amount); settlement.setRevision(settlement.getRevision() + 1); settlement.setStoredAt(clock.now());
-            settlement.setObjectionDeadlineAt(clock.now().plusSeconds(24 * 3600)); settlement.clearAccount();
+            Instant storedAt = clock.now();
+            settlement.setPaidAmount(amount); settlement.setRevision(settlement.getRevision() + 1); settlement.setStoredAt(storedAt);
+            settlement.setObjectionDeadlineAt(storedAt.plus(OBJECTION_WINDOW)); settlement.clearAccount();
             saveAllocations(party, settlement, riders, values);
             deleteFile(previous);
             return;
