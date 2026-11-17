@@ -140,8 +140,7 @@ final class RouteGroupVerifier implements GroupVerifier {
                 if (departure.isBefore(minimum)) return reject(candidate);
                 full = routes.routeAt(hub, stops, departure);
                 List<Integer> legs = legSeconds(full, stops.size());
-                if (legs == null || legs.stream().anyMatch(n -> n < 0)
-                        || legs.stream().mapToLong(Integer::longValue).sum() != full.seconds()) return unavailable(candidate);
+                if (legs == null) return unavailable(candidate);
                 seconds.clear();
                 int stopIndex = 0;
                 int elapsed = legs.getFirst();
@@ -254,12 +253,40 @@ final class RouteGroupVerifier implements GroupVerifier {
         return fare == null ? alone : alone.withFare(fare);
     }
 
-    /** 구간 시간이 없으면 한 구간뿐일 때만 전체 시간을 쓴다. */
+    /** 구간 시간이 없으면 한 구간뿐일 때만 전체 시간을 쓴다. 구간 합은 요약 시간에 맞춘다. */
     private static List<Integer> legSeconds(RouteClient.Route route, int expected) {
         if (route.legSeconds().size() == expected) {
-            return route.legSeconds();
+            return reconcileLegs(route.legSeconds(), route.seconds());
         }
-        return expected == 1 ? List.of(route.seconds()) : null;
+        return expected == 1 && route.seconds() >= 0 ? List.of(route.seconds()) : null;
+    }
+
+    /** 구간 합과 요약 시간이 이만큼 다르면 응답을 믿지 않는다. */
+    private static final int RESIDUAL_FLOOR_SECONDS = 30;
+    private static final int RESIDUAL_PERCENT = 2;
+
+    /**
+     * 카카오 경유지 응답은 구간(sections) 시간의 합이 요약(summary) 시간과 몇 초 다르게 온다
+     * (실측 2110초 대 2118초 등 8~11초). 요약 시간을 전체 이동 시간으로 보고, 차이를 구간 길이에 비례해 나눈다.
+     * 누적값을 반올림해 나누므로 합은 정확히 요약 시간이 되고, 각 하차의 누적 시각도 비율대로 움직인다.
+     * 차이가 max(30초, 요약의 2%)를 넘거나 음수 구간이 있으면 null(검증 보류)이다.
+     */
+    static List<Integer> reconcileLegs(List<Integer> legs, int total) {
+        if (total < 0 || legs.stream().anyMatch(n -> n == null || n < 0)) return null;
+        long sum = legs.stream().mapToLong(Integer::longValue).sum();
+        if (sum == total) return legs;
+        long allowed = Math.max(RESIDUAL_FLOOR_SECONDS, (long) total * RESIDUAL_PERCENT / 100);
+        if (sum == 0 || Math.abs(total - sum) > allowed) return null;
+        List<Integer> fitted = new ArrayList<>(legs.size());
+        long prefix = 0;
+        long before = 0;
+        for (int leg : legs) {
+            prefix += leg;
+            long scaled = Math.round((double) prefix * total / sum);
+            fitted.add((int) (scaled - before));
+            before = scaled;
+        }
+        return List.copyOf(fitted);
     }
 
     private static int secondsBefore(List<Integer> legs, int index) {

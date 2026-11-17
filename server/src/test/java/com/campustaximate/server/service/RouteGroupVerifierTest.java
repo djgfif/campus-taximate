@@ -125,6 +125,42 @@ class RouteGroupVerifierTest {
         assertThat(verifier.recentlyRejected(c)).isTrue();
     }
 
+    /** 실제 카카오 경유지 응답은 구간 합이 요약 시간보다 8~11초 작게 온다(2118초 요약, 구간 합 2110초 등). */
+    private void quoteWithResidual(int summarySeconds, List<Integer> legs) {
+        when(routes.routeAt(any(), anyList(), any())).thenAnswer(call -> {
+            List<GeoPoint> stops = call.getArgument(1);
+            if (stops.size() == 1) return new RouteClient.Route(5, 1200, 10000, List.of(), List.of(1200));
+            return new RouteClient.Route(5, summarySeconds, 10000, List.of(), legs);
+        });
+    }
+
+    @Test
+    void smallKakaoResidualBetweenSectionsAndSummaryStillVerifies() {
+        quoteWithResidual(1210, List.of(100, 500, 600));
+        var verifier = new RouteGroupVerifier(routes, new HashMap<>(), now);
+        Candidate c = candidate(3);
+        assertThat(verifier.verify(c)).isEqualTo(Verdict.PASS);
+        // 남는 10초를 구간에 나눠 마지막 하차자의 누적이 요약 시간과 같다.
+        assertThat(verifier.routesOf(c.order()).rideSeconds().getLast()).isEqualTo(1210);
+    }
+
+    @Test
+    void largeResidualStaysUnavailable() {
+        quoteWithResidual(1500, List.of(100, 500, 600));
+        var verifier = new RouteGroupVerifier(routes, new HashMap<>(), now);
+        assertThat(verifier.check(candidate(3)).verdict()).isEqualTo(Verdict.UNAVAILABLE);
+    }
+
+    @Test
+    void residualIsSpreadInProportionToSectionLength() {
+        assertThat(RouteGroupVerifier.reconcileLegs(List.of(100, 500, 600), 1210)).containsExactly(101, 504, 605);
+        assertThat(RouteGroupVerifier.reconcileLegs(List.of(100, 500, 600), 1192)).containsExactly(99, 497, 596);
+        assertThat(RouteGroupVerifier.reconcileLegs(List.of(100, 500, 600), 1200)).containsExactly(100, 500, 600);
+        assertThat(RouteGroupVerifier.reconcileLegs(List.of(100, 500, 600), 1300)).isNull();
+        assertThat(RouteGroupVerifier.reconcileLegs(List.of(0, 0), 5)).isNull();
+        assertThat(RouteGroupVerifier.reconcileLegs(List.of(100, -1), 99)).isNull();
+    }
+
     @Test
     void unavailableRouteIsNotCachedAsRejected() {
         when(routes.routeAt(any(), anyList(), any())).thenThrow(new RouteClient.RouteUnavailableException("모의 장애", null));
