@@ -215,6 +215,18 @@ class PaymentFlowTest {
         assertThat(PaymentService.prepayDeadline(NOW,NOW.plusSeconds(86400),false)).isEqualTo(NOW.plusSeconds(86400-1200));
         assertThat(PaymentService.prepayAmount(1)).isEqualTo(2);
     }
+    /** 이의 마감은 금액을 저장한 바로 그 시각에서 24시간이다. 시계가 호출마다 흘러도(리눅스 CI처럼) 정확히 맞아야 한다. */
+    @Test void objectionDeadlineIsExactlyTwentyFourHoursAfterTheStoredMomentEvenWhileTheClockTicks() {
+        depart();
+        Instant base=clock.now(); java.util.concurrent.atomic.AtomicLong ticks=new java.util.concurrent.atomic.AtomicLong();
+        doAnswer(c->base.plusNanos(1_000L*ticks.incrementAndGet())).when(clock).now();
+        submit(16800);
+        Settlement created=settlements.findAll().getFirst();
+        assertThat(created.getObjectionDeadlineAt()).isEqualTo(created.getStoredAt().plusSeconds(24*3600));
+        settlementService.correct(ids.get(2),partyId,17000,receipt(),null,null);
+        Settlement corrected=settlements.findAll().getFirst();
+        assertThat(corrected.getObjectionDeadlineAt()).isEqualTo(corrected.getStoredAt().plusSeconds(24*3600));
+    }
     @Test void correctionRestartsObjectionWindowButStopsAfterObjectionOrSettlement() {
         depart(); submit(16800); Instant initial=settlements.findAll().getFirst().getObjectionDeadlineAt();
         at(clock.now().plusSeconds(3600)); settlementService.correct(ids.get(2),partyId,17000,receipt(),null,null);
