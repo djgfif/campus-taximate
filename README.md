@@ -76,7 +76,7 @@ npm test
 npm run e2e                   # 서버 jar와 화면 빌드 뒤, PC와 휴대폰 화면으로 흐름 확인
 ```
 
-`MYSQL_TEST_URL`을 넣으면 `MigrationSchemaTest`가 실제 MySQL에서 돕니다. CI는 매번 MySQL 8.4에서 이 검사를 합니다.
+Docker가 켜져 있으면 실제 MySQL 테스트(마이그레이션 검사, E-03 동시 확정, 로그인 코드 동시 사용, 결제 흐름 전체)가 Testcontainers로 `mysql:8.4.3` 컨테이너를 직접 띄워 실제 Flyway 마이그레이션 위에서 돌고, 끝나면 컨테이너를 지웁니다. 따로 MySQL을 띄우거나 환경변수를 넣을 필요가 없습니다. Docker가 없으면 이 테스트들은 건너뛰고 마이그레이션 검사만 H2로 돕니다. CI는 매번 Docker로 실제 MySQL 테스트를 돌립니다.
 
 ## 보안
 
