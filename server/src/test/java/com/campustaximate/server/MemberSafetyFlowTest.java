@@ -37,6 +37,7 @@ import org.springframework.test.web.servlet.ResultActions;
 @ActiveProfiles("demo")
 @TestPropertySource(properties = "app.upload-dir=target/test-uploads")
 class MemberSafetyFlowTest {
+    @Autowired com.campustaximate.server.service.LoginTokenService loginTokens;
     @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbc;
     @Autowired private MockMvc mvc;
     @Autowired private ObjectMapper json;
@@ -267,7 +268,7 @@ class MemberSafetyFlowTest {
     private long id(String name) { return members.findByEmail(name + "@daejin.ac.kr").orElseThrow().getId(); }
     private MockHttpSession session(long memberId) {
         MockHttpSession session = new MockHttpSession();
-        session.setAttribute("memberId", memberId);
+        com.campustaximate.server.web.TestLogin.signIn(session, loginTokens, memberId);
         return session;
     }
     private String reportPath(long party, long member) { return "/api/parties/" + party + "/members/" + member + "/report"; }

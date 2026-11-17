@@ -37,8 +37,9 @@ public class DemoController {
         var member=members.findByEmail(body.account()+"@daejin.ac.kr").orElseThrow(()->ApiException.notFound("시연 계정이 없습니다."));
         LoginTokenFilter.tokenOf(request).ifPresent(tokens::revoke);
         request.getSession(); request.changeSessionId();
-        request.getSession().setAttribute(LoginTokenFilter.SESSION_KEY,member.getId());
-        response.addHeader(HttpHeaders.SET_COOKIE,ResponseCookie.from(LoginTokenFilter.COOKIE,tokens.issue(member.getId()))
+        String token=tokens.issue(member.getId());
+        LoginTokenFilter.bind(request.getSession(),member.getId(),token);
+        response.addHeader(HttpHeaders.SET_COOKIE,ResponseCookie.from(LoginTokenFilter.COOKIE,token)
                 .httpOnly(true).secure(secureCookie).sameSite("Lax").path("/").maxAge(LoginTokenService.VALID).build().toString());
     }
     @GetMapping("/status") public DemoScenarioService.Progress status(HttpSession s) { return scenarios.status(actor(s)); }

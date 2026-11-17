@@ -26,6 +26,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 class PaymentFlowTest {
     private static final Instant NOW = Instant.parse("2026-11-10T08:30:00Z");
+    @Autowired com.campustaximate.server.service.LoginTokenService loginTokens;
     @Autowired org.springframework.test.web.servlet.MockMvc mvc;
     @Autowired PaymentService payments;
     @Autowired PaymentLifecycleService lifecycle;
@@ -340,6 +341,17 @@ class PaymentFlowTest {
         assertThat(order(0).getApprovedAmount()).isEqualTo(o.getAmount());
     }
 
+    /** 거절로 끝난 첫 승인 작업이 남아 있어도, 새 결제로 정산·환불을 마치면 일행이 완료된다. */
+    @Test void rejectedThenRepaidOrderStillCompletesAfterSettlement() {
+        PaymentOrder o=order(0);
+        doThrow(new PaymentGateway.Rejected("REJECT_CARD_PAYMENT",null)).when(gateway).confirm(eq("declined_key"),anyString(),anyLong(),anyString());
+        payments.confirm(ids.get(0),o.getOrderId(),"declined_key",o.getAmount());
+        assertThat(order(0).getStatus()).isEqualTo(PaymentStatus.REQUIRED);
+        depart(); submit(16800); finalizeFare();
+        assertThat(order(0).getRefundedAmount()).isEqualTo(480);
+        assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.COMPLETED);
+    }
+
     @Test void lostApprovalResponseIsRecoveredWithoutSecondCharge() {
         doAnswer(c->{provider.confirm(c.getArgument(0),c.getArgument(1),c.getArgument(2),c.getArgument(3));throw new PaymentGateway.Unavailable("승인 응답 유실");})
                 .when(gateway).confirm(anyString(),anyString(),anyLong(),anyString());
@@ -542,7 +554,7 @@ class PaymentFlowTest {
 
     @Test void rideConfirmationApiRequiresMembershipAndKeepsFirstAnswer() throws Exception {
         unconfirmed();var session=new org.springframework.mock.web.MockHttpSession();
-        session.setAttribute("memberId",ids.get(2));
+        com.campustaximate.server.web.TestLogin.signIn(session, loginTokens, ids.get(2));
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/parties/"+partyId+"/ride-confirmation")
                 .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{\"rode\":true}"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isUnauthorized());
@@ -559,7 +571,7 @@ class PaymentFlowTest {
     }
     @Test void changedExitApiUsesServerVersionAndRefundPolicy() throws Exception {
         changedGroup();at(NOW.plusSeconds(1200));var session=new org.springframework.mock.web.MockHttpSession();
-        session.setAttribute("memberId",ids.get(0));
+        com.campustaximate.server.web.TestLogin.signIn(session, loginTokens, ids.get(0));
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/parties/"+partyId+"/leave-after-change")
                 .session(session).contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{\"groupVersion\":1}"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isConflict());
@@ -648,7 +660,7 @@ class PaymentFlowTest {
         at(NOW.plusSeconds(1200));assertThat(partyService.view(ids.get(2),partyId).canCall()).isTrue();
     }
     @Test void preparationApisRequireMemberAndServerChecksCallReadiness() throws Exception {
-        instantParty();var session=new org.springframework.mock.web.MockHttpSession();session.setAttribute("memberId",ids.get(2));
+        instantParty();var session=new org.springframework.mock.web.MockHttpSession();com.campustaximate.server.web.TestLogin.signIn(session, loginTokens, ids.get(2));
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/parties/"+partyId+"/readiness").session(session)
                 .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{\"state\":\"NEARBY\"}"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
@@ -812,14 +824,14 @@ class PaymentFlowTest {
         assertThat(comp(1).getCharge()).isEqualTo(4300);assertThat(order(1).getRefundedAmount()).isEqualTo(2140);assertThat(rider(1).isNoShow()).isFalse();
     }
     @Test void A01_adminPathsRejectNormalMemberAndAllowAdmin() throws Exception {
-        var user=new org.springframework.mock.web.MockHttpSession();user.setAttribute("memberId",ids.get(0));
-        var administrator=new org.springframework.mock.web.MockHttpSession();administrator.setAttribute("memberId",adminId());
+        var user=new org.springframework.mock.web.MockHttpSession();com.campustaximate.server.web.TestLogin.signIn(user, loginTokens, ids.get(0));
+        var administrator=new org.springframework.mock.web.MockHttpSession();com.campustaximate.server.web.TestLogin.signIn(administrator, loginTokens, adminId());
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/admin/no-shows").session(user)).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isForbidden());
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/admin/no-shows").session(administrator)).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
         assertThatThrownBy(()->admin.noShowReviews(ids.get(0))).isInstanceOf(ApiException.class);
     }
     @Test void adminDecisionIsIdempotentAndAutomaticallySettlesAfterInvestigation() throws Exception {
-        reviewB();var session=new org.springframework.mock.web.MockHttpSession();session.setAttribute("memberId",adminId());long id=investigation(1).getId();
+        reviewB();var session=new org.springframework.mock.web.MockHttpSession();com.campustaximate.server.web.TestLogin.signIn(session, loginTokens, adminId());long id=investigation(1).getId();
         String json="{\"decision\":\"NO_SHOW\",\"evidence\":\"탑승 확인 자료 검토\"}";
         for(int i=0;i<2;i++) mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/admin/no-shows/"+id+"/decision").session(session).contentType(org.springframework.http.MediaType.APPLICATION_JSON).content(json)).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
         assertThat(adminAudits.count()).isEqualTo(1);assertThat(order(1).getRefundedAmount()).isEqualTo(2140);assertThat(payouts.count()).isEqualTo(1);
@@ -877,7 +889,7 @@ class PaymentFlowTest {
             jdbc.update("insert into party_message(party_id,member_id,text,created_at) values(?,?,?,?)",other.getId(),ids.get(0),"다른 일행 비공개 자료",java.sql.Timestamp.from(clock.now()));
         });
         assertThat(admin.noShowDetail(adminId(),id).chat()).singleElement().satisfies(m->assertThat(m.text()).isEqualTo("해당 일행 자료"));
-        var session=new org.springframework.mock.web.MockHttpSession();session.setAttribute("memberId",adminId());
+        var session=new org.springframework.mock.web.MockHttpSession();com.campustaximate.server.web.TestLogin.signIn(session, loginTokens, adminId());
         var response=mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/admin/no-shows").session(session)).andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
         assertThat(response).doesNotContain("해당 일행 자료","다른 일행 비공개 자료","chat");
     }
@@ -926,14 +938,14 @@ class PaymentFlowTest {
     }
     @Test void ownInvestigationsRemainDiscoverableAfterRemovalAndAdminReceiptRequiresRole() throws Exception {
         departWithout(1);submit(15500);
-        var user=new org.springframework.mock.web.MockHttpSession();user.setAttribute("memberId",ids.get(1));
+        var user=new org.springframework.mock.web.MockHttpSession();com.campustaximate.server.web.TestLogin.signIn(user, loginTokens, ids.get(1));
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/boarding-cases").session(user))
             .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
             .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].investigation.memberId").value(ids.get(1)))
             .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].investigation.partyId").value(partyId));
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/admin/parties/"+partyId+"/receipt").session(user))
             .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isForbidden());
-        var administrator=new org.springframework.mock.web.MockHttpSession();administrator.setAttribute("memberId",adminId());
+        var administrator=new org.springframework.mock.web.MockHttpSession();com.campustaximate.server.web.TestLogin.signIn(administrator, loginTokens, adminId());
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/admin/parties/"+partyId+"/receipt").session(administrator))
             .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
             .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().contentType("image/png"));

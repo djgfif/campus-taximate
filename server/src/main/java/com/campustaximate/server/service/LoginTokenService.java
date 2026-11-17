@@ -40,7 +40,17 @@ public class LoginTokenService {
 
     @Transactional(readOnly = true)
     public Optional<Long> memberOf(String token) {
-        return tokens.findMemberId(hash(token), clock.now());
+        return memberOfHash(hash(token));
+    }
+
+    /** 세션에는 토큰 원문 대신 해시만 둔다. 그 해시의 토큰이 아직 살아 있는지 본다. */
+    @Transactional(readOnly = true)
+    public Optional<Long> memberOfHash(String tokenHash) {
+        return tokens.findMemberId(tokenHash, clock.now());
+    }
+
+    public static String hashOf(String token) {
+        return hash(token);
     }
 
     @Transactional

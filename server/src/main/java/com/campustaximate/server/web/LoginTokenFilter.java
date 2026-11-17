@@ -37,20 +37,44 @@ public class LoginTokenFilter extends OncePerRequestFilter {
         return !request.getRequestURI().startsWith("/api/");
     }
 
+    /** 세션이 기대는 로그인 토큰의 해시. 모든 기기 로그아웃으로 토큰이 지워지면 이 세션도 끝난다. */
+    static final String SESSION_TOKEN = "loginTokenHash";
+
+    /** 로그인한 세션을 그 기기의 토큰에 묶는다. 로그인 쿠키를 빼고 세션 쿠키만 보내도 토큰 폐기를 따르게 된다. */
+    public static void bind(HttpSession session, long memberId, String token) {
+        session.setAttribute(SESSION_KEY, memberId);
+        session.setAttribute(SESSION_TOKEN, LoginTokenService.hashOf(token));
+    }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        tokenOf(request).ifPresent(token -> {
-            Optional<Long> member = tokens.memberOf(token);
+        Optional<String> cookie = tokenOf(request);
+        if (cookie.isPresent()) {
+            Optional<Long> member = tokens.memberOf(cookie.get());
             if (member.isPresent()) {
-                request.getSession().setAttribute(SESSION_KEY, member.get());
+                bind(request.getSession(), member.get(), cookie.get());
             } else {
-                HttpSession session = request.getSession(false);
-                if (session != null) {
-                    session.removeAttribute(SESSION_KEY);
+                signOut(request.getSession(false));
+            }
+        } else {
+            HttpSession session = request.getSession(false);
+            if (session != null && session.getAttribute(SESSION_KEY) instanceof Long memberId) {
+                // 쿠키가 없으면 세션에 묶인 토큰이 아직 같은 회원의 것으로 살아 있는지 확인한다.
+                Object hash = session.getAttribute(SESSION_TOKEN);
+                boolean alive = hash instanceof String h && tokens.memberOfHash(h).filter(memberId::equals).isPresent();
+                if (!alive) {
+                    signOut(session);
                 }
             }
-        });
+        }
         chain.doFilter(request, response);
+    }
+
+    private static void signOut(HttpSession session) {
+        if (session != null) {
+            session.removeAttribute(SESSION_KEY);
+            session.removeAttribute(SESSION_TOKEN);
+        }
     }
 }

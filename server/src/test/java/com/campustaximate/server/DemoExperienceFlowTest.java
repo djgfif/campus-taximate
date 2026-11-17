@@ -36,6 +36,7 @@ class DemoExperienceFlowTest {
             };
         }
     }
+    @Autowired com.campustaximate.server.service.LoginTokenService loginTokens;
     @Autowired AppClock clock;
     @Autowired DemoService demo;
     @Autowired DemoScenarioService scenarios;
@@ -69,7 +70,7 @@ class DemoExperienceFlowTest {
         rides.create(me,new RideRequestService.NewRequest(Direction.FROM_HUB,hub.getId(),NOW.plusSeconds(3600),NOW.plusSeconds(7200),null,"내 목적지",37.833,127.146,"사용자"));
     }
     PartyService.PartyView current() { return views.openParties(me).getFirst(); }
-    MockHttpSession session() { var s=new MockHttpSession();s.setAttribute("memberId",me);return s; }
+    MockHttpSession session() { var s=new MockHttpSession();com.campustaximate.server.web.TestLogin.signIn(s, loginTokens, me);return s; }
     @Test void roleChoiceCreatesFartherSampleAndKeepsMyPrepaymentForMe() {
         request();demo.matchNow(me,DemoService.Role.PASSENGER);
         var p=current();assertThat(p.payer()).isFalse();

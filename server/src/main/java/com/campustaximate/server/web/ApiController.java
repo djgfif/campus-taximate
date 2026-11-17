@@ -223,8 +223,9 @@ public class ApiController {
     private void startSession(long id, HttpServletRequest request, HttpServletResponse response) {
         HttpSession session = request.getSession();
         request.changeSessionId();
-        session.setAttribute(SESSION_KEY, id);
-        response.addHeader(HttpHeaders.SET_COOKIE, loginCookie(tokens.issue(id), LoginTokenService.VALID).toString());
+        String token = tokens.issue(id);
+        LoginTokenFilter.bind(session, id, token);
+        response.addHeader(HttpHeaders.SET_COOKIE, loginCookie(token, LoginTokenService.VALID).toString());
     }
 
     @PostMapping("/auth/profile")

@@ -429,6 +429,24 @@ class FlowTest {
     }
 
     @Test
+    void logoutAllAlsoEndsSessionsThatOmitTheLoginCookie() throws Exception {
+        String email = "demo-f1@daejin.ac.kr";
+        MockHttpSession otherDevice = new MockHttpSession();
+        String code = read(postJson("/api/auth/code", "{\"email\":\"" + email + "\"}", otherDevice)
+                .andReturn().getResponse().getContentAsString()).get("demoCode").asText();
+        postJson("/api/auth/login", "{\"email\":\"" + email + "\",\"code\":\"" + code + "\"}", otherDevice)
+                .andExpect(status().isOk());
+        // 로그인 직후에는 세션만으로도 인증된다.
+        mvc.perform(get("/api/me").session(otherDevice)).andExpect(status().isOk());
+
+        jakarta.servlet.http.Cookie here = cookieFromLogin("demo-f1");
+        mvc.perform(post("/api/auth/logout-all").cookie(here).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isOk());
+        // 다른 기기가 로그인 쿠키를 빼고 세션 쿠키만 보내도 끝나야 한다.
+        mvc.perform(get("/api/me").session(otherDevice)).andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void loginTokenExpiresAfterOneYear() throws Exception {
         jakarta.servlet.http.Cookie cookie = cookieFromLogin("demo-f1");
 

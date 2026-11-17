@@ -23,11 +23,11 @@ class BoardingPointControllerTest {
     @Autowired MemberRepository members;
     @Autowired ObjectMapper json;
     @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
+    @Autowired com.campustaximate.server.service.LoginTokenService loginTokens;
     MockHttpSession session;
     @BeforeEach void prepare() {
-        session = new MockHttpSession();
         var member = members.findByEmail("demo-f1@daejin.ac.kr").orElseThrow();
-        session.setAttribute(LoginTokenFilter.SESSION_KEY, member.getId());
+        session = TestLogin.session(loginTokens, member.getId());
     }
     @Test void returnsOnlyCheckedActivePointsWithinTenMinutesNearestFirstAtMostThree() throws Exception {
         var school = members.findByEmail("demo-f1@daejin.ac.kr").orElseThrow().getSchool();

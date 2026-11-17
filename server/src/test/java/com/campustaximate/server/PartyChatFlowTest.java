@@ -33,6 +33,7 @@ import org.springframework.test.web.servlet.ResultActions;
 @AutoConfigureMockMvc
 @ActiveProfiles("demo")
 class PartyChatFlowTest {
+    @Autowired com.campustaximate.server.service.LoginTokenService loginTokens;
     @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
@@ -294,7 +295,7 @@ class PartyChatFlowTest {
     }
     private long id(String name) { return members.findByEmail(name + "@daejin.ac.kr").orElseThrow().getId(); }
     private MockHttpSession session(long id) {
-        MockHttpSession session = new MockHttpSession(); session.setAttribute("memberId", id); return session;
+        MockHttpSession session = new MockHttpSession(); com.campustaximate.server.web.TestLogin.signIn(session, loginTokens, id); return session;
     }
     private String url(Party party) { return "/api/parties/" + party.getId() + "/messages"; }
     private ResultActions read(long actor, Party party) throws Exception { return mvc.perform(get(url(party)).session(session(actor))); }

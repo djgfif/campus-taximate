@@ -386,9 +386,16 @@ public class PaymentService {
         if (list.stream().anyMatch(o -> o.getStatus() == PaymentStatus.ADMIN_REQUIRED
                 || (o.getPurpose() == PaymentPurpose.ADDITIONAL && o.getStatus() != PaymentStatus.APPROVED)
                 || o.getRefundedAmount() < o.getRefundTarget()
-                || operations.findByPaymentOrderIdOrderById(o.getId()).stream().anyMatch(op -> op.getStatus() != PaymentOperationStatus.SUCCEEDED))) return;
+                || operations.findByPaymentOrderIdOrderById(o.getId()).stream().anyMatch(PaymentService::stillOpen))) return;
         if (list.stream().anyMatch(this::refundHeld) || !settlementsRecorded(party)) return;
         party.setStatus(PartyStatus.COMPLETED); party.setSettledAt(clock.now());
+    }
+    /**
+     * 끝나지 않은 결제 작업. CANCELED는 결제사가 확정 거절한 승인(새 키로 다시 결제)이나 대체된 취소처럼
+     * 더 할 일이 없는 작업이라 완료를 막지 않는다. 금액은 위의 승인·환불 목표 검사가 따로 본다.
+     */
+    private static boolean stillOpen(PaymentOperation op) {
+        return op.getStatus() != PaymentOperationStatus.SUCCEEDED && op.getStatus() != PaymentOperationStatus.CANCELED;
     }
     private boolean settlementsRecorded(Party party) {
         return payouts.existsByPartyId(party.getId());

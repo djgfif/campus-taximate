@@ -50,7 +50,8 @@ public class AuthService {
         String email = normalize(rawEmail);
         School school = schools.findByEmailDomain(email.substring(email.indexOf('@') + 1))
                 .orElseThrow(() -> ApiException.badRequest("SCHOOL_NOT_FOUND", "등록된 학교 메일이 아닙니다."));
-        Member member = members.findByEmail(email).orElseGet(() -> new Member(school, email));
+        // 재전송 간격·실패 횟수를 읽고 바로 고치므로 회원을 잠그고 읽는다.
+        Member member = members.findByEmailForUpdate(email).orElseGet(() -> new Member(school, email));
         Instant now = clock.now();
         boolean tooSoon = member.getLoginCodeSentAt() != null
                 && now.isBefore(member.getLoginCodeSentAt().plus(RESEND_WAIT));
@@ -72,7 +73,8 @@ public class AuthService {
     @Transactional(noRollbackFor = ApiException.class)
     public long login(String rawEmail, String code) {
         String email = normalize(rawEmail);
-        Member member = members.findByEmail(email).orElseThrow(AuthService::invalidCode);
+        // 같은 코드로 동시에 두 요청이 와도 하나만 코드를 소비하도록 회원을 잠그고 읽는다.
+        Member member = members.findByEmailForUpdate(email).orElseThrow(AuthService::invalidCode);
         requireNotLocked(member, clock.now());
         boolean live = member.getLoginCode() != null && clock.now().isBefore(member.getLoginCodeExpiresAt());
         if (!live) {
@@ -101,7 +103,8 @@ public class AuthService {
     @Transactional(noRollbackFor = ApiException.class)
     public long signIn(String rawEmail, String password) {
         String email = normalize(rawEmail);
-        Member member = members.findByEmail(email).orElseThrow(AuthService::invalidPassword);
+        // 동시에 틀려도 실패 횟수가 하나씩 쌓이도록 회원을 잠그고 읽는다.
+        Member member = members.findByEmailForUpdate(email).orElseThrow(AuthService::invalidPassword);
         requireNotLocked(member, clock.now());
         if (!PasswordHasher.matches(password, member.getPasswordHash())) {
             countDailyFailure(member, clock.now());
