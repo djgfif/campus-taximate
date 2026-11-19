@@ -118,7 +118,7 @@ export const api = {
   demoMatch: (role = 'PAYER') => json('POST', '/demo/match', { role }),
   demoBoardParty: () => json('POST', '/demo/board-party'),
   demoStatus: () => request('/demo/status'),
-  demoNext: () => json('POST', '/demo/next'),
+  demoNext: (role = 'PAYER') => json('POST', '/demo/next', { role }),
   demoScenario: (scenario, role) => json('POST', '/demo/scenario', { scenario, role }),
   demoLogin: (account) => json('POST', '/demo/login', { account }),
   payerSuccession: (partyId, accept) => json('POST', `/parties/${partyId}/payer-succession`, { accept }),

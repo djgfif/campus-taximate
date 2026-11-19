@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service;
 @Service @Profile("demo") @RequiredArgsConstructor
 public class DemoScenarioService {
     public enum Scenario { INSTANT, NO_SHOW, JOIN, FARE_OBJECTION, PAYER_NO_SHOW, MY_SUCCESSION, RIDE_UNCONFIRMED }
-    public record Investigation(long memberId,String status,Instant deadlineAt) { }
+    public record Investigation(long memberId,String nickname,String status,Instant deadlineAt) { }
     public record Progress(Instant now,Long partyId,String stage,String next,String role,String message,List<Investigation> investigations) { }
     private final DemoService demo;
     private final AppClock clock;
@@ -44,7 +44,9 @@ public class DemoScenarioService {
         if(waiting.isPresent()) return new Progress(clock.now(),null,"일행 찾는 중","일행 확정",null,message,List.of());
         var p=party(actor);
         if(p==null) return new Progress(clock.now(),null,"요청 전","탑승 요청 만들기",null,message,List.of());
-        var cases=noShows.list(actor,p.id()).stream().map(c->new Investigation(c.investigation().getMemberId(),c.investigation().getStatus(),c.investigation().getDeadlineAt())).toList();
+        var cases=noShows.list(actor,p.id()).stream().map(c->new Investigation(c.investigation().getMemberId(),
+                members.findById(c.investigation().getMemberId()).map(Member::getNickname).orElse(null),
+                c.investigation().getStatus(),c.investigation().getDeadlineAt())).toList();
         return new Progress(clock.now(),p.id(),label(p.status()),nextName(p),p.payer()?"내가 결제자":"나는 일행원 (선결제 대상)",message,cases);
     }
     private String label(PartyStatus status) {
@@ -100,14 +102,21 @@ public class DemoScenarioService {
             if(sample(m.memberId(),actor)) chat.send(m.memberId(),p.id(),DemoTalk.arrived(m.memberId(),m.memo()));
         }
     }
-    public Progress next(long actor) {
+    public Progress next(long actor) { return next(actor,DemoService.Role.PAYER); }
+    /** role은 일행을 새로 만들 때만 쓴다(패널에서 고른 "내가 결제자/아님"). */
+    public Progress next(long actor,DemoService.Role role) {
         demo.requireEnabled();
         return slots.runLocked(()->{
             if(requests.findByActiveMemberId(actor).filter(r->r.getStatus()==RequestStatus.WAITING).isPresent()) {
-                var result=demo.matchNow(actor); return progress(actor,result.message());
+                var result=demo.matchNow(actor,role); return progress(actor,result.message());
             }
             var p=party(actor);
-            if(p==null) throw ApiException.conflict("DEMO_NO_PARTY","탑승 요청을 먼저 만들어 주세요.");
+            if(p==null) {
+                // 패널이 "다음 단계: 탑승 요청 만들기"라고 안내하므로, 요청이 없으면 시나리오와 같은 시연 경로로 만들고 매칭한다.
+                if(!parties.openParties(actor).isEmpty()) throw ApiException.conflict("DEMO_FINISH_PARTY","진행 중인 일행을 마친 뒤 새 시나리오를 시작해 주세요.");
+                ensureRequest(actor,false);
+                return progress(actor,demo.matchNow(actor,role).message());
+            }
             sampleOnly(p,actor);
             switch(p.status()) {
                 case PREPAYING -> {
@@ -145,6 +154,14 @@ public class DemoScenarioService {
                 default -> { return progress(actor,nextName(p)+"를 진행해 주세요."); }
             }
             return progress(actor,"다음 단계로 진행했어요.");
+        });
+    }
+    /** 시연 패널의 "일행 만들기". 요청이 없으면 시연 경로로 요청을 만든 뒤 고른 역할로 매칭한다. */
+    public DemoService.MatchOutcome match(long actor,DemoService.Role role) {
+        demo.requireEnabled();
+        return slots.runLocked(()->{
+            if(requests.findByActiveMemberId(actor).isEmpty()&&parties.openParties(actor).isEmpty()) ensureRequest(actor,false);
+            return demo.matchNow(actor,role);
         });
     }
     /** 요청이 없을 때는 공동 승차 시연 경로로 새 요청을 만든다. 기존 요청은 즉시로 바꾸지 않는다. */

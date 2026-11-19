@@ -718,7 +718,6 @@ class FlowTest {
     @Test
     void demoMatchPutsSamplesOnMyRouteAndBuildsParty() throws Exception {
         MockHttpSession me = login("demo-f1");
-        mvc.perform(post("/api/demo/match").session(me)).andExpect(status().isConflict());
         createRequest(me, POINTS[2]).andExpect(status().isOk());
 
         JsonNode outcome = read(mvc.perform(post("/api/demo/match").session(me)).andExpect(status().isOk())
@@ -726,6 +725,34 @@ class FlowTest {
 
         assertThat(outcome.get("status").asText()).isEqualTo("MATCHED");
         assertThat(onlyParty(me).get("members")).hasSize(3);
+    }
+
+    @Test
+    void demoPanelWithoutRequestCreatesDemoRouteInsteadOfRejecting() throws Exception {
+        // 패널이 "다음 단계: 탑승 요청 만들기"라고 안내하므로 일행 만들기·다음 단계로가 거절하지 않고 시연 경로로 시작한다.
+        MockHttpSession me = login("demo-f1");
+        JsonNode outcome = read(mvc.perform(post("/api/demo/match").session(me)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString());
+        assertThat(outcome.get("status").asText()).isEqualTo("MATCHED");
+        assertThat(onlyParty(me).get("members")).hasSize(3);
+    }
+
+    @Test
+    void demoNextWithoutRequestStartsDemoRoute() throws Exception {
+        MockHttpSession me = login("demo-f1");
+        JsonNode progress = read(mvc.perform(post("/api/demo/next").session(me)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString());
+        assertThat(progress.get("partyId").isNull()).isFalse();
+        assertThat(onlyParty(me).get("members")).hasSize(3);
+    }
+
+    @Test
+    void demoNextKeepsChosenPassengerRole() throws Exception {
+        // 패널에서 "내가 결제자 아님"을 고르고 다음 단계로를 누르면 일행원(선결제 대상)으로 만들어야 한다.
+        MockHttpSession me = login("demo-f1");
+        mvc.perform(post("/api/demo/next").session(me).contentType(MediaType.APPLICATION_JSON).content("{\"role\":\"PASSENGER\"}"))
+                .andExpect(status().isOk());
+        assertThat(onlyParty(me).get("payer").asBoolean()).isFalse();
     }
 
     /** 자동 노쇼·승계는 레거시 회귀로 계속 검증한다. 새 흐름은 운행 확인 테스트가 맡는다. */
