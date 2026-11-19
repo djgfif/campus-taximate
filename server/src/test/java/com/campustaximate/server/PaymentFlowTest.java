@@ -1341,4 +1341,15 @@ class PaymentFlowTest {
             assertThat(receiptPath).doesNotExist();assertThat(settlements.findAll().getFirst().getReceiptPath()).isNull();
         } finally {release.countDown();executor.shutdownNow();}
     }
+
+    /** PR #7에서 가져온 회귀: 승인 거절 뒤 같은 주문을 다시 결제해도 정산 후 일행이 완료된다. */
+    @Test void rejectedThenRepaidOrderStillCompletesAfterSettlement() {
+        PaymentOrder o=order(0);
+        doThrow(new PaymentGateway.Rejected("REJECT_CARD_PAYMENT",null)).when(gateway).confirm(eq("declined_key"),anyString(),anyLong(),anyString());
+        payments.confirm(ids.get(0),o.getOrderId(),"declined_key",o.getAmount());
+        assertThat(order(0).getStatus()).isEqualTo(PaymentStatus.REQUIRED);
+        depart(); submit(16800); finalizeFare();
+        assertThat(order(0).getRefundedAmount()).isEqualTo(480);
+        assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.COMPLETED);
+    }
 }
