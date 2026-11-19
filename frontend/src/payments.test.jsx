@@ -13,6 +13,8 @@ beforeEach(() => {
   sessionStorage.clear()
 })
 afterEach(() => { cleanup(); vi.restoreAllMocks(); delete window.TossPayments })
+const PartyCardApproved = () => <PaymentCard partyId={11} myId={2} now={now} config={{ demo: true }} clientKey=""
+  knownOrder={{ ...order, status: 'APPROVED', approvedAmount: order.amount }} />
 
 describe('선결제 카드', () => {
   it('서버 주문의 금액·여유 15% 안내·기한을 표시하고 시연 모드에서만 모의 승인한다', async () => {
@@ -54,6 +56,11 @@ describe('선결제 카드', () => {
     render(<PaymentCard partyId={11} myId={2} now={now} knownOrder={real} config={{ demo: true }} clientKey="" />)
     expect(screen.getByText('카드 결제를 준비하지 못했어요. 잠시 뒤 다시 확인해 주세요.')).toBeTruthy()
     expect(screen.queryByRole('button', { name: '시연 결제하기' })).toBeNull()
+  })
+
+  it('승인된 주문은 승인 완료를 한 번만 보여 준다', () => {
+    render(<PartyCardApproved />)
+    expect(screen.getAllByText('승인 완료')).toHaveLength(1)
   })
 
   it('처리 중인 주문에는 결제 버튼을 다시 열지 않는다', () => {

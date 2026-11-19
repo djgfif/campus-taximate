@@ -52,7 +52,8 @@ export default function PaymentCard({ partyId, purpose = 'PREPAY', myId, now, co
     {order && <>
       <p className="due">기한 {formatDateTime(order.deadlineAt)}{compact && now && !late ? ` · ${remaining(order.deadlineAt, now)} 남음` : ''}</p>
       {!plain && <PaymentRecord order={order} />}
-      {order.status === 'APPROVED' ? <Say tone="save-tone">승인 완료</Say>
+      {/* 승인 완료는 위 결제 기록의 '결제 상태' 줄에 이미 나오므로 다시 띄우지 않는다. */}
+      {order.status === 'APPROVED' ? null
         : order.status === 'PROCESSING' ? <Say>결제 확인 중이에요. 다시 결제하지 말고 결과를 기다려 주세요.</Say>
           : order.status === 'ADMIN_REQUIRED' ? <Say tone="stop-tone">관리자 확인이 필요한 결제예요.</Say>
             : order.status === 'EXPIRED' || (!extra && late) ? <Say>선결제 기한이 지났어요.</Say>
