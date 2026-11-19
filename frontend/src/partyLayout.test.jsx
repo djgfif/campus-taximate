@@ -32,6 +32,15 @@ describe('일행 화면 구성', () => {
     expect(view.container.querySelectorAll('.foot button')).toHaveLength(0)
   })
 
+  it('내 선결제가 승인되면 다른 일행이 결제 중이어도 제목을 바꾼다', async () => {
+    vi.spyOn(api, 'paymentOrder').mockResolvedValue({ orderId: 'p1', amount: 3834, purpose: 'PREPAY', status: 'APPROVED', deadlineAt: '2026-11-12T09:25:00Z', approvedAmount: 3834, refundedAmount: 0, simulated: true })
+    render(<PartyScreen party={base} now={now} myId={1} run={vi.fn()} />)
+    const next = screen.getByRole('region', { name: '지금 할 일' })
+    expect(await within(next).findByText('선결제를 마쳤어요')).toBeTruthy()
+    expect(within(next).getByText(/다른 일행의 선결제를 기다리고 있어요/)).toBeTruthy()
+    expect(within(next).queryByText('선결제를 마쳐 주세요')).toBeNull()
+  })
+
   it('결제를 마치면 만날 곳과 시간을 보여 주고 도착 버튼 하나만 고정한다', () => {
     const view = render(<PartyScreen party={{ ...base, status: 'READY' }} now={now} myId={1} run={vi.fn()} />)
     expect(within(screen.getByRole('region', { name: '지금 할 일' })).getByText(/학교 정문 · 정문 앞에서 만나요/)).toBeTruthy()

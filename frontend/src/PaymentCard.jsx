@@ -15,7 +15,7 @@ export function PaymentRecord({ order }) {
   ]} />
 }
 
-export default function PaymentCard({ partyId, purpose = 'PREPAY', myId, now, config, onUpdated, knownOrder, readOnly = false, compact = false, clientKey = import.meta.env.VITE_TOSS_CLIENT_KEY || '' }) {
+export default function PaymentCard({ partyId, purpose = 'PREPAY', myId, now, config, onUpdated, onOrder, knownOrder, readOnly = false, compact = false, clientKey = import.meta.env.VITE_TOSS_CLIENT_KEY || '' }) {
   const key = [partyId, purpose, myId].join(':')
   const [loaded, setLoaded] = useState({})
   const [reload, setReload] = useState(0)
@@ -29,6 +29,8 @@ export default function PaymentCard({ partyId, purpose = 'PREPAY', myId, now, co
   }, [key, partyId, purpose, now, reload, knownOrder])
   const order = knownOrder || (loaded.key === key ? loaded.order : null)
   const error = actionError || (loaded.key === key ? loaded.error : '')
+  // 부모(지금 할 일 카드)가 내 주문 상태에 맞춰 제목을 바꿀 수 있게 알려 준다.
+  useEffect(() => { if (order) onOrder?.(order) }, [order, onOrder])
   const extra = purpose === 'ADDITIONAL'
   const late = order && now && new Date(order.deadlineAt) <= new Date(now)
   const payable = order && ['REQUIRED', 'OVERDUE'].includes(order.status) && (extra || !late) && !readOnly

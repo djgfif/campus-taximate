@@ -353,6 +353,8 @@ export function PartyStepper({ party }) {
 
 /** 상태와 역할에 맞는 "지금 할 일" 하나. 제목·한 줄 설명·남은 시간과, 필요하면 그 자리에서 누르는 카드. */
 function NextAction({ party, now, myId, mine, config, run, onUpdated, onDriver }) {
+  // 일행 상태는 모두 결제할 때까지 PREPAYING이라, 내 결제 여부는 내 선결제 주문으로 판단한다.
+  const [prepay, setPrepay] = useState(null)
   const waiting = ['PREPAYING', 'READY'].includes(party.status)
   const left = (at) => (at && now ? `${remaining(at, now)} 남음` : '')
   let title
@@ -378,9 +380,12 @@ function NextAction({ party, now, myId, mine, config, run, onUpdated, onDriver }
     detail = '운행 시작 표시가 없어 확인하고 있어요. 미운행이 확인될 때만 환불해요.'
     extra = <RideConfirmationCard party={party} onUpdated={onUpdated} />
   } else if (party.status === 'PREPAYING' && !party.payer) {
-    title = '선결제를 마쳐 주세요'
-    detail = '내 몫에 여유 15%를 더해 미리 내고, 내린 뒤 실제 요금으로 나눠 남는 돈은 돌려받아요.'
-    extra = <PaymentCard compact partyId={party.id} myId={myId} now={now} config={config} onUpdated={onUpdated} />
+    const paid = prepay?.status === 'APPROVED'
+    title = paid ? '선결제를 마쳤어요' : prepay?.status === 'PROCESSING' ? '결제를 확인하고 있어요' : '선결제를 마쳐 주세요'
+    detail = paid ? '다른 일행의 선결제를 기다리고 있어요. 모두 결제하면 만날 시간과 장소를 알려 드려요.'
+      : '내 몫에 여유 15%를 더해 미리 내고, 내린 뒤 실제 요금으로 나눠 남는 돈은 돌려받아요.'
+    if (paid) tone = 'calm'
+    extra = <PaymentCard compact partyId={party.id} myId={myId} now={now} config={config} onUpdated={onUpdated} onOrder={setPrepay} />
   } else if (waiting && party.payer) {
     if (party.calledAt) {
       title = '택시를 불렀어요'
