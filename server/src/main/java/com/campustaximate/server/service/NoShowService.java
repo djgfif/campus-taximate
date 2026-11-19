@@ -97,7 +97,10 @@ public class NoShowService {
         }
         if(!missing.isEmpty()) {
             changes.changed(party,missing,"BOARDING_UNCONFIRMED",missing);
-            for(var rider:riders) if(missing.contains(rider.getId())) { rider.clearParty(); rider.finish(RequestStatus.CANCELED); }
+            for(var rider:riders) if(missing.contains(rider.getId())) {
+                rider.setEndReason(EndReason.BOARDING_UNCONFIRMED);
+                rider.clearParty(); rider.finish(RequestStatus.CANCELED);
+            }
         }
         var remaining=riders.stream().filter(r->!missing.contains(r.getId())).toList();
         // 운행이 이미 시작됐으므로 한 명이어도 실제 요금을 정산한다. 단독 값은 최초 조회값을 보존한다.
@@ -146,6 +149,7 @@ public class NoShowService {
         if(!accept || !clock.now().isBefore(party.getSuccessionDeadlineAt())) {failSuccession(party);return;}
         var original=requests.findByPartyOrderByRideOrder(party).stream().filter(r->r.getMember().getId().equals(party.getPayer().getId())).findFirst().orElseThrow();
         changes.changed(party,Set.of(original.getId()),"PAYER_NO_SHOW",Set.of(original.getId()));
+        original.setEndReason(EndReason.BOARDING_UNCONFIRMED);
         original.clearParty();original.finish(RequestStatus.CANCELED);
         party.setPayer(members.getReferenceById(actor));party.setSuccessionStatus("ACCEPTED");
         party.revokeBoardingCode(); party.setStatus(PartyStatus.READY);

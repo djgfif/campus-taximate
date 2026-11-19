@@ -16,6 +16,7 @@ public class PartyChangeService {
     private final PaymentOrderRepository orders;
     private final BoardingCaseRepository cases;
     private final PartyChatService chatLog;
+    private final RideRequestRepository requests;
 
     @Transactional(propagation=Propagation.MANDATORY)
     public void capture(Party party, List<RideRequest> riders, boolean migrated) {
@@ -38,6 +39,10 @@ public class PartyChangeService {
         boolean lateChange=reason.equals("CHANGE_EXIT_FREE") && !acceptedAt.isBefore(party.getDepartureAt().minusSeconds(600));
         boolean lateNormal=reason.equals("FREE_CANCEL") && acceptedAt.isAfter(party.freeCancelUntil());
         if(lateChange || lateNormal) { reason="LATE_CANCEL"; held=leaving; }
+        EndReason endReason=EndReason.forExit(reason);
+        if(endReason!=null) for(var rider:requests.findByPartyOrderByRideOrder(party)) {
+            if(leaving.contains(rider.getId())) rider.setEndReason(endReason);
+        }
         party.setGroupVersion(party.getGroupVersion()+1);
         PartyChange event=new PartyChange(); event.setPartyId(party.getId()); event.setGroupVersion(party.getGroupVersion());
         event.setReason(reason); event.setChangedAt(at); changes.save(event);

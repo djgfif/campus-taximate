@@ -7,6 +7,12 @@ import java.sql.*;
 /** CI supplies a dedicated schema, never the application's or concurrency tests' schema. */
 @EnabledIfEnvironmentVariable(named="MYSQL_TESTS",matches="true")
 class BoardingMigrationMysqlTest {
+    @Test void v20UpgradeRestoresExcludedRequestReasonsOnMysql() throws Exception {
+        String url=System.getenv("MYSQL_MIGRATION_TEST_URL");
+        assertThat(url).contains("/taximate_migration?");
+        Flyway.configure().dataSource(url,"taximate","taximate").cleanDisabled(false).load().clean();
+        RequestExitMigrationTest.verifyUpgrade(url,"taximate","taximate");
+    }
     @Test void freshAndV15UpgradeOnRealMysql() throws Exception {
         String url=System.getenv("MYSQL_MIGRATION_TEST_URL");
         assertThat(url).as("MYSQL_MIGRATION_TEST_URL must name the isolated migration schema").isNotBlank();

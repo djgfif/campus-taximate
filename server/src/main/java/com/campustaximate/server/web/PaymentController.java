@@ -31,4 +31,8 @@ public class PaymentController {
     }
     @GetMapping("/orders/{orderId}")
     public PaymentService.OrderView get(@PathVariable String orderId, HttpSession session) { return payments.get(actor(session), orderId); }
+    @GetMapping("/history/{requestId}")
+    public java.util.List<PaymentService.OrderView> history(@PathVariable long requestId, HttpSession session) {
+        return payments.history(actor(session), requestId);
+    }
 }

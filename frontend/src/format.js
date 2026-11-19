@@ -1,4 +1,8 @@
 export const HISTORY_LABEL = {
+  BOARDING_UNCONFIRMED: ['탑승 미확인 · 소명 기간', 'warn'],
+  BOARDING_REVIEW: ['탑승 미확인 · 관리자 검토 중', 'warn'],
+  BOARDING_NO_SHOW: ['탑승 조사 · 노쇼 확정', 'bad'],
+  BOARDING_EXONERATED: ['탑승 조사 · 노쇼 아님', 'ok'],
   RIDE_UNCONFIRMED: ['운행 확인 중', 'warn'],
   PREPAYING: ['선결제 대기', 'warn'], READY: ['호출 대기', 'warn'],
   AWAITING_FARE: ['금액 입력 대기', 'warn'], OBJECTION_WINDOW: ['이의 기간', 'warn'],
