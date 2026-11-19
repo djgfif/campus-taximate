@@ -39,6 +39,6 @@ it('오입력 뒤 서버의 남은 횟수를 다시 읽고 잠기면 제출을 �
 it('만료 후 미입력을 노쇼 확정으로 안내하지 않고 조사와 소명을 설명한다', async () => {
  vi.spyOn(api, 'boardingState').mockResolvedValue({ ...base, status: 'EXPIRED' })
  render(<BoardingCodePanel party={{ id: 7, payer: false }} />)
- expect(await screen.findByText(/미입력만으로 노쇼가 확정되지 않아요/)).toBeTruthy()
+ expect(await screen.findByText(/이유만으로 노쇼가 되지 않아요/)).toBeTruthy()
  expect(screen.queryByRole('button', { name: '탑승 확인' })).toBeNull()
 })

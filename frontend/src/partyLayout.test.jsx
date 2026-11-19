@@ -40,7 +40,7 @@ describe('일행 화면 구성', () => {
     render(<PartyScreen party={base} now={now} myId={1} run={vi.fn()} />)
     const next = screen.getByRole('region', { name: '지금 할 일' })
     expect(await within(next).findByText('선결제를 마쳤어요')).toBeTruthy()
-    expect(within(next).getByText(/다른 일행의 선결제를 기다리고 있어요/)).toBeTruthy()
+    expect(within(next).getByText(/모두 결제하면 만날 시간과 장소를 알려 드려요/)).toBeTruthy()
     expect(within(next).queryByText('선결제를 마쳐 주세요')).toBeNull()
   })
 

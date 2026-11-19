@@ -10,7 +10,7 @@ import KakaoTaxi from './KakaoTaxi.jsx'
 import BoardingCodePanel from './BoardingCodePanel.jsx'
 import { BoardingPanel } from './ReviewScreens.jsx'
 import { formatTime, formatDateTime, isPaymentParty, knownPartyStatus, meetPlace, partyLabel, remaining, won } from './format.js'
-import { Avatar, BackBar, Btn, Confirm, Item, Meter, Rail, Rows, Say, Screen, Sheet, TopBar, toast, useWide } from './ui.jsx'
+import { Avatar, BackBar, Btn, Confirm, FareCompare, Item, Meter, Rail, Rows, Say, Screen, Sheet, TopBar, toast, useWide } from './ui.jsx'
 
 // 일행 채팅은 PartyChat.jsx로 옮겼다. 다른 화면은 지금처럼 이 파일에서 가져온다.
 export { PartyChat }
@@ -382,8 +382,8 @@ function NextAction({ party, now, myId, mine, config, run, onUpdated, onDriver }
   } else if (party.status === 'PREPAYING' && !party.payer) {
     const paid = prepay?.status === 'APPROVED'
     title = paid ? '선결제를 마쳤어요' : prepay?.status === 'PROCESSING' ? '결제를 확인하고 있어요' : '선결제를 마쳐 주세요'
-    detail = paid ? '다른 일행의 선결제를 기다리고 있어요. 모두 결제하면 만날 시간과 장소를 알려 드려요.'
-      : '내 몫에 여유 15%를 더해 미리 내고, 내린 뒤 실제 요금으로 나눠 남는 돈은 돌려받아요.'
+    detail = paid ? '모두 결제하면 만날 시간과 장소를 알려 드려요.'
+      : '내 몫에 여유 15%를 더한 금액이에요. 남는 돈은 내린 뒤 돌려받아요.'
     if (paid) tone = 'calm'
     extra = <PaymentCard compact partyId={party.id} myId={myId} now={now} config={config} onUpdated={onUpdated} onOrder={setPrepay} />
   } else if (waiting && party.payer) {
@@ -401,7 +401,7 @@ function NextAction({ party, now, myId, mine, config, run, onUpdated, onDriver }
         detail = '나는 선결제하지 않아요. 다들 결제하고 도착하면 택시를 부를 수 있어요.'
       } else {
         title = party.status === 'PREPAYING' ? '다른 사람들이 결제하는 중이에요' : `${formatTime(party.callAt || party.departureAt)}쯤 택시를 불러요`
-        detail = '나는 선결제하지 않아요. 부를 때가 되면 버튼이 켜져요.'
+        detail = '결제자는 선결제가 없어요. 부를 때가 되면 버튼이 켜져요.'
         tone = 'calm'
       }
       extra = <>
@@ -485,11 +485,7 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
         <div className="band" />
         <div className="block">
           {/* 서비스의 핵심 숫자. 정보 탭 두 단계 아래에만 있던 것을 진행 탭 첫 화면에도 보인다. */}
-          {party.mySoloFare > party.myShare && <section aria-label="아끼는 돈"><Rows items={[
-            ['혼자 타면', won(party.mySoloFare)],
-            ['같이 타면 내 몫', won(party.myShare)],
-            ['아끼는 돈', won(party.mySoloFare - party.myShare), 'save'],
-          ]} /></section>}
+          {party.mySoloFare > party.myShare && <FareCompare solo={party.mySoloFare} share={party.myShare} />}
           {mine && <PartyMiniMap party={party} mine={mine} />}
           <h2 className="block-title">같이 타는 사람 <small>내리는 순서</small></h2>
           <Rail items={order.map((m) => ({
