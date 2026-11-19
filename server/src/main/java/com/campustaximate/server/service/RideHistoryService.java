@@ -21,7 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class RideHistoryService {
 
     public enum Stage { WAITING, CANCELED, UNMATCHED, NO_SHOW, MATCHED, AWAITING_AMOUNT, SETTLING, SETTLED, UNSETTLED,
-        PARTY_CANCELED, LEFT_ALONE, PREPAYING, READY, OBJECTION_WINDOW, REVIEW_PENDING, NOT_OPERATED, FARE_MISSING, DISSOLVED, RIDE_UNCONFIRMED }
+        PARTY_CANCELED, LEFT_ALONE, PREPAYING, READY, OBJECTION_WINDOW, REVIEW_PENDING, NOT_OPERATED, FARE_MISSING, DISSOLVED, RIDE_UNCONFIRMED,
+        BOARDING_UNCONFIRMED, BOARDING_REVIEW, BOARDING_NO_SHOW, BOARDING_EXONERATED }
 
     /** paid는 내가 낸 돈, partyPaid는 실제 결제 금액이고, 정산 전에는 null이다. */
     public record Entry(RideRequest request, Stage stage, Long paid, Long partyPaid, Integer partySize) {
@@ -34,6 +35,7 @@ public class RideHistoryService {
     private final SettlementRepository settlements;
     private final TransferRequestRepository transfers;
     private final com.campustaximate.server.repository.PaymentOrderRepository paymentOrders;
+    private final com.campustaximate.server.repository.BoardingCaseRepository boardingCases;
 
     @Transactional(readOnly = true)
     public List<Entry> of(long memberId) {
@@ -42,6 +44,16 @@ public class RideHistoryService {
 
     private Entry entry(RideRequest r, long memberId) {
         Party party = r.getParty();
+        if (r.getEndReason() == EndReason.BOARDING_UNCONFIRMED) {
+            Stage boardingStage = boardingCases.findByRequestIdAndMemberId(r.getId(), memberId)
+                    .map(c -> switch(c.getStatus()) {
+                        case "REVIEW" -> Stage.BOARDING_REVIEW;
+                        case "CONFIRMED" -> Stage.BOARDING_NO_SHOW;
+                        case "EXONERATED" -> Stage.BOARDING_EXONERATED;
+                        default -> Stage.BOARDING_UNCONFIRMED;
+                    }).orElse(Stage.BOARDING_UNCONFIRMED);
+            return new Entry(r, boardingStage);
+        }
         if (r.isNoShow() || r.getEndReason() == EndReason.NO_SHOW) {
             return new Entry(r, Stage.NO_SHOW);
         }

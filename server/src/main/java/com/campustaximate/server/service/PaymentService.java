@@ -98,6 +98,20 @@ public class PaymentService {
         return view(order);
     }
 
+    /** 종료된 요청도 본인의 주문만 조회한다. 일행 상세나 다른 일행원의 정보는 반환하지 않는다. */
+    @Transactional(readOnly = true)
+    public List<OrderView> history(long memberId, long requestId) {
+        RideRequest request = requests.findById(requestId)
+                .orElseThrow(() -> ApiException.notFound("없는 요청입니다."));
+        if (request.getMember().getId() != memberId) throw ApiException.forbidden("본인의 결제 기록만 볼 수 있어요.");
+        Set<Long> partyIds = new HashSet<>();
+        if (request.getParty() != null) partyIds.add(request.getParty().getId());
+        terms.findByRequestIdOrderById(requestId).stream().filter(t -> t.getMemberId() == memberId)
+                .forEach(t -> partyIds.add(t.getPartyId()));
+        if (partyIds.isEmpty()) return List.of();
+        return orders.findByMemberIdAndPartyIdInOrderById(memberId, partyIds).stream().map(this::view).toList();
+    }
+
     public OrderView confirm(long memberId, String orderId, String paymentKey, long amount) {
         if (paymentKey == null || paymentKey.isBlank() || paymentKey.length() > 200) throw ApiException.badRequest("INVALID_PAYMENT_KEY", "결제 키를 확인해 주세요.");
         PaymentOrder reference = owned(memberId, orderId);

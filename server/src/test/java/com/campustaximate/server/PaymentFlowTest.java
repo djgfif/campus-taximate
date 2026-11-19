@@ -547,6 +547,66 @@ class PaymentFlowTest {
         assertThat(partyService.view(ids.get(2),partyId).canSettle()).isTrue();
         verify(gateway,never()).cancel(anyString(),anyLong(),anyString(),anyString());
     }
+
+    @Test void excludedBoardingHistoryFollowsInvestigationInsteadOfCancellation() throws Exception {
+        departWithout(1);
+        assertThat(rider(1).getEndReason()).isEqualTo(EndReason.BOARDING_UNCONFIRMED);
+        var session=new org.springframework.mock.web.MockHttpSession();
+        AuthenticatedTestSession.authenticate(session,ids.get(1),testTokens);
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/history").session(session))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].stage").value("BOARDING_UNCONFIRMED"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].endReason").value("BOARDING_UNCONFIRMED"));
+        at(investigation(1).getDeadlineAt());noShows.adjudicate(investigation(1).getId());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/history").session(session))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].stage").value("BOARDING_REVIEW"));
+        admin.decideNoShow(adminId(),investigation(1).getId(),"NOT_NO_SHOW","번호를 받지 못한 사유 확인");
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/history").session(session))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].stage").value("BOARDING_EXONERATED"));
+    }
+
+    @Test void excludedBoardingSubjectReadsOnlyOwnPaymentsAndPartyDetailStaysForbidden() throws Exception {
+        departWithout(1);
+        var session=new org.springframework.mock.web.MockHttpSession();
+        AuthenticatedTestSession.authenticate(session,ids.get(1),testTokens);
+        String endpoint="/api/payments/history/"+rider(1).getId();
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(endpoint).session(session))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.length()").value(1))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].orderId").value(order(1).getOrderId()))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].approvedAmount").value(6440))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].refundHeld").value(true))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].paymentKey").doesNotExist())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].memberId").doesNotExist())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].members").doesNotExist());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/parties/"+partyId).session(session))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isForbidden());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/payments/history/"+rider(0).getId()).session(session))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isForbidden());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/payments/orders/"+order(0).getOrderId()).session(session))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isForbidden());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(endpoint))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isUnauthorized());
+        noShows.vote(ids.get(0),partyId,ids.get(1),false);submit(15500);finalizeFare();
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/history").session(session))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].stage").value("BOARDING_NO_SHOW"));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(endpoint).session(session))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].refundedAmount").value(2140))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].refundHeld").value(false));
+    }
+
+    @Test void formerMemberHistoryIncludesOwnAdditionalOrdersButNoPeers() {
+        approve(0);approve(1);
+        at(parties.findById(partyId).orElseThrow().freeCancelUntil().plusSeconds(1));
+        rideRequests.cancel(ids.get(1),rider(1).getId());
+        assertThat(rider(1).getEndReason()).isEqualTo(EndReason.LATE_CANCEL);
+        new TransactionTemplate(manager).executeWithoutResult(tx -> {
+            payments.createObligation(partyId,ids.get(1),null,null,PaymentPurpose.ADDITIONAL,123,clock.now().plusSeconds(86400));
+            payments.createObligation(partyId,ids.get(0),null,null,PaymentPurpose.ADDITIONAL,999,clock.now().plusSeconds(86400));
+        });
+        assertThat(payments.history(ids.get(1),rider(1).getId())).hasSize(2)
+                .extracting(PaymentService.OrderView::amount).containsExactly(6440L,123L);
+    }
     @Test void n09NoPayerAnswerOrFareByTPlus24RefundsAllAndClosesInput() {
         unconfirmed();at(NOW.plusSeconds(1800+24*3600-1));lifecycle.afterDepartures();
         assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.RIDE_UNCONFIRMED);

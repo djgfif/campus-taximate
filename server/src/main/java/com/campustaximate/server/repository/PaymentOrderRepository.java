@@ -13,6 +13,7 @@ public interface PaymentOrderRepository extends JpaRepository<PaymentOrder, Long
     boolean hasUnpaidAdditional(long memberId, Instant now);
     Optional<PaymentOrder> findByOrderId(String orderId);
     List<PaymentOrder> findByPartyIdOrderById(Long partyId);
+    List<PaymentOrder> findByMemberIdAndPartyIdInOrderById(Long memberId, Collection<Long> partyIds);
     Optional<PaymentOrder> findByPartyIdAndMemberIdAndPurpose(Long partyId, Long memberId, PaymentPurpose purpose);
     @Lock(LockModeType.PESSIMISTIC_WRITE) @Query("select o from PaymentOrder o where o.id=:id")
     Optional<PaymentOrder> lockById(long id);

@@ -102,6 +102,35 @@ describe('일행 상태', () => {
 })
 
 describe('이용 내역의 결제 기록', () => {
+  it.each([
+    ['BOARDING_UNCONFIRMED', '탑승 미확인 · 소명 기간'],
+    ['BOARDING_REVIEW', '탑승 미확인 · 관리자 검토 중'],
+    ['BOARDING_NO_SHOW', '탑승 조사 · 노쇼 확정'],
+    ['BOARDING_EXONERATED', '탑승 조사 · 노쇼 아님'],
+  ])('제외자의 %s 상태와 본인 기록, 소명 안내를 표시한다', async (stage, label) => {
+    vi.spyOn(api, 'history').mockResolvedValue([{ id: 102, stage, endReason: 'BOARDING_UNCONFIRMED', direction: 'FROM_HUB', anchorName: '정문', pointName: '시청', windowStart: now, partyId: null, partyIds: [11], soloFare: 10500 }])
+    const own = vi.spyOn(api, 'ownPaymentHistory').mockResolvedValue([
+      { orderId: 'own-prepay', purpose: 'PREPAY', status: 'APPROVED', amount: 6440, approvedAmount: 6440, refundedAmount: 2140, refundRequestedAmount: 2140, refundHeld: true, holdReason: '보류(노쇼 조사 중)' },
+      { orderId: 'own-extra', purpose: 'ADDITIONAL', status: 'REQUIRED', amount: 123, approvedAmount: 0, refundedAmount: 0 },
+    ])
+    const detail = vi.spyOn(api, 'party')
+    const chat = vi.spyOn(api, 'partyMessages')
+    const navigate = vi.fn()
+    render(<History onBack={() => {}} onBoardingCases={navigate} />)
+    await screen.findByText(label)
+    await screen.findByText('보류(노쇼 조사 중)')
+    expect(own).toHaveBeenCalledWith(102)
+    expect(detail).not.toHaveBeenCalled()
+    expect(chat).not.toHaveBeenCalled()
+    expect(screen.getByRole('region', { name: '추가 결제 기록' })).toBeTruthy()
+    expect(screen.getByText('2,140원')).toBeTruthy()
+    expect(screen.getByText(/선결제는 조사 중 보류돼요/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '일행 채팅 보기' })).toBeNull()
+    expect(screen.queryByText(/결제 상세를 읽지 못했어요/)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '내 탑승 확인·소명' }))
+    expect(navigate).toHaveBeenCalledOnce()
+  })
+
   it('선택한 일행 상세에서 환불과 앱 정산 기록상 받을 돈(실제 송금 없음) 기록을 읽는다', async () => {
     vi.spyOn(api, 'history').mockResolvedValue([{ id: 101, stage: 'SETTLED', direction: 'FROM_HUB', anchorName: '정문', pointName: '역전', windowStart: now, partyId: 11, partyIds: [11], soloFare: 6000, paid: 3200 }])
     vi.spyOn(api, 'fareAccuracy').mockResolvedValue({ settled: 1, within: 1 })

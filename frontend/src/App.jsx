@@ -184,7 +184,7 @@ export default function App() {
           {config?.simulatedRoute && <p className="demo-strip" role="note">시연 모드 · 금액과 시간은 예시예요</p>}
           {paymentReturn && <PaymentResult key={me.id + location.search} search={location.search} myId={me.id} onUpdated={refresh}
             onReturn={(id) => navigate(id ? `/parties/${id}` : '/', { replace: true })} />}
-          {!paymentReturn && tab === 'history' && <History admin={me.admin} onBack={() => setTab('home')} />}
+          {!paymentReturn && tab === 'history' && <History admin={me.admin} onBack={() => setTab('home')} onBoardingCases={() => setTab('boarding-cases')} />}
           {!paymentReturn && tab === 'boarding-cases' && <BoardingCasesScreen now={state?.now} onBack={() => setTab('home')} />}
           {!paymentReturn && tab === 'admin' && <AdminScreen allowed={me.admin} onBack={() => setTab('home')} />}
           {!paymentReturn && tab === 'home' && !state && <LoadingScreen />}

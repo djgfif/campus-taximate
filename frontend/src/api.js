@@ -35,6 +35,7 @@ function settlementForm({ amount, receipt }) {
 }
 
 export const api = {
+  ownPaymentHistory: (requestId) => request(`/payments/history/${requestId}`),
   boardingCases: () => request('/boarding-cases'),
   partyBoardingCases: (partyId) => request(`/parties/${partyId}/boarding-cases`),
   boardingVote: (partyId, memberId, came) => json('POST', `/parties/${partyId}/members/${memberId}/boarding-votes`, { came }),
