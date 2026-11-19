@@ -39,16 +39,46 @@ class EstimateCalculatorTest {
                 .evaluate(List.of(firstA, firstB, secondA, secondB), LEGS).isEmpty());
     }
 
+    /** 명세 4.3: 거리 절약은 1차에서 거르지 않고 순위에만 쓴다. 요금 10%는 2차가 본다. */
     @Test
-    void groupDistanceBoundaryIgnoresIndividualSaving() {
+    void distanceSavingOnlyRanks() {
         var a = new MatchRequest(1, 101, Fixtures.HUB, Gender.FEMALE,
                 Fixtures.SLOT, Fixtures.SLOT.plusSeconds(3600), at(1, 0), 10, 100);
         var b = new MatchRequest(2, 102, Fixtures.HUB, Gender.FEMALE,
                 Fixtures.SLOT, Fixtures.SLOT.plusSeconds(3600), at(2, 0), 10, 100);
+        Candidate shorter = calculator.evaluate(List.of(a, b), (x, y) ->
+                java.util.Optional.of(new RoadLeg(8, 100))).orElseThrow();
+        Candidate longer = calculator.evaluate(List.of(a, b), (x, y) ->
+                java.util.Optional.of(new RoadLeg(12, 100))).orElseThrow();
+        assertEquals(2.0, shorter.savedKm(), 1e-9);
+        assertEquals(-2.0, longer.savedKm(), 1e-9);
+    }
+
+    private static MatchRequest timed(long id, double anchorKm, int solo, int walk, int anchorSeconds) {
+        return new MatchRequest(id, id + 100, Fixtures.HUB, Gender.FEMALE, Fixtures.SLOT,
+                Fixtures.SLOT.plusSeconds(3600), at(anchorKm, 0), anchorKm, solo)
+                .atPoint(walk, anchorKm, anchorSeconds);
+    }
+
+    /** M-05: 걷기 8분 + 동승 25분, 단독 20분 → 지연 13분, 통과. */
+    @Test
+    void walkingCountsTowardDelay() {
+        var a = timed(1, 5, 1200, 480, 1500);
+        var b = timed(2, 6, 1600, 0, 1600);
+        Candidate c = calculator.evaluate(List.of(a, b), (x, y) ->
+                java.util.Optional.of(new RoadLeg(1, 100))).orElseThrow();
+        assertEquals(780, c.maxDelay());
+    }
+
+    /** M-03, M-04: 지연 900초 통과, 901초 탈락. */
+    @Test
+    void delayBoundaryIsNineHundredSeconds() {
+        var a = timed(1, 5, 1500, 0, 1500);
+        var b = timed(2, 8, 1000, 0, 1000);
         assertTrue(calculator.evaluate(List.of(a, b), (x, y) ->
-                java.util.Optional.of(new RoadLeg(8, 100))).isPresent());
+                java.util.Optional.of(new RoadLeg(3, 400))).isPresent());
         assertTrue(calculator.evaluate(List.of(a, b), (x, y) ->
-                java.util.Optional.of(new RoadLeg(8.001, 100))).isEmpty());
+                java.util.Optional.of(new RoadLeg(3, 401))).isEmpty());
     }
 
     private static MatchingSettings withMaxDelay(int minutes) {
@@ -57,12 +87,13 @@ class EstimateCalculatorTest {
                 d.maxVerifications(), d.leadMinutes(), d.slotMinutes());
     }
 
+    /** 반대 방향은 1차를 지나도 절약이 음수라 순위가 맨 뒤다. 실제 탈락은 2차 요금 검사. */
     @Test
-    void rejectsWhenGroupDistanceSavesLessThanTenPercent() {
+    void oppositeDirectionsSaveNothing() {
         var east = request(1, at(1, 0));
         var west = request(2, at(-2, 0));
 
-        assertTrue(calculator.evaluate(List.of(east, west), LEGS).isEmpty());
+        assertTrue(calculator.evaluate(List.of(east, west), LEGS).orElseThrow().savedKm() < 0);
     }
 
     @Test

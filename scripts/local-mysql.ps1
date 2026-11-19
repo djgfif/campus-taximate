@@ -11,11 +11,11 @@ Start-Process -FilePath "$bin\mysqld.exe" -WindowStyle Hidden -ArgumentList @(
   "--basedir=`"$base`"", "--datadir=`"$Data`"", '--port=3307', '--bind-address=127.0.0.1', '--mysqlx=OFF',
   '--character-set-server=utf8mb4', '--collation-server=utf8mb4_unicode_ci')
 for ($i = 0; $i -lt 30; $i++) {
-  & "$bin\mysql.exe" -uroot --port=3307 -h127.0.0.1 -e 'select 1' 2>$null | Out-Null
+  & "$bin\mysql.exe" -uroot --port=3307 --host=127.0.0.1 -e 'select 1' 2>$null | Out-Null
   if ($LASTEXITCODE -eq 0) { break }
   Start-Sleep -Seconds 1
 }
-& "$bin\mysql.exe" -uroot --port=3307 -h127.0.0.1 -e @"
+& "$bin\mysql.exe" -uroot --port=3307 --host=127.0.0.1 -e @"
 CREATE DATABASE IF NOT EXISTS taximate CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER IF NOT EXISTS 'taximate'@'localhost' IDENTIFIED BY 'taximate';
 CREATE USER IF NOT EXISTS 'taximate'@'127.0.0.1' IDENTIFIED BY 'taximate';

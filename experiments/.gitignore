@@ -1,0 +1,5 @@
+.cache/
+private/
+__pycache__/
+*.pyc
+reports/*-private.*

@@ -5,6 +5,149 @@
     "version": "v0"
   },
   "paths": {
+    "/api/members/{memberId}/avoid": {
+      "put": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "avoid",
+        "parameters": [
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "unavoid",
+        "parameters": [
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/me/profile": {
+      "get": {
+        "tags": [
+          "people-controller"
+        ],
+        "operationId": "profile",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileView"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "people-controller"
+        ],
+        "operationId": "updateProfile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/hubs/{id}": {
+      "put": {
+        "tags": [
+          "admin-controller"
+        ],
+        "operationId": "updateHub",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HubBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HubView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/transfers/{id}/sent": {
       "post": {
         "tags": [
@@ -127,6 +270,444 @@
         }
       }
     },
+    "/api/push/subscription": {
+      "post": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "subscribe",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "unsubscribe",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/payments/orders": {
+      "post": {
+        "tags": [
+          "payment-controller"
+        ],
+        "operationId": "order",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payments/confirm": {
+      "post": {
+        "tags": [
+          "payment-controller"
+        ],
+        "operationId": "confirm",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/parties/{partyId}/payer-succession": {
+      "post": {
+        "tags": [
+          "boarding-case-controller"
+        ],
+        "operationId": "succession",
+        "parameters": [
+          {
+            "name": "partyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuccessionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/parties/{partyId}/messages": {
+      "get": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "messages",
+        "parameters": [
+          {
+            "name": "partyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatView"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "message",
+        "parameters": [
+          {
+            "name": "partyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MessageBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/parties/{partyId}/messages/read": {
+      "post": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "readMessages",
+        "parameters": [
+          {
+            "name": "partyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "integer",
+                    "format": "int64"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/parties/{partyId}/messages/image": {
+      "post": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "imageMessage",
+        "parameters": [
+          {
+            "name": "partyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "clientId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "required": [
+                  "image"
+                ],
+                "type": "object",
+                "properties": {
+                  "image": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/parties/{partyId}/members/{memberId}/report": {
+      "post": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "report",
+        "parameters": [
+          {
+            "name": "partyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/parties/{partyId}/members/{memberId}/boarding-votes": {
+      "post": {
+        "tags": [
+          "boarding-case-controller"
+        ],
+        "operationId": "vote",
+        "parameters": [
+          {
+            "name": "partyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoteBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/parties/{id}/start": {
+      "post": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "startRide",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/parties/{id}/settlement": {
       "post": {
         "tags": [
@@ -186,6 +767,40 @@
               }
             }
           }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/parties/{id}/settlement/objections": {
+      "post": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "objectToFare",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ObjectionBody"
+              }
+            }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -261,6 +876,308 @@
         }
       }
     },
+    "/api/parties/{id}/ride-confirmation": {
+      "post": {
+        "tags": [
+          "party-decision-controller"
+        ],
+        "operationId": "answer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Answer"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/parties/{id}/readiness": {
+      "post": {
+        "tags": [
+          "party-preparation-controller"
+        ],
+        "operationId": "ready",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Ready"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/parties/{id}/praises": {
+      "post": {
+        "tags": [
+          "people-controller"
+        ],
+        "operationId": "praise",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PraiseBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PersonView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/parties/{id}/leave-after-change": {
+      "post": {
+        "tags": [
+          "party-decision-controller"
+        ],
+        "operationId": "leave",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Leave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExitResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/parties/{id}/joins": {
+      "post": {
+        "tags": [
+          "party-join-controller"
+        ],
+        "operationId": "offer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JoinBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyJoin"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/parties/{id}/call": {
+      "post": {
+        "tags": [
+          "party-preparation-controller"
+        ],
+        "operationId": "call",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/parties/{id}/boarding-code": {
+      "get": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "boardingState",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/State"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "boardingCode",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BoardingCodeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/parties/{id}/boarded": {
       "post": {
         "tags": [
@@ -278,45 +1195,6 @@
             }
           }
         ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/parties/{id}/boarding-code": {
-      "post": {
-        "tags": [
-          "api-controller"
-        ],
-        "operationId": "confirmBoarding",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "code": {
-                    "type": "string",
-                    "pattern": "^[0-9]{6}$"
-                  }
-                }
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "OK"
@@ -348,12 +1226,42 @@
         }
       }
     },
+    "/api/demo/scenario": {
+      "post": {
+        "tags": [
+          "demo-controller"
+        ],
+        "operationId": "scenario",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScenarioBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Progress"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/demo/samples": {
       "post": {
         "tags": [
-          "api-controller"
+          "demo-controller"
         ],
-        "operationId": "demoSamples",
+        "operationId": "samples",
         "requestBody": {
           "content": {
             "application/json": {
@@ -384,9 +1292,9 @@
     "/api/demo/run": {
       "post": {
         "tags": [
-          "api-controller"
+          "demo-controller"
         ],
-        "operationId": "demoRun",
+        "operationId": "run",
         "responses": {
           "200": {
             "description": "OK"
@@ -394,12 +1302,41 @@
         }
       }
     },
+    "/api/demo/next": {
+      "post": {
+        "tags": [
+          "demo-controller"
+        ],
+        "operationId": "next",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Progress"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/demo/match": {
       "post": {
         "tags": [
-          "api-controller"
+          "demo-controller"
         ],
-        "operationId": "demoMatch",
+        "operationId": "match",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MatchBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "OK",
@@ -414,12 +1351,58 @@
         }
       }
     },
+    "/api/demo/login": {
+      "post": {
+        "tags": [
+          "demo-controller"
+        ],
+        "operationId": "login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/demo/board-party": {
+      "post": {
+        "tags": [
+          "demo-controller"
+        ],
+        "operationId": "boardParty",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/demo/advance": {
       "post": {
         "tags": [
-          "api-controller"
+          "demo-controller"
         ],
-        "operationId": "demoAdvance",
+        "operationId": "advance",
         "requestBody": {
           "content": {
             "application/json": {
@@ -440,9 +1423,107 @@
     "/api/demo/act": {
       "post": {
         "tags": [
+          "demo-controller"
+        ],
+        "operationId": "act",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/boarding-cases/{id}/explanation": {
+      "post": {
+        "tags": [
+          "boarding-case-controller"
+        ],
+        "operationId": "explain",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExplanationBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/board/parties/{id}/join": {
+      "post": {
+        "tags": [
+          "people-controller"
+        ],
+        "operationId": "join",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JoinBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyJoin"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/signin": {
+      "post": {
+        "tags": [
           "api-controller"
         ],
-        "operationId": "demoAct",
+        "operationId": "signIn",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignInBody"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "OK"
@@ -455,12 +1536,35 @@
         "tags": [
           "api-controller"
         ],
-        "operationId": "profile",
+        "operationId": "profile_1",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ProfileBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/auth/password": {
+      "post": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "password",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordBody"
               }
             }
           },
@@ -504,7 +1608,7 @@
         "tags": [
           "api-controller"
         ],
-        "operationId": "login",
+        "operationId": "login_1",
         "requestBody": {
           "content": {
             "application/json": {
@@ -555,6 +1659,338 @@
         }
       }
     },
+    "/api/admin/restrictions/{id}/release": {
+      "post": {
+        "tags": [
+          "admin-controller"
+        ],
+        "operationId": "release",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidenceBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/admin/parties/{id}/ride-decision": {
+      "post": {
+        "tags": [
+          "admin-controller"
+        ],
+        "operationId": "ride",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/admin/parties/{id}/fare-decision": {
+      "post": {
+        "tags": [
+          "admin-controller"
+        ],
+        "operationId": "fare",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FareBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/admin/overdue-payments/{id}/handled": {
+      "post": {
+        "tags": [
+          "admin-controller"
+        ],
+        "operationId": "handled",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidenceBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/admin/no-shows/{id}/decision": {
+      "post": {
+        "tags": [
+          "admin-controller"
+        ],
+        "operationId": "decideNoShow",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/admin/members/{id}/restrictions": {
+      "get": {
+        "tags": [
+          "admin-controller"
+        ],
+        "operationId": "restrictions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MemberRestriction"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin-controller"
+        ],
+        "operationId": "restrict",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestrictionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberRestriction"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/hubs": {
+      "get": {
+        "tags": [
+          "admin-controller"
+        ],
+        "operationId": "hubs",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HubView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin-controller"
+        ],
+        "operationId": "createHub",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HubBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HubView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/stats/fare-accuracy": {
+      "get": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "fareAccuracy",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accuracy"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/state": {
       "get": {
         "tags": [
@@ -565,9 +2001,12 @@
           "200": {
             "description": "OK",
             "content": {
-              "application/json": {
+              "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/StateView"
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object"
+                  }
                 }
               }
             }
@@ -588,6 +2027,202 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/SchoolView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/push/key": {
+      "get": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "pushKey",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payments/orders/{orderId}": {
+      "get": {
+        "tags": [
+          "payment-controller"
+        ],
+        "operationId": "get",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/parties/{partyId}/messages/{messageId}/image": {
+      "get": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "messageImage",
+        "parameters": [
+          {
+            "name": "partyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "messageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/parties/{partyId}/members": {
+      "get": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "partyMembers",
+        "parameters": [
+          {
+            "name": "partyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Peer"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/parties/{partyId}/compensation": {
+      "get": {
+        "tags": [
+          "boarding-case-controller"
+        ],
+        "operationId": "compensation",
+        "parameters": [
+          {
+            "name": "partyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CompensationEntry"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/parties/{partyId}/boarding-cases": {
+      "get": {
+        "tags": [
+          "boarding-case-controller"
+        ],
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "partyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CaseView"
+                  }
                 }
               }
             }
@@ -732,6 +2367,40 @@
         }
       }
     },
+    "/api/parties/{id}/people": {
+      "get": {
+        "tags": [
+          "people-controller"
+        ],
+        "operationId": "people",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PersonView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/me": {
       "get": {
         "tags": [
@@ -752,12 +2421,35 @@
         }
       }
     },
+    "/api/joins": {
+      "get": {
+        "tags": [
+          "party-join-controller"
+        ],
+        "operationId": "mine",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PartyJoin"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/hubs": {
       "get": {
         "tags": [
           "api-controller"
         ],
-        "operationId": "hubs",
+        "operationId": "hubs_1",
         "responses": {
           "200": {
             "description": "OK",
@@ -767,6 +2459,49 @@
                   "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/HubView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hubs/nearby": {
+      "get": {
+        "tags": [
+          "boarding-point-controller"
+        ],
+        "operationId": "nearby",
+        "parameters": [
+          {
+            "name": "lat",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          {
+            "name": "lon",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Point"
                   }
                 }
               }
@@ -818,6 +2553,26 @@
         }
       }
     },
+    "/api/demo/status": {
+      "get": {
+        "tags": [
+          "demo-controller"
+        ],
+        "operationId": "status",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Progress"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/config": {
       "get": {
         "tags": [
@@ -833,6 +2588,291 @@
                   "type": "object",
                   "additionalProperties": {
                     "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/boarding-cases": {
+      "get": {
+        "tags": [
+          "boarding-case-controller"
+        ],
+        "operationId": "mine_1",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CaseView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/board": {
+      "get": {
+        "tags": [
+          "people-controller"
+        ],
+        "operationId": "board",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Board"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/avoids": {
+      "get": {
+        "tags": [
+          "api-controller"
+        ],
+        "operationId": "avoids",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Peer"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/reports": {
+      "get": {
+        "tags": [
+          "admin-controller"
+        ],
+        "operationId": "reports",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReportView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/parties/{id}/receipt": {
+      "get": {
+        "tags": [
+          "admin-controller"
+        ],
+        "operationId": "receipt_1",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/overdue-payments": {
+      "get": {
+        "tags": [
+          "admin-controller"
+        ],
+        "operationId": "overdue",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PaymentOrder"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/no-shows": {
+      "get": {
+        "tags": [
+          "admin-controller"
+        ],
+        "operationId": "noShows",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CaseSummary"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/no-shows/{id}": {
+      "get": {
+        "tags": [
+          "admin-controller"
+        ],
+        "operationId": "noShow",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/no-shows/{caseId}/messages/{messageId}/image": {
+      "get": {
+        "tags": [
+          "admin-controller"
+        ],
+        "operationId": "noShowMessageImage",
+        "parameters": [
+          {
+            "name": "caseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "messageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/fare-reviews": {
+      "get": {
+        "tags": [
+          "admin-controller"
+        ],
+        "operationId": "fareReviews",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FareReview"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/audits": {
+      "get": {
+        "tags": [
+          "admin-controller"
+        ],
+        "operationId": "audits",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminAudit"
                   }
                 }
               }
@@ -864,338 +2904,129 @@
           }
         }
       }
-    },
-    "/api/parties/{partyId}/members/{memberId}/report": {
-      "post": {
-        "tags": [
-          "api-controller"
-        ],
-        "operationId": "report",
-        "description": "\uac19\uc740 \uc77c\ud589\uc5d0\uc11c \uc0c1\ub300\ub97c \ud55c \ubc88 \uc2e0\uace0\ud574\uc694. \uc790\ub3d9\uc73c\ub85c \ubcf8\uc778 \uc18c\uc720\uc758 \ud68c\ud53c\ub97c \ub9cc\ub4e4\uc5b4\uc694. \uc11c\ub85c \ub2e4\ub978 \uc77c\ud589 3\uacf3\uc5d0\uc11c \uc2e0\uace0\ubc1b\uc73c\uba74 \uadf8 \uc2dc\uc810\ubd80\ud130 7\uc77c\uac04 \uc0c8 \uc694\uccad\uc744 \uc81c\ud55c\ud574\uc694.",
-        "parameters": [
-          {
-            "name": "partyId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          },
-          {
-            "name": "memberId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ReportBody"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "\ubcf8\uc778 \uc9c0\uc815, \uc0ac\uc720 \ub610\ub294 \uba54\ubaa8\uac00 \uc798\ubabb\ub410\uc5b4\uc694"
-          },
-          "401": {
-            "description": "\ub85c\uadf8\uc778\uc774 \ud544\uc694\ud574\uc694"
-          },
-          "403": {
-            "description": "\ud568\uaed8 \ubc30\uc815\ub410\ub358 \uc77c\ud589\uc6d0\ub9cc \uc9c0\uc815\ud560 \uc218 \uc788\uc5b4\uc694"
-          },
-          "409": {
-            "description": "\uc774 \uc77c\ud589\uc5d0\uc11c \uc774\ubbf8 \uc2e0\uace0\ud55c \uc0c1\ub300\uc608\uc694"
-          }
-        },
-        "security": [
-          {
-            "session": []
-          }
-        ]
-      }
-    },
-    "/api/members/{memberId}/avoid": {
-      "put": {
-        "tags": [
-          "api-controller"
-        ],
-        "operationId": "avoid",
-        "description": "\ud568\uaed8 \ubc30\uc815\ub410\ub358 \uc0c1\ub300\uc640 \uc774\ud6c4 \uc591\ubc29\ud5a5\uc73c\ub85c \ub9e4\uce6d\ud558\uc9c0 \uc54a\uc544\uc694. \uc0c1\ub300\uc5d0\uac8c \uc54c\ub9ac\uc9c0 \uc54a\uc544\uc694. \ubc18\ubcf5 \ud638\ucd9c\uc740 \uac19\uc740 \uc9c0\uc815\uc73c\ub85c \ucc98\ub9ac\ud574\uc694.",
-        "parameters": [
-          {
-            "name": "memberId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "\ubcf8\uc778 \uc9c0\uc815, \uc0ac\uc720 \ub610\ub294 \uba54\ubaa8\uac00 \uc798\ubabb\ub410\uc5b4\uc694"
-          },
-          "401": {
-            "description": "\ub85c\uadf8\uc778\uc774 \ud544\uc694\ud574\uc694"
-          },
-          "403": {
-            "description": "\ud568\uaed8 \ubc30\uc815\ub410\ub358 \uc77c\ud589\uc6d0\ub9cc \uc9c0\uc815\ud560 \uc218 \uc788\uc5b4\uc694"
-          }
-        },
-        "security": [
-          {
-            "session": []
-          }
-        ]
-      },
-      "delete": {
-        "tags": [
-          "api-controller"
-        ],
-        "operationId": "unavoid",
-        "description": "\ub85c\uadf8\uc778\ud55c \ubcf8\uc778\uc774 \ub9cc\ub4e0 \uc9c0\uc815\ub9cc \ud574\uc81c\ud574\uc694. \uc0c1\ub300\uac00 \ub9cc\ub4e0 \uc9c0\uc815\uc740 \uc720\uc9c0\ub3fc\uc694.",
-        "parameters": [
-          {
-            "name": "memberId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "\ubcf8\uc778 \uc9c0\uc815, \uc0ac\uc720 \ub610\ub294 \uba54\ubaa8\uac00 \uc798\ubabb\ub410\uc5b4\uc694"
-          },
-          "401": {
-            "description": "\ub85c\uadf8\uc778\uc774 \ud544\uc694\ud574\uc694"
-          },
-          "403": {
-            "description": "\ud568\uaed8 \ubc30\uc815\ub410\ub358 \uc77c\ud589\uc6d0\ub9cc \uc9c0\uc815\ud560 \uc218 \uc788\uc5b4\uc694"
-          }
-        },
-        "security": [
-          {
-            "session": []
-          }
-        ]
-      }
-    },
-    "/api/avoids": {
-      "get": {
-        "tags": [
-          "api-controller"
-        ],
-        "operationId": "avoids",
-        "description": "\ubcf8\uc778\uc774 \uc9c0\uc815\ud55c \ud68c\ud53c \ubaa9\ub85d\ub9cc \ubcf4\uc5ec \uc918\uc694.",
-        "security": [
-          {
-            "session": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Peer"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "\ub85c\uadf8\uc778\uc774 \ud544\uc694\ud574\uc694"
-          }
-        }
-      }
-    },
-    "/api/parties/{partyId}/members": {
-      "get": {
-        "tags": [
-          "api-controller"
-        ],
-        "operationId": "partyMembers",
-        "description": "\ubcf8\uc778\uc744 \uc81c\uc678\ud55c \uacfc\uac70 \ubc30\uc815 \uc77c\ud589\uc6d0\uacfc \ubcf8\uc778\uc774 \uc9c0\uc815\ud55c \ud68c\ud53c \uc5ec\ubd80\ub97c \ubcf4\uc5ec \uc918\uc694.",
-        "parameters": [
-          {
-            "name": "partyId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "security": [
-          {
-            "session": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Peer"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "\ub85c\uadf8\uc778\uc774 \ud544\uc694\ud574\uc694"
-          },
-          "403": {
-            "description": "\ud568\uaed8 \ubc30\uc815\ub410\ub358 \uc77c\ud589\uc6d0\ub9cc \uc9c0\uc815\ud560 \uc218 \uc788\uc5b4\uc694"
-          }
-        }
-      }
-    },
-    "/api/parties/{partyId}/messages": {
-      "get": {
-        "tags": [
-          "api-controller"
-        ],
-        "operationId": "messages",
-        "description": "\ud604\uc7ac \uc77c\ud589\uc6d0\uc5d0\uac8c \ucd5c\uadfc \uba54\uc2dc\uc9c0 \ucd5c\ub300 50\uac1c\ub97c \uc624\ub798\ub41c \uc21c\uc11c\ub85c \ub3cc\ub824\uc918\uc694. after\uac00 \uc788\uc73c\uba74 \ud574\ub2f9 \ubc88\ud638 \uc774\ud6c4 \uba54\uc2dc\uc9c0 \ucd5c\ub300 50\uac1c\ub97c \uc624\ub798\ub41c \uc21c\uc11c\ub85c \ub3cc\ub824\uc918\uc694. \uc885\ub8cc \ud6c4 7\uc77c\uc774 \uc9c0\ub098\uba74 \uba54\uc2dc\uc9c0\ub294 \ube44\uc5b4 \uc788\uc5b4\uc694.",
-        "security": [
-          {
-            "session": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "partyId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          },
-          {
-            "name": "after",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int64",
-              "minimum": 0
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ChatView"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "after\ub294 0 \uc774\uc0c1\uc774\uc5b4\uc57c \ud574\uc694."
-          },
-          "401": {
-            "description": "\ub85c\uadf8\uc778\uc774 \ud544\uc694\ud574\uc694."
-          },
-          "403": {
-            "description": "\ud604\uc7ac \uc77c\ud589\uc6d0\ub9cc \uc77d\uace0 \uc4f8 \uc218 \uc788\uc5b4\uc694. \ucde8\uc18c\u00b7\ub178\uc1fc\ub85c \ube60\uc9c0\uba74 \uc811\uadfc\ud560 \uc218 \uc5c6\uc5b4\uc694."
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "api-controller"
-        ],
-        "operationId": "message",
-        "description": "\uc77c\ud589 \ud655\uc815\ubd80\ud130 \uc815\uc0b0 \uc644\ub8cc\uc640 \ucd9c\ubc1c \ud6c4 24\uc2dc\uac04 \uc911 \uc774\ub978 \ub54c\uae4c\uc9c0 \ubcf4\ub0bc \uc218 \uc788\uc5b4\uc694. \ub2e4\ub978 \ud604\uc7ac \uc77c\ud589\uc6d0\uc5d0\uac8c \ud654\uba74 \uac31\uc2e0\uacfc \uc6f9 \ud478\uc2dc\ub9cc \ubcf4\ub0b4\uc694.",
-        "security": [
-          {
-            "session": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "partyId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MessageBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MessageView"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "\uc55e\ub4a4 \uacf5\ubc31\uc744 \ube80 \ud14d\uc2a4\ud2b8\uac00 1~200\uc790\uc5ec\uc57c \ud574\uc694."
-          },
-          "401": {
-            "description": "\ub85c\uadf8\uc778\uc774 \ud544\uc694\ud574\uc694."
-          },
-          "403": {
-            "description": "\ud604\uc7ac \uc77c\ud589\uc6d0\ub9cc \uc77d\uace0 \uc4f8 \uc218 \uc788\uc5b4\uc694. \ucde8\uc18c\u00b7\ub178\uc1fc\ub85c \ube60\uc9c0\uba74 \uc811\uadfc\ud560 \uc218 \uc5c6\uc5b4\uc694."
-          },
-          "409": {
-            "description": "CHAT_CLOSED: \uc77c\ud589 \ucc44\ud305\uc740 \uc77d\uae30\ub9cc \uac00\ub2a5\ud574\uc694."
-          }
-        }
-      }
     }
   },
   "components": {
     "schemas": {
+      "ProfileBody": {
+        "type": "object",
+        "properties": {
+          "department": {
+            "maxLength": 40,
+            "minLength": 0,
+            "type": "string"
+          },
+          "admissionYear": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "showProfile": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ProfileView": {
+        "type": "object",
+        "properties": {
+          "department": {
+            "type": "string"
+          },
+          "admissionYear": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "showProfile": {
+            "type": "boolean"
+          }
+        }
+      },
+      "HubBody": {
+        "required": [
+          "evidence",
+          "hub"
+        ],
+        "type": "object",
+        "properties": {
+          "hub": {
+            "$ref": "#/components/schemas/HubInput"
+          },
+          "evidence": {
+            "maxLength": 2000,
+            "minLength": 0,
+            "type": "string"
+          }
+        }
+      },
+      "HubInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "meetingPoint": {
+            "type": "string"
+          },
+          "lat": {
+            "type": "number",
+            "format": "double"
+          },
+          "lon": {
+            "type": "number",
+            "format": "double"
+          },
+          "schoolIds": {
+            "uniqueItems": true,
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "fieldChecked": {
+            "type": "boolean"
+          }
+        }
+      },
+      "HubView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "meetingPoint": {
+            "type": "string"
+          },
+          "lat": {
+            "type": "number",
+            "format": "double"
+          },
+          "lon": {
+            "type": "number",
+            "format": "double"
+          },
+          "schoolIds": {
+            "uniqueItems": true,
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "fieldChecked": {
+            "type": "boolean"
+          }
+        }
+      },
       "SentBody": {
         "required": [
           "revision"
@@ -1205,6 +3036,36 @@
           "revision": {
             "type": "integer",
             "format": "int32"
+          }
+        }
+      },
+      "OriginBody": {
+        "required": [
+          "lat",
+          "lon"
+        ],
+        "type": "object",
+        "properties": {
+          "lat": {
+            "maximum": 90,
+            "exclusiveMaximum": false,
+            "minimum": -90,
+            "exclusiveMinimum": false,
+            "type": "number",
+            "format": "double"
+          },
+          "lon": {
+            "maximum": 180,
+            "exclusiveMaximum": false,
+            "minimum": -180,
+            "exclusiveMinimum": false,
+            "type": "number",
+            "format": "double"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string"
           }
         }
       },
@@ -1265,6 +3126,34 @@
             "maxLength": 100,
             "minLength": 0,
             "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "RESERVATION",
+              "INSTANT"
+            ]
+          },
+          "timeBasis": {
+            "type": "string",
+            "enum": [
+              "DEPART",
+              "ARRIVE"
+            ]
+          },
+          "origin": {
+            "$ref": "#/components/schemas/OriginBody"
+          },
+          "pointIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "earlyArrivalMinutes": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
@@ -1285,112 +3174,278 @@
           }
         }
       },
-      "SampleBody": {
-        "type": "object",
-        "properties": {
-          "count": {
-            "type": "integer",
-            "format": "int32"
-          }
-        }
-      },
-      "MatchOutcome": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "WAITING",
-              "MATCHED",
-              "COMPLETED",
-              "UNMATCHED",
-              "CANCELED"
-            ]
-          },
-          "message": {
-            "type": "string"
-          }
-        }
-      },
-      "AdvanceBody": {
+      "PushBody": {
         "required": [
-          "minutes"
+          "endpoint",
+          "keys"
         ],
         "type": "object",
         "properties": {
-          "minutes": {
-            "type": "integer",
-            "format": "int32"
-          }
-        }
-      },
-      "ProfileBody": {
-        "required": [
-          "gender",
-          "nickname"
-        ],
-        "type": "object",
-        "properties": {
-          "nickname": {
-            "maxLength": 20,
+          "endpoint": {
+            "maxLength": 500,
             "minLength": 0,
             "type": "string"
           },
-          "gender": {
+          "keys": {
+            "$ref": "#/components/schemas/PushKeys"
+          }
+        }
+      },
+      "PushKeys": {
+        "required": [
+          "auth",
+          "p256dh"
+        ],
+        "type": "object",
+        "properties": {
+          "p256dh": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "auth": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string"
+          }
+        }
+      },
+      "OrderBody": {
+        "required": [
+          "partyId",
+          "purpose"
+        ],
+        "type": "object",
+        "properties": {
+          "partyId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "purpose": {
             "type": "string",
             "enum": [
-              "FEMALE",
-              "MALE"
+              "PREPAY",
+              "ADDITIONAL"
             ]
           }
         }
       },
-      "LoginBody": {
-        "required": [
-          "code",
-          "email"
-        ],
+      "OrderView": {
         "type": "object",
         "properties": {
-          "email": {
+          "orderId": {
             "type": "string"
           },
-          "code": {
+          "amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "PREPAY",
+              "ADDITIONAL"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "REQUIRED",
+              "PROCESSING",
+              "APPROVED",
+              "EXPIRED",
+              "OVERDUE",
+              "ADMIN_REQUIRED"
+            ]
+          },
+          "deadlineAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "approvedAmount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "refundedAmount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "refundRequestedAmount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "simulated": {
+            "type": "boolean"
+          },
+          "refundHeld": {
+            "type": "boolean"
+          },
+          "holdReason": {
             "type": "string"
           }
         }
       },
-      "CodeBody": {
+      "ConfirmBody": {
         "required": [
-          "email"
+          "amount",
+          "orderId",
+          "paymentKey"
         ],
         "type": "object",
         "properties": {
-          "email": {
+          "orderId": {
+            "type": "string"
+          },
+          "paymentKey": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "amount": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "SuccessionBody": {
+        "required": [
+          "accept"
+        ],
+        "type": "object",
+        "properties": {
+          "accept": {
+            "type": "boolean"
+          }
+        }
+      },
+      "MessageBody": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "clientId": {
             "type": "string"
           }
         }
       },
-      "SchoolView": {
+      "MessageView": {
         "type": "object",
         "properties": {
           "id": {
             "type": "integer",
             "format": "int64"
           },
-          "name": {
+          "memberId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "nickname": {
             "type": "string"
           },
-          "gateName": {
+          "text": {
             "type": "string"
           },
-          "lat": {
-            "type": "number",
-            "format": "double"
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
           },
-          "lon": {
-            "type": "number",
-            "format": "double"
+          "mine": {
+            "type": "boolean"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "imageUrl": {
+            "type": "string"
+          },
+          "unread": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "clientId": {
+            "type": "string"
+          }
+        }
+      },
+      "ReadBody": {
+        "type": "object",
+        "properties": {
+          "lastId": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ReportBody": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "enum": [
+              "RUDE",
+              "DANGEROUS",
+              "OTHER"
+            ]
+          },
+          "memo": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          }
+        }
+      },
+      "VoteBody": {
+        "required": [
+          "came"
+        ],
+        "type": "object",
+        "properties": {
+          "came": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ObjectionBody": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        }
+      },
+      "Answer": {
+        "required": [
+          "rode"
+        ],
+        "type": "object",
+        "properties": {
+          "rode": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ChangeView": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "changedAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -1447,6 +3502,23 @@
           "arriveDeadline": {
             "type": "string",
             "format": "date-time"
+          },
+          "confirmedShare": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "confirmedPrepay": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "migratedUnknown": {
+            "type": "boolean"
+          },
+          "boardingUnconfirmed": {
+            "type": "boolean"
+          },
+          "nearby": {
+            "type": "boolean"
           }
         }
       },
@@ -1471,7 +3543,18 @@
               "SETTLING",
               "COMPLETED",
               "UNSETTLED",
-              "CANCELED"
+              "CANCELED",
+              "PREPAYING",
+              "READY",
+              "AWAITING_FARE",
+              "OBJECTION_WINDOW",
+              "REVIEW_PENDING",
+              "SETTLED",
+              "DISSOLVED",
+              "NOT_OPERATED",
+              "FARE_MISSING",
+              "RIDE_UNCONFIRMED",
+              "PAYER_PENDING"
             ]
           },
           "anchorName": {
@@ -1546,10 +3629,6 @@
             "type": "integer",
             "format": "int64"
           },
-          "boardingCode": {
-            "type": "string",
-            "description": "Only returned to the payer for a school-bound party."
-          },
           "members": {
             "type": "array",
             "items": {
@@ -1558,6 +3637,87 @@
           },
           "settlement": {
             "$ref": "#/components/schemas/SettlementView"
+          },
+          "prepayDeadlineAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "freeCancelUntil": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "groupVersion": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reviewReason": {
+            "type": "string"
+          },
+          "adminReviewRequired": {
+            "type": "boolean"
+          },
+          "myRideAnswer": {
+            "type": "boolean"
+          },
+          "canConfirmRide": {
+            "type": "boolean"
+          },
+          "canLeaveAfterChange": {
+            "type": "boolean"
+          },
+          "changeExitFree": {
+            "type": "boolean"
+          },
+          "myConfirmedShare": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "myConfirmedMigrated": {
+            "type": "boolean"
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChangeView"
+            }
+          },
+          "instant": {
+            "type": "boolean"
+          },
+          "calledAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "callReady": {
+            "type": "boolean"
+          },
+          "canCall": {
+            "type": "boolean"
+          },
+          "notReadyReasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "successorId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "successionDeadlineAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "successionStatus": {
+            "type": "string"
+          },
+          "unreadChat": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -1596,6 +3756,49 @@
             "items": {
               "$ref": "#/components/schemas/TransferView"
             }
+          },
+          "objectionDeadlineAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finalizedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "shares": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ShareView"
+            }
+          },
+          "payments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderView"
+            }
+          },
+          "mockPayoutAmount": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ShareView": {
+        "type": "object",
+        "properties": {
+          "memberId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "nickname": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "payer": {
+            "type": "boolean"
           }
         }
       },
@@ -1627,7 +3830,39 @@
           }
         }
       },
-      "ShareView": {
+      "Ready": {
+        "required": [
+          "state"
+        ],
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string"
+          }
+        }
+      },
+      "PraiseBody": {
+        "required": [
+          "tags",
+          "targetId"
+        ],
+        "type": "object",
+        "properties": {
+          "targetId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tags": {
+            "maxItems": 4,
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "PersonView": {
         "type": "object",
         "properties": {
           "memberId": {
@@ -1637,12 +3872,656 @@
           "nickname": {
             "type": "string"
           },
-          "amount": {
+          "profile": {
+            "type": "string"
+          },
+          "rides": {
             "type": "integer",
             "format": "int64"
           },
-          "payer": {
+          "noShowFree": {
             "type": "boolean"
+          },
+          "praises": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "topTags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "myTags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "me": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Leave": {
+        "type": "object",
+        "properties": {
+          "groupVersion": {
+            "minimum": 1,
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ExitResult": {
+        "type": "object",
+        "properties": {
+          "freeRefund": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "JoinBody": {
+        "required": [
+          "requestId"
+        ],
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "PartyJoin": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "partyId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "requestId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "memberId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "paymentOrderId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "state": {
+            "type": "string"
+          },
+          "offeredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deadlineAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "baseGroupVersion": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "payerId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "departureAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "totalFare": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "BoardingCodeBody": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ScenarioBody": {
+        "required": [
+          "scenario"
+        ],
+        "type": "object",
+        "properties": {
+          "scenario": {
+            "type": "string",
+            "enum": [
+              "INSTANT",
+              "NO_SHOW",
+              "JOIN",
+              "FARE_OBJECTION",
+              "PAYER_NO_SHOW",
+              "MY_SUCCESSION",
+              "RIDE_UNCONFIRMED"
+            ]
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "PAYER",
+              "PASSENGER"
+            ]
+          }
+        }
+      },
+      "Investigation": {
+        "type": "object",
+        "properties": {
+          "memberId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "type": "string"
+          },
+          "deadlineAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Progress": {
+        "type": "object",
+        "properties": {
+          "now": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "partyId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "next": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "investigations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Investigation"
+            }
+          }
+        }
+      },
+      "SampleBody": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "maximum": 3,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "MatchBody": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "PAYER",
+              "PASSENGER"
+            ]
+          }
+        }
+      },
+      "MatchOutcome": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "WAITING",
+              "JOINING",
+              "MATCHED",
+              "COMPLETED",
+              "UNMATCHED",
+              "CANCELED"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "LoginBody": {
+        "required": [
+          "account"
+        ],
+        "type": "object",
+        "properties": {
+          "account": {
+            "pattern": "demo-(?:[fm][1-4]|admin)",
+            "type": "string"
+          }
+        }
+      },
+      "AdvanceBody": {
+        "required": [
+          "minutes"
+        ],
+        "type": "object",
+        "properties": {
+          "minutes": {
+            "maximum": 2880,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ExplanationBody": {
+        "required": [
+          "explanation"
+        ],
+        "type": "object",
+        "properties": {
+          "explanation": {
+            "maxLength": 2000,
+            "minLength": 0,
+            "type": "string"
+          }
+        }
+      },
+      "SignInBody": {
+        "required": [
+          "email",
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        }
+      },
+      "PasswordBody": {
+        "required": [
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "password": {
+            "maxLength": 64,
+            "minLength": 8,
+            "type": "string"
+          }
+        }
+      },
+      "CodeBody": {
+        "required": [
+          "email"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          }
+        }
+      },
+      "EvidenceBody": {
+        "required": [
+          "evidence"
+        ],
+        "type": "object",
+        "properties": {
+          "evidence": {
+            "maxLength": 2000,
+            "minLength": 0,
+            "type": "string"
+          }
+        }
+      },
+      "DecisionBody": {
+        "required": [
+          "decision",
+          "evidence"
+        ],
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string"
+          },
+          "evidence": {
+            "maxLength": 2000,
+            "minLength": 0,
+            "type": "string"
+          }
+        }
+      },
+      "FareBody": {
+        "required": [
+          "accept",
+          "evidence"
+        ],
+        "type": "object",
+        "properties": {
+          "accept": {
+            "type": "boolean"
+          },
+          "correctedAmount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "evidence": {
+            "maxLength": 2000,
+            "minLength": 0,
+            "type": "string"
+          }
+        }
+      },
+      "RestrictionBody": {
+        "required": [
+          "evidence",
+          "until"
+        ],
+        "type": "object",
+        "properties": {
+          "until": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "evidence": {
+            "maxLength": 2000,
+            "minLength": 0,
+            "type": "string"
+          }
+        }
+      },
+      "MemberRestriction": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "memberId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Accuracy": {
+        "type": "object",
+        "properties": {
+          "settled": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "within": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "rate": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "SchoolView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "gateName": {
+            "type": "string"
+          },
+          "lat": {
+            "type": "number",
+            "format": "double"
+          },
+          "lon": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "ChatView": {
+        "type": "object",
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessageView"
+            }
+          },
+          "closed": {
+            "type": "boolean"
+          },
+          "closesAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "hasOlder": {
+            "type": "boolean"
+          },
+          "lastReadId": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "Peer": {
+        "type": "object",
+        "properties": {
+          "memberId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "nickname": {
+            "type": "string"
+          },
+          "avoided": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CompensationEntry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "partyId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "settlementId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "requestId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "memberId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "rawShare": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "credit": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "charge": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "netShare": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "BoardingCase": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "partyId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "requestId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "memberId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "openedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deadlineAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "decidedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "decidedBy": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "decisionReason": {
+            "type": "string"
+          },
+          "noCompensation": {
+            "type": "boolean"
+          }
+        }
+      },
+      "BoardingExplanation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "caseId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "memberId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "explanation": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "BoardingVote": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "caseId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "actorId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "came": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CaseView": {
+        "type": "object",
+        "properties": {
+          "investigation": {
+            "$ref": "#/components/schemas/BoardingCase"
+          },
+          "votes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BoardingVote"
+            }
+          },
+          "explanation": {
+            "$ref": "#/components/schemas/BoardingExplanation"
+          },
+          "nickname": {
+            "type": "string"
           }
         }
       },
@@ -1676,6 +4555,38 @@
           }
         }
       },
+      "State": {
+        "type": "object",
+        "properties": {
+          "generation": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "code": {
+            "type": "string"
+          },
+          "deadlineAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string"
+          },
+          "confirmed": {
+            "type": "boolean"
+          },
+          "remainingAttempts": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "canOpen": {
+            "type": "boolean"
+          },
+          "canStart": {
+            "type": "boolean"
+          }
+        }
+      },
       "MeView": {
         "type": "object",
         "properties": {
@@ -1696,12 +4607,18 @@
               "MALE"
             ]
           },
+          "needsPassword": {
+            "type": "boolean"
+          },
           "needsProfile": {
+            "type": "boolean"
+          },
+          "admin": {
             "type": "boolean"
           }
         }
       },
-      "HubView": {
+      "Point": {
         "type": "object",
         "properties": {
           "id": {
@@ -1711,6 +4628,9 @@
           "name": {
             "type": "string"
           },
+          "meetingPoint": {
+            "type": "string"
+          },
           "lat": {
             "type": "number",
             "format": "double"
@@ -1718,6 +4638,13 @@
           "lon": {
             "type": "number",
             "format": "double"
+          },
+          "walkSeconds": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "walkEstimated": {
+            "type": "boolean"
           }
         }
       },
@@ -1762,6 +4689,7 @@
             "type": "string",
             "enum": [
               "WAITING",
+              "JOINING",
               "MATCHED",
               "COMPLETED",
               "UNMATCHED",
@@ -1836,7 +4764,15 @@
               "SETTLED",
               "UNSETTLED",
               "PARTY_CANCELED",
-              "LEFT_ALONE"
+              "LEFT_ALONE",
+              "PREPAYING",
+              "READY",
+              "OBJECTION_WINDOW",
+              "REVIEW_PENDING",
+              "NOT_OPERATED",
+              "FARE_MISSING",
+              "DISSOLVED",
+              "RIDE_UNCONFIRMED"
             ]
           },
           "paid": {
@@ -1869,16 +4805,28 @@
           },
           "partyId": {
             "type": "integer",
-            "format": "int64",
-            "nullable": true
+            "format": "int64"
           },
           "partyIds": {
             "type": "array",
             "items": {
               "type": "integer",
               "format": "int64"
-            },
-            "description": "\ucde8\uc18c\ub41c \ubc30\uc815\ub3c4 \ud3ec\ud568\ud558\ub294 \uc774 \uc694\uccad\uc758 \uacfc\uac70 \uc77c\ud589 \ubc88\ud638"
+            }
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "RESERVATION",
+              "INSTANT"
+            ]
+          },
+          "timeBasis": {
+            "type": "string",
+            "enum": [
+              "DEPART",
+              "ARRIVE"
+            ]
           }
         }
       },
@@ -1891,138 +4839,345 @@
           }
         }
       },
-      "ReportBody": {
-        "type": "object",
-        "required": [
-          "reason"
-        ],
-        "properties": {
-          "reason": {
-            "type": "string",
-            "enum": [
-              "RUDE",
-              "DANGEROUS",
-              "OTHER"
-            ],
-            "description": "\ubd88\ucf8c\ud55c \uc5b8\ud589, \uc704\ud5d8 \ud589\ub3d9, \uae30\ud0c0"
-          },
-          "memo": {
-            "type": "string",
-            "maxLength": 200,
-            "nullable": true
-          }
-        }
-      },
-      "Peer": {
-        "type": "object",
-        "properties": {
-          "memberId": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "nickname": {
-            "type": "string"
-          },
-          "avoided": {
-            "type": "boolean",
-            "description": "\ub85c\uadf8\uc778\ud55c \uc0ac\ub78c\uc774 \uc9c0\uc815\ud588\ub294\uc9c0 \uc5ec\ubd80"
-          }
-        }
-      },
-      "Restriction": {
-        "type": "object",
-        "properties": {
-          "reason": {
-            "type": "string",
-            "enum": [
-              "REPORT_ACCUMULATION"
-            ]
-          },
-          "expiresAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "message": {
-            "type": "string"
-          }
-        }
-      },
-      "StateView": {
+      "Board": {
         "type": "object",
         "properties": {
           "now": {
             "type": "string",
             "format": "date-time"
           },
-          "latestRequest": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/RequestView"
-              },
-              {
-                "type": "string",
-                "enum": [
-                  ""
-                ]
-              }
-            ]
-          },
           "parties": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/PartyView"
+              "$ref": "#/components/schemas/PartyCard"
             }
           },
-          "restricted": {
-            "type": "boolean",
-            "description": "\ubbf8\uc1a1\uae08 \ub610\ub294 \uc2e0\uace0 \ub204\uc801 \uc81c\ud55c"
+          "waiting": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WaitingCount"
+            }
+          }
+        }
+      },
+      "PartyCard": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
           },
-          "transferRestricted": {
+          "direction": {
+            "type": "string",
+            "enum": [
+              "FROM_HUB",
+              "TO_SCHOOL"
+            ]
+          },
+          "anchorName": {
+            "type": "string"
+          },
+          "meetingPoint": {
+            "type": "string"
+          },
+          "anchorLat": {
+            "type": "number",
+            "format": "double"
+          },
+          "anchorLon": {
+            "type": "number",
+            "format": "double"
+          },
+          "departureAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "joinUntil": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "riders": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "seats": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "instant": {
             "type": "boolean"
           },
-          "restriction": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/Restriction"
-              },
-              {
-                "type": "string",
-                "enum": [
-                  ""
-                ]
-              }
+          "people": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Person"
+            }
+          }
+        }
+      },
+      "Person": {
+        "type": "object",
+        "properties": {
+          "nickname": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "string"
+          }
+        }
+      },
+      "WaitingCount": {
+        "type": "object",
+        "properties": {
+          "direction": {
+            "type": "string",
+            "enum": [
+              "FROM_HUB",
+              "TO_SCHOOL"
             ]
           },
-          "settledParty": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/PartyView"
-              },
-              {
-                "type": "string",
-                "enum": [
-                  ""
-                ]
-              }
-            ]
-          }
-        }
-      },
-      "MessageBody": {
-        "type": "object",
-        "required": [
-          "text"
-        ],
-        "properties": {
-          "text": {
+          "anchorName": {
+            "type": "string"
+          },
+          "hour": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 200,
-            "description": "\uc55e\ub4a4 \uacf5\ubc31\uc744 \uc81c\uac70\ud55c \ub4a4 \uae38\uc774\ub97c \uac80\uc0ac\ud574\uc694."
+            "format": "date-time"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
-      "MessageView": {
+      "ReportView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "partyId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reporterId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reportedId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "memo": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PaymentOrder": {
+        "type": "object",
+        "properties": {
+          "adminHandledAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "adminHandledBy": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "adminNote": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "orderId": {
+            "type": "string"
+          },
+          "paymentKey": {
+            "type": "string"
+          },
+          "partyId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "memberId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "requestId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "settlementId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "PREPAY",
+              "ADDITIONAL"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "REQUIRED",
+              "PROCESSING",
+              "APPROVED",
+              "EXPIRED",
+              "OVERDUE",
+              "ADMIN_REQUIRED"
+            ]
+          },
+          "amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "approvedAmount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "refundedAmount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "refundTarget": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "deadlineAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "approvedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "excludedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastCheckedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "gatewayStatus": {
+            "type": "string"
+          }
+        }
+      },
+      "CaseSummary": {
+        "type": "object",
+        "properties": {
+          "investigation": {
+            "$ref": "#/components/schemas/BoardingCase"
+          },
+          "boarding": {
+            "$ref": "#/components/schemas/PartyMemberTerm"
+          },
+          "receiptPresent": {
+            "type": "boolean"
+          },
+          "absentVotes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "presentVotes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "explanationPresent": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PartyMemberTerm": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "partyId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "requestId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "memberId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "confirmedShare": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "confirmedPrepay": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "migratedUnknown": {
+            "type": "boolean"
+          },
+          "boardingUnconfirmedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "exitedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "exitReason": {
+            "type": "string"
+          },
+          "refundHeld": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CaseDetail": {
+        "type": "object",
+        "properties": {
+          "summary": {
+            "$ref": "#/components/schemas/CaseSummary"
+          },
+          "votes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BoardingVote"
+            }
+          },
+          "explanation": {
+            "$ref": "#/components/schemas/BoardingExplanation"
+          },
+          "chat": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatLine"
+            }
+          }
+        }
+      },
+      "ChatLine": {
         "type": "object",
         "properties": {
           "id": {
@@ -2033,9 +5188,6 @@
             "type": "integer",
             "format": "int64"
           },
-          "nickname": {
-            "type": "string"
-          },
           "text": {
             "type": "string"
           },
@@ -2043,36 +5195,137 @@
             "type": "string",
             "format": "date-time"
           },
-          "mine": {
-            "type": "boolean"
+          "kind": {
+            "type": "string"
+          },
+          "imageUrl": {
+            "type": "string"
           }
         }
       },
-      "ChatView": {
+      "FareObjection": {
         "type": "object",
         "properties": {
-          "messages": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/MessageView"
-            }
+          "id": {
+            "type": "integer",
+            "format": "int64"
           },
-          "closed": {
-            "type": "boolean"
+          "settlementId": {
+            "type": "integer",
+            "format": "int64"
           },
-          "closesAt": {
+          "memberId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "resolvedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "resolution": {
+            "type": "string"
+          },
+          "adminId": {
+            "type": "integer",
+            "format": "int64"
           }
         }
-      }
-    },
-    "securitySchemes": {
-      "session": {
-        "type": "apiKey",
-        "in": "cookie",
-        "name": "JSESSIONID",
-        "description": "\uae30\uc874 \ub85c\uadf8\uc778 \uc138\uc158\uc744 \uc0ac\uc6a9\ud574\uc694."
+      },
+      "FareReview": {
+        "type": "object",
+        "properties": {
+          "partyId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "CONFIRMED",
+              "SETTLING",
+              "COMPLETED",
+              "UNSETTLED",
+              "CANCELED",
+              "PREPAYING",
+              "READY",
+              "AWAITING_FARE",
+              "OBJECTION_WINDOW",
+              "REVIEW_PENDING",
+              "SETTLED",
+              "DISSOLVED",
+              "NOT_OPERATED",
+              "FARE_MISSING",
+              "RIDE_UNCONFIRMED",
+              "PAYER_PENDING"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "settlementId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "receiptPresent": {
+            "type": "boolean"
+          },
+          "objections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FareObjection"
+            }
+          }
+        }
+      },
+      "AdminAudit": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "actorId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "action": {
+            "type": "string"
+          },
+          "targetType": {
+            "type": "string"
+          },
+          "targetId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "operationKey": {
+            "type": "string"
+          },
+          "fingerprint": {
+            "type": "string"
+          }
+        }
       }
     }
   }

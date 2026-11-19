@@ -29,6 +29,9 @@ public class Settlement {
     @OneToOne(fetch = FetchType.LAZY, optional = false)
     private Party party;
 
+    private Instant objectionDeadlineAt;
+    private Instant finalizedAt;
+
     private long paidAmount;
 
     /** 보관 기간이 지나 파일을 지우면 null이다. */

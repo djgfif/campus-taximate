@@ -92,6 +92,7 @@ class ToSchoolPlanTest {
         List<Long> shares = SettlementCalculator.shares(15000, List.of(13200L, 9800L, 7000L), 0);
         assertEquals(List.of(6600L, 4900L, 3500L), shares);
         List<Long> uneven = SettlementCalculator.shares(15400, List.of(13200L, 9800L, 7000L), 0);
-        assertEquals(List.of(6777L, 5030L, 3593L), uneven);
+        // 6776.0 / 5030.67 / 3593.33 → 남는 1원은 결제자(0번)가 아니라 소수부가 큰 1번에게
+        assertEquals(List.of(6776L, 5031L, 3593L), uneven);
     }
 }

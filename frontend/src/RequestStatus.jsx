@@ -1,11 +1,11 @@
-import React, { useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import MapView from './MapView.jsx'
 import { api } from './api.js'
 import { pushUndecided } from './push.js'
 import { formatDateTime, formatTime, routeLabel, won } from './format.js'
 import { Btn, Confirm, Meter, Rail, Rows, Say, Screen, TopBar } from './ui.jsx'
 
-const timeRow = (latest) => (latest.direction === 'TO_SCHOOL'
+const timeRow = (latest) => (latest.mode==='INSTANT' ? ['출발 준비','지금 출발, 확정 뒤 예상 출발 안내'] : latest.arriveBy && !latest.windowStart
   ? ['도착 희망', formatDateTime(latest.arriveBy)]
   : ['출발 가능', `${formatTime(latest.windowStart)} ~ ${formatTime(latest.windowEnd)}`])
 
@@ -21,9 +21,10 @@ export function RequestMap({ item, edge }) {
 }
 
 /** 왜 아직 일행이 없는지 말한다. 다음 확인 시각까지 함께 알려 기다릴지 정하게 한다. */
-function Situation({ insight }) {
+export function Situation({ insight, now }) {
   if (!insight) return null
-  const next = `다음 확인은 ${formatTime(insight.nextCheckAt)}입니다.`
+  const next = new Date(insight.nextCheckAt) > new Date(now)
+    ? `다음 확인은 ${formatDateTime(insight.nextCheckAt)}입니다.` : '지금 조건을 다시 확인하고 있어요.'
   switch (insight.stage) {
     case 'NOT_STARTED':
       return <Say tone="calm" title={`${formatTime(insight.searchStartsAt)}부터 찾기 시작해요`}>출발 가능 시간에 맞춰 일행을 찾습니다.</Say>
@@ -36,17 +37,23 @@ function Situation({ insight }) {
   }
 }
 
-export function Waiting({ latest, config, run, onMenu, onPush }) {
+export function Waiting({ latest, config, now, run, onMenu, onPush }) {
   const [asking, setAsking] = useState(false)
   const toSchool = latest.direction === 'TO_SCHOOL'
+  const anchor = useMemo(() => ({ stamp: new Date(now).getTime(), readAt: performance.now() }), [now])
+  const [, tick] = useState(0)
+  useEffect(() => { const timer = setInterval(() => tick((n) => n + 1), 1000); return () => clearInterval(timer) }, [])
+  const current = Number.isFinite(anchor.stamp) ? anchor.stamp + performance.now() - anchor.readAt : null
   return (
     <Screen aside={<RequestMap item={latest} />} foot={<Btn className="line" onClick={() => setAsking(true)}>요청 취소</Btn>}>
       <TopBar dark onMenu={onMenu} />
-      <Meter label="결과는 늦어도" value={formatTime(latest.resultBy)} detail="3명이 모이면 더 빨리 알려 드려요">
+      <Meter label="결과는 늦어도" value={formatTime(latest.resultBy)} detail="그 전에 일행이 정해지면 바로 알려 드려요">
         <div className="road" aria-hidden="true"><i /></div>
       </Meter>
       <div className="block">
-        <Situation insight={latest.insight} />
+        {latest.mode==='INSTANT'&&<Say>{config?.instantMatching?.matchMinutes??5}분 동안 같이 탈 사람을 찾아요. 확정되면 예상 출발 시각을 알려 드려요.</Say>}
+        {config?.demo && <p className="note">시연 시각 {formatDateTime(current)}</p>}
+        <Situation insight={latest.insight} now={current} />
         {onPush && pushUndecided() && (
           <Say tone="calm" title="화면을 닫아도 결과를 받으려면">
             알림을 켜면 일행 확정과 승차 10분 전 안내가 이 기기로 옵니다.
@@ -107,6 +114,7 @@ export function Unmatched({ latest, onRetry, onHome, onMenu }) {
     )
   }
   const canceled = latest.endReason === 'PARTY_CANCELED'
+  const routeExpired = latest.endReason === 'ROUTE_VERIFICATION_EXPIRED'
   return (
     <Screen aside={<RequestMap item={latest} />} foot={(
       <>
@@ -116,8 +124,8 @@ export function Unmatched({ latest, onRetry, onHome, onMenu }) {
     )}>
       <TopBar onMenu={onMenu} />
       <div className="pad">
-        <h1 className="head">{canceled ? '일행이 취소됐어요' : <>이번엔 같이 탈<br />일행을 못 찾았어요</>}</h1>
-        <p className="sub">{canceled ? '다른 일행이 빠져 나만 남았습니다.' : `${formatTime(latest.resultBy)}까지 조건이 맞는 학생이 없었습니다.`}</p>
+        <h1 className="head">{routeExpired ? '경로를 확인하지 못해 일행이 해산됐어요' : canceled ? '일행이 취소됐어요' : <>이번엔 같이 탈<br />일행을 못 찾았어요</>}</h1>
+        <p className="sub">{routeExpired ? '예정 출발 시각까지 경로를 확인하지 못했어요. 승인된 선결제는 이용 내역에서 환불 상태를 확인해 주세요.' : canceled ? '다른 일행이 빠져 나만 남았습니다.' : `${formatTime(latest.resultBy)}까지 조건이 맞는 학생이 없었습니다.`}</p>
         <Rows items={[
           ['지난 요청', routeLabel(latest)],
           timeRow(latest),

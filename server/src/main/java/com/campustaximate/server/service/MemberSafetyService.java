@@ -216,7 +216,7 @@ public class MemberSafetyService {
     public Restriction activeRestriction(long memberId) {
         return restrictions.findFirstByMemberIdAndExpiresAtGreaterThanOrderByExpiresAtDesc(memberId, clock.now())
                 .map(r -> new Restriction(r.getReason(), r.getExpiresAt(),
-                        (NO_SHOW_REASON.equals(r.getReason()) ? "노쇼가 반복되어 " : "신고 누적으로 ")
+                        (NO_SHOW_REASON.equals(r.getReason()) ? "노쇼가 반복되어 " : "MANUAL".equals(r.getReason()) ? "관리자 조치로 " : "신고 누적으로 ")
                                 + UNTIL.format(r.getExpiresAt()) + "까지 새 요청을 할 수 없어요"))
                 .orElse(null);
     }

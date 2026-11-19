@@ -21,6 +21,15 @@ public class AppClock {
         offset.set(Duration.between(Instant.now(), target));
     }
 
+    /** 매칭 회차는 1분, 요청 입력은 기존처럼 5분 단위다. */
+    public static Instant minuteOf(Instant time) {
+        return time.truncatedTo(java.time.temporal.ChronoUnit.MINUTES);
+    }
+
+    public static Instant nextMinuteAfter(Instant time) {
+        return minuteOf(time).plusSeconds(60);
+    }
+
     public static Instant slotOf(Instant time) {
         long slotSeconds = SLOT_MINUTES * 60L;
         return Instant.ofEpochSecond(time.getEpochSecond() / slotSeconds * slotSeconds);

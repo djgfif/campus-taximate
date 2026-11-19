@@ -6,10 +6,16 @@ import ProfileScreen from './ProfileScreen.jsx'
 import PasswordScreen from './PasswordScreen.jsx'
 import History from './History.jsx'
 import DemoBar from './DemoBar.jsx'
+import DemoAccounts from './DemoAccounts.jsx'
 import Home from './Home.jsx'
 import { HomeRequest, SchoolRequest } from './RequestFlow.jsx'
+import { Joining } from './Board.jsx'
+import { ProfileSheet } from './People.jsx'
 import { PartyDetail, PartyScreen } from './PartyScreens.jsx'
-import { Collect, Done, PayerInput, Transfer } from './SettleScreens.jsx'
+import { PayerInput, SettlementScreen } from './SettleScreens.jsx'
+import PaymentResult from './PaymentScreens.jsx'
+import { AdminScreen, BoardingCasesScreen } from './ReviewScreens.jsx'
+import { isPaymentParty } from './format.js'
 import { NoShow, Unmatched, Waiting } from './RequestStatus.jsx'
 import { Brand, Btn, Confirm, Item, LoadingScreen, Say, Sheet, Toaster, toast, useWide } from './ui.jsx'
 import { User } from 'lucide-react'
@@ -19,12 +25,13 @@ const POLL_MS = 5000
 const LIVE_POLL_MS = 30000
 
 /** 넓은 화면의 상단. 휴대폰에서는 화면마다 있는 상단 바를 쓴다. */
-function Nav({ tab, onTab, onMenu }) {
+function Nav({ tab, onTab, onMenu, admin }) {
   return (
     <header className="nav">
       <Brand />
       <button type="button" className={tab === 'home' ? 'on' : ''} onClick={() => onTab('home')}>이용하기</button>
       <button type="button" className={tab === 'history' ? 'on' : ''} onClick={() => onTab('history')}>이용 내역</button>
+      {admin && <button type="button" className={tab === 'admin' ? 'on' : ''} onClick={() => onTab('admin')}>관리자</button>}
       <span className="gap" />
       <button type="button" className="icon-btn" aria-label="내 정보" onClick={onMenu}><User size={22} /></button>
     </header>
@@ -42,12 +49,14 @@ export default function App() {
   const [offline, setOffline] = useState(false)
   const [menu, setMenu] = useState(false)
   const [leaving, setLeaving] = useState(false)
+  const [editingProfile, setEditingProfile] = useState(false)
 
   const session = useRef(0)
   const latestRead = useRef(0)
   const wide = useWide()
-  const tab = location.pathname === '/history' ? 'history' : 'home'
-  const setTab = useCallback((next) => navigate(next === 'history' ? '/history' : '/'), [navigate])
+  const tab = ({ '/history': 'history', '/admin': 'admin', '/boarding-cases': 'boarding-cases' })[location.pathname] || 'home'
+  const paymentReturn = ['success', 'fail'].includes(new URLSearchParams(location.search).get('payment'))
+  const setTab = useCallback((next) => navigate(next === 'home' ? '/' : `/${next}`), [navigate])
 
   const refresh = useCallback(async () => {
     const current = session.current
@@ -59,6 +68,7 @@ export default function App() {
       if (current === session.current && read === latestRead.current) {
         setState(next)
         setOffline(false)
+        window.dispatchEvent(new Event('taximate:state'))
       }
     } catch (e) {
       if (current !== session.current) return
@@ -94,6 +104,10 @@ export default function App() {
     source.addEventListener('state', () => {
       clearTimeout(soon)
       soon = setTimeout(refresh, 150)
+    })
+    // 새 채팅·읽음은 상태 전체를 다시 읽지 않고 그 일행 채팅 창에만 알린다.
+    source.addEventListener('chat', (event) => {
+      window.dispatchEvent(new CustomEvent('taximate:chat', { detail: Number(event.data) }))
     })
     const timer = setInterval(() => {
       if (!live || Date.now() - last >= LIVE_POLL_MS) {
@@ -165,26 +179,35 @@ export default function App() {
       {me && !me.needsPassword && !resetting && me.needsProfile && <ProfileScreen onDone={() => api.me().then(setMe)} />}
       {me && !me.needsPassword && !resetting && !me.needsProfile && (
         <>
-          {wide && <Nav tab={tab} onTab={setTab} onMenu={openMenu} />}
+          {wide && <Nav tab={tab} onTab={setTab} onMenu={openMenu} admin={me.admin} />}
           {offline && <Say tone="stop-tone">연결이 끊겼습니다. 다시 연결하는 중입니다.</Say>}
-          {config?.simulatedRoute && <Say tone="calm">모의 경로로 동작 중입니다. 금액과 시간은 실제 값이 아닙니다.</Say>}
-          {tab === 'history' && <History onBack={() => setTab('home')} />}
-          {tab === 'home' && !state && <LoadingScreen />}
-          {tab === 'home' && state && (
-            <Flow state={state} config={config} myId={me.id} run={run} onMenu={openMenu} onPush={togglePush} pushOn={pushOn} onHistory={() => setTab('history')} />
+          {config?.simulatedRoute && <p className="demo-strip" role="note">시연 모드 · 금액과 시간은 예시예요</p>}
+          {paymentReturn && <PaymentResult key={me.id + location.search} search={location.search} myId={me.id} onUpdated={refresh}
+            onReturn={(id) => navigate(id ? `/parties/${id}` : '/', { replace: true })} />}
+          {!paymentReturn && tab === 'history' && <History admin={me.admin} onBack={() => setTab('home')} />}
+          {!paymentReturn && tab === 'boarding-cases' && <BoardingCasesScreen now={state?.now} onBack={() => setTab('home')} />}
+          {!paymentReturn && tab === 'admin' && <AdminScreen allowed={me.admin} onBack={() => setTab('home')} />}
+          {!paymentReturn && tab === 'home' && !state && <LoadingScreen />}
+          {!paymentReturn && tab === 'home' && state && (
+            <Flow state={state} config={config} myId={me.id} run={run} refresh={refresh} onMenu={openMenu} onPush={togglePush} pushOn={pushOn} onHistory={() => setTab('history')} />
           )}
           {config?.demo && <DemoBar now={state?.now} run={run} />}
           {menu && (
             <Sheet title={me.nickname} className="pop" onClose={() => setMenu(false)}>
               <p className="sub">{me.email}</p>
+              {config?.demo && <DemoAccounts onLogin={async () => { session.current += 1; setState(null); setResetting(false); setMenu(false); navigate('/'); setMe(await api.me()) }} />}
               <div className="list">
+                <Item title="내 프로필" detail="학과·학번을 같이 타는 사람에게 보여 줘요" onClick={() => { setMenu(false); setEditingProfile(true) }} />
                 <Item title="이용 내역" onClick={() => { setMenu(false); setTab('history') }} />
+                <Item title="내 탑승 확인·소명" detail="탑승 조사와 소명 기한을 확인해요" onClick={() => { setMenu(false); setTab('boarding-cases') }} />
+                {me.admin && <Item title="관리자" detail="노쇼·요금 검토, 신고·제한과 승차 지점 관리" onClick={() => { setMenu(false); setTab('admin') }} />}
                 {pushSupported() && <Item title={pushOn ? '알림 끄기' : '알림 받기'} detail="앱을 닫아도 확정과 승차 안내를 받아요" onClick={togglePush} />}
                 <Item title="로그아웃" onClick={() => signOut(api.logout)} />
                 <Item title="모든 기기에서 로그아웃" danger onClick={() => setLeaving(true)} />
               </div>
             </Sheet>
           )}
+          {editingProfile && <ProfileSheet onClose={() => setEditingProfile(false)} />}
           {leaving && (
             <Confirm title="모든 기기에서 로그아웃할까요?" action="로그아웃" onClose={() => setLeaving(false)}
               onConfirm={() => signOut(api.logoutAll)}>
@@ -197,59 +220,57 @@ export default function App() {
   )
 }
 
-/** 서버 상태에서 지금 보여 줄 한 화면을 고른다. */
-function Flow({ state, config, myId, run, onMenu, onHistory, onPush, pushOn }) {
+/** 상태 이름을 화면에 노출하지 않고, 현재 서버가 허용한 동작만 연결한다. */
+function Flow({ state, config, myId, run, refresh, onMenu, onHistory, onPush, pushOn }) {
   const location = useLocation()
   const navigate = useNavigate()
   const [hidden, setHidden] = useState([])
   const [seenRequest, setSeenRequest] = useState(null)
-  const detailId = Number(location.pathname.match(/^\/parties\/(\d+)$/)?.[1]) || null
-  const requestPath = location.pathname.match(/^\/request\/(school|home)$/)?.[1]
-  const draft = requestPath ? { direction: requestPath === 'school' ? 'TO_SCHOOL' : 'FROM_HUB', initial: location.state?.initial } : null
-  const startRequest = (next) => navigate(`/request/${next.direction === 'TO_SCHOOL' ? 'school' : 'home'}`, { state: { initial: next.initial } })
   const [correctingId, setCorrectingId] = useState(null)
-
-  const party = state.parties.find((p) => !hidden.includes(p.id))
-  const hide = (id) => setHidden((list) => [...list, id])
+  const [loaded, setLoaded] = useState({})
+  const detailId = Number(location.pathname.match(/^\/parties\/(\d+)$/)?.[1]) || null
+  const parties = state.parties || []
+  const available = parties.find((p) => p.id === detailId) || (state.settledParty?.id === detailId ? state.settledParty : null)
+  useEffect(() => {
+    if (!detailId || available) return undefined
+    let closed = false
+    api.party(detailId).then((party) => !closed && setLoaded({ id: detailId, party }))
+      .catch((e) => !closed && setLoaded({ id: detailId, error: e.message }))
+    return () => { closed = true }
+  }, [detailId, available, state.now])
+  const party = detailId ? available || (loaded.id === detailId ? loaded.party : null) : parties.find((p) => !hidden.includes(p.id))
+  const requestPath = location.pathname.match(/^\/request\/(school|home)$/)?.[1]
+  const startRequest = (next) => navigate(next.direction === 'TO_SCHOOL' ? '/request/school' : '/request/home', { state: { initial: next.initial } })
+  const home = () => { if (party) setHidden((old) => [...old, party.id]); navigate('/') }
   const latest = state.latestRequest || null
-
+  if (detailId && !party) return loaded.id === detailId && loaded.error
+    ? <div className="pad"><Say tone="stop-tone">{loaded.error}</Say><Btn onClick={() => navigate('/')}>홈으로</Btn></div> : <LoadingScreen />
   if (party) {
-    if (detailId === party.id) return <PartyDetail party={party} myId={myId} now={state.now} onBack={() => navigate('/')} />
-    if (party.canSettle || (correctingId === party.id && party.settlement?.canCorrect)) {
-      return (
-        <PayerInput party={party} now={state.now} run={run} onDone={() => setCorrectingId(null)}
-          onLater={() => (party.canSettle ? hide(party.id) : setCorrectingId(null))} />
-      )
+    if (new URLSearchParams(location.search).get('detail') === '1') return <PartyDetail party={party} myId={myId} now={state.now} onBack={() => navigate('/parties/' + party.id)} />
+    if (isPaymentParty(party) && (party.canSettle || correctingId === party.id && party.settlement?.canCorrect)) {
+      return <PayerInput key={party.id + ':' + correctingId} party={party} now={state.now} run={run} onUpdated={refresh}
+        onDone={() => setCorrectingId(null)} onLater={() => party.canSettle ? home() : setCorrectingId(null)} />
     }
-    if (party.settlement) {
-      if (party.payer) {
-        return <Collect party={party} now={state.now} run={run} onMenu={onMenu} onCorrect={() => setCorrectingId(party.id)} onHome={() => hide(party.id)} />
-      }
-      const transfer = party.settlement.transfers.find((t) => t.senderId === myId)
-      return transfer.status === 'REQUESTED'
-        ? <Transfer party={party} now={state.now} transfer={transfer} run={run} onMenu={onMenu} onHome={() => hide(party.id)} />
-        : <Done party={party} now={state.now} transfer={transfer} onMenu={onMenu} onHome={() => hide(party.id)} />
-    }
-    return <PartyScreen party={party} now={state.now} myId={myId} run={run} onMenu={onMenu} onDetail={() => navigate(`/parties/${party.id}`)} onHome={() => hide(party.id)} />
+    if (party.settlement) return <SettlementScreen key={party.id} party={party} myId={myId} now={state.now} config={config}
+      onUpdated={refresh} onMenu={onMenu} onCorrect={() => setCorrectingId(party.id)} onHome={home}
+      onDetail={() => navigate('/parties/' + party.id + '?detail=1')} />
+    return <PartyScreen party={party} now={state.now} myId={myId} config={config} run={run} onUpdated={refresh} onMenu={onMenu}
+      onDetail={() => navigate('/parties/' + party.id + '?detail=1')} onHome={home} />
   }
-  if (latest?.status === 'WAITING') return <Waiting latest={latest} config={config} run={run} onMenu={onMenu} onPush={pushOn ? null : onPush} />
-  if (draft && !state.restricted) {
-    const Request = draft.direction === 'TO_SCHOOL' ? SchoolRequest : HomeRequest
-    return <Request initial={draft.initial} config={config} now={state.now} run={run} onClose={() => navigate('/', { replace: true })} />
+  if (latest?.status === 'JOINING') return <Joining latest={latest} config={config} now={state.now} myId={myId} run={run} onUpdated={refresh} onMenu={onMenu} />
+  if (latest?.status === 'WAITING') return <Waiting latest={latest} now={state.now} config={config} run={run} onMenu={onMenu} onPush={pushOn ? null : onPush} />
+  if (requestPath && !state.restricted) {
+    const Request = requestPath === 'school' ? SchoolRequest : HomeRequest
+    return <Request initial={location.state?.initial} config={config} now={state.now} run={run} onClose={() => navigate('/', { replace: true })} />
   }
   const left = latest?.endReason === 'NO_SHOW'
-  if ((left || latest?.status === 'UNMATCHED') && seenRequest !== latest.id) {
+  const routeExpired = latest?.endReason === 'ROUTE_VERIFICATION_EXPIRED'
+  if ((left || routeExpired || latest?.status === 'UNMATCHED') && seenRequest !== latest.id) {
     const Ended = left ? NoShow : Unmatched
-    return (
-      <Ended latest={latest} onMenu={onMenu} onHome={() => setSeenRequest(latest.id)}
-        onRetry={() => {
-          setSeenRequest(latest.id)
-          startRequest({ direction: latest.direction, initial: latest })
-        }} />
-    )
+    return <Ended latest={latest} onMenu={onMenu} onHome={() => setSeenRequest(latest.id)} onRetry={() => {
+      setSeenRequest(latest.id); startRequest({ direction: latest.direction, initial: latest })
+    }} />
   }
-  return (
-    <Home state={state} myId={myId} onStart={startRequest} onHistory={onHistory} onMenu={onMenu}
-      onReopen={(id) => setHidden((list) => list.filter((item) => item !== id))} />
-  )
+  return <Home state={state} myId={myId} config={config} onChanged={refresh} onStart={startRequest} onHistory={onHistory} onMenu={onMenu}
+    onReopen={(id) => { setHidden((old) => old.filter((p) => p !== id)); navigate('/parties/' + id) }} />
 }

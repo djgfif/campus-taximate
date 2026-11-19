@@ -1,5 +1,5 @@
 package com.campustaximate.server.domain;
 
 public enum RequestStatus {
-    WAITING, MATCHED, COMPLETED, UNMATCHED, CANCELED
+    WAITING, JOINING, MATCHED, COMPLETED, UNMATCHED, CANCELED
 }

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import MapView from './MapView.jsx'
+import SketchMap from './SketchMap.jsx'
 import { api } from './api.js'
-import { formatTime, won } from './format.js'
+import { formatTime, isPaymentParty, won } from './format.js'
 import { Paper, Rows, Say, SidePlain } from './ui.jsx'
 
 const CARD_WIDTH = 232
@@ -26,7 +27,7 @@ function useRoutes(party) {
       closed = true
     }
   }, [party.id, itinerary])
-  return { routes, failed, fail: () => setFailed(true) }
+  return { routes, failed }
 }
 
 const toLines = (routes) => [
@@ -38,7 +39,7 @@ const toLines = (routes) => [
 function stopsOf(party, mine, routes) {
   const toSchool = party.direction === 'TO_SCHOOL'
   const { solo, shared } = routes
-  const anchor = toSchool ? solo[solo.length - 1] : solo[0]
+  const anchor = toSchool ? solo[solo.length - 1] : shared[0]
   const me = toSchool ? solo[0] : solo[solo.length - 1]
   const far = toSchool ? shared[0] : shared[shared.length - 1]
   const farOrder = toSchool ? 1 : party.members.length
@@ -68,31 +69,47 @@ function FullRows({ party, mine }) {
       ['혼자 타면', `${f.solo}분, ${won(mine.soloFare)}`],
       ['같이 타면', `${f.shared}분, ${won(mine.expectedShare)}`, 'big'],
       ['아끼는 돈', won(f.saved), 'save'],
-      ['늘어나는 시간', `${f.delay}분 (기준 15분 이내)`],
+      [isPaymentParty(party) ? '차량 이동 시간 차이' : '늘어나는 시간', `${f.delay}분`],
       ['도착 예정', formatTime(party.arrivalAt)],
     ]} />
   )
 }
 
 export default function RouteComparison({ party, mine }) {
-  const { routes, failed, fail } = useRoutes(party)
+  const { routes, failed } = useRoutes(party)
   return (
     <div className="block">
       <h2 className="block-title">경로 비교</h2>
       <FullRows party={party} mine={mine} />
+      {isPaymentParty(party) && <p className="note">차량 이동 시간만 비교한 값이에요. 걷는 시간은 포함하지 않아요.</p>}
       {failed
         ? <p className="note">지도를 불러오지 못했습니다. 시간과 금액을 확인해 주세요.</p>
         : <p className="note">{LEGEND}</p>}
       {!failed && routes && (
-        <div className="map"><MapView lines={toLines(routes)} points={stopsOf(party, mine, routes)} edge={32} onFail={fail} /></div>
+        <div className="map"><MapView lines={toLines(routes)} points={stopsOf(party, mine, routes)} edge={32}
+          fallback={<SketchMap lines={toLines(routes)} points={stopsOf(party, mine, routes)} label="같이 가는 경로 약도" />} /></div>
       )}
     </div>
   )
 }
 
+/** 휴대폰 일행 화면의 작은 지도. 모이는 곳(출)·내 하차 지점·마지막 하차 지점과 경로를 보여 준다. 지도 키가 없으면 약도로 그린다. */
+export function PartyMiniMap({ party, mine }) {
+  const { routes, failed } = useRoutes(party)
+  if (failed || !routes || !mine) return null
+  const lines = toLines(routes)
+  const points = stopsOf(party, mine, routes)
+  return (
+    <figure className="mini-map">
+      <MapView lines={lines} points={points} edge={28} fallback={<SketchMap lines={lines} points={points} label="같이 가는 경로 약도" />} />
+      <figcaption><span><i className="both" aria-hidden="true" />같이 가는 길</span><span><i className="alone" aria-hidden="true" />혼자 갈 때</span></figcaption>
+    </figure>
+  )
+}
+
 /** 넓은 화면의 오른쪽 패널. 지도를 못 그리면 같은 값을 표로 보여 준다. */
 export function RouteSide({ party, mine }) {
-  const { routes, failed, fail } = useRoutes(party)
+  const { routes, failed } = useRoutes(party)
   if (failed) {
     return (
       <SidePlain>
@@ -106,7 +123,8 @@ export function RouteSide({ party, mine }) {
   const f = figures(mine)
   return (
     <>
-      {routes && <MapView lines={toLines(routes)} points={stopsOf(party, mine, routes)} right={CARD_WIDTH} onFail={fail} />}
+      {routes && <MapView lines={toLines(routes)} points={stopsOf(party, mine, routes)} right={CARD_WIDTH}
+        fallback={<div className="side-sketch"><SketchMap lines={toLines(routes)} points={stopsOf(party, mine, routes)} label="같이 가는 경로 약도" /></div>} />}
       <div className="map-legend">
         <span><i className="both" aria-hidden="true" />같이 가는 경로</span>
         <span><i className="alone" aria-hidden="true" />혼자 가는 경로</span>
@@ -115,7 +133,7 @@ export function RouteSide({ party, mine }) {
         <div><small>혼자 타면</small><b>{won(mine.soloFare)}</b></div>
         <div><small>같이 타면</small><b>{won(mine.expectedShare)}</b></div>
         <div><small>아끼는 돈</small><b className="save">{won(f.saved)}</b></div>
-        <div><small>늘어나는 시간</small><b>{f.delay}분</b><small>기준 15분 이내</small></div>
+        <div><small>{isPaymentParty(party) ? '차량 이동 시간 차이' : '늘어나는 시간'}</small><b>{f.delay}분</b><small>{isPaymentParty(party) ? '걷는 시간 제외' : '기준 15분 이내'}</small></div>
       </div>
     </>
   )

@@ -51,6 +51,12 @@ public class ChangeBus {
         afterCommit(() -> requests.findMemberIdsByPartyId(partyId).forEach(this::notifyMember));
     }
 
+    /** 새 채팅·읽음 변화를 알린다. 화면은 상태 전체가 아니라 그 일행 채팅만 이어서 읽는다. */
+    public void chatChanged(long partyId, java.util.Collection<Long> memberIds) {
+        afterCommit(() -> memberIds.forEach(memberId -> emitters.getOrDefault(memberId, Set.of())
+                .forEach(emitter -> send(memberId, emitter, SseEmitter.event().name("chat").data(String.valueOf(partyId))))));
+    }
+
     private void afterCommit(Runnable action) {
         if (emitters.isEmpty()) {
             return;

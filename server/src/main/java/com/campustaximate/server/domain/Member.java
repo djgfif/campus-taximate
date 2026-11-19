@@ -18,10 +18,13 @@ import lombok.Setter;
 
 /** 비밀번호는 없다. 학교 메일로 받은 일회용 코드로 로그인한다. 닉네임과 성별은 첫 로그인 뒤에 넣는다. */
 @Entity
+// Profile/no-show updates must not write stale authentication fields back to the row.
+@org.hibernate.annotations.DynamicUpdate
 @Getter
 @Setter
 @NoArgsConstructor
 public class Member {
+    private boolean admin;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -39,6 +42,15 @@ public class Member {
     private Gender gender;
 
     private int noShowCount;
+
+    /** 공개 프로필: 학과와 학번(두 자리). showProfile이 꺼져 있으면 일행에게 보이지 않는다. */
+    @Column(length = 40)
+    private String department;
+
+    private Integer admissionYear;
+
+    @Column(nullable = false)
+    private boolean showProfile = true;
 
     private String loginCode;
 

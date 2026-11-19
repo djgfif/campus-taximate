@@ -52,15 +52,75 @@ public class Party {
 
     /** 첫 승차자가 "택시 탔어요"를 누른 시각. */
     private Instant boardedAt;
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @Column(length=6) private String boardingCode;
+    private int boardingGeneration;
+    private Instant boardingDeadlineAt;
+    private Instant boardingClosedAt;
 
-    /** 등교 일행에서 동승자가 실제 탑승을 확인할 때 쓰는 단기 코드. */
-    @Column(length = 6)
-    private String boardingCode;
-
-    private Instant boardingCodeExpiresAt;
+    public void revokeBoardingCode() {
+        boardingCode=null; boardingDeadlineAt=null; boardedAt=null;
+        boardingGeneration++; boardingClosedAt=null;
+    }
 
     /** 전원 받음 처리 시각. 채팅 보관 기간의 기준이다. */
     private Instant settledAt;
+
+    /** 0은 기존 송금 방식, 2는 선결제 방식이다. 기존 행의 의미를 바꾸지 않는다. */
+    private int paymentFlowVersion;
+    private Instant confirmedAt;
+    private Instant prepayDeadlineAt;
+    private Instant startedAt;
+    private Instant fareRemindedAt;
+    private Instant fareRecoveryAt;
+    private boolean routeVerificationPending;
+    private Instant routeVerificationDeadlineAt;
+
+    public void beginRouteVerification() {
+        routeVerificationPending = true;
+        if (routeVerificationDeadlineAt == null) routeVerificationDeadlineAt = departureAt;
+    }
+
+    public void clearRouteVerification() {
+        routeVerificationPending = false;
+        routeVerificationDeadlineAt = null;
+    }
+
+    /** 실제 출발은 예정 시각과 별개로 일행 변경을 닫는다. */
+    public boolean canChangeBeforeRide() {
+        if (startedAt != null) return false;
+        return paymentFlow()
+                ? status == PartyStatus.PREPAYING || status == PartyStatus.READY || status == PartyStatus.RIDE_UNCONFIRMED
+                : status == PartyStatus.CONFIRMED || status == PartyStatus.READY;
+    }
+
+    public boolean canAcceptJoin() {
+        return paymentFlow() && canChangeBeforeRide() && calledAt == null && !routeVerificationPending
+                && (status == PartyStatus.PREPAYING || status == PartyStatus.READY);
+    }
+    /** 즉시 요청자가 나중에 빠져도 확정 때의 시간표를 유지한다. */
+    @Column(name="instant_group",nullable=false) private boolean instant;
+    private Instant calledAt;
+    public Instant paymentCheckUntil() { return instant?departureAt:departureAt.minusSeconds(600); }
+
+    public boolean paymentFlow() { return paymentFlowVersion >= 2; }
+    /** 무료 취소 마감 = 선결제 기한 [S39]. 결제 기한과 같아서 "출발 20분 전까지 결제, 그때까지 무료 취소" 하나로 기억한다. */
+    public Instant freeCancelUntil() {
+        return prepayDeadlineAt != null ? prepayDeadlineAt : departureAt.minusSeconds(1200);
+    }
+
+    /** 재계산 버전. JPA 낙관적 잠금 version과 별개다. */
+    @Column(nullable=false) private long groupVersion = 1;
+    private Instant rideAskedAt;
+    private String reviewReason;
+    private boolean adminReviewRequired;
+
+    private Long originalPayerId;
+    private Long successorId;
+    private Instant successionDeadlineAt;
+    private String successionStatus;
+
+    private Long pendingJoinId;
 
     private long expectedTotal;
 

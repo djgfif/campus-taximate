@@ -19,6 +19,8 @@ spring:
       ddl-auto: create-drop
 
 app:
+  payment:
+    simulated: true
   cookie-secure: false
   account-key: demo-only-account-key
   demo:

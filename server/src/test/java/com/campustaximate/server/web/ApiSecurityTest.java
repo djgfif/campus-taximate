@@ -35,7 +35,8 @@ class ApiSecurityTest {
         List<String> checked = new ArrayList<>();
         for (var info : mappings.getHandlerMethods().keySet()) {
             for (String pattern : info.getPatternValues()) {
-                if (!pattern.startsWith("/api/") || AccessInterceptor.PUBLIC_PATHS.contains(pattern)) {
+                // 시연 계정 빠른 로그인은 demo 프로필의 DemoController에서만 열린다(DemoProfileIsolationTest가 운영 거절을 확인).
+                if (!pattern.startsWith("/api/") || AccessInterceptor.PUBLIC_PATHS.contains(pattern) || pattern.equals("/api/demo/login")) {
                     continue;
                 }
                 String path = pattern.replaceAll("\\{[^}]+}", "1");
@@ -59,11 +60,16 @@ class ApiSecurityTest {
 
     @Test
     void responsesCarrySecurityHeaders() throws Exception {
-        mvc.perform(get("/api/config")).andExpect(status().isOk())
+        var response = mvc.perform(get("/api/config")).andExpect(status().isOk())
                 .andExpect(header().string("X-Content-Type-Options", "nosniff"))
                 .andExpect(header().string("X-Frame-Options", "DENY"))
                 .andExpect(header().exists("Content-Security-Policy"))
-                .andExpect(header().exists("X-Request-Id"));
+                .andExpect(header().exists("X-Request-Id")).andReturn().getResponse();
+        String csp = response.getHeader("Content-Security-Policy");
+        assertThat(csp).contains("https://js.tosspayments.com",
+                "connect-src 'self' https://dapi.kakao.com *.daumcdn.net *.kakaocdn.net https://*.tosspayments.com",
+                "frame-src 'self' https://*.tosspayments.com");
+        assertThat(csp).doesNotContain("script-src *", "connect-src *", "frame-src *");
     }
 
     @Test
@@ -82,5 +88,52 @@ class ApiSecurityTest {
     void healthIsPublicAndScreenRoutesOpenTheApp() throws Exception {
         mvc.perform(get("/actuator/health")).andExpect(status().isOk());
         mvc.perform(get("/history")).andExpect(status().isOk());
+    }
+
+    @Autowired private com.campustaximate.server.repository.MemberRepository members;
+    @Autowired private com.campustaximate.server.service.LoginTokenService tokens;
+    @Test void sessionWithoutRevocableCredentialIsRejected() throws Exception {
+        var session = new org.springframework.mock.web.MockHttpSession();
+        session.setAttribute("memberId", members.findByEmail("demo-f1@daejin.ac.kr").orElseThrow().getId());
+        mvc.perform(get("/api/state").session(session)).andExpect(status().isUnauthorized());
+    }
+    @Test void logoutAllRevokesOtherSessionsEvenWithoutCookie() throws Exception {
+        long id = members.findByEmail("demo-f1@daejin.ac.kr").orElseThrow().getId();
+        var first = new org.springframework.mock.web.MockHttpSession();
+        var second = new org.springframework.mock.web.MockHttpSession();
+        com.campustaximate.server.AuthenticatedTestSession.authenticate(first, id, tokens);
+        com.campustaximate.server.AuthenticatedTestSession.authenticate(second, id, tokens);
+        mvc.perform(get("/api/me").session(second)).andExpect(status().isOk());
+        mvc.perform(post("/api/auth/logout-all").session(first)).andExpect(status().isOk());
+        mvc.perform(get("/api/state").session(second)).andExpect(status().isUnauthorized());
+    }
+    @Test void realLoginRotatesSessionAndCredentialSurvivesCookieOmissionUntilRevoked() throws Exception {
+        var session = new org.springframework.mock.web.MockHttpSession();
+        String original = session.getId();
+        var login = mvc.perform(post("/api/auth/signin").session(session).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"demo-f2@daejin.ac.kr\",\"password\":\"demo1234\"}"))
+                .andExpect(status().isOk()).andReturn();
+        assertThat(session.getId()).isNotEqualTo(original);
+        assertThat(login.getResponse().getHeader("Set-Cookie")).contains("taximate_login=");
+        String token = (String) session.getAttribute(LoginTokenFilter.TOKEN_KEY);
+        mvc.perform(get("/api/me").session(session)).andExpect(status().isOk());
+        mvc.perform(post("/api/auth/logout").session(session)).andExpect(status().isOk());
+        assertThat(tokens.memberOf(token)).isEmpty();
+    }
+
+    @Test void cookieRestorationRotatesPreexistingAnonymousSession() throws Exception {
+        long id = members.findByEmail("demo-f3@daejin.ac.kr").orElseThrow().getId();
+        var session = new org.springframework.mock.web.MockHttpSession();
+        String original = session.getId();
+        mvc.perform(get("/api/me").session(session).cookie(new jakarta.servlet.http.Cookie(LoginTokenFilter.COOKIE, tokens.issue(id))))
+                .andExpect(status().isOk());
+        assertThat(session.getId()).isNotEqualTo(original);
+    }
+    @Test void invalidCookieCannotFallBackToValidSessionCredential() throws Exception {
+        long id = members.findByEmail("demo-f3@daejin.ac.kr").orElseThrow().getId();
+        var session = new org.springframework.mock.web.MockHttpSession();
+        com.campustaximate.server.AuthenticatedTestSession.authenticate(session, id, tokens);
+        mvc.perform(get("/api/state").session(session).cookie(new jakarta.servlet.http.Cookie(LoginTokenFilter.COOKIE, "invalid")))
+                .andExpect(status().isUnauthorized());
     }
 }

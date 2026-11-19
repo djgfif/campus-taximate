@@ -21,19 +21,31 @@ import org.springframework.web.client.RestClientException;
 public class KakaoRouteClient implements RouteClient {
 
     private static final int RADIUS_METERS = 10_000;
-    private static final Duration TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration TIMEOUT = Duration.ofSeconds(3);
     private static final Duration MIN_FUTURE = Duration.ofMinutes(10);
     private static final DateTimeFormatter DEPARTURE_FORMAT =
             DateTimeFormatter.ofPattern("yyyyMMddHHmm").withZone(ZoneId.of("Asia/Seoul"));
 
     private final RestClient client;
+    private final int retries;
 
     public KakaoRouteClient(RestClient.Builder builder, String baseUrl, String restKey) {
-        this(builder, baseUrl, restKey, TIMEOUT);
+        this(builder, baseUrl, restKey, TIMEOUT, 1);
+    }
+
+    /** 모의 전송 계층을 주입하는 테스트용 생성자. */
+    KakaoRouteClient(RestClient client, int retries) {
+        this.client = client;
+        this.retries = Math.max(0, retries);
     }
 
     /** 슬롯 잠금 안에서 호출되므로 응답을 무한정 기다리지 않는다. */
     KakaoRouteClient(RestClient.Builder builder, String baseUrl, String restKey, Duration timeout) {
+        this(builder, baseUrl, restKey, timeout, 1);
+    }
+
+    KakaoRouteClient(RestClient.Builder builder, String baseUrl, String restKey, Duration timeout, int retries) {
+        this.retries = Math.max(0, retries);
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout((int) timeout.toMillis());
         factory.setReadTimeout((int) timeout.toMillis());
@@ -45,6 +57,10 @@ public class KakaoRouteClient implements RouteClient {
     /** 단독 경로는 일반 길찾기, 누적 경로는 다중 경유지를 쓴다. 두 API의 쿼터가 다르다. */
     @Override
     public Route route(GeoPoint origin, List<GeoPoint> requested) {
+        return retry(() -> routeOnce(origin, requested));
+    }
+
+    private Route routeOnce(GeoPoint origin, List<GeoPoint> requested) {
         List<GeoPoint> stops = mergeStops(requested);
         GeoPoint destination = stops.get(stops.size() - 1);
         try {
@@ -77,6 +93,10 @@ public class KakaoRouteClient implements RouteClient {
         if (departure == null || departure.isBefore(Instant.now().plus(MIN_FUTURE))) {
             return route(origin, requested);
         }
+        return retry(() -> futureOnce(origin, requested, departure));
+    }
+
+    private Route futureOnce(GeoPoint origin, List<GeoPoint> requested, Instant departure) {
         List<GeoPoint> stops = mergeStops(requested);
         GeoPoint destination = stops.get(stops.size() - 1);
         String waypoints = stops.subList(0, stops.size() - 1).stream()
@@ -109,6 +129,10 @@ public class KakaoRouteClient implements RouteClient {
 
     @Override
     public Map<String, RoadLeg> legs(GeoPoint origin, Map<String, GeoPoint> destinations) {
+        return retry(() -> legsOnce(origin, destinations));
+    }
+
+    private Map<String, RoadLeg> legsOnce(GeoPoint origin, Map<String, GeoPoint> destinations) {
         List<Map<String, Object>> targets = new ArrayList<>();
         destinations.forEach((key, p) -> targets.add(Map.of("key", key, "x", p.lon(), "y", p.lat())));
         Map<String, Object> body = new LinkedHashMap<>();
@@ -120,6 +144,17 @@ public class KakaoRouteClient implements RouteClient {
             return parseLegs(post("/v1/destinations/directions", body));
         } catch (RestClientException e) {
             throw new RouteUnavailableException("kakao call failed", e);
+        }
+    }
+
+    /** 통신 실패만 정해진 횟수만큼 다시 조회한다. */
+    private <T> T retry(java.util.function.Supplier<T> call) {
+        for (int attempt = 0; ; attempt++) {
+            try {
+                return call.get();
+            } catch (RouteUnavailableException e) {
+                if (attempt >= retries) throw e;
+            }
         }
     }
 

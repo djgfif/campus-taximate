@@ -1,3 +1,10 @@
 app:
+  # 회귀 테스트에서는 환경의 외부 API 키를 사용하지 않는다.
+  kakao:
+    rest-key: ""
+  tmap:
+    app-key: ""
+  toss:
+    secret-key: ""
   rate-limit:
     enabled: false

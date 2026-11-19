@@ -38,6 +38,8 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Object> handle(Exception e) {
+        for(Throwable t=e;t!=null;t=t.getCause())if(t instanceof ApiException auth && (auth.getStatus().value()==401||auth.getStatus().value()==403))return body(auth.getStatus(),auth.getCode(),auth.getMessage());
+        if(LockRetry.transientFailure(e))return body(HttpStatus.CONFLICT,"RETRY","잠시 뒤 다시 시도해 주세요");
         if (clientGone(e)) {
             log.debug("브라우저가 연결을 끊었습니다.");
             return null;

@@ -15,7 +15,7 @@ jobs:
           MYSQL_DATABASE: taximate
           MYSQL_USER: taximate
           MYSQL_PASSWORD: taximate
-          MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+          MYSQL_ROOT_PASSWORD: taximate-ci-root
         ports:
           - 3306:3306
         options: >-
@@ -24,6 +24,11 @@ jobs:
           --health-timeout=5s
           --health-retries=20
     env:
+      MYSQL_TESTS: "true"
+      MYSQL_MIGRATION_TEST_URL: jdbc:mysql://127.0.0.1:3306/taximate_migration?serverTimezone=UTC&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&useSSL=false
+      DB_URL: jdbc:mysql://127.0.0.1:3306/taximate?serverTimezone=UTC&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&useSSL=false
+      DB_USER: taximate
+      DB_PASSWORD: taximate
       MYSQL_TEST_URL: jdbc:mysql://127.0.0.1:3306/taximate?serverTimezone=UTC&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&useSSL=false
     steps:
       - uses: actions/checkout@v4
@@ -32,6 +37,8 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: maven
+      - name: Create isolated migration database
+        run: docker exec ${{ job.services.mysql.id }} mysql -uroot -ptaximate-ci-root -e "CREATE DATABASE taximate_migration; GRANT ALL ON taximate_migration.* TO 'taximate'@'%';"
       - run: ./mvnw -B verify
 
   frontend:

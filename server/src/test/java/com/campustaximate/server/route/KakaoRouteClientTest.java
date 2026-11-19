@@ -70,7 +70,8 @@ class KakaoRouteClientTest {
             }
             exchange.close();
         });
-        server.setExecutor(java.util.concurrent.Executors.newCachedThreadPool());
+        var executor = java.util.concurrent.Executors.newCachedThreadPool();
+        server.setExecutor(executor);
         server.start();
         try {
             var client = new KakaoRouteClient(org.springframework.web.client.RestClient.builder(),
@@ -81,6 +82,7 @@ class KakaoRouteClientTest {
                     .isInstanceOf(RouteClient.RouteUnavailableException.class);
         } finally {
             server.stop(0);
+            executor.shutdownNow();
         }
     }
 
@@ -98,5 +100,34 @@ class KakaoRouteClientTest {
 
         assertThatThrownBy(() -> KakaoRouteClient.parse(body))
                 .isInstanceOf(RouteClient.RouteUnavailableException.class);
+    }
+
+    @Test
+    void retriesOneFailedCallUsingMockTransport() {
+        var builder = org.springframework.web.client.RestClient.builder();
+        var server = org.springframework.test.web.client.MockRestServiceServer.bindTo(builder).build();
+        server.expect(org.springframework.test.web.client.match.MockRestRequestMatchers.anything())
+                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators.withServerError());
+        server.expect(org.springframework.test.web.client.match.MockRestRequestMatchers.anything())
+                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess(
+                        "{\"routes\":[{\"result_code\":0,\"summary\":{\"distance\":1000,\"duration\":60,\"fare\":{\"taxi\":5000}}}]}",
+                        org.springframework.http.MediaType.APPLICATION_JSON));
+        var client = new KakaoRouteClient(builder.baseUrl("https://mock.invalid").build(), 1);
+        assertThat(client.route(new com.campustaximate.matching.GeoPoint(37, 127),
+                java.util.List.of(new com.campustaximate.matching.GeoPoint(37.01, 127))).fare()).isEqualTo(5000);
+        server.verify();
+    }
+
+    @Test
+    void retryCanBeDisabledUsingMockTransport() {
+        var builder = org.springframework.web.client.RestClient.builder();
+        var server = org.springframework.test.web.client.MockRestServiceServer.bindTo(builder).build();
+        server.expect(org.springframework.test.web.client.match.MockRestRequestMatchers.anything())
+                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators.withServerError());
+        var client = new KakaoRouteClient(builder.baseUrl("https://mock.invalid").build(), 0);
+        assertThatThrownBy(() -> client.route(new com.campustaximate.matching.GeoPoint(37, 127),
+                java.util.List.of(new com.campustaximate.matching.GeoPoint(37.01, 127))))
+                .isInstanceOf(RouteClient.RouteUnavailableException.class);
+        server.verify();
     }
 }
