@@ -1,0 +1,148 @@
+{
+  "generated_at": "2026-11-19T12:39:30.465Z",
+  "sources": [
+    {
+      "file": ".cache/kr-public/seoul_dcall_2025.csv",
+      "url": "https://www.data.go.kr/cmm/cmm/fileDownload.do?atchFileId=FILE_000000003648626&fileDetailSn=1&dataNm=%EC%84%9C%EC%9A%B8%EC%8B%9C%EC%84%A4%EA%B3%B5%EB%8B%A8_%EC%9E%A5%EC%95%A0%EC%9D%B8%EC%BD%9C%ED%83%9D%EC%8B%9C%20%ED%83%91%EC%8A%B9%EB%82%B4%EC%97%AD_20251231",
+      "bytes": 338587487,
+      "sha256": "f704ecea1f9c0d65a5dbd096d90868a1f2126d91213d846ec071c4bbaece5889",
+      "verified_at": "2026-11-19T12:39:31.920Z",
+      "catalogue": "https://www.data.go.kr/data/15115859/fileData.do",
+      "login_required": false,
+      "needCaptcha": false
+    },
+    {
+      "file": ".cache/kr-public/tims_2025.zip",
+      "url": "https://www.data.go.kr/cmm/cmm/fileDownload.do?atchFileId=FILE_000000007678376&fileDetailSn=1&dataNm=%ED%95%9C%EA%B5%AD%EA%B5%90%ED%86%B5%EC%95%88%EC%A0%84%EA%B3%B5%EB%8B%A8_%ED%83%9D%EC%8B%9C%EC%9A%B4%ED%96%89%EC%A0%95%EB%B3%B4%20%EA%B2%A9%EC%9E%90%EB%B3%84%20%EC%98%81%EC%97%85%ED%86%B5%EA%B3%84_20251231",
+      "bytes": 25212642,
+      "sha256": "8a0b3afc6cad5902bbab66a40a307fc5d27f64d03d44f964adead7ce8e1f498a",
+      "verified_at": "2026-11-19T12:39:40.872Z",
+      "catalogue": "https://www.data.go.kr/data/15165682/fileData.do",
+      "login_required": false,
+      "needCaptcha": false
+    },
+    {
+      "file": ".cache/yellow_tripdata_2026-08.parquet",
+      "url": "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2026-08.parquet",
+      "bytes": 59043961,
+      "sha256": "6683a025443afcbb28ac4f238fcbb6334767dc69fab4a16b1eb16a78dcd013cd",
+      "verified_at": "2026-11-19T12:39:41.604Z",
+      "month": "2026-08"
+    },
+    {
+      "file": ".cache/yellow_tripdata_2026-09.parquet",
+      "url": "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2026-09.parquet",
+      "bytes": 67374896,
+      "sha256": "32d8d883e3fb9c0d681f4d47b205afe0fcb2a4830739673b4dd3bafbac9b0086",
+      "verified_at": "2026-11-19T12:39:41.758Z",
+      "month": "2026-09"
+    },
+    {
+      "file": ".cache/taxi_zone_lookup.csv",
+      "url": "https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv",
+      "bytes": 12331,
+      "sha256": "1a99e105092230f8620f301edcca7f80d3080642ff404d28ed957d3fa222c8ed",
+      "verified_at": "2026-11-19T12:39:42.553Z"
+    },
+    {
+      "file": ".cache/nyc-data-dictionary.pdf",
+      "url": "https://www.nyc.gov/assets/tlc/downloads/pdf/data_dictionary_trip_records_yellow.pdf",
+      "bytes": 148556,
+      "sha256": "b9e9f0ecfa6bd9cc847283379173fd764fe1ab76d2fa143329f541cb1f479993",
+      "verified_at": "2026-11-19T12:39:42.977Z"
+    },
+    {
+      "file": ".cache/nyc-tariff.html",
+      "url": "https://www.nyc.gov/site/tlc/passengers/taxi-fare.page",
+      "bytes": 30917,
+      "sha256": "0ff25b76b57b4a21c5767a065726083d798805cc0c92197333c87912bf5f2a42",
+      "verified_at": "2026-11-19T12:39:42.983Z"
+    }
+  ],
+  "failures": [],
+  "requests": [
+    {
+      "url": "https://www.data.go.kr/data/15115859/fileData.do",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "url": "https://www.data.go.kr/tcs/dss/selectFileDataDownload.do",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "url": "https://www.data.go.kr/cmm/cmm/check-limit.json",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "url": "https://www.data.go.kr/data/15165682/fileData.do",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "url": "https://www.data.go.kr/tcs/dss/selectFileDataDownload.do",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "url": "https://www.data.go.kr/cmm/cmm/check-limit.json",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "url": "https://www.data.go.kr/cmm/cmm/fileDownload.do?atchFileId=FILE_000000007678376&fileDetailSn=1&dataNm=%ED%95%9C%EA%B5%AD%EA%B5%90%ED%86%B5%EC%95%88%EC%A0%84%EA%B3%B5%EB%8B%A8_%ED%83%9D%EC%8B%9C%EC%9A%B4%ED%96%89%EC%A0%95%EB%B3%B4%20%EA%B2%A9%EC%9E%90%EB%B3%84%20%EC%98%81%EC%97%85%ED%86%B5%EA%B3%84_20251231",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "url": "https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "url": "https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "url": "https://www.nyc.gov/assets/tlc/downloads/pdf/data_dictionary_trip_records_yellow.pdf",
+      "method": "GET",
+      "status": 200
+    }
+  ],
+  "analysis_sources": {
+    "seoul": {
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\seoul_dcall_2025.csv",
+      "url": "https://www.data.go.kr/data/15115859/fileData.do",
+      "bytes": 338587487,
+      "sha256": "f704ecea1f9c0d65a5dbd096d90868a1f2126d91213d846ec071c4bbaece5889",
+      "rows": 1729476
+    },
+    "nyc": [
+      {
+        "month": "2026-08",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\yellow_tripdata_2026-08.parquet",
+        "url": "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2026-08.parquet",
+        "bytes": 59043961,
+        "sha256": "6683a025443afcbb28ac4f238fcbb6334767dc69fab4a16b1eb16a78dcd013cd",
+        "rows": 3336716
+      },
+      {
+        "month": "2026-09",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\yellow_tripdata_2026-09.parquet",
+        "url": "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2026-09.parquet",
+        "bytes": 67374896,
+        "sha256": "32d8d883e3fb9c0d681f4d47b205afe0fcb2a4830739673b4dd3bafbac9b0086",
+        "rows": 3876044
+      }
+    ],
+    "tims": {
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\tims_2025.zip",
+      "url": "https://www.data.go.kr/data/15165682/fileData.do",
+      "bytes": 25212642,
+      "sha256": "8a0b3afc6cad5902bbab66a40a307fc5d27f64d03d44f964adead7ce8e1f498a"
+    }
+  }
+}

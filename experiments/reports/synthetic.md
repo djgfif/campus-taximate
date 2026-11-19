@@ -10,7 +10,7 @@
 두 정산은 같은 매칭 결과와 결제액을 사용한다. 별도 매칭 알고리즘의 우열 비교가 아니다.
 현재 앱의 MatchingRound, RouteGroupVerifier, SettlementCalculator를 직접 컴파일했다.
 시간은 엔진과 로컬 경로 모델을 포함한다. 네트워크 호출은 0회이며 실제 API 지연을 측정하지 않았다.
-실측 요금 오차 민감도는 전향적 실측 자료가 있어야 실행한다. 자료가 없으면 미검증으로 남긴다.
+공개 오차 민감도는 c6-error-sensitivity.md 참조. 확정 매칭을 유지하고 정산에만 오차를 적용한다.
 
 - Synthetic corridor destinations and request times
 - Distance/time/fare model; not observed meter payments
