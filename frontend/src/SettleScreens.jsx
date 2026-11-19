@@ -64,13 +64,12 @@ export function PayerInput({ party, now, run, onDone, onLater, onUpdated }) {
       <label className="field amount">실제 결제 금액<input aria-label="실제 결제 금액" inputMode="numeric" value={amount ? Number(amount).toLocaleString() : ''} placeholder="0"
         onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))} /><em>원</em></label>
       {unusual ? <Say tone="stop-tone" title={'예상 요금보다 ' + Math.round(Math.abs(difference) * 100) + '% ' + (difference > 0 ? '높아요' : '낮아요')}>금액과 영수증을 다시 확인해 주세요. 금액이 맞으면 그대로 입력할 수 있어요.</Say>
-        : <p>예상 요금은 {won(party.expectedTotal)}이에요.</p>}
+        : <p className="note">예상 요금 {won(party.expectedTotal)}</p>}
       <ReceiptField file={receipt} onChange={setReceipt} />
       {shares && <Rows items={shares.map((s) => [s.payer ? '나 (결제자)' : s.nickname, won(s.amount)])} />}
       {locked && <Say>이의가 있거나 수정할 수 있는 시간이 지났어요.</Say>}
       {(error || preview.value === value && preview.error) && <p role="alert">{error || preview.error}</p>}
-      <p className="note">입력 뒤 24시간은 요금 이의 기간이에요. 정산 확정 뒤 환불·추가 결제를 처리하고 받을 돈을 앱에 기록해요(실제 송금 없음).</p>
-      <p className="note">이의가 없고 이의 기간 안일 때만 수정할 수 있어요. 수정하면 이의 기간 24시간을 다시 세요. 사진은 올린 날부터 7일 뒤 지워요.</p>
+      <p className="note">입력하면 24시간 동안 일행이 이의를 낼 수 있고, 그 뒤 정산이 확정돼요. 사진은 7일 뒤 지워져요.</p>
       <Btn className="line" aria-expanded={checkingBoarding} onClick={() => setCheckingBoarding((value) => !value)}>일행 탑승 확인</Btn>
       {checkingBoarding && <BoardingPanel party={party} now={now} />}
     </div>

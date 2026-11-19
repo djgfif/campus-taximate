@@ -44,7 +44,7 @@ describe('학생 안내', () => {
     expect(within(view.container.querySelector('.bar')).getByRole('button', { name: '홈으로' })).toBeTruthy()
     const secondary = screen.getByRole('region', { name: '일행 보조 메뉴', hidden: true })
     expect(within(secondary).getByRole('button', { name: '내 탑승 취소', hidden: true })).toBeTruthy()
-    expect(screen.getByText(/나는 선결제하지 않아요/)).toBeTruthy()
+    expect(screen.getByText(/결제자는 선결제가 없어요/)).toBeTruthy()
     expect(screen.queryByText(/결제자 외 일행은/)).toBeNull()
     // 아직 부를 때가 아니면 카카오T도 꺼 둔다
     expect(screen.getByRole('button', { name: '카카오T 열기' }).disabled).toBe(true)

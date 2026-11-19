@@ -382,8 +382,8 @@ function NextAction({ party, now, myId, mine, config, run, onUpdated, onDriver }
   } else if (party.status === 'PREPAYING' && !party.payer) {
     const paid = prepay?.status === 'APPROVED'
     title = paid ? '선결제를 마쳤어요' : prepay?.status === 'PROCESSING' ? '결제를 확인하고 있어요' : '선결제를 마쳐 주세요'
-    detail = paid ? '다른 일행의 선결제를 기다리고 있어요. 모두 결제하면 만날 시간과 장소를 알려 드려요.'
-      : '내 몫에 여유 15%를 더해 미리 내고, 내린 뒤 실제 요금으로 나눠 남는 돈은 돌려받아요.'
+    detail = paid ? '모두 결제하면 만날 시간과 장소를 알려 드려요.'
+      : '내 몫에 여유 15%를 더한 금액이에요. 남는 돈은 내린 뒤 돌려받아요.'
     if (paid) tone = 'calm'
     extra = <PaymentCard compact partyId={party.id} myId={myId} now={now} config={config} onUpdated={onUpdated} onOrder={setPrepay} />
   } else if (waiting && party.payer) {
@@ -401,7 +401,7 @@ function NextAction({ party, now, myId, mine, config, run, onUpdated, onDriver }
         detail = '나는 선결제하지 않아요. 다들 결제하고 도착하면 택시를 부를 수 있어요.'
       } else {
         title = party.status === 'PREPAYING' ? '다른 사람들이 결제하는 중이에요' : `${formatTime(party.callAt || party.departureAt)}쯤 택시를 불러요`
-        detail = '나는 선결제하지 않아요. 부를 때가 되면 버튼이 켜져요.'
+        detail = '결제자는 선결제가 없어요. 부를 때가 되면 버튼이 켜져요.'
         tone = 'calm'
       }
       extra = <>

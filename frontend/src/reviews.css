@@ -1,13 +1,13 @@
 .review-stack { display: flex; flex-direction: column; gap: 18px; }
-.review-card { border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.review-card { border: 1px solid var(--line); border-radius: var(--r-m); padding: 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .review-card h2 { font-size: 18px; }
 .review-card h3 { font-size: 16px; }
 .review-text { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
 .review-actions, .review-nav { display: flex; flex-wrap: wrap; gap: 8px; }
 .review-actions > .btn { flex: 1 1 140px; }
 .review-nav { border-bottom: 1px solid var(--line); padding-bottom: 12px; }
-.review-nav button { padding: 10px 14px; border-radius: 8px; background: var(--mist); }
-.review-nav button[aria-current="page"] { background: var(--ink); color: white; }
+.review-nav button { padding: 10px 14px; border-radius: var(--r-s); background: var(--mist); }
+.review-nav button[aria-current="page"] { background: var(--ink); color: #fff; }
 .review-action-form { display: flex; flex-direction: column; gap: 12px; }
 .review-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .review-card .field { margin: 0; }

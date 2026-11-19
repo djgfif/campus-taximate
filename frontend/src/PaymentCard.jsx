@@ -62,12 +62,13 @@ export default function PaymentCard({ partyId, purpose = 'PREPAY', myId, now, co
       {(order.refundRequestedAmount > 0 || order.refundedAmount > 0) && <p className="note">환불은 카드사에 반영되기까지 3~4영업일 정도 걸려요.</p>}
       {/* 결제 방식은 서버의 주문(order.simulated)만 따른다. 화면에 토스 키가 빌드돼 있어도 모의 결제 서버면 토스 창을 열지 않는다. */}
       {payable && (order.simulated ? <>
-        <p className="note">시연용 모의 결제예요. 실제 돈은 나가지 않아요.</p>
+        {/* 지금 할 일 카드 안에서는 맨 위 시연 띠가 이미 알려 주므로 반복하지 않는다. */}
+        {!compact && <p className="note">시연용 모의 결제예요. 실제 돈은 나가지 않아요.</p>}
         {config?.demo && <Btn onClick={() => pay(true)}>시연 결제하기</Btn>}
       </> : clientKey ? <Btn onClick={() => pay(false)}>카드로 결제하기</Btn>
         : <Say>카드 결제를 준비하지 못했어요. 잠시 뒤 다시 확인해 주세요.</Say>)}
     </>}
     {error && <p role="alert">{error}</p>}
-    {!knownOrder && <Btn className="small quiet" onClick={() => { setActionError(''); setReload((n) => n + 1) }}>주문 다시 확인</Btn>}
+    {!knownOrder && (!compact || error) && <Btn className="small quiet" onClick={() => { setActionError(''); setReload((n) => n + 1) }}>주문 다시 확인</Btn>}
   </section>
 }

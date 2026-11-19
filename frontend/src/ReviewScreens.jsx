@@ -104,12 +104,14 @@ export function PartyBoardingPanel({ party, now }) {
     try { await api.boardingVote(party.id, pending.memberId, pending.came); setPending(null); remote.reload(); toast('탑승 확인을 접수했어요') }
     catch (e) { setError(e.message) }
   }
+  const others = candidates.filter((c) => c.memberId !== mine)
+  // 확인할 사람도 보전 내역도 없으면 자리를 차지하지 않는다.
+  if (!remote.loading && !remote.error && others.length === 0 && entries.length === 0 && !pending && !error) return null
   return <section className="block review-stack" aria-label="일행 탑승 확인">
     <h2 className="block-title">일행 탑승 확인</h2>
-    <p className="note">직접 확인한 사실만 표시해 주세요. 첫 표시는 바꿀 수 없어요. 본인 소명은 내 정보의 ‘내 탑승 확인·소명’에서 제출해요.</p>
+    <p className="note">직접 본 것만 표시해 주세요. 한 번 표시하면 바꿀 수 없어요.</p>
     <RemoteState remote={remote} />
-    {!remote.loading && !remote.error && candidates.length === 0 && <p>현재 탑승 확인 대상이 없어요.</p>}
-    {candidates.filter((c) => c.memberId !== mine).map((item) => {
+    {others.map((item) => {
       const c = item.investigation
       const name = item.nickname || party.members?.find((m) => m.memberId === item.memberId)?.nickname || `회원 #${item.memberId}`
       const ownVote = item.votes?.find((v) => v.actorId === mine)

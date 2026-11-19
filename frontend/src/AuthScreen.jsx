@@ -3,6 +3,16 @@ import DemoAccounts from './DemoAccounts.jsx'
 import { api } from './api.js'
 import { Brand, Btn, Say, Screen, toast } from './ui.jsx'
 
+/** 첫 화면의 얼굴: 어두운 띠 위에 학교에서 출발해 차례로 내리는 노선. */
+function AuthHero({ title }) {
+  return <section className="auth-hero">
+    <Brand />
+    <h1 className="head">{title}</h1>
+    <ol className="auth-route" aria-hidden="true"><li>학교</li><li>1</li><li>2</li><li>3</li></ol>
+    <p>같은 방향 학생과 타고, 혼자 탈 때 요금 비율로 나눠요</p>
+  </section>
+}
+
 /** 평소에는 메일과 비밀번호로 로그인한다. 가입과 비밀번호 재설정만 학교 메일 코드로 인증한다. */
 export default function AuthScreen({ config, onLogin }) {
   const [step, setStep] = useState('signin')
@@ -60,9 +70,8 @@ export default function AuthScreen({ config, onLogin }) {
           <Btn className="quiet" onClick={() => setStep('email')}>처음이거나 비밀번호를 잊었어요</Btn>
         </>
       )}>
-        <header className="bar"><Brand /></header>
-        <div className="pad">
-          <h1 className="head">학교 메일로<br />로그인해요</h1>
+        <AuthHero title={<>학교 메일로<br />로그인해요</>} />
+        <div className="pad auth-form">
           {emailField}
           <label className="field">비밀번호
             <input type="password" value={password} autoComplete="current-password"
@@ -87,9 +96,8 @@ export default function AuthScreen({ config, onLogin }) {
         <Btn className="quiet" onClick={back}>로그인으로 돌아가기</Btn>
       </>
     )}>
-      <header className="bar"><Brand /></header>
-      <div className="pad">
-        <h1 className="head">{coding ? <>메일로 받은 코드를<br />입력해 주세요</> : <>학교 메일로<br />인증해요</>}</h1>
+      <AuthHero title={coding ? <>메일로 받은 코드를<br />입력해 주세요</> : <>학교 메일로<br />인증해요</>} />
+      <div className="pad auth-form">
         <p className="sub">{coding ? email : '가입하거나 비밀번호를 다시 정할 때 한 번 인증합니다.'}</p>
         {coding ? (
           <>
