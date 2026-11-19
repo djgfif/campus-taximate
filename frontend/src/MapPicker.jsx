@@ -116,13 +116,16 @@ export default function MapPicker({ center: origin, value, title, onPick, onClos
 
 /** 카카오 장소 검색. 키가 없으면 빈 목록을 돌려준다. */
 export async function searchPlaces(query, center) {
-  if (!APP_KEY || !query.trim()) return []
+  if (!query.trim()) return []
+  // 키가 없거나 검색 오류면 "결과 없음"과 구분할 수 있게 실패로 돌려준다.
+  if (!APP_KEY) throw new Error('장소 검색 키가 없어요.')
   const maps = await loadKakaoMaps()
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const options = center ? { location: new maps.LatLng(center.lat, center.lon), size: 5 } : { size: 5 }
     new maps.services.Places().keywordSearch(query, (data, status) => {
+      if (status === maps.services.Status.ZERO_RESULT) { resolve([]); return }
       if (status !== maps.services.Status.OK) {
-        resolve([])
+        reject(new Error('장소 검색에 실패했어요.'))
         return
       }
       resolve(data.map((place) => ({

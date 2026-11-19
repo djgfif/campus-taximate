@@ -33,20 +33,24 @@ export function PlaceField({ label, value, center, onChange, samples = [] }) {
   const [results, setResults] = useState([])
   const centerLat = center?.lat
   const centerLon = center?.lon
+  // 결과가 없거나 검색을 쓸 수 없을 때 아무 반응 없이 끝나지 않게 이유를 알려 준다.
+  const [note, setNote] = useState('')
   useEffect(() => {
-    if (value.point || !value.name.trim()) { setResults([]); return undefined }
+    if (value.point || !value.name.trim()) { setResults([]); setNote(''); return undefined }
     let closed = false
-    const timer = setTimeout(() => searchPlaces(value.name, centerLat == null || centerLon == null ? null : { lat: centerLat, lon: centerLon }).then((next) => !closed && setResults(next))
-      .catch(() => !closed && setResults([])), 300)
+    const timer = setTimeout(() => searchPlaces(value.name, centerLat == null || centerLon == null ? null : { lat: centerLat, lon: centerLon })
+      .then((next) => { if (closed) return; setResults(next); setNote(next.length ? '' : '검색 결과가 없어요. 다른 이름으로 찾거나 지도에서 골라 주세요.') })
+      .catch(() => { if (closed) return; setResults([]); setNote('지금은 장소 검색을 쓸 수 없어요. 지도에서 골라 주세요.') }), 300)
     return () => { closed = true; clearTimeout(timer) }
   }, [value.name, value.point, centerLat, centerLon])
   const choose = (place) => {
-    onChange({ name: place.name, point: { lat: place.lat, lon: place.lon } }); setOpen(false); setResults([])
+    onChange({ name: place.name, point: { lat: place.lat, lon: place.lon } }); setOpen(false); setResults([]); setNote('')
   }
   return <section className="place-field" aria-label={label}>
     <label className="field">{label}<span className="place-input"><input value={value.name} maxLength={100} placeholder="건물이나 정류장 이름"
       onChange={(e) => onChange({ name: e.target.value, point: null })} />{value.point && <Check className="place-ok" size={18} aria-label="위치 선택됨" />}</span></label>
     {results.length > 0 && <ul className="places">{results.map((place) => <li key={place.id}><button type="button" onClick={() => choose(place)}>{place.name}</button></li>)}</ul>}
+    {note && <p className="note" role="status">{note}</p>}
     <div className="place-actions">
       <Btn className="small line" disabled={!center} onClick={() => setOpen(true)}><MapPin size={16} aria-hidden="true" />지도에서<span className="sr-only"> {label} 고르기</span></Btn>
       {samples.length > 0 && <label className="field sample"><span className="sr-only">시연 {label}</span><select aria-label={'시연 ' + label} value="" onChange={(e) => choose(samples[Number(e.target.value)])}>
@@ -57,7 +61,7 @@ export function PlaceField({ label, value, center, onChange, samples = [] }) {
   </section>
 }
 
-export function RequestForm({ initial, config, now, run, onClose, schoolDestination = false }) {
+export function RequestForm({ initial, config, now, run, onClose, schoolDestination = false, schoolOrigin = false }) {
   const [hubs, setHubs] = useState([])
   const [school, setSchool] = useState(null)
   const [origin, setOrigin] = useState(emptyPlace)
@@ -80,9 +84,11 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
       if (closed) return
       setSchool(data)
       if (schoolDestination && (!initial || initial.direction === 'TO_SCHOOL')) setDestination({ name: data.name, point: { lat: data.lat, lon: data.lon } })
+      // 하교는 학교에서 출발하므로 출발지를 학교로 채워 둔다. 이미 고른 출발지는 덮어쓰지 않는다.
+      if (schoolOrigin) setOrigin((prev) => (prev.point || prev.name.trim() ? prev : { name: data.name, point: { lat: data.lat, lon: data.lon } }))
     }).catch(() => {})
     return () => { closed = true }
-  }, [schoolDestination, initial])
+  }, [schoolDestination, schoolOrigin, initial])
   const originKey = origin.point ? JSON.stringify(origin.point) : ''
   useEffect(() => {
     if (!originKey) return undefined
@@ -183,5 +189,5 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
   </Screen>
 }
 
-export const HomeRequest = (props) => <RequestForm {...props} />
+export const HomeRequest = (props) => <RequestForm {...props} schoolOrigin />
 export const SchoolRequest = (props) => <RequestForm {...props} schoolDestination />
