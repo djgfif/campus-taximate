@@ -8,3 +8,7 @@ uploads/
 server/src/main/resources/static/
 frontend/test-results/
 frontend/playwright-report/
+.cache/
+__pycache__/
+output/playwright/
+.playwright-cli/

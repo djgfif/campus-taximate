@@ -20,7 +20,11 @@
 - `POST /api/parties/{id}/readiness` `{ "state": "ARRIVED" | "NEARBY" }` — 도착했어요 / 2분 안 도착
 - `POST /api/parties/{id}/call` — 결제자 호출 표시 (`canCall`일 때만)
 
-## 3. 노쇼 판정 (명세 8.3, **화면 없음**)
+## 3. 노쇼 판정 (명세 8.3, 화면 연결됨: `ReviewScreens.jsx`)
+
+일행 정보 탭에서 동승 여부를 표시하고, 내 정보 → 내 탑승 확인·소명(`/boarding-cases`)에서 본인 조사와 마감·접수한 소명·판정 근거를 확인한다. 첫 표시는 최종 확인 뒤 제출하며, 첫 소명은 변경할 수 없다. 실패 시 초안을 보존하고 재시도할 수 있다.
+
+결제자는 실제 금액 입력 화면에서도 ‘일행 탑승 확인’을 열 수 있다. 조사 응답의 `nickname`은 현재 일행에서 제외된 대상도 식별할 수 있게 한다. 소명 원문은 해당 조사 본인과 관리자만 받는다. 자동·수동 재조회 실패 시 마지막으로 확인한 내용과 작성 중인 초안을 유지하고 오류를 표시한다.
 운행 시작 때 안 탄 사람은 "탑승 미확인" 조사 대상이 된다. 24시간 안에 일행이 표시하고 본인이 소명한다.
 
 | 화면 | API | 누가 |
@@ -39,7 +43,9 @@
 - `POST /api/parties/{partyId}/payer-succession` `{ "accept": true | false }`
 - T + 5분(`successionDeadlineAt`)까지 수락하지 않으면 운행 미성사, 모두 전액 환불.
 
-## 5. 관리자 화면 (명세 9장, **화면 없음**)
+## 5. 관리자 화면 (명세 9장, 화면 연결됨: `/admin`)
+
+관리자 계정의 내 정보 메뉴와 PC 상단에서 연다. 노쇼 검토, 요금·운행, 신고·제한, 미정산, 승차 지점, 처리 기록을 제공한다. 일반 계정은 화면에서 접근을 안내하고 API는 별도로 권한을 검증한다. 모든 처리는 근거가 필수이고, 지점·제한 등록의 동일 내용 재시도에는 같은 멱등키를 쓴다. 미정산 확인 기록은 결제 승인·채무 면제가 아니다.
 시연 관리자 계정: `demo-admin@daejin.ac.kr` (비밀번호는 다른 시연 계정과 같음). 일반 회원이 부르면 403.
 판정·처리 요청에는 근거(`evidence`, 2,000자)가 필수이고, 처리마다 기록이 남는다.
 
@@ -47,7 +53,7 @@
 |---|---|---|
 | 노쇼 검토 | `GET /api/admin/no-shows`, `GET /api/admin/no-shows/{id}` (상세에 일행 채팅 최근 50건) | `POST /api/admin/no-shows/{id}/decision` `{ "decision": "NO_SHOW" \| "NOT_NO_SHOW" \| "UNDETERMINED", "evidence": "..." }` |
 | 요금 이의 | `GET /api/admin/fare-reviews`, 영수증 `GET /api/admin/parties/{id}/receipt` | `POST /api/admin/parties/{id}/fare-decision` `{ "accept": true, "correctedAmount": 15000, "evidence": "..." }` |
-| 운행 답 엇갈림 | (요금 이의 목록과 같은 일행) | `POST /api/admin/parties/{id}/ride-decision` `{ "evidence": "..." }` — 영수증 있으면 운행, 없으면 미운행·전액 환불 |
+| 운행 검토 | (요금 이의 목록과 같은 일행) | `POST /api/admin/parties/{id}/ride-decision` `{ "decision": "OPERATED", "evidence": "..." }` — 운행 또는 `NOT_OPERATED`를 근거와 함께 명시 |
 | 신고·제한 | `GET /api/admin/reports`, `GET /api/admin/members/{id}/restrictions` | `POST /api/admin/members/{id}/restrictions` `{ "until": "...", "evidence": "..." }` (헤더 `Idempotency-Key`), `POST /api/admin/restrictions/{id}/release` |
 | 미정산 | `GET /api/admin/overdue-payments` | `POST /api/admin/overdue-payments/{id}/handled` |
 | 승차 지점 | `GET /api/admin/hubs` | `POST /api/admin/hubs`, `PUT /api/admin/hubs/{id}` (헤더 `Idempotency-Key`, 현장 확인 안 된 지점은 사용자에게 안 보임) |
@@ -55,7 +61,9 @@
 
 `UNDETERMINED`(판단 불가)는 명세 S35대로 노쇼 아님과 같게 처리된다(전액 환불, 기록 없음). 같은 판정을 두 번 보내도 한 번만 처리된다.
 
-## 6. 합류 (명세 5.5, **화면 없음**)
+노쇼 조사 상세 `chat[]`는 `kind`와 `imageUrl`을 포함한다. 사진은 `GET /api/admin/no-shows/{caseId}/messages/{messageId}/image`에서 관리자만 조회하며, 조사의 일행과 메시지의 일행이 일치해야 한다. 기존 채팅과 동일한 보관기간이 지나거나 파일이 없으면 404, 응답은 `no-store`와 `nosniff`를 적용한다.
+
+## 6. 합류 (명세 5.5, 화면 연결됨: `Board.jsx`, `RequestStatus.jsx`)
 확정된 일행(4명 미만)에 나중 요청이 들어올 수 있으면 회차가 자동으로 합류를 제안한다. 합류자는 5분 안에 선결제해야 합류가 확정되고, 그 전까지 기존 일행원 분담금은 바뀌지 않는다.
 - `GET /api/joins` — 나에게 온 합류 제안(대기 요청 화면에서 "선결제하면 합류" 안내)
 - `POST /api/parties/{id}/joins` `{ "requestId": 123 }` — 합류 요청
@@ -63,7 +71,7 @@
 - 합류가 확정되면 기존 일행원의 `groupVersion`이 오르고 `changes`에 기록된다. 분담금은 같거나 내려간다.
 
 ## 7. 참고
-- 걷는 시간은 TMAP 보행자 경로로 받고, 실패하면 지금처럼 추정값과 "추정" 표시다.
+- 걷는 시간은 TMAP 보행자 경로로 받고, 실패·한도 초과면 `503 WALK_UNAVAILABLE`로 요청을 거절한다(S44). 키가 없는 개발 환경에서만 직선거리 추정값과 "추정" 표시를 쓴다.
 - 서버가 잠깐 바쁠 때(DB 교착) `409` `{"code":"RETRY"}`가 올 수 있다. "잠시 뒤 다시 시도해 주세요"를 보여 주면 된다.
 
 
@@ -123,3 +131,26 @@ Progress: { now, partyId, stage, next, role, message, investigations: [{ memberI
 - DB: `V15__profile_trust_review.sql` (`member.department`·`admission_year`·`show_profile`, `ride_review`).
 - 지도: 카카오 지도를 못 불러오면 같은 좌표로 약도(`SketchMap`)를 그린다. 휴대폰 일행 화면과 요청 화면에도 작은 지도가 붙는다.
 - 요청 화면: 출발지를 고르면 가장 가까운 승차 지점이 미리 골라지고, 시간은 "오늘 22:25 ~ 23:25 출발" 한 줄로 접혀 있다(눌러서 바꾸기).
+
+
+## 팀원 제안: 실제 탑승 코드와 명시적 운행 시작 (V16)
+
+이 방식은 교수 요구사항이 아니라 팀원 제안이다. 현재 공동 승차 흐름에 적용하며 레거시 `TO_SCHOOL` 신규 요청을 다시 허용하지 않는다.
+
+| API | 권한과 의미 |
+| --- | --- |
+| `POST /api/parties/{id}/arrive` | 승차 지점 도착 표시. 탑승 확인이나 출발 처리를 하지 않는다. |
+| `POST /api/parties/{id}/boarded` | 현재 결제자의 실제 탑승. 고정 길이 6자리 문자열 코드를 만들고 **실제 탑승 시각 + 5분** 창을 연다. 동일 요청 재시도는 코드나 마감을 바꾸지 않는다. |
+| `GET /api/parties/{id}/boarding-code` | 현재 일행원용 상태: `generation`, `deadlineAt`, `status` (`WAITING`/`OPEN`/`EXPIRED`), `confirmed`, `remainingAttempts`, `canOpen`, `canStart`. `code`는 창이 열려 있는 동안 현재 결제자에게만 내려간다. |
+| `POST /api/parties/{id}/boarding-code` | 승객이 `{ "code": "000042", "generation": 1 }`을 전송한다. 숫자가 아닌 문자열이며 선행 0을 보존한다. |
+| `POST /api/parties/{id}/start` | 현재 결제자가 실제 탑승을 표시한 뒤 명시적으로 운행을 시작한다. 같은 출발 요청은 멱등적이다. |
+
+승객별·generation별 오입력 기회는 5회다. 잘못된 형식도 현재 generation의 오입력에 포함된다. 오래된 generation, 만료, 일행 외 접근은 입력 횟수를 소모하지 않는다. 오입력 기록은 별도 트랜잭션으로 저장하고 일행 DB 잠금으로 동시 요청을 직렬화한다. 이미 확인된 승객의 동일 generation 재전송은 성공으로 처리한다. 마감 경계 시각부터 새 확인은 거부한다.
+
+결제자 승계는 이전 코드를 폐기하며 이미 확인된 승객은 유지한다. 새 결제자는 다시 실제 탑승을 표시해야 새 5분 창을 열 수 있고, 승계 수락만으로 출발하지 않는다. 도착·스케줄러·운행 답변·영수증 입력도 출발을 대신하지 않는다.
+
+미확인 승객이 있어도 결제자가 출발할 수 있다. 코드 창이 열려 있는 동안 승객을 제외하지 않으며 입력도 계속 받는다. 마감 뒤 남은 미확인 승객은 기존 24시간 소명·동료 표시·관리자 판정 절차로 보낸다. 코드 미입력 자체는 노쇼 확정 근거가 아니다. `UNDETERMINED` 보호와 S35 보전 계산은 유지한다. 실제 금액 제출은 코드 마감 뒤 가능하고, 최종 환불·추가 결제·지급은 필수 조사가 끝날 때까지 보류한다.
+
+코드 값은 채팅·시스템 이벤트·SSE·요청 로그에 넣지 않는다. 진행 탭과 채팅 탭에서 역할별 코드 상태와 출발 버튼을 제공하며, 채팅 빠른 답장은 코드 값을 포함하지 않는다. 기존 조사/관리자 화면은 유지한다.
+
+영수증 7일 삭제는 관리자 판정·정산 수정과 같은 일행 DB 잠금을 사용한다. 보관 만료 또는 실제 파일 유실은 `EVIDENCE_UNAVAILABLE`로 다루며, 영수증이 없다는 사실을 미운행의 근거로 바꾸지 않는다.
