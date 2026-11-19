@@ -68,10 +68,24 @@ async function portal(pk,filename) {
 }
 const selection=process.argv[2]||'all';
 const output={generated_at:new Date().toISOString(),sources:[],failures:[],requests:events};
-for(const [pk,name] of [['15115859','seoul_dcall_2025.csv'],['15165682','tims_2025.zip']]) {
-  if(!['all','korea',pk].includes(selection))continue;
+for(const [pk,name] of [['15115859','seoul_dcall_2025.csv'],['15165682','tims_2025.zip'],['15088028','pocheon-taxi-stands.csv']]) {
+  if(pk==='15088028' ? !['c7',pk].includes(selection) : !['all','korea',pk].includes(selection))continue;
   try {output.sources.push(await portal(pk,name));console.log('Acquired',name);}
   catch(error){output.failures.push({pk,error:error.message});console.error(pk,error.message);}
+}
+if(selection==='c7') {
+  const url='https://data.gg.go.kr/portal/data/service/selectServicePage.do?infId=MZCREO5CKHZM6PJEA55P37391662&infSeq=1';
+  try {
+    const page=await request(url);
+    const file=path.join(cache,'gg-stops-page.html');await fsp.writeFile(file,page);
+    const complete=page.includes('</html>');
+    output.sources.push(await manifest(file,url,{role:'catalogue_only',complete_html:complete}));
+    // Only inspect published links; do not guess endpoints or obtain an API key.
+    const links=[...page.matchAll(/(?:href|src)=["']([^"']+(?:\.csv|\.json|openapi)[^"']*)/gi)].map(m=>m[1]);
+    output.failures.push({source:'gyeonggi_bus_stops',url,
+      error:complete?'No anonymous dataset CSV/API endpoint in returned catalogue HTML; dataset not acquired.':'Server returned truncated catalogue HTML (ends inside sdkInput value); no dataset CSV/API schema available. API key requirement and time columns could not be verified.',
+      published_candidate_links:links});
+  }catch(error){output.failures.push({source:'gyeonggi_bus_stops',url,error:error.message});}
 }
 if(['all','nyc'].includes(selection)) {
   const url='https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page';
@@ -92,6 +106,6 @@ if(['all','nyc'].includes(selection)) {
     output.sources.push(await manifest(file,url));
   }
 }
-await fsp.writeFile(path.join(cache,'public-download-manifest.json'),JSON.stringify(output,null,2)+'\n');
+await fsp.writeFile(path.join(cache,selection==='c7'?'c7-download-manifest.json':'public-download-manifest.json'),JSON.stringify(output,null,2)+'\n');
 console.log(JSON.stringify(output.sources.map(x=>({file:x.file,bytes:x.bytes,sha256:x.sha256})),null,2));
 if(output.failures.length)process.exitCode=1;

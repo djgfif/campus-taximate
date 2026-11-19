@@ -24,7 +24,6 @@ import java.util.Map;
 /** 뽑힌 조합의 누적 값과 각자의 단독 값을 같은 시점에 조회해 15분, 10% 조건을 다시 검사한다. 슬롯 한 번만 쓴다. */
 final class RouteGroupVerifier implements GroupVerifier {
 
-    private static final int MAX_DELAY_SECONDS = 15 * 60;
     private static final Duration REJECT_KEEP = Duration.ofMinutes(30);
     private static final int MAX_BACKTRACK_QUERIES = 3;
 
@@ -318,17 +317,18 @@ final class RouteGroupVerifier implements GroupVerifier {
         return time.truncatedTo(ChronoUnit.MINUTES);
     }
 
-    /** 두 방향 공통의 10%, 15분, 분담금 검사. */
+    /** 두 방향 공통의 설정된 절약률·지연 한도와 분담금 검사. 기본값은 10%, 15분이다. */
     private Verdict finish(Candidate candidate, VerifiedRoutes routesOfGroup) {
         List<MatchRequest> order = candidate.order();
         List<RouteClient.Route> solo = routesOfGroup.solo();
         long soloTotal = solo.stream().mapToLong(RouteClient.Route::fare).sum();
-        if (enforceGroupConstraints && java.math.BigInteger.valueOf(routesOfGroup.total()).multiply(java.math.BigInteger.TEN)
-                .compareTo(java.math.BigInteger.valueOf(soloTotal).multiply(java.math.BigInteger.valueOf(9))) > 0) {
+        if (enforceGroupConstraints && java.math.BigDecimal.valueOf(routesOfGroup.total())
+                .compareTo(java.math.BigDecimal.valueOf(soloTotal)
+                        .multiply(java.math.BigDecimal.ONE.subtract(java.math.BigDecimal.valueOf(settings.minSavingRate())))) > 0) {
             return reject(candidate,"SAVINGS",List.of(routesOfGroup.total(),soloTotal));
         }
         for (int i = 0; i < order.size(); i++) {
-            if (enforceGroupConstraints && order.get(i).walkSeconds() + routesOfGroup.rideSeconds().get(i) - solo.get(i).seconds() > MAX_DELAY_SECONDS) {
+            if (enforceGroupConstraints && order.get(i).walkSeconds() + routesOfGroup.rideSeconds().get(i) - solo.get(i).seconds() > settings.maxDelayMinutes() * 60L) {
                 return reject(candidate,"SECONDARY_DELAY",order.get(i).walkSeconds()+routesOfGroup.rideSeconds().get(i)-solo.get(i).seconds());
             }
         }

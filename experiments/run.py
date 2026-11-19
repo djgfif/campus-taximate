@@ -12,8 +12,10 @@ from pathlib import Path
 import random
 import shutil
 import subprocess
+import sys
 import zipfile
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from fares import analyze, quantile, file_manifest
 
 HERE = Path(__file__).resolve().parent
@@ -116,12 +118,12 @@ def jdk_home(explicit=None):
     raise ValueError("JDK 21 required; pass --java-home or set JAVA_HOME")
 
 
-def compile_current(java_home, build=False, maven="mvn"):
+def compile_current(java_home, build=False, maven="mvn", boot_package=None):
     env = dict(os.environ, JAVA_HOME=str(java_home))
     env["PATH"] = str(java_home / "bin") + os.pathsep + env.get("PATH", "")
     if build:
         subprocess.run([maven, "-pl", "server", "-am", "package", "-DskipTests"], cwd=REPO, env=env, check=True)
-    boot = REPO / "server" / "target" / "server-0.1.0.jar"
+    boot = Path(boot_package) if boot_package else REPO / "server" / "target" / "server-0.1.0.jar"
     if not boot.is_file():
         raise ValueError("Build Maven app first, or pass --build --maven <mvn command>")
     deps = CACHE / "deps"
@@ -157,13 +159,13 @@ def compile_current(java_home, build=False, maven="mvn"):
     # Lombok must process entities explicitly (not javac implicit source lookup)
     # when compiling PaymentService's actual prepayment method.
     production = matching + sorted(service.rglob("*.java"))
-    adapter = HERE / "java" / "com" / "campustaximate" / "server" / "service" / "ExperimentRunner.java"
+    adapters = sorted((HERE / "java").rglob("*.java"))
     sourcepath = os.pathsep.join((str(REPO / "server" / "src" / "main" / "java"), str(REPO / "matching-engine" / "src" / "main" / "java")))
-    compiled_hashes = {str(path.relative_to(REPO)).replace("\\", "/"): sha(path) for path in production + [adapter]}
+    compiled_hashes = {str(path.relative_to(REPO)).replace("\\", "/"): sha(path) for path in production + adapters}
     # JDK major is checked above. -source/-target avoid opening the external JDK
     # ct.sym ZIP (its close/toRealPath fails under the restricted Windows account).
     args = ["-source", "21", "-target", "21", "-encoding", "UTF-8", "-cp", classpath, "-processorpath", str(lombok), "-sourcepath", sourcepath,
-            "-d", str(classes), *map(str, production), str(adapter)]
+            "-d", str(classes), *map(str, production + adapters)]
     # Windows command line limit: Java argument file, with slashes rather than backslash escapes.
     argfile = CACHE / "javac.args"
     argfile.write_text("\n".join('"' + value.replace("\\", "/") + '"' for value in args), encoding="utf-8")
@@ -173,8 +175,9 @@ def compile_current(java_home, build=False, maven="mvn"):
     # Hash all app Java sources too, covering any production dependencies javac resolves implicitly.
     all_sources = matching + sorted((REPO / "server" / "src" / "main" / "java").rglob("*.java"))
     hashes = {str(path.relative_to(REPO)).replace("\\", "/"): sha(path) for path in all_sources}
-    hashes[str(adapter.relative_to(REPO)).replace("\\", "/")] = sha(adapter)
-    return str(classes) + os.pathsep + classpath, {"source_sha256": hashes, "compiled_source_sha256": compiled_hashes, "maven_package_sha256": sha(boot),
+    hashes.update({str(path.relative_to(REPO)).replace("\\", "/"): sha(path) for path in adapters})
+    return str(classes) + os.pathsep + classpath, {"source_sha256": hashes, "compiled_source_sha256": compiled_hashes,
+            "maven_package_path": str(boot.resolve()), "maven_package_sha256": sha(boot),
             "maven_pom_sha256": {str(path.relative_to(REPO)).replace("\\", "/"): sha(path) for path in
                                   (REPO / "pom.xml", REPO / "server" / "pom.xml", REPO / "matching-engine" / "pom.xml")},
             "dependency_sha256": {path.name: sha(path) for path in runtime}, "lombok_sha256": sha(lombok),
@@ -364,7 +367,7 @@ def main():
     else:
         report["sensitivity"] = {"status": "BLOCKED_NO_C5_REPORT", "observed_n": 0}
     try:
-        git=["git","-c","safe.directory="+str(REPO)]
+        git=["git","-c","safe.directory="+REPO.as_posix()]
         report["git_head"] = subprocess.check_output(git+["rev-parse", "HEAD"], cwd=REPO, text=True).strip()
         report["git_dirty"] = bool(subprocess.check_output(git+["status", "--porcelain"], cwd=REPO, text=True).strip())
     except (subprocess.CalledProcessError, FileNotFoundError):
