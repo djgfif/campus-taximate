@@ -10,7 +10,7 @@ import KakaoTaxi from './KakaoTaxi.jsx'
 import BoardingCodePanel from './BoardingCodePanel.jsx'
 import { BoardingPanel } from './ReviewScreens.jsx'
 import { formatTime, formatDateTime, isPaymentParty, knownPartyStatus, meetPlace, partyLabel, remaining, won } from './format.js'
-import { Avatar, BackBar, Btn, Confirm, Item, Meter, Rail, Rows, Say, Screen, Sheet, TopBar, toast, useWide } from './ui.jsx'
+import { Avatar, BackBar, Btn, Confirm, FareCompare, Item, Meter, Rail, Rows, Say, Screen, Sheet, TopBar, toast, useWide } from './ui.jsx'
 
 // 일행 채팅은 PartyChat.jsx로 옮겼다. 다른 화면은 지금처럼 이 파일에서 가져온다.
 export { PartyChat }
@@ -485,11 +485,7 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
         <div className="band" />
         <div className="block">
           {/* 서비스의 핵심 숫자. 정보 탭 두 단계 아래에만 있던 것을 진행 탭 첫 화면에도 보인다. */}
-          {party.mySoloFare > party.myShare && <section aria-label="아끼는 돈"><Rows items={[
-            ['혼자 타면', won(party.mySoloFare)],
-            ['같이 타면 내 몫', won(party.myShare)],
-            ['아끼는 돈', won(party.mySoloFare - party.myShare), 'save'],
-          ]} /></section>}
+          {party.mySoloFare > party.myShare && <FareCompare solo={party.mySoloFare} share={party.myShare} />}
           {mine && <PartyMiniMap party={party} mine={mine} />}
           <h2 className="block-title">같이 타는 사람 <small>내리는 순서</small></h2>
           <Rail items={order.map((m) => ({

@@ -668,17 +668,21 @@ a.btn { text-decoration: none; }
 @media (prefers-reduced-motion: reduce) { .live::before { animation: none; } }
 .board-empty { font-size: var(--fs-cap); color: var(--road); }
 .board-list { display: flex; flex-direction: column; gap: 8px; }
-.board-card { width: 100%; display: grid; grid-template-columns: 56px 1fr auto; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--r-m); background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); text-align: left; }
-.board-card:active { background: var(--mist); }
-.board-card .when { display: flex; flex-direction: column; line-height: 1.2; }
-.board-card .when b { font-size: 16px; }
-.board-card .when small, .board-card .what small { font-size: 12px; color: var(--road); }
-.board-card .what { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.board-card .what > b { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.board-card .faces { display: flex; align-items: center; min-width: 0; }
+.board-card { width: 100%; display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; border-radius: var(--r-m); background: var(--paper); box-shadow: 0 0 0 1px var(--line), 0 2px 6px rgba(21, 23, 29, 0.05); text-align: left; transition: transform 0.12s var(--ease); }
+.board-card:active:not(:disabled) { transform: scale(0.99); background: var(--mist); }
+.bc-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.bc-time { font-size: var(--fs-title); font-weight: 800; letter-spacing: -0.03em; }
+.bc-time small { margin-left: 6px; font-size: var(--fs-cap); font-weight: 600; color: var(--road); letter-spacing: 0; }
+.bc-seats { display: flex; align-items: center; gap: 4px; }
+.bc-seats i { width: 8px; height: 8px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--faint); }
+.bc-seats i.on { background: var(--ink); box-shadow: none; }
+.bc-seats small { margin-left: 4px; font-size: var(--fs-cap); font-weight: 700; color: var(--ink-2); }
+.bc-route { display: flex; align-items: center; gap: 8px; font-size: var(--fs-body); font-weight: 600; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bc-route i { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--paper); box-shadow: inset 0 0 0 3px var(--amber); }
+.board-card .faces { display: flex; align-items: center; min-width: 0; padding-top: 10px; border-top: 1px dashed var(--line); }
 .board-card .faces .avatar { margin-right: -6px; box-shadow: 0 0 0 2px var(--paper); }
-.board-card .faces small { margin-left: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.board-card .seats { font-size: 12px; font-weight: 800; color: var(--amber-deep); background: var(--amber-soft); padding: 4px 8px; border-radius: 999px; }
+.board-card .faces small { margin-left: 12px; font-size: 12px; color: var(--road); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (hover: hover) and (pointer: fine) { .board-card:hover:not(:disabled) { box-shadow: 0 0 0 1px var(--faint), 0 4px 12px rgba(21, 23, 29, 0.08); } }
 .board-waiting { font-size: 12px; color: var(--road); }
 .join-who { display: flex; gap: 14px; flex-wrap: wrap; }
 .join-person { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 13px; }
@@ -748,3 +752,12 @@ a.btn { text-decoration: none; }
 
 /* 글자 버튼(다시 확인·채팅 보기 등)은 본문 글과 같은 왼쪽 선에서 시작한다 */
 .btn.small.quiet { align-self: flex-start; justify-content: flex-start; min-height: 40px; padding: 0 2px; color: var(--ink-2); font-weight: 600; }
+
+/* 요금 비교: 아끼는 돈을 크게, 혼자·같이를 막대 두 개로 */
+.fare-compare { display: flex; flex-direction: column; gap: 10px; }
+.fc-save { font-size: var(--fs-body); font-weight: 600; color: var(--ink-2); }
+.fc-save b { margin-right: 2px; font-size: var(--fs-head); font-weight: 800; letter-spacing: -0.035em; color: var(--save); }
+.fc-row { display: grid; grid-template-columns: 64px 1fr auto; align-items: center; gap: 12px; font-size: var(--fs-cap); color: var(--road); }
+.fc-row em { font-style: normal; font-size: var(--fs-body); font-weight: 700; color: var(--ink); text-align: right; min-width: 72px; }
+.fc-bar { display: block; height: 10px; border-radius: 999px; background: var(--line); }
+.fc-bar.shared { width: var(--w); background: var(--amber); }

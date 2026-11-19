@@ -38,15 +38,18 @@ export function BoardSection({ now, config, onJoined, disabled }) {
           <li key={card.id}>
             <button type="button" className="board-card" disabled={disabled} onClick={() => setJoining(card)}
               aria-label={`${formatTime(card.departureAt)} ${card.anchorName}에서 출발, ${card.riders}명, 자리 ${card.seats}개`}>
-              <span className="when"><b>{formatTime(card.departureAt)}</b><small>출발</small></span>
-              <span className="what">
-                <b>{card.anchorName} · {card.meetingPoint}</b>
-                <span className="faces">
-                  {card.people.map((p, i) => <Avatar key={i} name={p.nickname} size={24} />)}
-                  <small>{card.people.map((p) => p.profile || p.nickname).join(', ')}</small>
+              <span className="bc-top">
+                <b className="bc-time">{formatTime(card.departureAt)}<small>출발</small></b>
+                <span className="bc-seats" aria-hidden="true">
+                  {Array.from({ length: card.riders + card.seats }, (_, i) => <i key={i} className={i < card.riders ? 'on' : ''} />)}
+                  <small>{card.riders}/{card.riders + card.seats}명</small>
                 </span>
               </span>
-              <span className="seats">{card.seats}자리</span>
+              <span className="bc-route"><i aria-hidden="true" />{card.anchorName} · {card.meetingPoint}</span>
+              <span className="faces">
+                {card.people.map((p, i) => <Avatar key={i} name={p.nickname} size={24} />)}
+                <small>{card.people.map((p) => p.profile || p.nickname).join(', ')}</small>
+              </span>
             </button>
           </li>
         ))}
