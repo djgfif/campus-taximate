@@ -88,7 +88,7 @@ export default function App() {
 
   useEffect(() => {
     api.config().then(setConfig).catch(() => toast('서버에 연결하지 못했습니다. 잠시 뒤 다시 열어 주세요.', 'bad'))
-    api.me().then(setMe).catch((e) => (e.status === 401 ? setMe(null) : setDown(true)))
+    api.me().then(setMe).catch((e) => (e.status === 401 ? setMe(null) : setDown(e.status === 429 ? 'busy' : true)))
   }, [])
 
   useEffect(() => {
@@ -170,7 +170,9 @@ export default function App() {
       {me === undefined && !down && <LoadingScreen />}
       {down && (
         <div className="pad">
-          <Say tone="stop-tone" title="서버에 연결하지 못했습니다">인터넷 연결을 확인한 뒤 다시 시도해 주세요.</Say>
+          {down === 'busy'
+            ? <Say tone="stop-tone" title="요청이 많아 잠시 멈췄어요">1분 뒤 다시 시도해 주세요.</Say>
+            : <Say tone="stop-tone" title="서버에 연결하지 못했습니다">인터넷 연결을 확인한 뒤 다시 시도해 주세요.</Say>}
           <Btn onClick={() => window.location.reload()}>다시 시도</Btn>
         </div>
       )}

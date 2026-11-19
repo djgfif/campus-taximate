@@ -26,8 +26,10 @@ app:
   demo:
     enabled: true
   # 시연 계정을 자주 바꾸므로 인증 상한을 높인다.
+  # 노트북 한 대에서 여러 시연 계정·탭이 같은 IP로 채팅·상태를 폴링하므로 API 상한도 높인다.
   rate-limit:
     auth-per-minute: 300
+    api-per-minute: 6000
 
 springdoc:
   api-docs:
