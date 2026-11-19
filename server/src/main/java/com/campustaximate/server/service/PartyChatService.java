@@ -167,13 +167,20 @@ public class PartyChatService {
         return messages.countUnread(partyId, actor, last);
     }
 
-    /** 확정·선결제·도착 같은 일을 채팅에 남긴다. 실패해도 본래 처리를 막지 않는다. */
+    /**
+     * 확정·선결제·도착 같은 일을 채팅에 남긴다. 채팅 자체의 실패는 본래 처리를 막지 않는다.
+     * 단, DB 오류(동시 변경 충돌 등)는 삼키지 않는다. 같은 트랜잭션이 이미 롤백 전용으로 표시돼
+     * 삼켜도 커밋이 UnexpectedRollbackException으로 실패하고, 호출자의 충돌 처리(예: 매칭 확정의
+     * dropOnConflict)가 동작하지 못한다. 저장 중 flush에서 다른 요청의 낙관적 잠금 충돌이 드러날 수 있다.
+     */
     public void system(Party party, String text) {
         if (party == null || party.getId() == null || text == null || text.isBlank()) return;
         try {
             String trimmed = text.strip();
             messages.save(PartyMessage.system(party, trimmed.length() > 200 ? trimmed.substring(0, 200) : trimmed, now()));
             changes.chatChanged(party.getId(), requests.findMemberIdsByPartyId(party.getId()));
+        } catch (org.springframework.dao.DataAccessException | jakarta.persistence.PersistenceException e) {
+            throw e;
         } catch (RuntimeException e) {
             org.slf4j.LoggerFactory.getLogger(PartyChatService.class).warn("채팅 알림을 남기지 못했어요 party={} reason={}", party.getId(), e.getMessage());
         }
