@@ -5,7 +5,7 @@ import { ReportSheet } from './MemberSafety.jsx'
 import { formatTime } from './format.js'
 import { Avatar, Btn } from './ui.jsx'
 
-const CHAT_PHRASES = ['어디쯤이세요?', '저 5분 정도 늦어요 ㅠㅠ', '도착했어요!', '저는 ', '택시 잡았어요']
+const CHAT_PHRASES = ['어디쯤이세요?', '저 5분 정도 늦어요 ㅠㅠ', '도착했어요!', '저는 ', '택시 잡았어요', '탑승하면 결제자 화면의 코드를 입력해 주세요', '탑승 확인했어요']
 export const CHAT_RETENTION = '정산이 끝나거나 출발 후 24시간이 지나면 쓰기가 닫혀요. 그때부터 7일 뒤 메시지와 사진을 지워요.'
 const GROUP_GAP_MS = 5 * 60 * 1000
 const NEAR_BOTTOM_PX = 48

@@ -7,6 +7,8 @@ import { CHAT_RETENTION, PartyChat } from './PartyChat.jsx'
 import PaymentCard from './PaymentCard.jsx'
 import { trustLine, usePeople } from './People.jsx'
 import KakaoTaxi from './KakaoTaxi.jsx'
+import BoardingCodePanel from './BoardingCodePanel.jsx'
+import { BoardingPanel } from './ReviewScreens.jsx'
 import { formatTime, formatDateTime, isPaymentParty, knownPartyStatus, meetPlace, partyLabel, remaining, won } from './format.js'
 import { Avatar, BackBar, Btn, Confirm, Item, Meter, Rail, Rows, Say, Screen, Sheet, TopBar, toast, useWide } from './ui.jsx'
 
@@ -84,7 +86,7 @@ const inTest = () => typeof navigator !== 'undefined' && /jsdom/i.test(navigator
  * 탭을 바꾸면 탭이 화면 위에 오도록 올린다. 채팅은 탭 아래 남은 화면을 모두 쓰는 대화방으로 열고,
  * 하단 고정 버튼은 채팅 탭에서는 숨긴다.
  */
-export function PartyShell({ party, now, onMenu, onHome, header, progress, info, foot, aside, dark = true, firstTab = '진행' }) {
+export function PartyShell({ party, now, onUpdated, onMenu, onHome, header, progress, info, foot, aside, dark = true, firstTab = '진행' }) {
   const [tab, setTab] = useState('progress')
   const tabs = useRef(null)
   const choose = (next) => {
@@ -107,9 +109,10 @@ export function PartyShell({ party, now, onMenu, onHome, header, progress, info,
     </div>
     <section id="panel-progress" role="tabpanel" aria-labelledby="tab-progress" hidden={tab !== 'progress'} className="party-panel">{progress}</section>
     <section id="panel-chat" role="tabpanel" aria-labelledby="tab-chat" hidden={tab !== 'chat'}>
+      {tab === 'chat' && isPaymentParty(party) && ['READY', 'RIDE_UNCONFIRMED', 'AWAITING_FARE'].includes(party.status) && <BoardingCodePanel party={party} now={now} onUpdated={onUpdated} allowCall />}
       <PartyChat key={party.id} partyId={party.id} now={now} status={party.status} active={tab === 'chat'} full />
     </section>
-    <section id="panel-info" role="tabpanel" aria-labelledby="tab-info" hidden={tab !== 'info'} className="party-panel">{info}</section>
+    <section id="panel-info" role="tabpanel" aria-labelledby="tab-info" hidden={tab !== 'info'} className="party-panel">{info}{tab === 'info' && <BoardingPanel party={party} now={now} />}</section>
   </Screen>
 }
 
@@ -348,7 +351,11 @@ function NextAction({ party, now, myId, mine, config, run, onUpdated, onDriver }
   let detail = ''
   let extra = null
   let tone = ''
-  if (party.status === 'PAYER_PENDING') {
+  if (party.departureBlockReason === 'ROUTE_VERIFICATION_PENDING') {
+    title = '일행 변경 경로를 확인 중이에요'
+    detail = `${formatDateTime(party.routeVerificationDeadlineAt)}까지 확인되지 않으면 일행을 해산하고 선결제 환불을 접수해요.`
+    tone = 'calm'
+  } else if (party.status === 'PAYER_PENDING') {
     const me = party.successorId === myId
     title = me ? '결제자를 이어받을까요?' : '새 결제자를 정하고 있어요'
     detail = me
@@ -408,7 +415,9 @@ function NextAction({ party, now, myId, mine, config, run, onUpdated, onDriver }
     if (!party.payer) tone = 'calm'
   } else if (['DISSOLVED', 'NOT_OPERATED', 'FARE_MISSING'].includes(party.status)) {
     title = party.status === 'DISSOLVED' ? '일행이 해산됐어요' : '운행이 성사되지 않았어요'
-    detail = party.reviewReason === 'LATE_CANCELLATION_COMPENSATION'
+    detail = party.reviewReason === 'ROUTE_VERIFICATION_EXPIRED'
+      ? '출발 시각까지 경로를 확인하지 못해 해산했어요. 승인된 선결제는 환불을 접수했어요.'
+      : party.reviewReason === 'LATE_CANCELLATION_COMPENSATION'
       ? '무료가 아닌 이탈 금액은 정산 처리를 기다리고, 나머지 선결제는 환불해요.'
       : '승인된 선결제는 전액 환불해요. 카드 반영까지 3~4영업일 정도 걸려요.'
     tone = 'calm'
@@ -448,12 +457,13 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
   const [people] = usePeople(party.id, party.groupVersion)
   const personOf = (memberId) => people.find((p) => p.memberId === memberId)
   return <>
-    <PartyShell party={party} now={now} onMenu={onMenu} onHome={onHome} foot={primary}
+    <PartyShell party={party} now={now} onUpdated={onUpdated} onMenu={onMenu} onHome={onHome} foot={primary}
       header={<Meter compact label={!knownPartyStatus(party.status) ? partyLabel(party.status) : party.instant ? '출발(예상)' : '출발'} value={formatTime(party.departureAt)} detail={meetPlace(party)} tag={roleTag(party)} />}
       progress={<>
         <div className="block party-top">
           <PartyStepper party={party} />
           <NextAction party={party} now={now} myId={myId} mine={mine} config={config} run={run} onUpdated={onUpdated} onDriver={() => setDriver(true)} />
+          {['READY', 'RIDE_UNCONFIRMED', 'AWAITING_FARE'].includes(party.status) && <BoardingCodePanel party={party} now={now} onUpdated={onUpdated} />}
           {party.canLeaveAfterChange && <Say tone="stop-tone" title="일행이 바뀌었어요">현재 내 몫은 {won(party.myShare)}이에요. 원하지 않으면 {party.changeExitFree ? '호출 전까지 무료로' : ''} 빠질 수 있어요.
             <Btn className="line" onClick={() => setLeavingChange(true)}>변경돼서 빠지기</Btn></Say>}
           {waiting && party.instant && !mine?.arrived && !owesPrepay && <Btn className="line" disabled={mine?.nearby}
