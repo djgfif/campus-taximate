@@ -45,14 +45,14 @@ export default function DemoBar({ now, run }) {
       <section aria-label="시연 진행 상태" aria-live="polite">
         <p>시연 시각 {formatDateTime(progress?.now || now)}</p>
         {progress && <><p>현재 단계: {progress.stage}</p><p>다음 단계: {progress.next}</p>{progress.role && <b>{progress.role}</b>}</>}
-        {progress?.investigations?.map((c) => <p key={c.memberId}>회원 {c.memberId}: {caseLabels[c.status] || '판정 확인 중'} · {formatDateTime(c.deadlineAt)}</p>)}
+        {progress?.investigations?.map((c) => <p key={c.memberId}>{c.nickname || '일행원'}: {caseLabels[c.status] || '판정 확인 중'} · {formatDateTime(c.deadlineAt)}</p>)}
       </section>
       {message && <Say>{message}</Say>}{error && <p role="alert">{error}</p>}
       <Chips label="내 시연 역할" value={role} onChange={setRole} options={[
         { value: 'PAYER', label: '내가 결제자' }, { value: 'PASSENGER', label: '내가 결제자 아님(선결제 체험)' },
       ]} />
       <Btn disabled={busy} onClick={act(() => api.demoMatch(role))}>일행 만들기</Btn>
-      <Btn disabled={busy} onClick={act(api.demoNext)}>다음 단계로</Btn>
+      <Btn disabled={busy} onClick={act(() => api.demoNext(role))}>다음 단계로</Btn>
       <Btn className="line" disabled={busy} onClick={act(api.demoBoardParty)}>다른 학생 일행 만들기 (모집 중 체험)</Btn>
       <section aria-label="시나리오">
         <h2 className="block-title">시나리오</h2>

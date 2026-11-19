@@ -4,6 +4,7 @@ import { api } from './api.js'
 import { PartyShell, RideConfirmationCard } from './PartyScreens.jsx'
 import PaymentCard, { PaymentRecord } from './PaymentCard.jsx'
 import { PraiseSection } from './People.jsx'
+import { BoardingPanel } from './ReviewScreens.jsx'
 import { formatDateTime, isPaymentParty, partyLabel, remaining, TRANSFER_LABEL, won } from './format.js'
 import { BackBar, Btn, Paper, Rows, Say, Screen, Sheet, SidePlain, TopBar } from './ui.jsx'
 
@@ -28,12 +29,13 @@ function ReceiptPaper({ party }) {
   </Paper>
 }
 
-export function PayerInput({ party, run, onDone, onLater, onUpdated }) {
+export function PayerInput({ party, now, run, onDone, onLater, onUpdated }) {
   const correcting = party.settlement != null
   const [amount, setAmount] = useState(correcting ? String(party.settlement.paidAmount) : '')
   const [receipt, setReceipt] = useState(null)
   const [preview, setPreview] = useState({})
   const [error, setError] = useState('')
+  const [checkingBoarding, setCheckingBoarding] = useState(false)
   const value = Number(amount)
   const locked = correcting && !party.settlement.canCorrect
   useEffect(() => {
@@ -69,6 +71,8 @@ export function PayerInput({ party, run, onDone, onLater, onUpdated }) {
       {(error || preview.value === value && preview.error) && <p role="alert">{error || preview.error}</p>}
       <p className="note">입력 뒤 24시간은 요금 이의 기간이에요. 정산 확정 뒤 환불·추가 결제를 처리하고 받을 돈을 앱에 기록해요(실제 송금 없음).</p>
       <p className="note">이의가 없고 이의 기간 안일 때만 수정할 수 있어요. 수정하면 이의 기간 24시간을 다시 세요. 사진은 올린 날부터 7일 뒤 지워요.</p>
+      <Btn className="line" aria-expanded={checkingBoarding} onClick={() => setCheckingBoarding((value) => !value)}>일행 탑승 확인</Btn>
+      {checkingBoarding && <BoardingPanel party={party} now={now} />}
     </div>
   </Screen>
 }
@@ -102,7 +106,8 @@ export function SettlementScreen({ party, myId, now, config, onUpdated, onMenu, 
   if (!isPaymentParty(party)) return <LegacySettlement party={party} onHome={onHome} onMenu={onMenu} />
   const settlement = party.settlement
   const deadline = settlement?.objectionDeadlineAt
-  const open = settlement && ['OBJECTION_WINDOW', 'REVIEW_PENDING'].includes(party.status) && new Date(now) < new Date(deadline)
+  const financialHold = party.reviewReason === 'RIDE_FINANCIAL_HOLD'
+  const open = settlement && !financialHold && ['OBJECTION_WINDOW', 'REVIEW_PENDING'].includes(party.status) && new Date(now) < new Date(deadline)
   const send = async () => {
     setError('')
     try { await api.objectToFare(party.id, reason.trim()); setAsking(false); await onUpdated?.() }
@@ -114,7 +119,9 @@ export function SettlementScreen({ party, myId, now, config, onUpdated, onMenu, 
       progress={<div className="pad">
         {settlement?.warning && <Say tone="stop-tone">실제 금액이 예상과 {Math.abs(settlement.differencePercent)}% 달라요. 영수증을 확인해 주세요.</Say>}
         {open && <Say title={'요금 이의 기간 ' + remaining(deadline, now) + ' 남음'}>{formatDateTime(deadline)}까지 이의를 낼 수 있어요. {party.status === 'REVIEW_PENDING' ? '접수된 이의는 관리자 검토를 기다려요.' : '이의가 없으면 정산을 확정해요.'}</Say>}
-        {party.status === 'REVIEW_PENDING' && <Say>{party.reviewReason==='RIDE_DISPUTE'?'운행 답변이 엇갈려 관리자 검토 중이에요. 환불과 추가 결제, 받을 돈의 정산을 보류해요.':'요금 이의가 있어 관리자 검토 중이에요. 환불과 추가 결제, 받을 돈의 정산을 보류해요.'}</Say>}
+        {party.status === 'REVIEW_PENDING' && <Say>{financialHold ? '운행 판정은 저장됐어요. 관리자가 결제 기록을 확인할 때까지 정산을 보류해요.'
+          : party.reviewReason === 'RIDE_DISPUTE' ? '운행 여부를 관리자 검토 중이에요. 환불과 추가 결제를 보류해요.'
+            : '요금 이의가 있어 관리자 검토 중이에요. 환불과 추가 결제, 받을 돈의 정산을 보류해요.'}</Say>}
         <RideConfirmationCard party={party} onUpdated={onUpdated} />
         <FinancialDetails party={party} />
         <PraiseSection partyId={party.id} now={now} />

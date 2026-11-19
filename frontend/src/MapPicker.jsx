@@ -114,24 +114,29 @@ export default function MapPicker({ center: origin, value, title, onPick, onClos
   )
 }
 
-/** 카카오 장소 검색. 키가 없으면 빈 목록을 돌려준다. */
-export async function searchPlaces(query, center) {
-  if (!APP_KEY || !query.trim()) return []
-  const maps = await loadKakaoMaps()
-  return new Promise((resolve) => {
-    const options = center ? { location: new maps.LatLng(center.lat, center.lon), size: 5 } : { size: 5 }
-    new maps.services.Places().keywordSearch(query, (data, status) => {
-      if (status !== maps.services.Status.OK) {
-        resolve([])
-        return
-      }
-      resolve(data.map((place) => ({
-        id: place.id,
-        name: place.place_name,
-        address: place.road_address_name || place.address_name,
-        lat: Number(place.y),
-        lon: Number(place.x),
-      })))
-    }, options)
+export const PLACE_SEARCH_URL = 'https://dapi.kakao.com/v2/local/search/keyword.json'
+
+/**
+ * 카카오 장소(키워드) 검색. 지도 SDK의 Places는 페이지 프로토콜을 따라 http://localhost 시연에서
+ * http://dapi.kakao.com으로 요청하는데, 카카오가 http 요청을 막아 검색이 항상 실패했다.
+ * SDK와 같은 JavaScript 키·KA 헤더로 https 로컬 API를 직접 부른다.
+ * 키가 없거나 오류면 "결과 없음"과 구분할 수 있게 실패로 돌려준다.
+ */
+export async function searchPlaces(query, center, key = APP_KEY) {
+  if (!query.trim()) return []
+  if (!key) throw new Error('장소 검색 키가 없어요.')
+  const params = new URLSearchParams({ query: query.trim(), size: '5' })
+  if (center) { params.set('x', String(center.lon)); params.set('y', String(center.lat)) }
+  const res = await fetch(`${PLACE_SEARCH_URL}?${params}`, {
+    headers: { Authorization: `KakaoAK ${key}`, KA: `sdk/1.0 os/javascript origin/${window.location.origin}` },
   })
+  if (!res.ok) throw new Error('장소 검색에 실패했어요.')
+  const data = await res.json()
+  return (data.documents || []).map((place) => ({
+    id: place.id,
+    name: place.place_name,
+    address: place.road_address_name || place.address_name,
+    lat: Number(place.y),
+    lon: Number(place.x),
+  }))
 }

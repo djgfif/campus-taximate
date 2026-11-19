@@ -80,6 +80,8 @@ class CommuteFlowTest {
     void farthestRiderBoardsFirstAndPaysAndEveryoneElseSends() throws Exception {
         List<MockHttpSession> users = threeRequests();
         advanceToDeadline();
+        // 순차 승차·송금 표시는 기존 일행의 계약이다. 공통 승차점의 새 결제 흐름과 구분한다.
+        legacyParty(onlyParty(users.get(2)).get("id").asLong());
 
         MockHttpSession farthest = users.get(2);
         JsonNode party = onlyParty(farthest);
@@ -116,11 +118,16 @@ class CommuteFlowTest {
         long total = onlyParty(farthest).get("expectedTotal").asLong();
         submit(partyId, total, "OO은행", "123-456-789", farthest).andExpect(status().isOk());
 
-        assertThat(transfers.count()).isZero();
-        assertThat(settlements.findAll().getFirst().getAccountNumber()).isNull();
-        advance(24 * 60 + 1);
-        assertThat(payouts.findAll()).hasSize(1);
-        assertThat(allocations.findAll().stream().mapToLong(a -> a.getAmount()).sum()).isEqualTo(total);
+        assertThat(transfers.count()).isEqualTo(2);
+        assertThat(onlyParty(farthest).get("status").asText()).isEqualTo("SETTLING");
+        int revision=settlements.findAll().getFirst().getRevision();
+        for(var transfer:transfers.findAll()) {
+            mvc.perform(post("/api/transfers/"+transfer.getId()+"/sent").session(sessionOf(users,transfer.getSender().getId()))
+                .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("revision",revision))))
+                .andExpect(status().isOk());
+            mvc.perform(post("/api/transfers/"+transfer.getId()+"/received").session(farthest)).andExpect(status().isOk());
+        }
+        assertThat(payouts.findAll()).isEmpty();
         assertThat(state(farthest).get("parties")).isEmpty();
         var stored = settlements.findAll().get(0);
         assertThat(stored.getBankName()).isNull();
@@ -298,6 +305,7 @@ class CommuteFlowTest {
         List<MockHttpSession> users = threeRequests();
         advanceToDeadline();
         JsonNode party = onlyParty(users.get(2));
+        legacyParty(party.get("id").asLong());
         boarded(party.get("id").asLong(), users.get(2)).andExpect(status().isOk());
 
         cancel(party.get("myRequestId").asLong(), users.get(2)).andExpect(status().isConflict());
@@ -360,17 +368,23 @@ class CommuteFlowTest {
         MockHttpSession payer = users.get(2);
         long id = onlyParty(payer).get("id").asLong();
         long total = onlyParty(payer).get("expectedTotal").asLong();
-        submit(id, total, "", "", payer).andExpect(status().isOk());
+        submit(id, total, "OO은행", "123-456-789", payer).andExpect(status().isOk());
         Instant previous = settlements.findAll().getFirst().getStoredAt();
         advance(60);
         MockMultipartFile receipt = new MockMultipartFile("receipt", "n.png", "image/png", new byte[] {(byte) 0x89, 80, 78, 71, 13, 10, 26, 10, 1});
         mvc.perform(multipart("/api/parties/" + id + "/settlement/correction").file(receipt)
-                .param("amount", String.valueOf(total)).session(payer)).andExpect(status().isOk());
-        assertThat(settlements.findAll().getFirst().getStoredAt()).isAfter(previous);
-        assertThat(settlements.findAll().getFirst().getObjectionDeadlineAt()).isEqualTo(settlements.findAll().getFirst().getStoredAt().plusSeconds(24 * 3600));
-        advance(24 * 60 + 1);
-        mvc.perform(multipart("/api/parties/" + id + "/settlement/correction").file(receipt)
-                .param("amount", String.valueOf(total)).session(payer)).andExpect(status().isConflict());
+                .param("amount", String.valueOf(total)).param("bankName","OO은행").param("accountNumber","123-456-789")
+                .session(payer)).andExpect(status().isOk());
+        var updated=settlements.findAll().getFirst();
+        assertThat(updated.getStoredAt()).isAfter(previous);
+        var path=java.nio.file.Path.of(updated.getReceiptPath());
+        clock.moveTo(previous.plus(Duration.ofDays(7)).plusSeconds(60));
+        demo.runNow();
+        assertThat(path).exists(); // 최초 업로드 기준 7일이 지나도 재업로드 보관 기간은 남아 있다.
+        clock.moveTo(updated.getStoredAt().plus(Duration.ofDays(7)).plusSeconds(60));
+        demo.runNow();
+        assertThat(path).doesNotExist();
+        assertThat(settlements.findAll().getFirst().getReceiptPath()).isNull();
     }
 
     @Test
@@ -461,11 +475,19 @@ class CommuteFlowTest {
         MockHttpSession payer = users.get(2);
         long id = onlyParty(payer).get("id").asLong();
         long total = onlyParty(payer).get("expectedTotal").asLong();
-        submit(id, total, "입력해도 저장하지 않음", "계좌", payer).andExpect(status().isOk());
+        submit(id, total, "", "", payer).andExpect(status().isBadRequest());
+        assertThat(settlements.findAll()).isEmpty();
+        submit(id, total, "OO은행", "123-456-789", payer).andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("select account_number from settlement", String.class))
+            .isNotBlank().isNotEqualTo("123-456-789");
+        assertThat(settlements.findAll().getFirst().getAccountNumber()).isEqualTo("123-456-789");
+        assertThat(onlyParty(users.get(0)).get("settlement").get("accountNumber").asText()).isEqualTo("123-456-789");
+        mvc.perform(get("/api/parties/" + id).session(login("demo-f4"))).andExpect(status().isForbidden());
+        assertThat(transfers.count()).isEqualTo(2);
+        clock.moveTo(clock.now().plus(Duration.ofDays(7)).plusSeconds(60));
+        demo.runNow();
         assertThat(jdbc.queryForObject("select account_number from settlement", String.class)).isNull();
         assertThat(settlements.findAll().getFirst().getBankName()).isNull();
-        mvc.perform(get("/api/parties/" + id).session(login("demo-f4"))).andExpect(status().isForbidden());
-        assertThat(transfers.count()).isZero();
     }
 
     @Test
@@ -501,6 +523,7 @@ class CommuteFlowTest {
         advanceToDeadline();
         JsonNode party = onlyParty(users.get(2));
         long partyId = party.get("id").asLong();
+        legacyParty(partyId);
         boarded(partyId, users.get(2)).andExpect(status().isOk());
         arrive(partyId, users.get(0)).andExpect(status().isOk());
         arrive(partyId, users.get(1)).andExpect(status().isOk());

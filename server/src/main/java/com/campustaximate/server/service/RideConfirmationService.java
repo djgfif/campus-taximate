@@ -43,7 +43,8 @@ public class RideConfirmationService {
     @Transactional(propagation=Propagation.MANDATORY)
     public void start(Party party,Instant started) {
         if(party.getStartedAt()!=null) return;
-        markBoardingUnconfirmed(party);
+        if(party.paymentFlow() && (party.getBoardedAt()==null || party.getBoardingCode()==null))
+            throw ApiException.conflict("BOARD_FIRST","결제자의 실제 탑승과 명시적 운행 시작이 필요해요.");
         noShows.beginRide(party,started);
         chatLog.system(party,"운행을 시작했어요. 내릴 순서를 기사님께 다시 알려 주세요.");
     }
@@ -54,6 +55,23 @@ public class RideConfirmationService {
         party.setStatus(PartyStatus.NOT_OPERATED);
         requests.findByPartyOrderByRideOrder(party).forEach(r->r.finish(RequestStatus.CANCELED));
         payments.refundAll(party.getId(),"운행 미성사 확인");
+    }
+
+    public boolean hasPositiveEvidence(Party party) {
+        return party.getBoardedAt()!=null || party.getStartedAt()!=null || answers.findByPartyIdOrderById(party.getId()).stream().anyMatch(RideConfirmation::isRode);
+    }
+    @Transactional(propagation=Propagation.MANDATORY)
+    public void review(Party party) {
+        party.setStatus(PartyStatus.REVIEW_PENDING);party.setReviewReason("RIDE_DISPUTE");party.setAdminReviewRequired(true);
+    }
+    @Transactional(propagation=Propagation.MANDATORY)
+    public void expireUnstarted(Party party) {
+        if(hasPositiveEvidence(party)) review(party); else notOperated(party);
+    }
+    @Transactional(propagation=Propagation.MANDATORY)
+    public void recoverOperated(Party party) {
+        noShows.recoverOperated(party);
+        chatLog.system(party,"관리자가 운행 사실을 확인했어요. 결제자는 지금부터 24시간 안에 실제 금액과 영수증을 올려 주세요.");
     }
 
     public boolean hasNegativeAnswer(long partyId) { return answers.findByPartyIdOrderById(partyId).stream().anyMatch(a->!a.isRode()); }
@@ -69,7 +87,7 @@ public class RideConfirmationService {
             if(old.isRode()!=rode) throw ApiException.conflict("ANSWER_FINAL", "첫 운행 답변은 바꿀 수 없어요.");
             return;
         }
-        if(party.getStatus()==PartyStatus.RIDE_UNCONFIRMED && !clock.now().isBefore(party.getDepartureAt().plusSeconds(24*3600))) notOperated(party);
+        if(party.getStatus()==PartyStatus.RIDE_UNCONFIRMED && (party.getBoardingDeadlineAt()==null || !clock.now().isBefore(party.getBoardingDeadlineAt())) && !clock.now().isBefore(party.getDepartureAt().plusSeconds(24*3600))) expireUnstarted(party);
         RideConfirmation answer=new RideConfirmation(); answer.setPartyId(partyId); answer.setMemberId(actor);
         answer.setRode(rode); answer.setAnsweredAt(clock.now()); answers.saveAndFlush(answer);
         var all=answers.findByPartyIdOrderById(partyId);
@@ -89,7 +107,8 @@ public class RideConfirmationService {
             party.setStatus(PartyStatus.REVIEW_PENDING); return;
         }
         if(payer==null || party.getStatus()==PartyStatus.REVIEW_PENDING || party.getStatus()!=PartyStatus.RIDE_UNCONFIRMED) return;
-        if(payer.isRode()) start(party,party.getDepartureAt());
+        if(payer.isRode()) return; // Still allow the payer to record boarding and start before the deadline.
+        if(hasPositiveEvidence(party)) review(party);
         else notOperated(party);
     }
 }

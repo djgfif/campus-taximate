@@ -15,7 +15,7 @@ export function PaymentRecord({ order }) {
   ]} />
 }
 
-export default function PaymentCard({ partyId, purpose = 'PREPAY', myId, now, config, onUpdated, knownOrder, readOnly = false, compact = false, clientKey = import.meta.env.VITE_TOSS_CLIENT_KEY || '' }) {
+export default function PaymentCard({ partyId, purpose = 'PREPAY', myId, now, config, onUpdated, onOrder, knownOrder, readOnly = false, compact = false, clientKey = import.meta.env.VITE_TOSS_CLIENT_KEY || '' }) {
   const key = [partyId, purpose, myId].join(':')
   const [loaded, setLoaded] = useState({})
   const [reload, setReload] = useState(0)
@@ -29,6 +29,8 @@ export default function PaymentCard({ partyId, purpose = 'PREPAY', myId, now, co
   }, [key, partyId, purpose, now, reload, knownOrder])
   const order = knownOrder || (loaded.key === key ? loaded.order : null)
   const error = actionError || (loaded.key === key ? loaded.error : '')
+  // 부모(지금 할 일 카드)가 내 주문 상태에 맞춰 제목을 바꿀 수 있게 알려 준다.
+  useEffect(() => { if (order) onOrder?.(order) }, [order, onOrder])
   const extra = purpose === 'ADDITIONAL'
   const late = order && now && new Date(order.deadlineAt) <= new Date(now)
   const payable = order && ['REQUIRED', 'OVERDUE'].includes(order.status) && (extra || !late) && !readOnly
@@ -50,17 +52,20 @@ export default function PaymentCard({ partyId, purpose = 'PREPAY', myId, now, co
     {order && <>
       <p className="due">기한 {formatDateTime(order.deadlineAt)}{compact && now && !late ? ` · ${remaining(order.deadlineAt, now)} 남음` : ''}</p>
       {!plain && <PaymentRecord order={order} />}
-      {order.status === 'APPROVED' ? <Say tone="save-tone">승인 완료</Say>
+      {/* 승인 완료는 위 결제 기록의 '결제 상태' 줄에 이미 나오므로 다시 띄우지 않는다. */}
+      {order.status === 'APPROVED' ? null
         : order.status === 'PROCESSING' ? <Say>결제 확인 중이에요. 다시 결제하지 말고 결과를 기다려 주세요.</Say>
           : order.status === 'ADMIN_REQUIRED' ? <Say tone="stop-tone">관리자 확인이 필요한 결제예요.</Say>
             : order.status === 'EXPIRED' || (!extra && late) ? <Say>선결제 기한이 지났어요.</Say>
               : !['REQUIRED', 'OVERDUE'].includes(order.status) ? <Say>결제 상태를 확인하고 있어요.</Say> : null}
       {extra && late && order.status !== 'APPROVED' && <Say tone="stop-tone">추가 결제 기한이 지났어요. 결제를 마치면 새 요청 제한이 풀려요.</Say>}
       {(order.refundRequestedAmount > 0 || order.refundedAmount > 0) && <p className="note">환불은 카드사에 반영되기까지 3~4영업일 정도 걸려요.</p>}
-      {payable && (clientKey ? <Btn onClick={() => pay(false)}>카드로 결제하기</Btn> : <>
-        <Say>카드 결제를 준비하지 못했어요. 잠시 뒤 다시 확인해 주세요.</Say>
-        {config?.demo && order.simulated && <Btn onClick={() => pay(true)}>시연 결제하기</Btn>}
-      </>)}
+      {/* 결제 방식은 서버의 주문(order.simulated)만 따른다. 화면에 토스 키가 빌드돼 있어도 모의 결제 서버면 토스 창을 열지 않는다. */}
+      {payable && (order.simulated ? <>
+        <p className="note">시연용 모의 결제예요. 실제 돈은 나가지 않아요.</p>
+        {config?.demo && <Btn onClick={() => pay(true)}>시연 결제하기</Btn>}
+      </> : clientKey ? <Btn onClick={() => pay(false)}>카드로 결제하기</Btn>
+        : <Say>카드 결제를 준비하지 못했어요. 잠시 뒤 다시 확인해 주세요.</Say>)}
     </>}
     {error && <p role="alert">{error}</p>}
     {!knownOrder && <Btn className="small quiet" onClick={() => { setActionError(''); setReload((n) => n + 1) }}>주문 다시 확인</Btn>}

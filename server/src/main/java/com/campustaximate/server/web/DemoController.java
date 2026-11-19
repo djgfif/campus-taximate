@@ -38,16 +38,20 @@ public class DemoController {
         LoginTokenFilter.tokenOf(request).ifPresent(tokens::revoke);
         request.getSession(); request.changeSessionId();
         request.getSession().setAttribute(LoginTokenFilter.SESSION_KEY,member.getId());
-        response.addHeader(HttpHeaders.SET_COOKIE,ResponseCookie.from(LoginTokenFilter.COOKIE,tokens.issue(member.getId()))
+        String token=tokens.issue(member.getId());
+        request.getSession().setAttribute(LoginTokenFilter.TOKEN_KEY,token);
+        response.addHeader(HttpHeaders.SET_COOKIE,ResponseCookie.from(LoginTokenFilter.COOKIE,token)
                 .httpOnly(true).secure(secureCookie).sameSite("Lax").path("/").maxAge(LoginTokenService.VALID).build().toString());
     }
     @GetMapping("/status") public DemoScenarioService.Progress status(HttpSession s) { return scenarios.status(actor(s)); }
-    @PostMapping("/next") public DemoScenarioService.Progress next(HttpSession s) { return scenarios.next(actor(s)); }
+    @PostMapping("/next") public DemoScenarioService.Progress next(@RequestBody(required=false) MatchBody b,HttpSession s) {
+        return scenarios.next(actor(s),b==null||b.role()==null?DemoService.Role.PAYER:b.role());
+    }
     @PostMapping("/scenario") public DemoScenarioService.Progress scenario(@Valid @RequestBody ScenarioBody b,HttpSession s) {
         return scenarios.scenario(actor(s),b.scenario(),b.role()==null?DemoService.Role.PAYER:b.role());
     }
     @PostMapping("/match") public DemoService.MatchOutcome match(@RequestBody(required=false) MatchBody b,HttpSession s) {
-        return demo.matchNow(actor(s),b==null||b.role()==null?DemoService.Role.PAYER:b.role());
+        return scenarios.match(actor(s),b==null||b.role()==null?DemoService.Role.PAYER:b.role());
     }
     @PostMapping("/run") public void run(HttpSession s) { actor(s); demo.runNow(); }
     @PostMapping("/advance") public void advance(@Valid @RequestBody AdvanceBody b,HttpSession s) { actor(s); demo.advance(b.minutes()); }

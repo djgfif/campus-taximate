@@ -14,6 +14,7 @@ import { ProfileSheet } from './People.jsx'
 import { PartyDetail, PartyScreen } from './PartyScreens.jsx'
 import { PayerInput, SettlementScreen } from './SettleScreens.jsx'
 import PaymentResult from './PaymentScreens.jsx'
+import { AdminScreen, BoardingCasesScreen } from './ReviewScreens.jsx'
 import { isPaymentParty } from './format.js'
 import { NoShow, Unmatched, Waiting } from './RequestStatus.jsx'
 import { Brand, Btn, Confirm, Item, LoadingScreen, Say, Sheet, Toaster, toast, useWide } from './ui.jsx'
@@ -24,12 +25,13 @@ const POLL_MS = 5000
 const LIVE_POLL_MS = 30000
 
 /** 넓은 화면의 상단. 휴대폰에서는 화면마다 있는 상단 바를 쓴다. */
-function Nav({ tab, onTab, onMenu }) {
+function Nav({ tab, onTab, onMenu, admin }) {
   return (
     <header className="nav">
       <Brand />
       <button type="button" className={tab === 'home' ? 'on' : ''} onClick={() => onTab('home')}>이용하기</button>
       <button type="button" className={tab === 'history' ? 'on' : ''} onClick={() => onTab('history')}>이용 내역</button>
+      {admin && <button type="button" className={tab === 'admin' ? 'on' : ''} onClick={() => onTab('admin')}>관리자</button>}
       <span className="gap" />
       <button type="button" className="icon-btn" aria-label="내 정보" onClick={onMenu}><User size={22} /></button>
     </header>
@@ -52,9 +54,9 @@ export default function App() {
   const session = useRef(0)
   const latestRead = useRef(0)
   const wide = useWide()
-  const tab = location.pathname === '/history' ? 'history' : 'home'
+  const tab = ({ '/history': 'history', '/admin': 'admin', '/boarding-cases': 'boarding-cases' })[location.pathname] || 'home'
   const paymentReturn = ['success', 'fail'].includes(new URLSearchParams(location.search).get('payment'))
-  const setTab = useCallback((next) => navigate(next === 'history' ? '/history' : '/'), [navigate])
+  const setTab = useCallback((next) => navigate(next === 'home' ? '/' : `/${next}`), [navigate])
 
   const refresh = useCallback(async () => {
     const current = session.current
@@ -66,6 +68,7 @@ export default function App() {
       if (current === session.current && read === latestRead.current) {
         setState(next)
         setOffline(false)
+        window.dispatchEvent(new Event('taximate:state'))
       }
     } catch (e) {
       if (current !== session.current) return
@@ -176,12 +179,14 @@ export default function App() {
       {me && !me.needsPassword && !resetting && me.needsProfile && <ProfileScreen onDone={() => api.me().then(setMe)} />}
       {me && !me.needsPassword && !resetting && !me.needsProfile && (
         <>
-          {wide && <Nav tab={tab} onTab={setTab} onMenu={openMenu} />}
+          {wide && <Nav tab={tab} onTab={setTab} onMenu={openMenu} admin={me.admin} />}
           {offline && <Say tone="stop-tone">연결이 끊겼습니다. 다시 연결하는 중입니다.</Say>}
           {config?.simulatedRoute && <p className="demo-strip" role="note">시연 모드 · 금액과 시간은 예시예요</p>}
           {paymentReturn && <PaymentResult key={me.id + location.search} search={location.search} myId={me.id} onUpdated={refresh}
             onReturn={(id) => navigate(id ? `/parties/${id}` : '/', { replace: true })} />}
           {!paymentReturn && tab === 'history' && <History admin={me.admin} onBack={() => setTab('home')} />}
+          {!paymentReturn && tab === 'boarding-cases' && <BoardingCasesScreen now={state?.now} onBack={() => setTab('home')} />}
+          {!paymentReturn && tab === 'admin' && <AdminScreen allowed={me.admin} onBack={() => setTab('home')} />}
           {!paymentReturn && tab === 'home' && !state && <LoadingScreen />}
           {!paymentReturn && tab === 'home' && state && (
             <Flow state={state} config={config} myId={me.id} run={run} refresh={refresh} onMenu={openMenu} onPush={togglePush} pushOn={pushOn} onHistory={() => setTab('history')} />
@@ -194,6 +199,8 @@ export default function App() {
               <div className="list">
                 <Item title="내 프로필" detail="학과·학번을 같이 타는 사람에게 보여 줘요" onClick={() => { setMenu(false); setEditingProfile(true) }} />
                 <Item title="이용 내역" onClick={() => { setMenu(false); setTab('history') }} />
+                <Item title="내 탑승 확인·소명" detail="탑승 조사와 소명 기한을 확인해요" onClick={() => { setMenu(false); setTab('boarding-cases') }} />
+                {me.admin && <Item title="관리자" detail="노쇼·요금 검토, 신고·제한과 승차 지점 관리" onClick={() => { setMenu(false); setTab('admin') }} />}
                 {pushSupported() && <Item title={pushOn ? '알림 끄기' : '알림 받기'} detail="앱을 닫아도 확정과 승차 안내를 받아요" onClick={togglePush} />}
                 <Item title="로그아웃" onClick={() => signOut(api.logout)} />
                 <Item title="모든 기기에서 로그아웃" danger onClick={() => setLeaving(true)} />
@@ -257,7 +264,8 @@ function Flow({ state, config, myId, run, refresh, onMenu, onHistory, onPush, pu
     return <Request initial={location.state?.initial} config={config} now={state.now} run={run} onClose={() => navigate('/', { replace: true })} />
   }
   const left = latest?.endReason === 'NO_SHOW'
-  if ((left || latest?.status === 'UNMATCHED') && seenRequest !== latest.id) {
+  const routeExpired = latest?.endReason === 'ROUTE_VERIFICATION_EXPIRED'
+  if ((left || routeExpired || latest?.status === 'UNMATCHED') && seenRequest !== latest.id) {
     const Ended = left ? NoShow : Unmatched
     return <Ended latest={latest} onMenu={onMenu} onHome={() => setSeenRequest(latest.id)} onRetry={() => {
       setSeenRequest(latest.id); startRequest({ direction: latest.direction, initial: latest })

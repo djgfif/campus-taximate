@@ -4,3 +4,12 @@
 **/target
 server/src/main/resources/static
 uploads
+.cache
+**/__pycache__
+experiments/private
+experiments/raw
+experiments/data
+experiments/cache
+experiments/.cache
+output
+**/*.log

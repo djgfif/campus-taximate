@@ -1,7 +1,8 @@
 import React from 'react'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { RequestForm } from './RequestFlow.jsx'
+import { HomeRequest, RequestForm } from './RequestFlow.jsx'
+import { searchPlaces } from './MapPicker.jsx'
 import { api } from './api.js'
 
 vi.mock('./MapView.jsx', () => ({ default: () => <div>지도</div> }))
@@ -28,6 +29,25 @@ const check = (box) => { if (!box.checked) fireEvent.click(box) }
 async function chooseDestination() {
   fireEvent.change(screen.getByLabelText('시연 도착지'), { target: { value: '0' } })
 }
+
+describe('장소 입력', () => {
+  it('하교 요청은 출발지를 학교로 채워 둔다', async () => {
+    render(<HomeRequest {...props} />)
+    await waitFor(() => expect(screen.getAllByPlaceholderText('건물이나 정류장 이름')[0].value).toBe('학교'))
+    expect(screen.getAllByPlaceholderText('건물이나 정류장 이름')[1].value).toBe('')
+  })
+
+  it('검색 결과가 없거나 검색을 쓸 수 없으면 이유를 알려 준다', async () => {
+    render(<RequestForm {...props} />)
+    const input = (await screen.findAllByPlaceholderText('건물이나 정류장 이름'))[0]
+    searchPlaces.mockResolvedValueOnce([])
+    fireEvent.change(input, { target: { value: '없는곳' } })
+    expect(await screen.findByText('검색 결과가 없어요. 다른 이름으로 찾거나 지도에서 골라 주세요.')).toBeTruthy()
+    searchPlaces.mockRejectedValueOnce(new Error('장소 검색에 실패했어요.'))
+    fireEvent.change(input, { target: { value: '대진대' } })
+    expect(await screen.findByText('지금은 장소 검색을 쓸 수 없어요. 지도에서 골라 주세요.')).toBeTruthy()
+  })
+})
 
 describe('새 탑승 요청', () => {
   it('근처 지점이 0곳이면 안내하고 요청할 수 없다', async () => {

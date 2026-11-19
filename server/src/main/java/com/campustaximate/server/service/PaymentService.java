@@ -17,6 +17,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 @RequiredArgsConstructor
 public class PaymentService {
+    private static final Set<String> INDEPENDENT_EXIT_REFUNDS =
+            Set.of("FREE_CANCEL", "CHANGE_EXIT_FREE", "PREPAY_UNPAID", "ROUTE_VERIFICATION_EXPIRED");
     private final PaymentOrderRepository orders;
     private final PaymentOperationRepository operations;
     private final PartyRepository parties;
@@ -105,6 +107,8 @@ public class PaymentService {
             if (order.getAmount() != amount) throw ApiException.badRequest("PAYMENT_AMOUNT_MISMATCH", "서버의 주문 금액과 다릅니다.");
             if (order.getPaymentKey() != null && !order.getPaymentKey().equals(paymentKey)) throw ApiException.conflict("PAYMENT_KEY_CHANGED", "이미 등록된 결제 키와 다릅니다.");
             if (order.getStatus() == PaymentStatus.APPROVED) return null;
+            if (order.isRideReviewHeld()) throw ApiException.conflict("RIDE_REVIEW_PAYMENT_HELD",
+                    "운행 검토가 끝날 때까지 이 결제는 보류돼요.");
             if (order.getPurpose() == PaymentPurpose.PREPAY) {
                 boolean current = requests.findById(order.getRequestId()).map(r -> r.getStatus() == RequestStatus.MATCHED
                         && r.getParty() != null && r.getParty().getId().equals(party.getId())).orElse(false);
@@ -137,13 +141,24 @@ public class PaymentService {
         parties.findByIdForUpdate(orders.findPartyId(orderId).orElseThrow()).orElseThrow();
         PaymentOrder order = orders.lockById(orderId).orElseThrow();
         if (target < 0 || target > order.getAmount()) throw new IllegalArgumentException("환불액 범위 오류");
-        if (target <= order.getRefundTarget()) return;
+        if (order.isRideReviewHeld() || target <= order.getRefundTarget()) return;
         if (order.getPaymentKey() == null && order.getApprovedAmount() == 0) return;
-        PaymentOperation op = new PaymentOperation();
-        op.setPaymentOrderId(orderId); op.setType(PaymentOperationType.CANCEL);
-        op.setIdempotencyKey(order.getOrderId() + ":refund:" + target);
+        String key = order.getOrderId() + ":refund:" + target;
+        PaymentOperation op = operations.findByIdempotencyKey(key).orElse(null);
+        if (op != null && !discardedRefund(op)) {
+            order.setRefundTarget(target);
+            return;
+        }
+        if (op == null) {
+            op = new PaymentOperation();
+            op.setPaymentOrderId(orderId);
+            op.setType(PaymentOperationType.CANCEL);
+            op.setIdempotencyKey(key);
+        }
+        op.setStatus(PaymentOperationStatus.PENDING);
         op.setAmount(target - order.getRefundTarget()); op.setTargetRefund(target); op.setReason(reason);
         op.setNextAttemptAt(clock.now());
+        op.setCompletedAt(null);
         order.setRefundTarget(target);
         operations.save(op);
     }
@@ -212,7 +227,8 @@ public class PaymentService {
         }
     }
     public boolean refundHeld(PaymentOrder order) {
-        return terms.findByPartyIdAndMemberId(order.getPartyId(),order.getMemberId()).map(PartyMemberTerm::isRefundHeld).orElse(false);
+        return order.isRideReviewHeld()
+                || terms.findByPartyIdAndMemberId(order.getPartyId(),order.getMemberId()).map(PartyMemberTerm::isRefundHeld).orElse(false);
     }
 
     @Transactional
@@ -227,6 +243,7 @@ public class PaymentService {
         PaymentOrder reference=orders.findById(orderId).orElseThrow();
         if(reference.getPurpose()!=PaymentPurpose.PREPAY) throw new IllegalArgumentException("선결제만 조회합니다.");
         if(reference.getStatus()==PaymentStatus.APPROVED) return PaymentGateway.Resolution.APPROVED;
+        if(reference.isRideReviewHeld()) return PaymentGateway.Resolution.PENDING;
         PaymentOperation op=operations.findByPaymentOrderIdOrderById(orderId).stream().filter(o->o.getType()==PaymentOperationType.CONFIRM).findFirst().orElse(null);
         if(op==null || reference.getPaymentKey()==null) return PaymentGateway.Resolution.FAILED;
         Work work=new Work(op.getId(),reference.getId(),op.getType(),op.getIdempotencyKey(),reference.getPaymentKey(),reference.getOrderId(),op.getAmount(),reference.getAmount(),op.getTargetRefund(),op.getReason(),op.getAttempts());
@@ -252,17 +269,107 @@ public class PaymentService {
         }
     }
 
-    /** 외부 취소가 시작되지 않은 경우에만 운행 답변 충돌로 보류할 수 있다. */
+    /** 일행 잠금 아래 운행 판단에 따라 달라지는 주문만 보류한다. */
     @Transactional(propagation=org.springframework.transaction.annotation.Propagation.MANDATORY)
     public boolean pauseUnstartedRefunds(long partyId) {
-        List<PaymentOrder> list=orders.findByPartyIdOrderById(partyId);
-        if(list.stream().anyMatch(o->o.getRefundedAmount()>0 || operations.findByPaymentOrderIdOrderById(o.getId()).stream()
-                .anyMatch(op->op.getType()==PaymentOperationType.CANCEL && op.getAttempts()>0))) return false;
-        for(PaymentOrder order:list) {
-            for(PaymentOperation op:operations.findByPaymentOrderIdOrderById(order.getId())) if(op.getType()==PaymentOperationType.CANCEL && op.getStatus()==PaymentOperationStatus.PENDING) op.setStatus(PaymentOperationStatus.CANCELED);
-            order.setRefundTarget(order.getRefundedAmount());
+        boolean refundStarted = false;
+        for (PaymentOrder order : rideOrders(partyId)) {
+            var work = operations.findByPaymentOrderIdOrderById(order.getId());
+            refundStarted |= order.getRefundedAmount() > 0 || work.stream().anyMatch(PaymentService::attemptedRefund);
+            order.setRideReviewHeld(true);
+            if (work.stream().noneMatch(PaymentService::uncertainRefund)) {
+                discardUnsentRefunds(order, work);
+            }
         }
-        return true;
+        return !refundStarted;
+    }
+
+    /**
+     * A completed prepayment refund is consistent with non-operation. An attempted refund
+     * with an unknown result is not reconciled by guessing what the gateway did.
+     */
+    @Transactional(propagation=org.springframework.transaction.annotation.Propagation.MANDATORY)
+    public boolean resolveRideDecision(long partyId, boolean operated) {
+        var affected = rideOrders(partyId);
+        boolean blocked = payouts.existsByPartyId(partyId);
+        for (PaymentOrder order : affected) {
+            var work = operations.findByPaymentOrderIdOrderById(order.getId());
+            boolean extraCharge = order.getPurpose() == PaymentPurpose.ADDITIONAL
+                    && (order.getApprovedAmount() > order.getRefundedAmount()
+                    || work.stream().anyMatch(op -> op.getType() == PaymentOperationType.CONFIRM
+                    && op.getAttempts() > 0 && op.getStatus() != PaymentOperationStatus.CANCELED
+                    && op.getStatus() != PaymentOperationStatus.SUCCEEDED));
+            boolean refundConflict = operated
+                    ? order.getRefundedAmount() > 0 || work.stream().anyMatch(PaymentService::attemptedRefund)
+                    : work.stream().anyMatch(PaymentService::uncertainRefund);
+            order.setRideReviewConflict(extraCharge || refundConflict);
+            blocked |= order.isRideReviewConflict();
+        }
+        for (PaymentOrder order : affected) {
+            order.setRideReviewHeld(blocked);
+            if (blocked) continue;
+            var work = operations.findByPaymentOrderIdOrderById(order.getId());
+            if (operated) {
+                discardUnsentRefunds(order, work);
+            } else if (order.getPurpose() == PaymentPurpose.ADDITIONAL && order.getApprovedAmount() == 0) {
+                // A quote which has not been sent is no longer collectible after non-operation.
+                work.stream().filter(op -> op.getType() == PaymentOperationType.CONFIRM && isUnsent(op))
+                        .forEach(op -> op.setStatus(PaymentOperationStatus.CANCELED));
+                order.setStatus(PaymentStatus.EXPIRED);
+            }
+        }
+        return !blocked;
+    }
+
+    @Transactional(propagation=org.springframework.transaction.annotation.Propagation.MANDATORY)
+    public void refundNonOperation(long partyId) {
+        var membersInScope = new HashSet<Long>();
+        for (PaymentOrder order : rideOrders(partyId)) {
+            membersInScope.add(order.getMemberId());
+            if (order.getPurpose() == PaymentPurpose.PREPAY) refundTo(order.getId(), order.getAmount(), "운행 미성사 확인");
+        }
+        terms.findByPartyIdOrderById(partyId).stream().filter(t -> membersInScope.contains(t.getMemberId()))
+                .forEach(t -> t.setRefundHeld(false));
+    }
+
+    private List<PaymentOrder> rideOrders(long partyId) {
+        var memberTerms = new HashMap<Long, PartyMemberTerm>();
+        for (PartyMemberTerm term : terms.findByPartyIdOrderById(partyId)) {
+            memberTerms.put(term.getRequestId(), term);
+        }
+        return orders.findByPartyIdOrderById(partyId).stream().filter(order -> {
+            if (order.getPurpose() != PaymentPurpose.PREPAY) return true;
+            PartyMemberTerm term = memberTerms.get(order.getRequestId());
+            if (term == null) return order.getExcludedAt() == null;
+            return term.getExitedAt() == null || term.getExitReason() == null
+                    || !INDEPENDENT_EXIT_REFUNDS.contains(term.getExitReason());
+        }).toList();
+    }
+
+    private static boolean isUnsent(PaymentOperation op) {
+        return op.getStatus() == PaymentOperationStatus.PENDING && op.getAttempts() == 0;
+    }
+
+    private static boolean attemptedRefund(PaymentOperation op) {
+        return op.getType() == PaymentOperationType.CANCEL && op.getStatus() != PaymentOperationStatus.CANCELED
+                && (op.getAttempts() > 0 || op.getStatus() != PaymentOperationStatus.PENDING);
+    }
+
+    private static boolean uncertainRefund(PaymentOperation op) {
+        return attemptedRefund(op) && op.getStatus() != PaymentOperationStatus.SUCCEEDED;
+    }
+
+    private static boolean discardedRefund(PaymentOperation op) {
+        return op.getType() == PaymentOperationType.CANCEL && op.getStatus() == PaymentOperationStatus.CANCELED
+                && op.getAttempts() == 0;
+    }
+
+    private void discardUnsentRefunds(PaymentOrder order, List<PaymentOperation> work) {
+        work.stream().filter(op -> op.getType() == PaymentOperationType.CANCEL && isUnsent(op)).forEach(op -> {
+            op.setStatus(PaymentOperationStatus.CANCELED);
+            op.setCompletedAt(clock.now());
+        });
+        order.setRefundTarget(order.getRefundedAmount());
     }
 
     public void retryDue() {
@@ -270,7 +377,7 @@ public class PaymentService {
         Set<Long> attempted=new HashSet<>();
         Set<Long> touched=new HashSet<>();
         while(attempted.size()<1000) {
-            List<PaymentOperation> due=operations.findByStatusInAndNextAttemptAtLessThanEqualOrderById(
+            List<PaymentOperation> due=operations.findDue(
                     List.of(PaymentOperationStatus.PENDING,PaymentOperationStatus.PROCESSING),clock.now()).stream()
                     .filter(op->!attempted.contains(op.getId())).toList();
             if(due.isEmpty()) break;
@@ -293,6 +400,7 @@ public class PaymentService {
             parties.findByIdForUpdate(orders.findPartyId(orderId).orElseThrow()).orElseThrow();
             PaymentOrder order = orders.lockById(orderId).orElseThrow();
             PaymentOperation op = operations.lockById(operationId).orElseThrow();
+            if (order.isRideReviewHeld()) return null;
             if (op.getStatus() == PaymentOperationStatus.SUCCEEDED || op.getStatus() == PaymentOperationStatus.CANCELED || op.getStatus() == PaymentOperationStatus.ADMIN_REQUIRED
                     || (op.getLeaseUntil() != null && op.getLeaseUntil().isAfter(clock.now()))
                     || op.getNextAttemptAt().isAfter(clock.now())) return null;
@@ -364,6 +472,8 @@ public class PaymentService {
             order.setStatus(PaymentStatus.APPROVED); order.setApprovedAmount(result.amount());
             order.setRefundedAmount(Math.max(order.getRefundedAmount(), result.canceledAmount()));
             if (order.getApprovedAt() == null) order.setApprovedAt(clock.now());
+            // Record an already leased request, but don't enqueue its follow-up during review.
+            if (order.isRideReviewHeld()) return;
             if (work.type() == PaymentOperationType.CONFIRM && !wasExpired && order.getPurpose() == PaymentPurpose.PREPAY
                     && List.of(PartyStatus.PREPAYING, PartyStatus.READY).contains(party.getStatus()))
                 chatLog.system(party, order.getMemberId(), "%s님이 선결제를 마쳤어요.");
@@ -386,7 +496,9 @@ public class PaymentService {
         if (list.stream().anyMatch(o -> o.getStatus() == PaymentStatus.ADMIN_REQUIRED
                 || (o.getPurpose() == PaymentPurpose.ADDITIONAL && o.getStatus() != PaymentStatus.APPROVED)
                 || o.getRefundedAmount() < o.getRefundTarget()
-                || operations.findByPaymentOrderIdOrderById(o.getId()).stream().anyMatch(op -> op.getStatus() != PaymentOperationStatus.SUCCEEDED))) return;
+                || operations.findByPaymentOrderIdOrderById(o.getId()).stream().anyMatch(op -> op.getStatus() != PaymentOperationStatus.SUCCEEDED
+                        && !discardedRefund(op)
+                        && !(op.getType()==PaymentOperationType.CONFIRM && op.getStatus()==PaymentOperationStatus.CANCELED)))) return;
         if (list.stream().anyMatch(this::refundHeld) || !settlementsRecorded(party)) return;
         party.setStatus(PartyStatus.COMPLETED); party.setSettledAt(clock.now());
     }
@@ -403,8 +515,12 @@ public class PaymentService {
         return order;
     }
     private OrderView view(PaymentOrder o) {
+        boolean held = refundHeld(o);
+        String holdReason = o.isRideReviewHeld() ? "보류(운행·정산 검토 중)" :
+                held ? terms.findByPartyIdAndMemberId(o.getPartyId(),o.getMemberId())
+                        .map(t -> "BOARDING_UNCONFIRMED".equals(t.getExitReason()) || "PAYER_NO_SHOW".equals(t.getExitReason())
+                                ? "보류(노쇼 조사 중)" : "보전 정산 대기").orElse(null) : null;
         return new OrderView(o.getOrderId(), o.getAmount(), o.getPurpose(), o.getStatus(), o.getDeadlineAt(),
-                o.getApprovedAmount(), o.getRefundedAmount(), o.getRefundTarget(), gateway.simulated(), refundHeld(o),
-                refundHeld(o)?terms.findByPartyIdAndMemberId(o.getPartyId(),o.getMemberId()).map(t->"BOARDING_UNCONFIRMED".equals(t.getExitReason())||"PAYER_NO_SHOW".equals(t.getExitReason())?"보류(노쇼 조사 중)":"보전 정산 대기").orElse(null):null);
+                o.getApprovedAmount(), o.getRefundedAmount(), o.getRefundTarget(), gateway.simulated(), held, holdReason);
     }
 }

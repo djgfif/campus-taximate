@@ -23,6 +23,10 @@ const json = (method, path, body) =>
     body: JSON.stringify(body ?? {}),
   })
 
+const idempotent = (method, path, body, key) => request(path, {
+  method, headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key }, body: JSON.stringify(body),
+})
+
 function settlementForm({ amount, receipt }) {
   const form = new FormData()
   form.append('amount', amount)
@@ -31,6 +35,26 @@ function settlementForm({ amount, receipt }) {
 }
 
 export const api = {
+  boardingCases: () => request('/boarding-cases'),
+  partyBoardingCases: (partyId) => request(`/parties/${partyId}/boarding-cases`),
+  boardingVote: (partyId, memberId, came) => json('POST', `/parties/${partyId}/members/${memberId}/boarding-votes`, { came }),
+  explainBoarding: (id, explanation) => json('POST', `/boarding-cases/${id}/explanation`, { explanation }),
+  compensation: (partyId) => request(`/parties/${partyId}/compensation`),
+  adminNoShows: () => request('/admin/no-shows'),
+  adminNoShow: (id) => request(`/admin/no-shows/${id}`),
+  decideNoShow: (id, body) => json('POST', `/admin/no-shows/${id}/decision`, body),
+  adminFareReviews: () => request('/admin/fare-reviews'),
+  decideFare: (id, body) => json('POST', `/admin/parties/${id}/fare-decision`, body),
+  decideRide: (id, decision, evidence) => json('POST', `/admin/parties/${id}/ride-decision`, { decision, evidence }),
+  adminReports: () => request('/admin/reports'),
+  adminRestrictions: (id) => request(`/admin/members/${id}/restrictions`),
+  restrictMember: (id, body, key) => idempotent('POST', `/admin/members/${id}/restrictions`, body, key),
+  releaseRestriction: (id, evidence) => json('POST', `/admin/restrictions/${id}/release`, { evidence }),
+  adminOverdue: () => request('/admin/overdue-payments'),
+  handleOverdue: (id, evidence) => json('POST', `/admin/overdue-payments/${id}/handled`, { evidence }),
+  adminHubs: () => request('/admin/hubs'),
+  saveHub: (id, body, key) => idempotent(id ? 'PUT' : 'POST', `/admin/hubs${id ? `/${id}` : ''}`, body, key),
+  adminAudits: () => request('/admin/audits'),
   partyMessages: (partyId, after, before) => request(`/parties/${partyId}/messages${after != null ? `?after=${after}` : before != null ? `?before=${before}` : ''}`),
   sendPartyMessage: (partyId, text, clientId) => json('POST', `/parties/${partyId}/messages`, clientId ? { text, clientId } : { text }),
   sendPartyImage: (partyId, image, clientId) => {
@@ -80,6 +104,9 @@ export const api = {
   cancelRequest: (id) => request(`/requests/${id}`, { method: 'DELETE' }),
   partyRoutes: (partyId) => request(`/parties/${partyId}/routes`),
   arrive: (partyId) => json('POST', `/parties/${partyId}/arrive`),
+  boardingState: (partyId) => request(`/parties/${partyId}/boarding-code`),
+  confirmBoardingCode: (partyId, code, generation) => json('POST', `/parties/${partyId}/boarding-code`, { code, generation }),
+  startRide: (partyId) => json('POST', `/parties/${partyId}/start`),
   boarded: (partyId) => json('POST', `/parties/${partyId}/boarded`),
   settlementPreview: (partyId, amount) => request(`/parties/${partyId}/settlement/preview?amount=${amount}`),
   submitSettlement: (partyId, fields) =>
@@ -91,7 +118,7 @@ export const api = {
   demoMatch: (role = 'PAYER') => json('POST', '/demo/match', { role }),
   demoBoardParty: () => json('POST', '/demo/board-party'),
   demoStatus: () => request('/demo/status'),
-  demoNext: () => json('POST', '/demo/next'),
+  demoNext: (role = 'PAYER') => json('POST', '/demo/next', { role }),
   demoScenario: (scenario, role) => json('POST', '/demo/scenario', { scenario, role }),
   demoLogin: (account) => json('POST', '/demo/login', { account }),
   payerSuccession: (partyId, accept) => json('POST', `/parties/${partyId}/payer-succession`, { accept }),

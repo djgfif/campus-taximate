@@ -89,4 +89,51 @@ class ApiSecurityTest {
         mvc.perform(get("/actuator/health")).andExpect(status().isOk());
         mvc.perform(get("/history")).andExpect(status().isOk());
     }
+
+    @Autowired private com.campustaximate.server.repository.MemberRepository members;
+    @Autowired private com.campustaximate.server.service.LoginTokenService tokens;
+    @Test void sessionWithoutRevocableCredentialIsRejected() throws Exception {
+        var session = new org.springframework.mock.web.MockHttpSession();
+        session.setAttribute("memberId", members.findByEmail("demo-f1@daejin.ac.kr").orElseThrow().getId());
+        mvc.perform(get("/api/state").session(session)).andExpect(status().isUnauthorized());
+    }
+    @Test void logoutAllRevokesOtherSessionsEvenWithoutCookie() throws Exception {
+        long id = members.findByEmail("demo-f1@daejin.ac.kr").orElseThrow().getId();
+        var first = new org.springframework.mock.web.MockHttpSession();
+        var second = new org.springframework.mock.web.MockHttpSession();
+        com.campustaximate.server.AuthenticatedTestSession.authenticate(first, id, tokens);
+        com.campustaximate.server.AuthenticatedTestSession.authenticate(second, id, tokens);
+        mvc.perform(get("/api/me").session(second)).andExpect(status().isOk());
+        mvc.perform(post("/api/auth/logout-all").session(first)).andExpect(status().isOk());
+        mvc.perform(get("/api/state").session(second)).andExpect(status().isUnauthorized());
+    }
+    @Test void realLoginRotatesSessionAndCredentialSurvivesCookieOmissionUntilRevoked() throws Exception {
+        var session = new org.springframework.mock.web.MockHttpSession();
+        String original = session.getId();
+        var login = mvc.perform(post("/api/auth/signin").session(session).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"demo-f2@daejin.ac.kr\",\"password\":\"demo1234\"}"))
+                .andExpect(status().isOk()).andReturn();
+        assertThat(session.getId()).isNotEqualTo(original);
+        assertThat(login.getResponse().getHeader("Set-Cookie")).contains("taximate_login=");
+        String token = (String) session.getAttribute(LoginTokenFilter.TOKEN_KEY);
+        mvc.perform(get("/api/me").session(session)).andExpect(status().isOk());
+        mvc.perform(post("/api/auth/logout").session(session)).andExpect(status().isOk());
+        assertThat(tokens.memberOf(token)).isEmpty();
+    }
+
+    @Test void cookieRestorationRotatesPreexistingAnonymousSession() throws Exception {
+        long id = members.findByEmail("demo-f3@daejin.ac.kr").orElseThrow().getId();
+        var session = new org.springframework.mock.web.MockHttpSession();
+        String original = session.getId();
+        mvc.perform(get("/api/me").session(session).cookie(new jakarta.servlet.http.Cookie(LoginTokenFilter.COOKIE, tokens.issue(id))))
+                .andExpect(status().isOk());
+        assertThat(session.getId()).isNotEqualTo(original);
+    }
+    @Test void invalidCookieCannotFallBackToValidSessionCredential() throws Exception {
+        long id = members.findByEmail("demo-f3@daejin.ac.kr").orElseThrow().getId();
+        var session = new org.springframework.mock.web.MockHttpSession();
+        com.campustaximate.server.AuthenticatedTestSession.authenticate(session, id, tokens);
+        mvc.perform(get("/api/state").session(session).cookie(new jakarta.servlet.http.Cookie(LoginTokenFilter.COOKIE, "invalid")))
+                .andExpect(status().isUnauthorized());
+    }
 }

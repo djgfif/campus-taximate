@@ -205,6 +205,8 @@ public class DemoService {
     }
 
     /** 내 일행의 샘플 계정을 도착, 승차, 결제, 보냄으로 표시한다. 일반 회원과 같은 경로를 탄다. */
+    private final BoardingCodeService boardingCodes;
+
     public void actAsSamples(long memberId) {
         requireEnabled();
         for (PartyService.PartyView party : partyService.openParties(memberId)) {
@@ -227,6 +229,16 @@ public class DemoService {
                     partyService.arrive(rider.memberId(), party.id());
                     chat.send(rider.memberId(),party.id(),DemoTalk.arrived(rider.memberId(),rider.memo()));
                 }
+            }
+            if(party.prepayDeadlineAt()!=null && List.of(com.campustaximate.server.domain.PartyStatus.READY,com.campustaximate.server.domain.PartyStatus.RIDE_UNCONFIRMED,com.campustaximate.server.domain.PartyStatus.AWAITING_FARE).contains(party.status())) {
+                if(isSample(party.payerId(),memberId) && party.startedAt()==null) {
+                    var state=boardingCodes.state(party.payerId(),party.id());
+                    if(state.canOpen()) boardingCodes.open(party.payerId(),party.id());
+                }
+                var state=boardingCodes.state(party.payerId(),party.id());
+                if("OPEN".equals(state.status())) for(var m:party.members()) if(m.memberId()!=party.payerId() && isSample(m.memberId(),memberId))
+                    boardingCodes.confirm(m.memberId(),party.id(),state.code(),state.generation());
+                if(isSample(party.payerId(),memberId) && state.canStart()) boardingCodes.start(party.payerId(),party.id());
             }
             PartyService.PartyView payerView = isSample(party.payerId(), memberId)
                     ? partyService.view(party.payerId(), party.id()) : null;

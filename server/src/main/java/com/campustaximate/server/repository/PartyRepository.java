@@ -16,6 +16,9 @@ public interface PartyRepository extends JpaRepository<Party, Long> {
     List<Party> findByStatus(PartyStatus status);
     List<Party> findByStatusIn(java.util.Collection<PartyStatus> statuses);
 
+    @Query("select p.id from Party p where p.routeVerificationPending = true order by p.routeVerificationDeadlineAt, p.id")
+    List<Long> findRouteVerificationPendingIds();
+
     /** 금액 수정, 보냄, 취소처럼 일행을 바꾸는 작업을 한 줄로 세운다. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from Party p where p.id = :id")

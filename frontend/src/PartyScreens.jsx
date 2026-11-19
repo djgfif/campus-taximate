@@ -7,6 +7,8 @@ import { CHAT_RETENTION, PartyChat } from './PartyChat.jsx'
 import PaymentCard from './PaymentCard.jsx'
 import { trustLine, usePeople } from './People.jsx'
 import KakaoTaxi from './KakaoTaxi.jsx'
+import BoardingCodePanel from './BoardingCodePanel.jsx'
+import { BoardingPanel } from './ReviewScreens.jsx'
 import { formatTime, formatDateTime, isPaymentParty, knownPartyStatus, meetPlace, partyLabel, remaining, won } from './format.js'
 import { Avatar, BackBar, Btn, Confirm, Item, Meter, Rail, Rows, Say, Screen, Sheet, TopBar, toast, useWide } from './ui.jsx'
 
@@ -84,7 +86,7 @@ const inTest = () => typeof navigator !== 'undefined' && /jsdom/i.test(navigator
  * 탭을 바꾸면 탭이 화면 위에 오도록 올린다. 채팅은 탭 아래 남은 화면을 모두 쓰는 대화방으로 열고,
  * 하단 고정 버튼은 채팅 탭에서는 숨긴다.
  */
-export function PartyShell({ party, now, onMenu, onHome, header, progress, info, foot, aside, dark = true, firstTab = '진행' }) {
+export function PartyShell({ party, now, onUpdated, onMenu, onHome, header, progress, info, foot, aside, dark = true, firstTab = '진행' }) {
   const [tab, setTab] = useState('progress')
   const tabs = useRef(null)
   const choose = (next) => {
@@ -107,9 +109,10 @@ export function PartyShell({ party, now, onMenu, onHome, header, progress, info,
     </div>
     <section id="panel-progress" role="tabpanel" aria-labelledby="tab-progress" hidden={tab !== 'progress'} className="party-panel">{progress}</section>
     <section id="panel-chat" role="tabpanel" aria-labelledby="tab-chat" hidden={tab !== 'chat'}>
+      {tab === 'chat' && isPaymentParty(party) && ['READY', 'RIDE_UNCONFIRMED', 'AWAITING_FARE'].includes(party.status) && <BoardingCodePanel party={party} now={now} onUpdated={onUpdated} allowCall />}
       <PartyChat key={party.id} partyId={party.id} now={now} status={party.status} active={tab === 'chat'} full />
     </section>
-    <section id="panel-info" role="tabpanel" aria-labelledby="tab-info" hidden={tab !== 'info'} className="party-panel">{info}</section>
+    <section id="panel-info" role="tabpanel" aria-labelledby="tab-info" hidden={tab !== 'info'} className="party-panel">{info}{tab === 'info' && <BoardingPanel party={party} now={now} />}</section>
   </Screen>
 }
 
@@ -314,10 +317,18 @@ export function RideConfirmationCard({ party, onUpdated }) {
 }
 
 export function PartyFareRows({ party }) {
-  return <Rows items={[
-    party.myConfirmedShare!=null ? ['확정 때 내 몫',won(party.myConfirmedShare),'big'] : ['내 예상 몫',won(party.myShare),'big'],
-    party.myConfirmedShare!=null && party.myConfirmedShare!==party.myShare && ['지금 예상 몫',won(party.myShare),'big'],
-  ]} />
+  const increase = party.myConfirmedShare!=null ? party.myShare - party.myConfirmedShare : 0
+  return <>
+    <Rows items={[
+      party.myConfirmedShare!=null ? ['확정 때 내 몫',won(party.myConfirmedShare),'big'] : ['내 예상 몫',won(party.myShare),'big'],
+      party.myConfirmedShare!=null && party.myConfirmedShare!==party.myShare && ['지금 예상 몫',won(party.myShare),'big'],
+    ]} />
+    {/* 명세 8.4·S24: 확정된 노쇼나 무료 취소 마감 뒤 취소면 늘어난 몫을 빠진 사람의 선결제에서 보전(그 사람 확정 몫까지). */}
+    {increase > 0 && <Say title={`일행이 빠져 내 몫이 ${won(increase)} 늘었어요`}>
+      빠진 사람이 노쇼로 확정되거나 무료 취소 마감 뒤에 취소했다면, 늘어난 만큼을 그 사람의 선결제에서 받아 정산 때 내 몫에서 빼 드려요(그 사람의 확정 몫까지).
+      노쇼가 아니라고 판정되거나 빠진 사람이 처음 결제자라면 보전 없이 실제 요금으로 나눠요.
+    </Say>}
+  </>
 }
 
 const STEPS = ['확정', '선결제', '모이기', '탑승', '정산']
@@ -342,13 +353,19 @@ export function PartyStepper({ party }) {
 
 /** 상태와 역할에 맞는 "지금 할 일" 하나. 제목·한 줄 설명·남은 시간과, 필요하면 그 자리에서 누르는 카드. */
 function NextAction({ party, now, myId, mine, config, run, onUpdated, onDriver }) {
+  // 일행 상태는 모두 결제할 때까지 PREPAYING이라, 내 결제 여부는 내 선결제 주문으로 판단한다.
+  const [prepay, setPrepay] = useState(null)
   const waiting = ['PREPAYING', 'READY'].includes(party.status)
   const left = (at) => (at && now ? `${remaining(at, now)} 남음` : '')
   let title
   let detail = ''
   let extra = null
   let tone = ''
-  if (party.status === 'PAYER_PENDING') {
+  if (party.departureBlockReason === 'ROUTE_VERIFICATION_PENDING') {
+    title = '일행 변경 경로를 확인 중이에요'
+    detail = `${formatDateTime(party.routeVerificationDeadlineAt)}까지 확인되지 않으면 일행을 해산하고 선결제 환불을 접수해요.`
+    tone = 'calm'
+  } else if (party.status === 'PAYER_PENDING') {
     const me = party.successorId === myId
     title = me ? '결제자를 이어받을까요?' : '새 결제자를 정하고 있어요'
     detail = me
@@ -363,9 +380,12 @@ function NextAction({ party, now, myId, mine, config, run, onUpdated, onDriver }
     detail = '운행 시작 표시가 없어 확인하고 있어요. 미운행이 확인될 때만 환불해요.'
     extra = <RideConfirmationCard party={party} onUpdated={onUpdated} />
   } else if (party.status === 'PREPAYING' && !party.payer) {
-    title = '선결제를 마쳐 주세요'
-    detail = '내 몫에 여유 15%를 더해 미리 내고, 내린 뒤 실제 요금으로 나눠 남는 돈은 돌려받아요.'
-    extra = <PaymentCard compact partyId={party.id} myId={myId} now={now} config={config} onUpdated={onUpdated} />
+    const paid = prepay?.status === 'APPROVED'
+    title = paid ? '선결제를 마쳤어요' : prepay?.status === 'PROCESSING' ? '결제를 확인하고 있어요' : '선결제를 마쳐 주세요'
+    detail = paid ? '다른 일행의 선결제를 기다리고 있어요. 모두 결제하면 만날 시간과 장소를 알려 드려요.'
+      : '내 몫에 여유 15%를 더해 미리 내고, 내린 뒤 실제 요금으로 나눠 남는 돈은 돌려받아요.'
+    if (paid) tone = 'calm'
+    extra = <PaymentCard compact partyId={party.id} myId={myId} now={now} config={config} onUpdated={onUpdated} onOrder={setPrepay} />
   } else if (waiting && party.payer) {
     if (party.calledAt) {
       title = '택시를 불렀어요'
@@ -408,7 +428,9 @@ function NextAction({ party, now, myId, mine, config, run, onUpdated, onDriver }
     if (!party.payer) tone = 'calm'
   } else if (['DISSOLVED', 'NOT_OPERATED', 'FARE_MISSING'].includes(party.status)) {
     title = party.status === 'DISSOLVED' ? '일행이 해산됐어요' : '운행이 성사되지 않았어요'
-    detail = party.reviewReason === 'LATE_CANCELLATION_COMPENSATION'
+    detail = party.reviewReason === 'ROUTE_VERIFICATION_EXPIRED'
+      ? '출발 시각까지 경로를 확인하지 못해 해산했어요. 승인된 선결제는 환불을 접수했어요.'
+      : party.reviewReason === 'LATE_CANCELLATION_COMPENSATION'
       ? '무료가 아닌 이탈 금액은 정산 처리를 기다리고, 나머지 선결제는 환불해요.'
       : '승인된 선결제는 전액 환불해요. 카드 반영까지 3~4영업일 정도 걸려요.'
     tone = 'calm'
@@ -448,12 +470,13 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
   const [people] = usePeople(party.id, party.groupVersion)
   const personOf = (memberId) => people.find((p) => p.memberId === memberId)
   return <>
-    <PartyShell party={party} now={now} onMenu={onMenu} onHome={onHome} foot={primary}
+    <PartyShell party={party} now={now} onUpdated={onUpdated} onMenu={onMenu} onHome={onHome} foot={primary}
       header={<Meter compact label={!knownPartyStatus(party.status) ? partyLabel(party.status) : party.instant ? '출발(예상)' : '출발'} value={formatTime(party.departureAt)} detail={meetPlace(party)} tag={roleTag(party)} />}
       progress={<>
         <div className="block party-top">
           <PartyStepper party={party} />
           <NextAction party={party} now={now} myId={myId} mine={mine} config={config} run={run} onUpdated={onUpdated} onDriver={() => setDriver(true)} />
+          {['READY', 'RIDE_UNCONFIRMED', 'AWAITING_FARE'].includes(party.status) && <BoardingCodePanel party={party} now={now} onUpdated={onUpdated} />}
           {party.canLeaveAfterChange && <Say tone="stop-tone" title="일행이 바뀌었어요">현재 내 몫은 {won(party.myShare)}이에요. 원하지 않으면 {party.changeExitFree ? '호출 전까지 무료로' : ''} 빠질 수 있어요.
             <Btn className="line" onClick={() => setLeavingChange(true)}>변경돼서 빠지기</Btn></Say>}
           {waiting && party.instant && !mine?.arrived && !owesPrepay && <Btn className="line" disabled={mine?.nearby}
@@ -461,6 +484,12 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
         </div>
         <div className="band" />
         <div className="block">
+          {/* 서비스의 핵심 숫자. 정보 탭 두 단계 아래에만 있던 것을 진행 탭 첫 화면에도 보인다. */}
+          {party.mySoloFare > party.myShare && <section aria-label="아끼는 돈"><Rows items={[
+            ['혼자 타면', won(party.mySoloFare)],
+            ['같이 타면 내 몫', won(party.myShare)],
+            ['아끼는 돈', won(party.mySoloFare - party.myShare), 'save'],
+          ]} /></section>}
           {mine && <PartyMiniMap party={party} mine={mine} />}
           <h2 className="block-title">같이 타는 사람 <small>내리는 순서</small></h2>
           <Rail items={order.map((m) => ({
@@ -490,6 +519,7 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
           <summary>규칙 자세히</summary>
           <ul>
             <li>{free ? '무료 취소 마감 전 취소하면 승인된 선결제를 전액 환불해요.' : '무료 취소 마감이 지나 취소하면 남은 일행의 늘어난 몫을 보전해요.'}</li>
+            <li>누가 오지 않으면 일행·본인 소명을 보고 24시간 뒤 판정해요. 노쇼로 확정되면 남은 일행의 늘어난 몫을 그 사람의 선결제에서 보전하고, 판단할 수 없으면 노쇼로 보지 않아요.</li>
             <li>선결제는 확정 때 내 몫에 여유 15%를 더한 금액이에요. 길이 막히면 요금이 늘 수 있어서 조금 더 받아 두고, 실제 요금으로 나눈 뒤 남으면 돌려주고 모자라면 더 받아요.</li>
             {party.instant && <li>즉시 일행은 선결제 기한이 확정 뒤 {config?.instantMatching?.prepMinutes ?? 3}분이고, 모두 준비되면 바로 호출해요.</li>}
             <li>택시는 결제자가 카카오T로 직접 불러요. 앱은 부른 사실만 기록해요.</li>

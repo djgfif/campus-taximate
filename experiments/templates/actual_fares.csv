@@ -1,0 +1,1 @@
+record_id,cohort,origin_label,destination_label,ride_at,quote_at,expected_krw,actual_krw,currency,expected_toll_scope,actual_toll_scope,expected_surcharge_scope,actual_surcharge_scope,quote_source,actual_source

@@ -52,6 +52,16 @@ public class Party {
 
     /** 첫 승차자가 "택시 탔어요"를 누른 시각. */
     private Instant boardedAt;
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @Column(length=6) private String boardingCode;
+    private int boardingGeneration;
+    private Instant boardingDeadlineAt;
+    private Instant boardingClosedAt;
+
+    public void revokeBoardingCode() {
+        boardingCode=null; boardingDeadlineAt=null; boardedAt=null;
+        boardingGeneration++; boardingClosedAt=null;
+    }
 
     /** 전원 받음 처리 시각. 채팅 보관 기간의 기준이다. */
     private Instant settledAt;
@@ -62,6 +72,32 @@ public class Party {
     private Instant prepayDeadlineAt;
     private Instant startedAt;
     private Instant fareRemindedAt;
+    private Instant fareRecoveryAt;
+    private boolean routeVerificationPending;
+    private Instant routeVerificationDeadlineAt;
+
+    public void beginRouteVerification() {
+        routeVerificationPending = true;
+        if (routeVerificationDeadlineAt == null) routeVerificationDeadlineAt = departureAt;
+    }
+
+    public void clearRouteVerification() {
+        routeVerificationPending = false;
+        routeVerificationDeadlineAt = null;
+    }
+
+    /** 실제 출발은 예정 시각과 별개로 일행 변경을 닫는다. */
+    public boolean canChangeBeforeRide() {
+        if (startedAt != null) return false;
+        return paymentFlow()
+                ? status == PartyStatus.PREPAYING || status == PartyStatus.READY || status == PartyStatus.RIDE_UNCONFIRMED
+                : status == PartyStatus.CONFIRMED || status == PartyStatus.READY;
+    }
+
+    public boolean canAcceptJoin() {
+        return paymentFlow() && canChangeBeforeRide() && calledAt == null && !routeVerificationPending
+                && (status == PartyStatus.PREPAYING || status == PartyStatus.READY);
+    }
     /** 즉시 요청자가 나중에 빠져도 확정 때의 시간표를 유지한다. */
     @Column(name="instant_group",nullable=false) private boolean instant;
     private Instant calledAt;

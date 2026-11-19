@@ -119,10 +119,46 @@ class RouteGroupVerifierTest {
         List<MatchRequest> order = new ArrayList<>(base.order());
         order.set(1, order.get(1).atPoint(1, 2, 100));
         Candidate c = new Candidate(order, 10, base.departure(), List.of());
-        var cache = new HashMap<List<Long>, Instant>();
+        var cache = new HashMap<RouteGroupVerifier.RejectionKey, Instant>();
         var verifier = new RouteGroupVerifier(routes, cache, now);
         assertThat(verifier.check(c).verdict()).isEqualTo(Verdict.FAIL);
         assertThat(verifier.recentlyRejected(c)).isTrue();
+    }
+
+    /** 실제 카카오 경유지 응답은 구간 합이 요약 시간보다 8~11초 작게 온다(2118초 요약, 구간 합 2110초 등). */
+    private void quoteWithResidual(int summarySeconds, List<Integer> legs) {
+        when(routes.routeAt(any(), anyList(), any())).thenAnswer(call -> {
+            List<GeoPoint> stops = call.getArgument(1);
+            if (stops.size() == 1) return new RouteClient.Route(5, 1200, 10000, List.of(), List.of(1200));
+            return new RouteClient.Route(5, summarySeconds, 10000, List.of(), legs);
+        });
+    }
+
+    @Test
+    void smallKakaoResidualBetweenSectionsAndSummaryStillVerifies() {
+        quoteWithResidual(1210, List.of(100, 500, 600));
+        var verifier = new RouteGroupVerifier(routes, new HashMap<>(), now);
+        Candidate c = candidate(3);
+        assertThat(verifier.verify(c)).isEqualTo(Verdict.PASS);
+        // 남는 10초를 구간에 나눠 마지막 하차자의 누적이 요약 시간과 같다.
+        assertThat(verifier.routesOf(c.order()).rideSeconds().getLast()).isEqualTo(1210);
+    }
+
+    @Test
+    void largeResidualStaysUnavailable() {
+        quoteWithResidual(1500, List.of(100, 500, 600));
+        var verifier = new RouteGroupVerifier(routes, new HashMap<>(), now);
+        assertThat(verifier.check(candidate(3)).verdict()).isEqualTo(Verdict.UNAVAILABLE);
+    }
+
+    @Test
+    void residualIsSpreadInProportionToSectionLength() {
+        assertThat(RouteGroupVerifier.reconcileLegs(List.of(100, 500, 600), 1210)).containsExactly(101, 504, 605);
+        assertThat(RouteGroupVerifier.reconcileLegs(List.of(100, 500, 600), 1192)).containsExactly(99, 497, 596);
+        assertThat(RouteGroupVerifier.reconcileLegs(List.of(100, 500, 600), 1200)).containsExactly(100, 500, 600);
+        assertThat(RouteGroupVerifier.reconcileLegs(List.of(100, 500, 600), 1300)).isNull();
+        assertThat(RouteGroupVerifier.reconcileLegs(List.of(0, 0), 5)).isNull();
+        assertThat(RouteGroupVerifier.reconcileLegs(List.of(100, -1), 99)).isNull();
     }
 
     @Test
@@ -131,5 +167,29 @@ class RouteGroupVerifierTest {
         var verifier = new RouteGroupVerifier(routes, new HashMap<>(), now);
         assertThat(verifier.check(candidate(3)).verdict()).isEqualTo(Verdict.UNAVAILABLE);
         assertThat(verifier.recentlyRejected(candidate(3))).isFalse();
+    }
+
+    @Test
+    void failedHubDoesNotPoisonAnotherHubOrDepartureOrOrder() {
+        quote(27001, 600, 1200);
+        var cache = new HashMap<RouteGroupVerifier.RejectionKey, Instant>();
+        var verifier = new RouteGroupVerifier(routes, cache, now);
+        Candidate a = candidate(3);
+        assertThat(verifier.check(a).verdict()).isEqualTo(Verdict.FAIL);
+        assertThat(verifier.recentlyRejected(a)).isTrue();
+        Hub other = new Hub(2, new GeoPoint(37.005, 127));
+        Candidate b = new Candidate(a.order().stream().map(r -> new MatchRequest(r.id(), r.memberId(), other,
+                r.gender(), r.windowStart(), r.windowEnd(), r.own(), r.soloKm(), r.soloSeconds())).toList(),
+                10, a.departure(), List.of());
+        assertThat(verifier.recentlyRejected(b)).isFalse();
+        quote(20000, 600, 1200);
+        assertThat(verifier.check(b).verdict()).isEqualTo(Verdict.PASS);
+        Candidate later = new Candidate(a.order(), 10, a.departure().plusSeconds(60), List.of());
+        assertThat(verifier.recentlyRejected(later)).isFalse();
+        assertThat(verifier.check(later).verdict()).isEqualTo(Verdict.PASS);
+        var reverse = new ArrayList<>(a.order());
+        Collections.reverse(reverse);
+        assertThat(verifier.recentlyRejected(new Candidate(reverse, 10, a.departure(), List.of()))).isFalse();
+        assertThat(new RouteGroupVerifier(routes, cache, now.plusSeconds(60)).recentlyRejected(a)).isFalse();
     }
 }

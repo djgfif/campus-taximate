@@ -35,6 +35,9 @@ public class PaymentOrder {
     private long refundedAmount;
     /** 논리 작업이 요청한 누적 환불액. 응답 유실에도 같은 차액을 두 번 만들지 않는다. */
     private long refundTarget;
+    /** Stops new financial work while the administrator separates ride facts from money. */
+    private boolean rideReviewHeld;
+    private boolean rideReviewConflict;
     private Instant deadlineAt;
     private Instant approvedAt;
     private Instant createdAt;

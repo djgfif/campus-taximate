@@ -114,6 +114,7 @@ export function Unmatched({ latest, onRetry, onHome, onMenu }) {
     )
   }
   const canceled = latest.endReason === 'PARTY_CANCELED'
+  const routeExpired = latest.endReason === 'ROUTE_VERIFICATION_EXPIRED'
   return (
     <Screen aside={<RequestMap item={latest} />} foot={(
       <>
@@ -123,8 +124,8 @@ export function Unmatched({ latest, onRetry, onHome, onMenu }) {
     )}>
       <TopBar onMenu={onMenu} />
       <div className="pad">
-        <h1 className="head">{canceled ? '일행이 취소됐어요' : <>이번엔 같이 탈<br />일행을 못 찾았어요</>}</h1>
-        <p className="sub">{canceled ? '다른 일행이 빠져 나만 남았습니다.' : `${formatTime(latest.resultBy)}까지 조건이 맞는 학생이 없었습니다.`}</p>
+        <h1 className="head">{routeExpired ? '경로를 확인하지 못해 일행이 해산됐어요' : canceled ? '일행이 취소됐어요' : <>이번엔 같이 탈<br />일행을 못 찾았어요</>}</h1>
+        <p className="sub">{routeExpired ? '예정 출발 시각까지 경로를 확인하지 못했어요. 승인된 선결제는 이용 내역에서 환불 상태를 확인해 주세요.' : canceled ? '다른 일행이 빠져 나만 남았습니다.' : `${formatTime(latest.resultBy)}까지 조건이 맞는 학생이 없었습니다.`}</p>
         <Rows items={[
           ['지난 요청', routeLabel(latest)],
           timeRow(latest),

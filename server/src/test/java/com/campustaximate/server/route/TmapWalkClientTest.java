@@ -28,6 +28,19 @@ class TmapWalkClientTest {
         assertThatThrownBy(()->client.estimate(from,point)).isInstanceOf(WalkUnavailableException.class);
         server.verify();
     }
+    @Test void samePlaceSkipsTmapInsteadOfGettingTooNearError(){
+        // TMAP은 같은 좌표를 400 "waypoints are too near"로 거절한다. 지점 앞에서 요청해도 접수돼야 한다.
+        assertThat(client.estimate(point,point)).isEqualTo(new WalkEstimator.Walk(60,true));
+        assertThat(client.estimate(new GeoPoint(37.00105,127),point).seconds()).isEqualTo(120); // 약 5.6m
+        assertThat(client.dailyUsage()).isZero();server.verify();
+    }
+    @Test void E02_failureLogsHttpStatusAndTmapCodeWithoutCoordinates(CapturedOutput output){
+        server.expect(anything()).andRespond(withBadRequest().contentType(MediaType.APPLICATION_JSON)
+                .body("{\"error\":{\"id\":\"400\",\"category\":\"tmap\",\"code\":\"1007\",\"message\":\"waypoints are too near\"}}"));
+        assertThatThrownBy(()->client.estimate(from,point)).isInstanceOf(WalkUnavailableException.class);
+        assertThat(output.getOut()+output.getErr()).contains("cause=http=400 tmap=1007").doesNotContain("37.00001").doesNotContain("test-key");
+        server.verify();
+    }
     @Test void E02_failureIsNotCachedSoNextRequestRetries(){
         server.expect(anything()).andRespond(withServerError());
         server.expect(anything()).andRespond(withSuccess(body(),MediaType.APPLICATION_JSON));
@@ -48,7 +61,7 @@ class TmapWalkClientTest {
         var builder=RestClient.builder().baseUrl("https://tmap.test");var mock=MockRestServiceServer.bindTo(builder).build();var quota=new TmapWalkClient(builder.build(),clock,Duration.ofMinutes(30),5);
         mock.expect(org.springframework.test.web.client.ExpectedCount.times(6),anything()).andRespond(withSuccess(body(),MediaType.APPLICATION_JSON));
         // 6번째 요청은 한도 초과라 HTTP 없이 거절, 날짜가 바뀐 뒤 1번 더 호출해 모두 6번.
-        for(int i=0;i<5;i++)quota.estimate(new GeoPoint(37+i*.001,127),point);
+        for(int i=0;i<5;i++)quota.estimate(new GeoPoint(37.1+i*.001,127),point); // 승차 지점과 겹치지 않는 출발지
         assertThatThrownBy(()->quota.estimate(new GeoPoint(38,127),point)).isInstanceOf(WalkUnavailableException.class);assertThat(quota.dailyUsage()).isEqualTo(5);
         assertThat(output.getOut()+output.getErr()).contains("TMAP 보행 일일 사용량 80% 도달");
         when(clock.now()).thenReturn(now.plusSeconds(86400));quota.estimate(from,point);assertThat(quota.dailyUsage()).isEqualTo(1);mock.verify();

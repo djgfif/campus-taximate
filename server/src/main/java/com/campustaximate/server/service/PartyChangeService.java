@@ -29,10 +29,14 @@ public class PartyChangeService {
     }
     @Transactional(propagation=Propagation.MANDATORY)
     public void changed(Party party, Set<Long> leaving, String reason, Set<Long> held) {
+        changed(party,leaving,reason,held,clock.now());
+    }
+    @Transactional(propagation=Propagation.MANDATORY)
+    public void changed(Party party, Set<Long> leaving, String reason, Set<Long> held, java.time.Instant acceptedAt) {
         var at=clock.now();
         // 경로 조회 중 마감이 지나도 저장 직전의 시각으로 판정한다.
-        boolean lateChange=reason.equals("CHANGE_EXIT_FREE") && !at.isBefore(party.getDepartureAt().minusSeconds(600));
-        boolean lateNormal=reason.equals("FREE_CANCEL") && at.isAfter(party.freeCancelUntil());
+        boolean lateChange=reason.equals("CHANGE_EXIT_FREE") && !acceptedAt.isBefore(party.getDepartureAt().minusSeconds(600));
+        boolean lateNormal=reason.equals("FREE_CANCEL") && acceptedAt.isAfter(party.freeCancelUntil());
         if(lateChange || lateNormal) { reason="LATE_CANCEL"; held=leaving; }
         party.setGroupVersion(party.getGroupVersion()+1);
         PartyChange event=new PartyChange(); event.setPartyId(party.getId()); event.setGroupVersion(party.getGroupVersion());

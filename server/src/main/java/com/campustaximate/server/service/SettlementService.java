@@ -17,8 +17,6 @@ import com.campustaximate.server.repository.TransferRequestRepository;
 import com.campustaximate.settlement.SettlementCalculator;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.io.InputStream;
@@ -27,10 +25,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,11 +41,11 @@ public class SettlementService {
     private static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', 13, 10, 26, 10};
 
     private static final long MAX_AMOUNT = 10_000_000;
-    private static final Duration RECEIPT_KEEP = Duration.ofDays(7);
     /** 실제 금액을 올린 뒤 요금 이의를 받는 기간. */
     private static final Duration OBJECTION_WINDOW = Duration.ofHours(24);
     private static final Set<String> RECEIPT_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
 
+    @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager entityManager;
     private final PartyRepository parties;
     private final RideRequestRepository requests;
     private final SettlementRepository settlements;
@@ -61,9 +57,9 @@ public class SettlementService {
     private final com.campustaximate.server.repository.SettlementShareRepository allocations;
     private final com.campustaximate.server.repository.FareObjectionRepository objections;
     private final PartyChatService chatLog;
+    private final NoShowService noShows;
 
-    @Value("${app.upload-dir}")
-    private String uploadDir;
+    private final MediaFiles media;
 
     public record ShareView(long memberId, String nickname, long amount, boolean payer) {
     }
@@ -98,7 +94,7 @@ public class SettlementService {
             Settlement settlement = settlements.save(new Settlement(party, amount, receiptPath, contentType, null, null, storedAt));
             settlement.setObjectionDeadlineAt(storedAt.plus(OBJECTION_WINDOW));
             saveAllocations(party, settlement, riders, shares);
-            if(rideConfirmations.hasNegativeAnswer(party.getId())) { party.setStatus(PartyStatus.REVIEW_PENDING); party.setAdminReviewRequired(true); party.setReviewReason("RIDE_DISPUTE"); }
+            if(party.getFareRecoveryAt()==null && rideConfirmations.hasNegativeAnswer(party.getId())) { party.setStatus(PartyStatus.REVIEW_PENDING); party.setAdminReviewRequired(true); party.setReviewReason("RIDE_DISPUTE"); }
             else party.setStatus(PartyStatus.OBJECTION_WINDOW);
             chatLog.system(party, String.format("결제자가 실제 금액 %,d원과 영수증을 올렸어요. 24시간 동안 요금 이의를 낼 수 있어요.", amount));
             return;
@@ -115,11 +111,14 @@ public class SettlementService {
 
     private void requireDeparted(Party party, List<RideRequest> riders) {
         if (party.paymentFlow()) {
-            Instant start = party.getStartedAt() == null ? party.getDepartureAt() : party.getStartedAt();
+            Instant start = party.getFareRecoveryAt()!=null?party.getFareRecoveryAt():party.getStartedAt() == null ? party.getDepartureAt() : party.getStartedAt();
             if (!List.of(PartyStatus.AWAITING_FARE,PartyStatus.RIDE_UNCONFIRMED).contains(party.getStatus()) || !clock.now().isBefore(start.plusSeconds(24 * 3600))) {
                 throw ApiException.conflict("NOT_AWAITING_FARE", "금액을 입력할 수 없는 상태이거나 입력 기한이 지났습니다.");
             }
-            if(party.getStatus()==PartyStatus.RIDE_UNCONFIRMED) rideConfirmations.start(party,party.getDepartureAt());
+            if(party.getStartedAt()==null) throw ApiException.conflict("NOT_STARTED","결제자가 운행 시작을 눌러야 해요.");
+            noShows.closeBoarding(party);
+            if(party.getBoardingDeadlineAt()!=null && clock.now().isBefore(party.getBoardingDeadlineAt()))
+                throw ApiException.conflict("BOARDING_PENDING","코드 입력 기한이 끝나면 금액을 올릴 수 있어요. 정산 확정은 필요한 조사가 끝나야 해요.");
             return;
         }
         if (party.getStatus() != PartyStatus.CONFIRMED
@@ -172,7 +171,7 @@ public class SettlementService {
             settlement.setPaidAmount(amount); settlement.setRevision(settlement.getRevision() + 1); settlement.setStoredAt(storedAt);
             settlement.setObjectionDeadlineAt(storedAt.plus(OBJECTION_WINDOW)); settlement.clearAccount();
             saveAllocations(party, settlement, riders, values);
-            deleteFile(previous);
+            media.deleteAfterCommit(previous);
             return;
         }
         List<TransferRequest> current = transfers.findBySettlementOrderById(settlement);
@@ -197,7 +196,7 @@ public class SettlementService {
         settlement.setPaidAmount(amount);
         settlement.setRevision(settlement.getRevision() + 1);
         settlement.setStoredAt(clock.now());
-        deleteFile(oldPath);
+        media.deleteAfterCommit(oldPath);
     }
 
     /** 관리자 검토로 확정된 실제 금액. 이의 기간은 다시 열지 않는다. */
@@ -240,25 +239,25 @@ public class SettlementService {
     }
 
     /** 보관 기간이 지난 사진과 계좌를 지운다. 금액과 정산 기록은 남긴다. */
-    @Transactional
+    @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void purgeReceipts() {
-        Instant limit = clock.now().minus(RECEIPT_KEEP);
-        for (Settlement settlement : settlements.findExpired(limit)) {
-            deleteFile(settlement.getReceiptPath());
+        Instant now = clock.now();
+        Instant limit = now.minus(MediaRetention.KEEP);
+        for (Settlement candidate : settlements.findExpired(limit)) {
+            Party party=parties.findByIdForUpdate(candidate.getParty().getId()).orElseThrow();
+            Settlement settlement=settlements.findByParty(party).orElseThrow();
+            entityManager.refresh(settlement);
+            if (!MediaRetention.receiptExpired(settlement, now)) continue;
+            media.deleteAfterCommit(settlement.getReceiptPath());
             settlement.setReceiptPath(null);
+            settlement.setReceiptContentType(null);
             settlement.clearAccount();
         }
     }
 
-    private void deleteFile(String path) {
-        if (path == null) {
-            return;
-        }
-        try {
-            Files.deleteIfExists(Path.of(path));
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+    public boolean receiptAvailable(Settlement settlement) {
+        return settlement != null && !MediaRetention.receiptExpired(settlement, clock.now())
+                && media.readable(settlement.getReceiptPath());
     }
 
     /** 일행 잠금을 트랜잭션의 첫 읽기로 잡아야 최신 값을 본다. 그래서 일행 번호는 트랜잭션 밖에서 찾는다. */
@@ -361,14 +360,6 @@ public class SettlementService {
             throw ApiException.badRequest("RECEIPT_TYPE", "JPG, PNG, WEBP 사진만 올릴 수 있습니다.");
         }
         requireImageBytes(receipt);
-        try {
-            Path dir = Path.of(uploadDir);
-            Files.createDirectories(dir);
-            Path target = dir.resolve(UUID.randomUUID().toString());
-            receipt.transferTo(target.toAbsolutePath());
-            return target.toString();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        return media.storeReceipt(receipt);
     }
 }

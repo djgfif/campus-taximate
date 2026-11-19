@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service;
 @Service @Profile("demo") @RequiredArgsConstructor
 public class DemoScenarioService {
     public enum Scenario { INSTANT, NO_SHOW, JOIN, FARE_OBJECTION, PAYER_NO_SHOW, MY_SUCCESSION, RIDE_UNCONFIRMED }
-    public record Investigation(long memberId,String status,Instant deadlineAt) { }
+    public record Investigation(long memberId,String nickname,String status,Instant deadlineAt) { }
     public record Progress(Instant now,Long partyId,String stage,String next,String role,String message,List<Investigation> investigations) { }
     private final DemoService demo;
     private final AppClock clock;
@@ -32,6 +32,7 @@ public class DemoScenarioService {
     private final NoShowService noShows;
     private final PartyJoinService joins;
     private final DemoChat chat;
+    private final BoardingCodeService boardingCodes;
 
     private PartyService.PartyView party(long actor) {
         return parties.openParties(actor).stream().findFirst().orElseGet(()->requests.findFirstByMemberIdAndPartyIsNotNullOrderByIdDesc(actor)
@@ -43,7 +44,9 @@ public class DemoScenarioService {
         if(waiting.isPresent()) return new Progress(clock.now(),null,"일행 찾는 중","일행 확정",null,message,List.of());
         var p=party(actor);
         if(p==null) return new Progress(clock.now(),null,"요청 전","탑승 요청 만들기",null,message,List.of());
-        var cases=noShows.list(actor,p.id()).stream().map(c->new Investigation(c.investigation().getMemberId(),c.investigation().getStatus(),c.investigation().getDeadlineAt())).toList();
+        var cases=noShows.list(actor,p.id()).stream().map(c->new Investigation(c.investigation().getMemberId(),
+                members.findById(c.investigation().getMemberId()).map(Member::getNickname).orElse(null),
+                c.investigation().getStatus(),c.investigation().getDeadlineAt())).toList();
         return new Progress(clock.now(),p.id(),label(p.status()),nextName(p),p.payer()?"내가 결제자":"나는 일행원 (선결제 대상)",message,cases);
     }
     private String label(PartyStatus status) {
@@ -99,14 +102,21 @@ public class DemoScenarioService {
             if(sample(m.memberId(),actor)) chat.send(m.memberId(),p.id(),DemoTalk.arrived(m.memberId(),m.memo()));
         }
     }
-    public Progress next(long actor) {
+    public Progress next(long actor) { return next(actor,DemoService.Role.PAYER); }
+    /** role은 일행을 새로 만들 때만 쓴다(패널에서 고른 "내가 결제자/아님"). */
+    public Progress next(long actor,DemoService.Role role) {
         demo.requireEnabled();
         return slots.runLocked(()->{
             if(requests.findByActiveMemberId(actor).filter(r->r.getStatus()==RequestStatus.WAITING).isPresent()) {
-                var result=demo.matchNow(actor); return progress(actor,result.message());
+                var result=demo.matchNow(actor,role); return progress(actor,result.message());
             }
             var p=party(actor);
-            if(p==null) throw ApiException.conflict("DEMO_NO_PARTY","탑승 요청을 먼저 만들어 주세요.");
+            if(p==null) {
+                // 패널이 "다음 단계: 탑승 요청 만들기"라고 안내하므로, 요청이 없으면 시나리오와 같은 시연 경로로 만들고 매칭한다.
+                if(!parties.openParties(actor).isEmpty()) throw ApiException.conflict("DEMO_FINISH_PARTY","진행 중인 일행을 마친 뒤 새 시나리오를 시작해 주세요.");
+                ensureRequest(actor,false);
+                return progress(actor,demo.matchNow(actor,role).message());
+            }
             sampleOnly(p,actor);
             switch(p.status()) {
                 case PREPAYING -> {
@@ -122,9 +132,16 @@ public class DemoScenarioService {
                         var payer=parties.view(p.payerId(),p.id());
                         if(sample(p.payerId(),actor)&&payer.canCall()) readiness.call(p.payerId(),p.id());
                         moveTo(p.departureAt());
-                    } else moveTo(p.departureAt().plusSeconds(300));
+                    } else if(sample(p.payerId(),actor)) {
+                        boardingCodes.open(p.payerId(),p.id());
+                        var code=boardingCodes.state(p.payerId(),p.id());
+                        for(var m:p.members()) if(m.memberId()!=p.payerId() && sample(m.memberId(),actor)) boardingCodes.confirm(m.memberId(),p.id(),code.code(),code.generation());
+                        boardingCodes.start(p.payerId(),p.id());
+                    } else return progress(actor,"일행 화면에서 실제 탑승·코드 열기와 운행 시작을 눌러 주세요.");
                 }
                 case AWAITING_FARE -> {
+                    var window=boardingCodes.state(p.payerId(),p.id());
+                    if(window.deadlineAt()!=null && clock.now().isBefore(window.deadlineAt())) moveTo(window.deadlineAt());
                     if(!sample(p.payerId(),actor)) return progress(actor,"내 실제 금액과 영수증을 일행 화면에서 입력해 주세요.");
                     settlements.submitForDemo(p.payerId(),p.id(),p.expectedTotal(),null,null);
                 }
@@ -137,6 +154,14 @@ public class DemoScenarioService {
                 default -> { return progress(actor,nextName(p)+"를 진행해 주세요."); }
             }
             return progress(actor,"다음 단계로 진행했어요.");
+        });
+    }
+    /** 시연 패널의 "일행 만들기". 요청이 없으면 시연 경로로 요청을 만든 뒤 고른 역할로 매칭한다. */
+    public DemoService.MatchOutcome match(long actor,DemoService.Role role) {
+        demo.requireEnabled();
+        return slots.runLocked(()->{
+            if(requests.findByActiveMemberId(actor).isEmpty()&&parties.openParties(actor).isEmpty()) ensureRequest(actor,false);
+            return demo.matchNow(actor,role);
         });
     }
     /** 요청이 없을 때는 공동 승차 시연 경로로 새 요청을 만든다. 기존 요청은 즉시로 바꾸지 않는다. */
@@ -211,9 +236,13 @@ public class DemoScenarioService {
             }
             moveTo(p.departureAt().plusSeconds(300));
             if(scenario==Scenario.RIDE_UNCONFIRMED) return progress(actor,"운행 시작 표시 없이 T+5분이 됐어요. 탔어요 / 못 탔어요로 답해 보세요.");
+            readiness.call(p.payerId(),p.id());
+            boardingCodes.open(p.payerId(),p.id());
+            var window=boardingCodes.state(p.payerId(),p.id());
+            for(var m:p.members()) if(m.memberId()!=p.payerId() && !Objects.equals(absent,m.memberId())) boardingCodes.confirm(m.memberId(),p.id(),window.code(),window.generation());
+            boardingCodes.start(p.payerId(),p.id());
+            moveTo(window.deadlineAt());
             var current=parties.view(actor,p.id());
-            if(current.status()==PartyStatus.RIDE_UNCONFIRMED) confirmations.answer(p.payerId(),p.id(),true);
-            current=parties.view(actor,p.id());
             if(current.settlement()==null) settlements.submitForDemo(p.payerId(),p.id(),p.expectedTotal(),null,null);
             if(scenario==Scenario.NO_SHOW) {
                 for(var m:parties.view(actor,p.id()).members()) noShows.vote(m.memberId(),p.id(),absent,false);

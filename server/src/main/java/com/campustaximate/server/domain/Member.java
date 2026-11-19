@@ -18,6 +18,8 @@ import lombok.Setter;
 
 /** 비밀번호는 없다. 학교 메일로 받은 일회용 코드로 로그인한다. 닉네임과 성별은 첫 로그인 뒤에 넣는다. */
 @Entity
+// Profile/no-show updates must not write stale authentication fields back to the row.
+@org.hibernate.annotations.DynamicUpdate
 @Getter
 @Setter
 @NoArgsConstructor

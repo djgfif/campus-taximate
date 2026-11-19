@@ -44,10 +44,11 @@ describe('시연 패널', () => {
     await waitFor(() => expect(scenario).toHaveBeenCalledWith(id, 'PAYER'))
     expect(scenario).toHaveBeenCalledOnce()
   })
-  it('노쇼 판정 결과를 표시한다', async () => {
-    api.demoStatus.mockResolvedValue({ ...progress, investigations: [{ memberId: 4, status: 'CONFIRMED', deadlineAt: progress.now }] })
+  it('노쇼 판정 결과를 내부 번호 대신 닉네임으로 표시한다', async () => {
+    api.demoStatus.mockResolvedValue({ ...progress, investigations: [{ memberId: 4, nickname: '지민', status: 'CONFIRMED', deadlineAt: progress.now }] })
     await panel()
-    expect(screen.getByText(/회원 4: 노쇼 확정/)).toBeTruthy()
+    expect(screen.getByText(/지민: 노쇼 확정/)).toBeTruthy()
+    expect(screen.queryByText(/회원 4/)).toBeNull()
   })
 })
 describe('시연 계정', () => {
