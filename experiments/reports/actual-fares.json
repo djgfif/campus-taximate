@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "target_prospective_records": 30,
+  "input_sha256": "b86d4b93753d8ed75d4c9f340a41727c40ad08104541708ddab659d1d3e42510",
+  "rows_received": 0,
+  "rows_accepted": 0,
+  "rows_excluded": 0,
+  "exclusion_reasons": {},
+  "cohorts": {
+    "prospective": {
+      "n": 0,
+      "mae_krw": null,
+      "mape": null,
+      "within_15pct_count": 0,
+      "within_15pct_rate": null,
+      "above_15pct_count": 0,
+      "above_15pct_rate": null,
+      "signed_relative": {
+        "mean": null,
+        "median": null,
+        "p90": null,
+        "p95": null,
+        "min": null,
+        "max": null
+      }
+    },
+    "historical_requery": {
+      "n": 0,
+      "mae_krw": null,
+      "mape": null,
+      "within_15pct_count": 0,
+      "within_15pct_rate": null,
+      "above_15pct_count": 0,
+      "above_15pct_rate": null,
+      "signed_relative": {
+        "mean": null,
+        "median": null,
+        "p90": null,
+        "p95": null,
+        "min": null,
+        "max": null
+      }
+    }
+  },
+  "measurement_status": "NO_OBSERVED_FARES",
+  "new_api_calls": 0,
+  "definitions": {
+    "signed_relative": "(actual-expected)/expected",
+    "mape": "mean(abs(actual-expected)/actual)",
+    "within_15pct": "abs(actual-expected)/expected <= 0.15",
+    "above_15pct": "(actual-expected)/expected > 0.15"
+  }
+}
