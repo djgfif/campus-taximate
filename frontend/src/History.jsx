@@ -43,7 +43,7 @@ function Row({ item, selected, onSelect }) {
 /** 넓은 화면의 오른쪽. 경로 선은 저장하지 않으므로 지점만 표시한다. */
 function BoardingCaseLink({ item, onBoardingCases }) {
   if (!item.stage?.startsWith('BOARDING_')) return null
-  return <div className="pad">
+  return <div className="case-link">
     {item.stage === 'BOARDING_UNCONFIRMED' && <p className="note">번호 미입력만으로 노쇼를 확정하지 않아요. 24시간 안에 당시 상황을 소명할 수 있어요.</p>}
     <Btn className="small line" onClick={onBoardingCases || (() => window.location.assign('/boarding-cases'))}>내 탑승 확인·소명</Btn>
   </div>
@@ -133,8 +133,7 @@ function HistoryFinance({ item }) {
   const current = result.key === key ? result : {}
   return <section className="history-finance" aria-label="결제·환불 기록">
     <h3>결제·환불 기록</h3>
-    {own && <p className="note">일행에서 제외된 뒤에도 내 결제·환불 기록을 확인할 수 있어요.</p>}
-    {own && item.stage?.startsWith('BOARDING_') && <p className="note">선결제는 조사 중 보류돼요. 조사와 요금 이의 처리가 끝나 정산이 확정되면, 노쇼로 확정된 경우 보전 부담금을 뺀 나머지를, 노쇼가 아니면 전액을 환불해요. 정산 금액 미입력으로 종료되면 전액 환불해요.</p>}
+    {own && item.stage?.startsWith('BOARDING_') && <p className="note">선결제는 조사 중 보류돼요. 노쇼가 아니면 전액, 노쇼면 보전 부담금을 뺀 나머지를 돌려받아요.</p>}
     {current.party ? <FinancialDetails party={current.party} />
       : current.orders ? <>
         {current.orders.length === 0 && <p className="note">내 결제 주문이 없어요.</p>}

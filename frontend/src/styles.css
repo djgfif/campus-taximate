@@ -761,3 +761,5 @@ a.btn { text-decoration: none; }
 .fc-row em { font-style: normal; font-size: var(--fs-body); font-weight: 700; color: var(--ink); text-align: right; min-width: 72px; }
 .fc-bar { display: block; height: 10px; border-radius: 999px; background: var(--line); }
 .fc-bar.shared { width: var(--w); background: var(--amber); }
+.next-action .btn:disabled, .payment-card .btn:disabled { background: var(--line); color: var(--road); }
+.case-link { display: flex; flex-direction: column; gap: 8px; padding: 4px 0 8px; }
