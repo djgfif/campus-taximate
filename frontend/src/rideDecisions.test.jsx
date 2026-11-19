@@ -30,6 +30,13 @@ describe('운행 확인과 변경 이탈',()=>{
     expect(screen.getByText('지금 예상 몫')).toBeTruthy()
     expect(screen.getByText('4,000원')).toBeTruthy()
     expect(screen.queryByText('원본 미상(이관)')).toBeNull()
+    // 늘어난 몫은 누가 어떤 조건에서 보전하는지 함께 안내한다(명세 8.4·S24).
+    expect(screen.getByText('일행이 빠져 내 몫이 800원 늘었어요')).toBeTruthy()
+    expect(screen.getByText(/그 사람의 선결제에서 받아 정산 때 내 몫에서 빼 드려요/)).toBeTruthy()
+  })
+  it('몫이 그대로거나 줄면 보전 안내를 보이지 않는다',()=>{
+    render(<PartyFareRows party={{myConfirmedShare:3200,myShare:3000}} />)
+    expect(screen.queryByText(/늘었어요/)).toBeNull()
   })
   it('호출 뒤 변경 이탈에는 무료 아님을 안내하고 현재 일행 버전을 전송한다',async()=>{
     const leave=vi.spyOn(api,'leaveAfterChange').mockResolvedValue({freeRefund:false,message:'무료가 아니에요'})

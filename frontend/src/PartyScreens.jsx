@@ -317,10 +317,18 @@ export function RideConfirmationCard({ party, onUpdated }) {
 }
 
 export function PartyFareRows({ party }) {
-  return <Rows items={[
-    party.myConfirmedShare!=null ? ['확정 때 내 몫',won(party.myConfirmedShare),'big'] : ['내 예상 몫',won(party.myShare),'big'],
-    party.myConfirmedShare!=null && party.myConfirmedShare!==party.myShare && ['지금 예상 몫',won(party.myShare),'big'],
-  ]} />
+  const increase = party.myConfirmedShare!=null ? party.myShare - party.myConfirmedShare : 0
+  return <>
+    <Rows items={[
+      party.myConfirmedShare!=null ? ['확정 때 내 몫',won(party.myConfirmedShare),'big'] : ['내 예상 몫',won(party.myShare),'big'],
+      party.myConfirmedShare!=null && party.myConfirmedShare!==party.myShare && ['지금 예상 몫',won(party.myShare),'big'],
+    ]} />
+    {/* 명세 8.4·S24: 확정된 노쇼나 무료 취소 마감 뒤 취소면 늘어난 몫을 빠진 사람의 선결제에서 보전(그 사람 확정 몫까지). */}
+    {increase > 0 && <Say title={`일행이 빠져 내 몫이 ${won(increase)} 늘었어요`}>
+      빠진 사람이 노쇼로 확정되거나 무료 취소 마감 뒤에 취소했다면, 늘어난 만큼을 그 사람의 선결제에서 받아 정산 때 내 몫에서 빼 드려요(그 사람의 확정 몫까지).
+      노쇼가 아니라고 판정되거나 빠진 사람이 처음 결제자라면 보전 없이 실제 요금으로 나눠요.
+    </Say>}
+  </>
 }
 
 const STEPS = ['확정', '선결제', '모이기', '탑승', '정산']
@@ -500,6 +508,7 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
           <summary>규칙 자세히</summary>
           <ul>
             <li>{free ? '무료 취소 마감 전 취소하면 승인된 선결제를 전액 환불해요.' : '무료 취소 마감이 지나 취소하면 남은 일행의 늘어난 몫을 보전해요.'}</li>
+            <li>누가 오지 않으면 일행·본인 소명을 보고 24시간 뒤 판정해요. 노쇼로 확정되면 남은 일행의 늘어난 몫을 그 사람의 선결제에서 보전하고, 판단할 수 없으면 노쇼로 보지 않아요.</li>
             <li>선결제는 확정 때 내 몫에 여유 15%를 더한 금액이에요. 길이 막히면 요금이 늘 수 있어서 조금 더 받아 두고, 실제 요금으로 나눈 뒤 남으면 돌려주고 모자라면 더 받아요.</li>
             {party.instant && <li>즉시 일행은 선결제 기한이 확정 뒤 {config?.instantMatching?.prepMinutes ?? 3}분이고, 모두 준비되면 바로 호출해요.</li>}
             <li>택시는 결제자가 카카오T로 직접 불러요. 앱은 부른 사실만 기록해요.</li>
