@@ -14,7 +14,7 @@ import shutil
 import subprocess
 import zipfile
 
-from fares import analyze, quantile
+from fares import analyze, quantile, file_manifest
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
@@ -138,7 +138,11 @@ def compile_current(java_home, build=False, maven="mvn"):
     lombok_candidates = [p for p in lombok_candidates if not p.name.endswith(("-sources.jar", "-javadoc.jar"))]
     if not lombok_candidates:
         raise ValueError("Maven compile-only Lombok dependency missing; build app first")
-    lombok = lombok_candidates[-1]
+    original_lombok = lombok_candidates[-1]
+    # Java's zip filesystem resolves archive paths on close. Keep even compile-only
+    # dependencies inside the writable experiment cache under restricted accounts.
+    lombok = deps / original_lombok.name
+    shutil.copyfile(original_lombok,lombok)
     runtime = [deps / Path(name).name for name in names]
     classpath = os.pathsep.join(map(str, runtime + [lombok]))
     classes = CACHE / "classes"
@@ -150,12 +154,15 @@ def compile_current(java_home, build=False, maven="mvn"):
     classes.mkdir(parents=True)
     matching = sorted((REPO / "matching-engine" / "src" / "main" / "java").rglob("*.java"))
     service = REPO / "server" / "src" / "main" / "java" / "com" / "campustaximate" / "server"
-    production = matching + [service / "route" / "RouteClient.java"] + [service / "service" / name for name in
-                  ("RouteGroupVerifier.java", "RoutePathStore.java", "MatchingDiagnostics.java")]
+    # Lombok must process entities explicitly (not javac implicit source lookup)
+    # when compiling PaymentService's actual prepayment method.
+    production = matching + sorted(service.rglob("*.java"))
     adapter = HERE / "java" / "com" / "campustaximate" / "server" / "service" / "ExperimentRunner.java"
     sourcepath = os.pathsep.join((str(REPO / "server" / "src" / "main" / "java"), str(REPO / "matching-engine" / "src" / "main" / "java")))
     compiled_hashes = {str(path.relative_to(REPO)).replace("\\", "/"): sha(path) for path in production + [adapter]}
-    args = ["--release", "21", "-encoding", "UTF-8", "-cp", classpath, "-processorpath", str(lombok), "-sourcepath", sourcepath,
+    # JDK major is checked above. -source/-target avoid opening the external JDK
+    # ct.sym ZIP (its close/toRealPath fails under the restricted Windows account).
+    args = ["-source", "21", "-target", "21", "-encoding", "UTF-8", "-cp", classpath, "-processorpath", str(lombok), "-sourcepath", sourcepath,
             "-d", str(classes), *map(str, production), str(adapter)]
     # Windows command line limit: Java argument file, with slashes rather than backslash escapes.
     argfile = CACHE / "javac.args"
@@ -209,6 +216,95 @@ def summarize(path, observations=None):
     return summary
 
 
+def bootstrap_sensitivity(java, groups, distribution, output, seed, repetitions=1000):
+    """Only settle fixed production-matched groups; no second matching run."""
+    if repetitions < 1000:
+        raise ValueError("At least 1000 bootstrap replicates required")
+    subprocess.run(java + ["--bootstrap",str(groups),str(distribution),str(output),str(repetitions),str(seed)],
+                   cwd=REPO,check=True,stdout=subprocess.DEVNULL)
+    with output.open(encoding="utf-8") as stream:
+        rows=list(csv.DictReader(stream))
+    result={}
+    for row in rows:
+        label={"0.0":"epsilon_0","1.0":"empirical","1.5":"error_x1_5","2.0":"error_x2"}[row.pop("scale")]
+        method=row.pop("method")
+        counts={"replicates","group_settlements","riders","nonpayers","conservation_errors","nonpositive_multiplier_draws","invalid_scaled_groups"}
+        result.setdefault(label,{})[method]={k:int(v) if k in counts else float(v) for k,v in row.items()}
+        if result[label][method]["conservation_errors"]:
+            raise ValueError("Bootstrap amount conservation failed")
+    return result
+
+
+def sensitivity_report(java,groups,actual_path,cohort,seed,repetitions,source_manifest):
+    distributions={}; public=None
+    if actual_path.suffix.lower()==".json":
+        public=json.loads(actual_path.read_text(encoding="utf-8"))
+        for name,key in (("korea_primary","korea"),("nyc_reference","nyc")):
+            value=public[key]
+            if value["status"]=="COMPLETED":
+                artifact=value["errors"]; path=Path(artifact["path"])
+                if sha(path)!=artifact["sha256"]: raise ValueError("C5 empirical distribution hash mismatch")
+                distributions[name]=(path,value["overall"]["n"])
+    else:
+        _,details=analyze(actual_path)
+        errors=[row['signed_relative'] for row in details if row.get('cohort')=='prospective']
+        if errors:
+            path=CACHE/'optional-observed-errors.csv'
+            path.write_text('\n'.join(map(str,errors))+'\n',encoding='utf-8')
+            distributions['optional_private_observed']=(path,len(errors))
+    result={"seed":seed,"replicates":repetitions,"matched_groups":file_manifest(groups),"distributions":{},
+            "production_source":source_manifest,"c5_report":file_manifest(actual_path)}
+    if public and public['korea']['status']!='COMPLETED':
+        result['distributions']['korea_primary']={"status":public['korea']['status'],"n":0}
+    for name,(path,n) in distributions.items():
+        csv_path=CACHE/(cohort+'-'+name+'-bootstrap.csv')
+        result['distributions'][name]={"status":"COMPLETED","empirical_n":n,"errors":file_manifest(path),
+            "scenarios":bootstrap_sensitivity(java,groups,path,csv_path,seed,repetitions)}
+    if not distributions: result['status']='BLOCKED_NO_EMPIRICAL_ERRORS'
+    target=HERE/'reports'/'c6-error-sensitivity.json'
+    combined=json.loads(target.read_text(encoding='utf-8')) if target.is_file() else {"schema_version":2,"cohorts":{}}
+    combined.update(generated_at=datetime.now(timezone.utc).isoformat(),
+       conclusion="한국 오차 분포가 확보되지 않은 경우 한국 주 결과는 미측정으로 남긴다. NYC 적용은 참고 스트레스 실험이다.",
+       presentation_sentence="예상 요금으로 매칭을 고정하고 공개 운행 오차를 정산에만 반영해 추가 결제·손해 가능성을 점검했다.",
+       definitions={"mean_actual_saving":"mean(1-share_i / independent_actual_solo_i), matched riders only",
+        "harmed_rate":"share_i > independent_actual_solo_i; denominator all matched riders",
+        "additional_payment_rate":"actual share > production prepayAmount(expected share); denominator NON-PAYERS",
+        "refund_rate":"actual share < prepaid; denominator NON-PAYERS; mean refund conditional on refund",
+        "bootstrap":"1000 complete fixed-group replays; errors sampled independently for shared and every solo fare; same draws across scenarios and methods",
+        "negative_scaled_fares":"Exclude group-replicate if any scaled multiplier <=0; report nonpositive_multiplier_draws and invalid_scaled_groups. Scaled scenario metrics are conditional on positive fares. Positive fares round to integer KRW, minimum 1 KRW.",
+        "equal_comparison":"Same groups, payer, actual shared and solo fares; equal expected shares generate their own prepaid amounts"},
+       limitations=["MatchingRound/RouteGroupVerifier run once on expected fares. No error enters matching.",
+        "SettlementCalculator and PaymentService.prepayAmount are compiled from current production sources.",
+        "한국 경로 환산/NYC 운행 오차를 포천 동승에 독립 적용하는 외적 타당성은 입증하지 않는다.",
+        "NYC 금액 USD를 KRW로 환산하지 않고 무차원 상대오차만 사용한다.",
+        "확정 매칭자 기준이며 미매칭자를 절약률 분모에 넣지 않는다. 반복 시행은 학생 이용 실적/관측 표본 수가 아니다.",
+        "오차 확대 시 비양수 요금이 되는 일행-반복은 해당 민감도 조건에서 제외하고 건수를 공개한다. ×1.5/×2는 양수 요금에 조건부인 지표이며 전체 확대 분포의 무조건 평균이 아니다. 0에 가까운 양수 단독 요금 때문에 평균 절약률의 꼬리 민감성도 크다."])
+    combined['cohorts'][cohort]=result
+    primary=combined['cohorts'].get('korea-cached',result)['distributions'].get('korea_primary',{})
+    if primary.get('status')=='COMPLETED':
+        baseline=primary['scenarios']['epsilon_0']['ratio']; measured=primary['scenarios']['empirical']['ratio']
+        combined['conclusion']=(f"한국 경로 환산 오차를 정산에 적용하면 비율 정산 평균 실제 절약률 "
+          f"{baseline['mean_actual_saving']:.2%}→{measured['mean_actual_saving']:.2%}, 손해 비율 {measured['harmed_rate']:.2%}, "
+          f"비결제자 추가 결제 {measured['additional_payment_rate']:.2%}. 합계 오류 {measured['conservation_errors']}건. 모의실험 결과다.")
+        combined['presentation_sentence']=combined['conclusion']
+    json_write(target,combined)
+    lines=['# C6 공개 오차 분포 반영 모의 운영','',combined['conclusion'],'','발표용 한 문장: '+combined['presentation_sentence'],'',
+      '| 입력 | 오차 자료 | 조건 | 정산 | 평균 실제 절약률 | 손해 비율 | 추가 결제(비결제자) | 환불(비결제자) | 평균 환불 원 | 합계 오류 | 비양수 배수로 제외된 일행-반복 |',
+      '|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|']
+    for cname,c in combined['cohorts'].items():
+        for dname,d in c['distributions'].items():
+            if d['status']!='COMPLETED':
+                lines.append(f'| {cname} | {dname} | 미측정: {d["status"]} | — | — | — | — | — | — | — | — |'); continue
+            for label,methods in d['scenarios'].items():
+                for method,m in methods.items():
+                    lines.append(f'| {cname} | {dname} | {label} | {method} | {m["mean_actual_saving"]:.2%} | {m["harmed_rate"]:.2%} | {m["additional_payment_rate"]:.2%} | {m["refund_rate"]:.2%} | {m["mean_refund_krw"]:.2f} | {m["conservation_errors"]} | {m["invalid_scaled_groups"]} |')
+    lines+=['','각 조건은 고정 시드로 1,000회 이상 반복한다. JSON에 원본 오차 표본 수·분모·입력/생산 코드 해시를 기록했다.',
+      '','## 정의','',*['- '+k+': '+v for k,v in combined['definitions'].items()],'','## 한계','',*['- '+x for x in combined['limitations']],
+      '','출처: [C5 공개자료 보고서](public-fares.md), https://www.data.go.kr/data/15115859/fileData.do , https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page','']
+    (target.with_suffix('.md')).write_text('\n'.join(lines),encoding='utf-8')
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--legacy-realdata", type=Path, help="Optional historical realdata directory; copies input/cache locally only")
@@ -219,7 +315,9 @@ def main():
     parser.add_argument("--java-home")
     parser.add_argument("--build", action="store_true")
     parser.add_argument("--maven", default="mvn")
-    parser.add_argument("--actual-fares", type=Path, default=HERE / "templates" / "actual_fares.csv")
+    parser.add_argument("--actual-fares", type=Path, default=HERE / "reports" / "public-fares.json",
+                        help="C5 public JSON (primary), or optional old paired CSV")
+    parser.add_argument("--bootstrap",type=int,default=1000)
     parser.add_argument("--output-prefix", default="synthetic")
     args = parser.parse_args()
     if not 1 <= args.limit <= 1000 or not 1 <= args.trials <= 1000:
@@ -236,13 +334,16 @@ def main():
                       "limitations": ["Synthetic corridor destinations and request times", "Distance/time/fare model; not observed meter payments"]}
     home = jdk_home(args.java_home)
     classpath, source_manifest = compile_current(home, args.build, args.maven)
+    (CACHE/'runtime-classpath.txt').write_text(classpath,encoding='utf-8')
+    (CACHE/'runtime-java.txt').write_text(str(home/'bin'/'java'),encoding='utf-8')
     reports = HERE / "reports"
     reports.mkdir(exist_ok=True)
     csv_output = reports / (args.output_prefix + ".csv")
     individuals = CACHE / (args.output_prefix + "-riders.csv")
     settings_path = CACHE / (args.output_prefix + "-settings.properties")
+    groups_path = CACHE / (args.output_prefix + "-groups.tsv")
     java = [str(home / "bin" / "java"), "-cp", classpath, "com.campustaximate.server.service.ExperimentRunner", str(cases)]
-    subprocess.run(java + [str(csv_output), str(matrix) if matrix else "-", "1", str(individuals), str(settings_path)], cwd=REPO, check=True,
+    subprocess.run(java + [str(csv_output), str(matrix) if matrix else "-", "1", str(individuals), str(settings_path),str(groups_path)], cwd=REPO, check=True,
                    stdout=subprocess.DEVNULL)
     runtime_settings = {}
     for line in settings_path.read_text(encoding="utf-8").splitlines():
@@ -252,26 +353,20 @@ def main():
     report = {"schema_version": 1, "generated_at": datetime.now(timezone.utc).isoformat(), "seed": args.seed,
               "source": source_manifest, "data": provenance,
               "input_sha256": sha(cases), "matrix_sha256": sha(matrix) if matrix else None,
-              "experiment_tool_sha256": {path.name: sha(path) for path in (HERE / "run.py", HERE / "fares.py")},
+              "experiment_tool_sha256": {path.name: sha(path) for path in (HERE / "run.py", HERE / "fares.py", HERE / "acquire-public.mjs", HERE / "requirements-public.txt")},
               "settings": {"engine": runtime_settings, "scope": "reservation departure windows, single common hub, walking 0, single gender pool",
                            "fare_scope": "as imported; paired actual fare validation separate",
                            "comparison": "same matched groups, ratio vs equal 1/N settlement; not an alternate matching algorithm"},
               "baseline": summarize(csv_output, individuals), "sensitivity": {}}
-    actual, details = analyze(args.actual_fares)
-    signed = [row["signed_relative"] for row in details if row.get("cohort") == "prospective"]
-    if signed:
-        for label, value in (("observed_p90", quantile(signed, .90)), ("observed_p95", quantile(signed, .95))):
-            sensitivity_path = reports / (args.output_prefix + "-" + label + ".csv")
-            sensitivity_individuals = CACHE / (args.output_prefix + "-" + label + "-riders.csv")
-            factor = 1 + value
-            subprocess.run(java + [str(sensitivity_path), str(matrix) if matrix else "-", str(factor), str(sensitivity_individuals)], cwd=REPO,
-                           check=True, stdout=subprocess.DEVNULL)
-            report["sensitivity"][label] = {"shared_fare_factor": factor, "prospective_sample_n": len(signed), **summarize(sensitivity_path, sensitivity_individuals)}
+    if args.actual_fares.is_file():
+        report['sensitivity']=sensitivity_report(java[:-1],groups_path,args.actual_fares,args.output_prefix,
+                                               args.seed,args.bootstrap,source_manifest)
     else:
-        report["sensitivity"] = {"status": "BLOCKED_NO_PROSPECTIVE_FARES", "observed_n": 0}
+        report["sensitivity"] = {"status": "BLOCKED_NO_C5_REPORT", "observed_n": 0}
     try:
-        report["git_head"] = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO, text=True).strip()
-        report["git_dirty"] = bool(subprocess.check_output(["git", "status", "--porcelain"], cwd=REPO, text=True).strip())
+        git=["git","-c","safe.directory="+str(REPO)]
+        report["git_head"] = subprocess.check_output(git+["rev-parse", "HEAD"], cwd=REPO, text=True).strip()
+        report["git_dirty"] = bool(subprocess.check_output(git+["status", "--porcelain"], cwd=REPO, text=True).strip())
     except (subprocess.CalledProcessError, FileNotFoundError):
         report["git_head"] = None
     json_write(reports / (args.output_prefix + ".json"), report)
@@ -286,7 +381,7 @@ def main():
             "두 정산은 같은 매칭 결과와 결제액을 사용한다. 별도 매칭 알고리즘의 우열 비교가 아니다.",
             "현재 앱의 MatchingRound, RouteGroupVerifier, SettlementCalculator를 직접 컴파일했다.",
             "시간은 엔진과 로컬 경로 모델을 포함한다. 네트워크 호출은 0회이며 실제 API 지연을 측정하지 않았다.",
-            "실측 요금 오차 민감도는 전향적 실측 자료가 있어야 실행한다. 자료가 없으면 미검증으로 남긴다.", "",
+            "공개 오차 민감도는 c6-error-sensitivity.md 참조. 확정 매칭을 유지하고 정산에만 오차를 적용한다.", "",
             *["- " + item for item in provenance["limitations"]], ""]
     (reports / (args.output_prefix + ".md")).write_text("\n".join(text), encoding="utf-8")
     print(json.dumps(result, ensure_ascii=False, indent=2))

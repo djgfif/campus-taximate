@@ -13,6 +13,7 @@ public final class ExperimentRunner {
     private static final Instant BASE = Instant.parse("2026-11-17T03:00:00Z");
     private static double sharedFareFactor = 1.0;
     private static PrintWriter observations;
+    private static PrintWriter matchedGroups;
     record Input(long id, int point, GeoPoint own, double km, int seconds, long fare, double arrival, int deadline) {}
     static final class Case {
         String id, cohort, feeMode, experiment;
@@ -154,6 +155,8 @@ public final class ExperimentRunner {
                 if (routes == null) throw new AssertionError("missing production verification");
                 List<Long> units = routes.solo().stream().map(RouteClient.Route::fare).toList();
                 int payer = group.order().indexOf(group.payer());
+                if (matchedGroups != null) matchedGroups.printf(Locale.ROOT, "%s\t%s\t%d\t%d\t%s%n", config.cohort,
+                        config.id, payer, routes.total(), String.join(",", units.stream().map(String::valueOf).toList()));
                 List<Long> ratio = SettlementCalculator.shares(routes.total(), SettlementCalculator.ratioUnits(units), payer);
                 List<Long> equal = SettlementCalculator.shares(routes.total(), Collections.nCopies(units.size(), 1L), payer);
                 if (ratio.stream().mapToLong(Long::longValue).sum() != routes.total() || equal.stream().mapToLong(Long::longValue).sum() != routes.total()) conservationErrors++;
@@ -188,7 +191,76 @@ public final class ExperimentRunner {
         out.flush();
     }
     static double mean(List<Double> values) { return values.stream().mapToDouble(Double::doubleValue).average().orElse(0); }
+    record FixedGroup(String cohort, int payer, long expected, List<Long> units) {}
+    static final class BootstrapTotals {
+        long groups, riders, nonpayers, conservation, harmed, additional, refunded, refundAmount, clipped, invalidGroups;
+        double saving;
+        void add(FixedGroup group, long actual, List<Long> soloActual, boolean equal) {
+            List<Long> weights = equal ? Collections.nCopies(group.units().size(), 1L) : group.units();
+            List<Long> predicted = SettlementCalculator.shares(group.expected(), weights, group.payer());
+            List<Long> shares = SettlementCalculator.shares(actual, weights, group.payer());
+            groups++;
+            if (shares.stream().mapToLong(Long::longValue).sum() != actual) conservation++;
+            for (int i=0; i<shares.size(); i++) {
+                riders++;
+                saving += 1 - shares.get(i)/(double)soloActual.get(i);
+                if (shares.get(i)>soloActual.get(i)) harmed++;
+                if (i==group.payer()) continue;
+                nonpayers++;
+                // Invoke the production prepayment rule, not a second implementation.
+                long prepay = PaymentService.prepayAmount(predicted.get(i));
+                if (shares.get(i)>prepay) additional++;
+                if (shares.get(i)<prepay) { refunded++; refundAmount += prepay-shares.get(i); }
+            }
+        }
+        void write(PrintWriter out, String scale, String method, int repetitions) {
+            out.printf(Locale.ROOT, "%s,%s,%d,%d,%d,%d,%d,%.12f,%.12f,%.12f,%.12f,%.6f,%d,%d%n", scale, method,
+                repetitions, groups, riders, nonpayers, conservation, saving/Math.max(1,riders),
+                harmed/(double)Math.max(1,riders), additional/(double)Math.max(1,nonpayers),
+                refunded/(double)Math.max(1,nonpayers), refundAmount/(double)Math.max(1,refunded), clipped, invalidGroups);
+        }
+    }
+    static long draw(long expected, double scale, double[] errors, Random rng, BootstrapTotals totals) {
+        double multiplier = 1+scale*errors[rng.nextInt(errors.length)];
+        if (multiplier<=0) { totals.clipped++; return 0; }
+        long value = Math.max(1, Math.round(expected*multiplier));
+        if (value>10_000_000) throw new IllegalArgumentException("Bootstrap fare exceeds production calculator limit; do not silently cap");
+        return value;
+    }
+    static void bootstrap(String[] args) throws Exception {
+        List<FixedGroup> groups = new ArrayList<>();
+        for (String line : Files.readAllLines(Path.of(args[1]))) {
+            String[] fields=line.split("\t");
+            List<Long> units=Arrays.stream(fields[4].split(",")).map(Long::valueOf).toList();
+            groups.add(new FixedGroup(fields[0], Integer.parseInt(fields[2]), Long.parseLong(fields[3]), units));
+        }
+        double[] errors=Files.lines(Path.of(args[2])).filter(s->!s.isBlank()).mapToDouble(Double::parseDouble).toArray();
+        if (errors.length==0 || Arrays.stream(errors).anyMatch(e->!Double.isFinite(e) || e<=-1)) throw new IllegalArgumentException("Invalid empirical distribution");
+        int repetitions=Integer.parseInt(args[4]); long seed=Long.parseLong(args[5]);
+        if (repetitions<1000 || groups.isEmpty()) throw new IllegalArgumentException("Need >=1000 replicates and matched groups");
+        try (PrintWriter out=new PrintWriter(Files.newBufferedWriter(Path.of(args[3])))) {
+            out.println("scale,method,replicates,group_settlements,riders,nonpayers,conservation_errors,mean_actual_saving,harmed_rate,additional_payment_rate,refund_rate,mean_refund_krw,nonpositive_multiplier_draws,invalid_scaled_groups");
+            for (double scale : new double[]{0,1,1.5,2}) {
+                // Same random draws for each scale and both settlements, for paired comparisons.
+                Random rng=new Random(seed); BootstrapTotals ratio=new BootstrapTotals(), equal=new BootstrapTotals();
+                for (int rep=0; rep<repetitions; rep++) for (FixedGroup group : groups) {
+                    long actual=draw(group.expected(),scale,errors,rng,ratio);
+                    List<Long> solos=new ArrayList<>();
+                    for (long solo : group.units()) solos.add(draw(solo,scale,errors,rng,ratio));
+                    // Additive tail amplification can imply impossible nonpositive
+                    // fares. Do not invent a 1-won actual fare. Report and exclude
+                    // that group-replicate from this stress scenario's denominators.
+                    if (actual<=0 || solos.stream().anyMatch(v->v<=0)) { ratio.invalidGroups++; equal.invalidGroups++; continue; }
+                    ratio.add(group,actual,solos,false); equal.add(group,actual,solos,true);
+                }
+                equal.clipped=ratio.clipped;
+                ratio.write(out,String.valueOf(scale),"ratio",repetitions); equal.write(out,String.valueOf(scale),"equal",repetitions);
+                if (ratio.conservation!=0 || equal.conservation!=0) throw new AssertionError("Bootstrap amount conservation");
+            }
+        }
+    }
     public static void main(String[] args) throws Exception {
+        if (args[0].equals("--bootstrap")) { bootstrap(args); return; }
         Map<Pair, RoadLeg> matrix = readMatrix(args.length > 2 && !args[2].equals("-") ? Path.of(args[2]) : null);
         if (args.length > 3) sharedFareFactor = Double.parseDouble(args[3]);
         if (!Double.isFinite(sharedFareFactor) || sharedFareFactor <= 0) throw new IllegalArgumentException("invalid fare factor");
@@ -202,11 +274,13 @@ public final class ExperimentRunner {
             observations = new PrintWriter(Files.newBufferedWriter(Path.of(args[4])));
             observations.println("cohort,case_id,ratio_saving,equal_saving,delay_minutes");
         }
+        if (args.length > 6) matchedGroups = new PrintWriter(Files.newBufferedWriter(Path.of(args[6])));
         try (PrintWriter out = new PrintWriter(Files.newBufferedWriter(Path.of(args[1])))) {
             out.println("cohort,case_id,requests,matched,expired,groups,matching_rate,mean_ratio_saving_matched,mean_equal_saving_matched,mean_ratio_saving_all,mean_equal_saving_all,solo_total_krw,shared_total_krw,saved_krw,mean_delay_minutes_matched,max_delay_minutes,engine_and_offline_route_ms,offline_route_calls,conservation_errors,equal_saving_below_10pct_count,verification_passes,verification_fails,verification_unavailable");
             for (Case config : readCases(Path.of(args[0]))) run(config, matrix, out);
         } finally {
             if (observations != null) observations.close();
+            if (matchedGroups != null) matchedGroups.close();
         }
     }
 }

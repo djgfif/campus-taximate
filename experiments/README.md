@@ -1,6 +1,38 @@
 # 캡스톤 실험 재현
 
-현재 앱 소스를 사용하는 오프라인 실험 도구다. Python 3.10 이상과 JDK 21, Maven이 필요하다. Python 추가 패키지나 API 키는 필요하지 않다.
+현재 앱 소스를 사용하는 모의실험 도구다. Python 3.10 이상과 JDK 21, Maven이 필요하다. 기본/개인 CSV 모드는 표준 라이브러리만 쓰며, **C5 공개자료 모드만 DuckDB가 필요**하다. API 키는 사용하지 않는다. **팀원 실제 탑승 30건 수집 계획은 폐기했다. 한국 자료가 발표 주 결과이고 NYC는 참고다.**
+
+## C5 공개자료 주 실험
+
+표준 Windows Python에서는 저장소 안에 가상환경을 만든다. 수집기는 Node.js 18 이상을 사용한다.
+
+```powershell
+python -m venv experiments/.cache/venv
+./experiments/.cache/venv/Scripts/python.exe -m pip install -r experiments/requirements-public.txt
+node experiments/acquire-public.mjs all
+./experiments/.cache/venv/Scripts/python.exe experiments/fares.py --public
+```
+
+이번 PC의 기본 `python`은 MSYS Python 3.12.11이므로 Windows DuckDB wheel을 읽지 못한다. 실제 실행은 공식 CPython 3.12.10 임베디드 런타임을 `.cache/venv/`에 풀고 공식 PyPI의 `duckdb==1.4.3` Windows wheel을 그 런타임의 `Lib/site-packages/`에 설치했다. 이 격리 런타임의 명령은 다음과 같다. 시스템 Python이나 전역 패키지는 바꾸지 않았다.
+
+```powershell
+./experiments/.cache/venv/python.exe experiments/fares.py --public
+python -m unittest discover -s experiments/tests -v
+./experiments/.cache/venv/python.exe -m unittest discover -s experiments/tests -v
+```
+
+수집·분석은 `fares.py --public --download`로도 연결된다. 수집 실패가 있으면 독립적으로 확보된 자료의 분석은 계속한다. 원본은 모두 `.cache/`, 재현 가능한 출처·크기·SHA256·행 수는 `reports/public-data-MANIFEST.json`과 `public-fares.json`에 남긴다. 이미 있는 파일은 다시 받지 않으며, 원본 변경을 확인하려면 별도 캐시로 새로 수집한다. 포털 수집은 같은 쿠키로 상세 페이지 GET → 다운로드 메타데이터 **POST**(`X-Requested-With`) → 제한 확인 POST → 첨부 GET 순서다. CAPTCHA가 필요하면 해당 자료를 중단하며 우회하지 않는다. 로그인·약관 승인·데스크톱 조작은 하지 않는다.
+
+- **한국 주 자료**: 서울시설공단 2025 장애인콜택시 개별 운행, 1~9월 학습 / 10~12월 평가. 입력 열은 승하차·취소 시각, 출발/목적 구·동, 요금, 승차거리만 허용한다. 민감 속성은 분석 테이블과 결과에 넣지 않는다.
+- **사전 고정 규칙**: 같은 OD·평일/주말×6시간대 최소 20건. 부족하면 OD 전체 시간 20건으로 후퇴하고 그래도 부족하면 평가 제외한다. 평가기간 요금·거리·시간으로 예측값을 학습하지 않는다.
+- **공식 검증을 먼저**: 실제 거리→장콜 공식(5km 1,500원, 5~10km 280원/km, 이후 70원/km, 100원 미만 절사)과 기록 요금을 비교한다. 이후 학습 OD 거리→장콜 요금, 학습 OD 실제 요금 중앙값→기록 요금을 비교한다.
+- **발표 주 지표**: 학습 경로와 실제 경로 각각에 서울 일반 중형택시 2023 요금표를 적용한다. 이 지표의 실제액은 **일반택시 환산액**이며 일반택시 영수증이 아니다. 저속 시간은 `max(0, 총초−거리/15km/h)`로 근사하고, 기본거리 이후 시간 tick을 더한다. 승차 시각 심야율을 전체 여정에 고정하고 시계외·통행료를 제외한다.
+- **TIMS**: 공식 2025 월별 원본을 격자-월 단위로 분석한다. 대진대 5~25km 통학권 격자 선택은 기존 연간 캐시를 읽기만 한다. 서울/경기 표준형과 포천(2km·83m·20초) 요금표를 따로 비교한다. 집계 평균에 비선형 요금표를 적용하는 편향과 지역 요금제 혼합 때문에 정확한 미터 공식 입증은 아니다.
+- **NYC 참고**: 공식 페이지의 최신 Yellow 월 T와 직전 T−1을 자동 선택한다(이번 T=2026-09, T−1=2026-08). RatecodeID=1, 양의 fare_amount, 거리 0.1~160km, 1~180분, 평균속도 1~130km/h, 올바른 시각 순서·해당 월·구역만 사용한다. 사유는 첫 일치 기준으로 배타 집계한다. 공통 금액 상한은 1,000,000이며 실제 통화는 JSON에 명시한다.
+- NYC 공식은 2022-12-19 이후 기본 $3 + 1/5마일당 $0.70(12mph 초과) 또는 저속/정차 분당 $0.70이다. `fare_amount`만 비교하며 MTA·improvement·혼잡·CBD·공항·팁·통행료는 별도 열이므로 더하지 않는다. 저속 clock이 없어 `max(거리 tick, 전체 분 tick)` 하한 근사를 사전 고정하고 거리+전체시간 상한 근사도 함께 공개한다. **c 재구성 오차를 먼저 보고 a 경로 예측을 해석**하며, 좋은 수치에 맞춰 공식을 바꾸지 않는다.
+- 부호 오차 `(실제−예상)/예상`, MAPE 분모는 실제, 임계값과 중앙 절대오차율 분모는 예상이다. 5/10/25/50/75/90/95 백분위·거리대·시간대와 요금 재구성/거리/시간 요인 분해를 JSON에 보존한다. 시간 요인은 교통 변동을 포함하지만 인과적 교통 효과만 분리한 값은 아니다.
+
+결과는 `reports/public-fares.json/.md`이다. 과도한 오차나 데이터 한계도 결과로 남기며 실제 운영 가능성으로 일반화하지 않는다. 출처 URL은 보고서와 JSON의 `sources`에서 확인한다.
 
 ## 한 번에 실행
 
@@ -15,10 +47,10 @@ python -m unittest discover -s experiments/tests -v
 
 `-Maven`에는 별도 Maven 실행 파일을 지정할 수 있다. 입력·클래스·의존성 캐시는 모두 이 폴더의 `.cache/` 아래에 둔다. 앱의 `target/`를 삭제하거나 기존 DB를 건드리지 않는다.
 
-## C5: 실제 예상액과 결제액
+## C5: 선택적 개인 CSV (기존 기능 유지)
 
 1. `templates/actual_fares.csv`를 `private/actual_fares.csv`로 복사한다.
-2. 실제 탑승 기록을 입력한다. 목표는 **탑승 전 예상액과 결제액이 짝지어진 30건**이다. 예시 데이터나 가상 결제는 입력하지 않는다.
+2. 별도로 이미 보유한 진짜 짝 자료가 있을 때만 입력한다. 팀원 탑승 수집은 하지 않는다. 예시 데이터나 가상 결제를 실측으로 입력하지 않는다.
 3. 다음 명령을 실행한다.
 
 ```powershell
@@ -76,13 +108,18 @@ python experiments/fares.py experiments/private/actual_fares.csv
 
 보고서의 지연은 `max(0, 걷는 시간 + 동승 시간 - 단독 시간)`이다. 단독보다 빨라진 시간을 음의 지연으로 평균에 상쇄하지 않는다.
 
-### 실측 오차 민감도
+### 공개 운행 오차 부트스트랩
 
 ```powershell
-./experiments/run.ps1 -ActualFares experiments/private/actual_fares.csv
+./experiments/run.ps1 -JavaHome 'C:/Users/gkho0/.jdks/ms-21.0.12.1' -LegacyRealdata '../taximate-matching-sim/realdata' -ActualFares experiments/reports/public-fares.json -Bootstrap 1000 -OutputPrefix korea-cached
+./experiments/run.ps1 -JavaHome 'C:/Users/gkho0/.jdks/ms-21.0.12.1' -ActualFares experiments/reports/public-fares.json -Bootstrap 1000 -OutputPrefix synthetic
 ```
 
-검증을 통과한 `prospective` 표본이 있으면 부호 있는 오차 p90/p95를 공유 경로 요금 배수로 적용하여 같은 요청을 다시 매칭·검증·정산한다. 단독 견적 가중치는 원래 값을 유지한다. 전체 경로에 같은 배수를 적용하는 스트레스 분석이며 현실의 오차 분포나 신뢰구간 추정이 아니다. 표본 수를 결과에 남기고, 실측 표본이 없으면 `BLOCKED_NO_PROSPECTIVE_FARES`로 표시한다.
+기본 `-ActualFares`는 C5 공개 JSON이다. 매칭은 예상 요금으로 한 번만 끝내고, 확정 일행을 고정한 채 한국 주 지표의 경험적 ε를 일행과 각 단독 실제 요금에 독립 추출한다. 실제액은 예상액×(1+ε), 비율 가중치는 원래 단독 예상액이다. 같은 실제액·결제자로 1/N과 비교한다. 선결제는 실제 `PaymentService.prepayAmount`의 15% 올림을 적용하며 결제자는 제외한다.
+
+시드 20261119, 1,000회 전체 일행 재생을 기본으로 ε=0, ε, 1.5ε, 2ε를 나란히 보고한다. 같은 난수를 조건·정산 사이에 공유한다. 확대 배수가 비양수 요금을 만드는 일행-반복은 해당 조건의 분모에서 제외하고 건수를 공개한다. 확대 결과는 양수 요금에 조건부이며 무조건 평균으로 해석하지 않는다. 환불액 평균은 환불 발생 비결제자 기준이다. 절약·손해 비율은 확정 매칭자 기준이다. 기존 개인 CSV를 지정해도 같은 정산 단계 부트스트랩을 선택적으로 쓸 수 있다.
+
+`reports/c6-error-sensitivity.json/.md`에 한국 캐시와 가상 요청을 분리하며 한국 오차가 주 결과, NYC 오차가 참고다. 반복 정산 건수를 관측 운행 건수로 세지 않는다. 생산 코드 재컴파일은 Lombok 처리 때문에 서버·엔진 전체 소스를 명시적으로 포함한다. JDK 21 확인 후 `-source 21 -target 21`로 외부 JDK `ct.sym` 접근 문제를 피한다.
 
 ## 결과·공개 범위
 
@@ -92,4 +129,4 @@ python experiments/fares.py experiments/private/actual_fares.csv
 - `baseline/`: 기존 실험을 재사용한 근거와 재현 방식.
 - `.cache/`, `private/`: Git 제외. 원본·영수증·API 키를 제출 묶음에 포함하지 않는다.
 
-이 도구에는 네트워크 호출 경로가 없다. 기본 및 캐시 실험의 신규 API 호출은 **0회**다. 승인된 신규 호출 예산 100회를 자동 소모하거나 과거 호출량을 초기화하지 않는다. 향후 온라인 수집 도구를 추가할 경우 실패 요청도 포함하는 지속적 호출 장부와 100회 상한을 먼저 구현해야 한다.
+공개자료 수집기만 공식 포털·TLC에 HTTPS로 접속한다. 매칭·정산 실험의 신규 **카카오 API 호출은 0회**다. 공개 파일 다운로드를 카카오 호출량으로 세거나 과거 호출 장부를 초기화하지 않는다. 유료 경로 API 수집을 추가하면 실패 요청을 포함한 지속적 장부와 기존 100회 상한을 먼저 구현해야 한다.

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "target_prospective_records": 30,
-  "input_sha256": "b86d4b93753d8ed75d4c9f340a41727c40ad08104541708ddab659d1d3e42510",
+  "target_prospective_records": null,
+  "input_sha256": "2427381cc822e60b138be099a374721be0b58d6112d582e70d328dfe81f1f711",
   "rows_received": 0,
   "rows_accepted": 0,
   "rows_excluded": 0,

@@ -1,0 +1,2 @@
+# Only C5 --public needs an additional package. Private CSV and C6 stay stdlib-only.
+duckdb==1.4.3
