@@ -30,6 +30,9 @@ describe('일행 화면 구성', () => {
     const next = screen.getByRole('region', { name: '지금 할 일' })
     expect(within(next).getByText('선결제를 마쳐 주세요')).toBeTruthy()
     expect(view.container.querySelectorAll('.foot button')).toHaveLength(0)
+    // 진행 탭 첫 화면에 혼자 탈 때와 비교한 아끼는 돈을 보인다(8,300 - 3,334).
+    const saving = screen.getByRole('region', { name: '아끼는 돈' })
+    expect(within(saving).getByText('4,966원')).toBeTruthy()
   })
 
   it('내 선결제가 승인되면 다른 일행이 결제 중이어도 제목을 바꾼다', async () => {

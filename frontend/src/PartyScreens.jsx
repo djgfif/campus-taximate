@@ -484,6 +484,12 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
         </div>
         <div className="band" />
         <div className="block">
+          {/* 서비스의 핵심 숫자. 정보 탭 두 단계 아래에만 있던 것을 진행 탭 첫 화면에도 보인다. */}
+          {party.mySoloFare > party.myShare && <section aria-label="아끼는 돈"><Rows items={[
+            ['혼자 타면', won(party.mySoloFare)],
+            ['같이 타면 내 몫', won(party.myShare)],
+            ['아끼는 돈', won(party.mySoloFare - party.myShare), 'save'],
+          ]} /></section>}
           {mine && <PartyMiniMap party={party} mine={mine} />}
           <h2 className="block-title">같이 타는 사람 <small>내리는 순서</small></h2>
           <Rail items={order.map((m) => ({
