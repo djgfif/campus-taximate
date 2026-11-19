@@ -50,6 +50,7 @@ public class PartyService {
     private final com.campustaximate.server.repository.PartyMessageRepository chatMessages;
     private final com.campustaximate.server.repository.PartyChatReadRepository chatReads;
     private final PartyChatService chatLog;
+    private final BoardingCodeService boardingCodes;
 
     public record MemberView(long requestId, long memberId, String nickname, String memo, int rideOrder,
                              String pointName, long expectedShare, boolean arrived, boolean noShow,
@@ -96,6 +97,7 @@ public class PartyService {
     @Transactional
     public void board(long memberId, long partyId) {
         Party party = parties.findByIdForUpdate(partyId).orElseThrow(() -> ApiException.notFound("없는 일행입니다."));
+        if(party.paymentFlow()) { boardingCodes.open(memberId,partyId); return; }
         RideRequest mine = mineOf(party, memberId);
         if (party.getDirection() != Direction.TO_SCHOOL || !party.getPayer().getId().equals(memberId)) {
             throw ApiException.forbidden("등교 결제자만 표시할 수 있습니다.");
@@ -233,9 +235,9 @@ public class PartyService {
                 !mine.isArrived() && canMarkArrival(mine),
                 toSchool && payer && party.getBoardedAt() == null && canMarkBoarding(mine),
                 mine.canCancelAt(clock.now()),
-                payer && settlement == null && (party.paymentFlow()
+                payer && settlement == null && (party.getBoardingDeadlineAt()==null || !clock.now().isBefore(party.getBoardingDeadlineAt())) && (party.paymentFlow()
                     ? List.of(PartyStatus.AWAITING_FARE,PartyStatus.RIDE_UNCONFIRMED).contains(party.getStatus())
-                        && clock.now().isBefore((party.getStartedAt()==null?party.getDepartureAt():party.getStartedAt()).plusSeconds(24*3600))
+                        && clock.now().isBefore((party.getFareRecoveryAt()!=null?party.getFareRecoveryAt():party.getStartedAt()==null?party.getDepartureAt():party.getStartedAt()).plusSeconds(24*3600))
                     : boarded), mine.getId(), mine.getExpectedShare(), mine.getSoloFare(),
                 members, settlement, party.getPrepayDeadlineAt(), party.freeCancelUntil(), party.getStartedAt(),
                 party.getGroupVersion(),party.getReviewReason(),party.isAdminReviewRequired(),

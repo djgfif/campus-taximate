@@ -29,7 +29,14 @@ final class RouteGroupVerifier implements GroupVerifier {
     private static final int MAX_BACKTRACK_QUERIES = 3;
 
     private final RouteClient routes;
-    private final Map<List<Long>, Instant> rejected;
+    // MatchRequest is immutable: include the complete ordered input, not just request IDs.
+    record RejectionKey(List<MatchRequest> order, Instant departure, Instant slot, Instant fixedDeparture) {
+        RejectionKey { order = List.copyOf(order); }
+    }
+    private RejectionKey rejectionKey(Candidate candidate) {
+        return new RejectionKey(candidate.order(), candidate.departure(), slot, fixedDeparture);
+    }
+    private final Map<RejectionKey, Instant> rejected;
     private final Instant now;
     private record RouteKey(long anchorId, List<Long> ids) { }
     private static RouteKey key(List<MatchRequest> order) {
@@ -39,6 +46,8 @@ final class RouteGroupVerifier implements GroupVerifier {
     private final Map<Long, GeoPoint> origins;
     private final Instant slot;
     private final MatchingSettings settings;
+    private boolean enforceGroupConstraints=true;
+    RouteGroupVerifier enforceGroupConstraints(boolean value){this.enforceGroupConstraints=value;return this;}
     private Instant fixedDeparture;
     RouteGroupVerifier fixedDeparture(Instant departure){this.fixedDeparture=departure;return this;}
     private final RoutePathStore paths;
@@ -49,26 +58,26 @@ final class RouteGroupVerifier implements GroupVerifier {
                           Instant departure, List<Instant> boardAt) {
     }
 
-    RouteGroupVerifier(RouteClient routes, Map<List<Long>, Instant> rejected, Instant now) {
+    RouteGroupVerifier(RouteClient routes, Map<RejectionKey, Instant> rejected, Instant now) {
         this(routes, rejected, now, null);
     }
 
-    RouteGroupVerifier(RouteClient routes, Map<List<Long>, Instant> rejected, Instant now, RoutePathStore paths) {
+    RouteGroupVerifier(RouteClient routes, Map<RejectionKey, Instant> rejected, Instant now, RoutePathStore paths) {
         this(routes, rejected, now, paths, Map.of());
     }
 
     /** requestFares는 요청할 때 보여 준 단독 요금이다. 시간만 같은 시점으로 다시 조회한다. */
-    RouteGroupVerifier(RouteClient routes, Map<List<Long>, Instant> rejected, Instant now, RoutePathStore paths,
+    RouteGroupVerifier(RouteClient routes, Map<RejectionKey, Instant> rejected, Instant now, RoutePathStore paths,
                        Map<Long, Long> requestFares) {
         this(routes, rejected, now, paths, requestFares, Map.of(), minuteFloor(now));
     }
 
-    RouteGroupVerifier(RouteClient routes, Map<List<Long>, Instant> rejected, Instant now, RoutePathStore paths,
+    RouteGroupVerifier(RouteClient routes, Map<RejectionKey, Instant> rejected, Instant now, RoutePathStore paths,
                        Map<Long, Long> requestFares, Map<Long, GeoPoint> origins, Instant slot) {
         this(routes,rejected,now,paths,requestFares,origins,slot,MatchingSettings.everyMinute());
     }
 
-    RouteGroupVerifier(RouteClient routes, Map<List<Long>,Instant> rejected, Instant now, RoutePathStore paths,
+    RouteGroupVerifier(RouteClient routes, Map<RejectionKey,Instant> rejected, Instant now, RoutePathStore paths,
                        Map<Long,Long> requestFares, Map<Long,GeoPoint> origins, Instant slot,MatchingSettings settings) {
         this.settings=settings;
         this.origins = origins;
@@ -82,7 +91,7 @@ final class RouteGroupVerifier implements GroupVerifier {
 
     @Override
     public boolean recentlyRejected(Candidate candidate) {
-        Instant until = rejected.get(candidate.sortedIds());
+        Instant until = rejected.get(rejectionKey(candidate));
         boolean blocked=until != null && now.isBefore(until);
         if(blocked)MatchingDiagnostics.reason(slot,candidate.sortedIds(),"REJECT_CACHE",until);
         return blocked;
@@ -96,7 +105,7 @@ final class RouteGroupVerifier implements GroupVerifier {
     }
     private Verdict reject(Candidate candidate,String code,Object value) {
         MatchingDiagnostics.reason(slot,candidate.sortedIds(),code,value);
-        rejected.put(candidate.sortedIds(), now.plus(REJECT_KEEP));
+        rejected.put(rejectionKey(candidate), now.plus(REJECT_KEEP));
         return Verdict.FAIL;
     }
 
@@ -160,12 +169,12 @@ final class RouteGroupVerifier implements GroupVerifier {
                     for (int i = 0; i < order.size(); i++) {
                         Instant drop = departure.plusSeconds(seconds.get(i));
                         MatchRequest rider = order.get(i);
-                        if (drop.isBefore(rider.earliestArrival()) || drop.isAfter(rider.arriveBy())) return reject(candidate);
+                        if (enforceGroupConstraints && (drop.isBefore(rider.earliestArrival()) || drop.isAfter(rider.arriveBy()))) return reject(candidate);
                     }
                 } else if (order.stream().anyMatch(r -> r.arrival())) {
                     return reject(candidate);
                 } else {
-                    for (MatchRequest rider : order) if (!rider.instant() && !rider.canDepartAt(departure)) return reject(candidate);
+                    for (MatchRequest rider : order) if (enforceGroupConstraints && !rider.instant() && !rider.canDepartAt(departure)) return reject(candidate);
                 }
                 fits = true;
                 break;
@@ -314,12 +323,12 @@ final class RouteGroupVerifier implements GroupVerifier {
         List<MatchRequest> order = candidate.order();
         List<RouteClient.Route> solo = routesOfGroup.solo();
         long soloTotal = solo.stream().mapToLong(RouteClient.Route::fare).sum();
-        if (java.math.BigInteger.valueOf(routesOfGroup.total()).multiply(java.math.BigInteger.TEN)
+        if (enforceGroupConstraints && java.math.BigInteger.valueOf(routesOfGroup.total()).multiply(java.math.BigInteger.TEN)
                 .compareTo(java.math.BigInteger.valueOf(soloTotal).multiply(java.math.BigInteger.valueOf(9))) > 0) {
             return reject(candidate,"SAVINGS",List.of(routesOfGroup.total(),soloTotal));
         }
         for (int i = 0; i < order.size(); i++) {
-            if (order.get(i).walkSeconds() + routesOfGroup.rideSeconds().get(i) - solo.get(i).seconds() > MAX_DELAY_SECONDS) {
+            if (enforceGroupConstraints && order.get(i).walkSeconds() + routesOfGroup.rideSeconds().get(i) - solo.get(i).seconds() > MAX_DELAY_SECONDS) {
                 return reject(candidate,"SECONDARY_DELAY",order.get(i).walkSeconds()+routesOfGroup.rideSeconds().get(i)-solo.get(i).seconds());
             }
         }

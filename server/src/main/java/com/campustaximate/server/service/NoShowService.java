@@ -21,16 +21,26 @@ public class NoShowService {
     private final MemberRepository members; private final MemberSafetyService safety;
     private final PartyChangeService changes; private final PaymentService payments;
     private final NotificationService notifications; private final AppClock clock;
+    private final PartyChatService chatLog;
 
-    public record CaseView(BoardingCase investigation, List<BoardingVote> votes, BoardingExplanation explanation) {}
+    public record CaseView(BoardingCase investigation, List<BoardingVote> votes, BoardingExplanation explanation, String nickname) {}
     @Transactional(readOnly=true)
     public List<CaseView> list(long actor,long partyId) {
         requireMember(actor,partyId);
-        return cases.findByPartyIdOrderByRequestId(partyId).stream().map(c->new CaseView(c,votes.findByCaseIdOrderById(c.getId()),explanations.findByCaseId(c.getId()).orElse(null))).toList();
+        return cases.findByPartyIdOrderByRequestId(partyId).stream().map(c->caseView(c,actor)).toList();
     }
     @Transactional(readOnly=true)
     public List<CaseView> mine(long actor) {
-        return cases.findByMemberIdOrderByIdDesc(actor).stream().map(c->new CaseView(c,votes.findByCaseIdOrderById(c.getId()),explanations.findByCaseId(c.getId()).orElse(null))).toList();
+        return cases.findByMemberIdOrderByIdDesc(actor).stream().map(c->caseView(c,actor)).toList();
+    }
+    private CaseView caseView(BoardingCase c,long actor) {
+        // Historical terms remain after a rider is removed from the active party.
+        // Validate that association before resolving the target's public nickname.
+        requireMember(c.getMemberId(),c.getPartyId());
+        String nickname=members.findById(c.getMemberId()).map(Member::getNickname).orElse("일행원");
+        BoardingExplanation explanation=Objects.equals(c.getMemberId(),actor)
+                ? explanations.findByCaseId(c.getId()).orElse(null) : null;
+        return new CaseView(c,votes.findByCaseIdOrderById(c.getId()),explanation,nickname);
     }
     public void requireMember(long actor,long partyId) {
         if(terms.findByPartyIdAndMemberId(partyId,actor).isEmpty()) throw ApiException.forbidden("배정된 일행원만 볼 수 있어요.");
@@ -54,13 +64,34 @@ public class NoShowService {
     @Transactional(propagation=Propagation.MANDATORY)
     public void beginRide(Party party,Instant started) {
         if(party.getStartedAt()!=null) return;
+        if(party.getBoardedAt()==null || party.getBoardingCode()==null) throw ApiException.conflict("BOARD_FIRST","결제자의 실제 탑승이 필요해요.");
         var riders=requests.findByPartyOrderByRideOrder(party);
         changes.capture(party,riders,true);
-        // 결제자의 운행 시작 선언/영수증은 본인이 탔다는 표시다.
-        var declared=rideAnswers.findByPartyIdOrderById(party.getId()).stream().filter(RideConfirmation::isRode).map(RideConfirmation::getMemberId).toList();
-        riders.stream().filter(r->r.getMember().getId().equals(party.getPayer().getId())||declared.contains(r.getMember().getId())).forEach(r->r.setArrived(true));
+        party.setStartedAt(started); party.setStatus(PartyStatus.AWAITING_FARE);
+        closeBoarding(party);
+    }
+    /** Explicit audited administrative recovery, never a fabricated code verification. */
+    @Transactional(propagation=Propagation.MANDATORY)
+    public void recoverOperated(Party party) {
+        var riders=requests.findByPartyOrderByRideOrder(party);changes.capture(party,riders,true);
+        if(party.getStartedAt()==null) party.setStartedAt(clock.now());
+        party.setFareRecoveryAt(clock.now());party.setFareRemindedAt(null);party.setStatus(PartyStatus.AWAITING_FARE);
+        if(party.getBoardingDeadlineAt()==null) party.setBoardingDeadlineAt(clock.now());
+        riders.stream().filter(r->r.getMember().getId().equals(party.getPayer().getId())).forEach(r->{
+            if(r.getBoardingConfirmedAt()==null) r.setBoardingConfirmedAt(clock.now());
+        });
+        closeBoarding(party);
+    }
+    /** The code window remains open after departure. Missing codes are investigation candidates only. */
+    @Transactional(propagation=Propagation.MANDATORY)
+    public void closeBoarding(Party party) {
+        if(party.getBoardingDeadlineAt()==null || clock.now().isBefore(party.getBoardingDeadlineAt()) || party.getBoardingClosedAt()!=null) return;
+        if(party.getStartedAt()==null) return;
+        var riders=requests.findByPartyOrderByRideOrder(party);
+        party.setBoardingClosedAt(clock.now());
+        chatLog.system(party,"탑승 코드 입력 시간이 끝났어요. 미확인 대상은 24시간 소명과 조사로 확인하며, 미입력만으로 노쇼를 확정하지 않아요.");
         Set<Long> missing=new HashSet<>();
-        for(var rider:riders) if(!rider.isArrived()) {
+        for(var rider:riders) if(rider.getBoardingConfirmedAt()==null) {
             var term=terms.findByPartyIdAndRequestId(party.getId(),rider.getId()).orElseThrow();
             open(party,term,Objects.equals(party.getOriginalPayerId(),term.getMemberId())); missing.add(rider.getId());
         }
@@ -75,7 +106,7 @@ public class NoShowService {
             var current=SettlementCalculator.shares(party.getExpectedTotal(),remaining.stream().map(RideRequest::getRatioUnits).toList(),payer);
             for(int i=0;i<remaining.size();i++){remaining.get(i).setExpectedShare(current.get(i));remaining.get(i).setRideOrder(i+1);}
         }
-        remaining.forEach(r->r.finish(RequestStatus.COMPLETED)); party.setStartedAt(started); party.setStatus(PartyStatus.AWAITING_FARE);
+        remaining.forEach(r->r.finish(RequestStatus.COMPLETED));
     }
     @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void vote(long actor,long partyId,long target,boolean came) {
@@ -86,7 +117,7 @@ public class NoShowService {
         var c=cases.findByPartyIdAndRequestId(partyId,term.getRequestId()).orElse(null);
         if(c==null) {
             var request=requests.findById(term.getRequestId()).orElseThrow();
-            boolean payerMissing=target==party.getPayer().getId() && party.getStartedAt()==null && !request.isArrived() && !clock.now().isBefore(party.getDepartureAt())
+            boolean payerMissing=target==party.getPayer().getId() && party.getStartedAt()==null && party.getBoardedAt()==null && request.getBoardingConfirmedAt()==null && !clock.now().isBefore(party.getDepartureAt())
                     && List.of(PartyStatus.READY,PartyStatus.RIDE_UNCONFIRMED,PartyStatus.PAYER_PENDING).contains(party.getStatus());
             if(!payerMissing || came) throw ApiException.conflict("NOT_UNCONFIRMED","탑승 미확인 대상이 아니에요.");
             c=open(party,term,true);
@@ -117,9 +148,11 @@ public class NoShowService {
         changes.changed(party,Set.of(original.getId()),"PAYER_NO_SHOW",Set.of(original.getId()));
         original.clearParty();original.finish(RequestStatus.CANCELED);
         party.setPayer(members.getReferenceById(actor));party.setSuccessionStatus("ACCEPTED");
-        beginRide(party,clock.now());
+        party.revokeBoardingCode(); party.setStatus(PartyStatus.READY);
+        chatLog.system(party,"결제자가 바뀌어 이전 코드를 닫았어요. 새 결제자가 실제 탑승을 표시하면 새 코드가 열려요.");
     }
     private void failSuccession(Party party) {
+        party.revokeBoardingCode();
         party.setSuccessionStatus("REFUSED");party.setStatus(PartyStatus.NOT_OPERATED);
         requests.findByPartyOrderByRideOrder(party).forEach(r->r.finish(RequestStatus.CANCELED));
         payments.refundAll(party.getId(),"결제자 승계 미성사");
@@ -162,6 +195,7 @@ public class NoShowService {
     public boolean unresolved(long partyId){return cases.findByPartyIdOrderByRequestId(partyId).stream().anyMatch(BoardingCase::pending);}
     @Transactional(propagation=Propagation.MANDATORY)
     public void notOperated(Party party) {
+        party.revokeBoardingCode();
         // 승계 거부 때 원래 결제자의 조사는 별도로 계속한다. 기사 거절/배차 실패는 노쇼가 아니다.
         for(var c:cases.findByPartyIdOrderByRequestId(party.getId())) if(c.pending() && !("ORIGINAL_PAYER".equals(c.getKind())&&"REFUSED".equals(party.getSuccessionStatus()))) decide(c,false,null,"운행 미성사");
     }

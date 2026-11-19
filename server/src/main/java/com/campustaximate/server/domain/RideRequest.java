@@ -39,6 +39,9 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 public class RideRequest {
+    private Instant boardingConfirmedAt;
+    private String pendingExitReason;
+    private Instant exitRequestedAt;
 
     private Long pendingJoinId;
 
@@ -185,10 +188,16 @@ public class RideRequest {
         return boardAt != null ? boardAt : party.getDepartureAt();
     }
 
-    /** 내가 타기 전까지만 뺄 수 있다. 택시에 탄 결제자는 뺄 수 없다. */
+    /** 실제 출발과 본인 탑승이 먼저라면 예정 시각이 남아 있어도 취소하지 못한다. */
     public boolean canCancelAt(Instant now) {
+        return canCompleteExit() && now.isBefore(startAt());
+    }
+
+    /** 미리 접수한 무료 이탈도 실제 탑승·운행을 되돌릴 수 없다. */
+    public boolean canCompleteExit() {
+        if (status != RequestStatus.MATCHED || party == null || !party.canChangeBeforeRide()) return false;
         boolean boardedPayer = party.getBoardedAt() != null && party.getPayer().getId().equals(member.getId());
-        return status == RequestStatus.MATCHED && now.isBefore(startAt()) && !boardedPayer;
+        return boardingConfirmedAt == null && !boardedPayer;
     }
 
     /** 노쇼는 일행 재계산 전이라도 새 요청을 막지 않는다. 일행에서는 마지막 판정 때 빠진다. */
@@ -214,6 +223,8 @@ public class RideRequest {
             endReason = EndReason.NO_SHOW;
         }
         party = null;
+        boardingConfirmedAt = null;
+        pendingExitReason = null; exitRequestedAt = null;
         rideOrder = null;
         boardAt = null;
         ratioUnits = null;

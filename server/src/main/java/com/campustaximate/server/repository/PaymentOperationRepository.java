@@ -13,5 +13,11 @@ public interface PaymentOperationRepository extends JpaRepository<PaymentOperati
     Optional<PaymentOperation> lockById(long id);
     Optional<PaymentOperation> findByIdempotencyKey(String key);
     List<PaymentOperation> findByPaymentOrderIdOrderById(Long paymentOrderId);
-    List<PaymentOperation> findByStatusInAndNextAttemptAtLessThanEqualOrderById(Collection<PaymentOperationStatus> statuses, Instant now);
+    @Query("""
+            select op from PaymentOperation op, PaymentOrder o
+            where op.paymentOrderId = o.id and not o.rideReviewHeld
+                and op.status in :statuses and op.nextAttemptAt <= :now
+            order by op.id
+            """)
+    List<PaymentOperation> findDue(Collection<PaymentOperationStatus> statuses, Instant now);
 }

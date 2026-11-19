@@ -22,10 +22,19 @@ public class AdminController {
     public record HubBody(@NotNull @Valid AdminService.HubInput hub,@NotBlank @Size(max=2000) String evidence) {}
     @GetMapping("/no-shows") public List<AdminService.CaseSummary> noShows(HttpSession s){return admin.noShowReviews(actor(s));}
     @GetMapping("/no-shows/{id}") public AdminService.CaseDetail noShow(@PathVariable long id,HttpSession s){return admin.noShowDetail(actor(s),id);}
+    @GetMapping("/no-shows/{caseId}/messages/{messageId}/image")
+    public org.springframework.http.ResponseEntity<org.springframework.core.io.Resource> noShowMessageImage(
+            @PathVariable long caseId,@PathVariable long messageId,HttpSession s){
+        var image=admin.noShowMessageImage(actor(s),caseId,messageId);
+        return org.springframework.http.ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
+                .header("X-Content-Type-Options","nosniff")
+                .contentType(org.springframework.http.MediaType.parseMediaType(image.contentType()))
+                .body(new org.springframework.core.io.FileSystemResource(image.path()));
+    }
     @PostMapping("/no-shows/{id}/decision") public void decideNoShow(@PathVariable long id,@Valid @RequestBody DecisionBody b,HttpSession s){admin.decideNoShow(actor(s),id,b.decision(),b.evidence());lifecycle.afterDepartures();}
     @GetMapping("/fare-reviews") public List<AdminService.FareReview> fareReviews(HttpSession s){return admin.fareReviews(actor(s));}
     @PostMapping("/parties/{id}/fare-decision") public void fare(@PathVariable long id,@Valid @RequestBody FareBody b,HttpSession s){admin.decideFare(actor(s),id,b.accept(),b.correctedAmount(),b.evidence());lifecycle.afterDepartures();}
-    @PostMapping("/parties/{id}/ride-decision") public void ride(@PathVariable long id,@Valid @RequestBody EvidenceBody b,HttpSession s){admin.decideRide(actor(s),id,b.evidence());lifecycle.afterDepartures();}
+    @PostMapping("/parties/{id}/ride-decision") public void ride(@PathVariable long id,@Valid @RequestBody DecisionBody b,HttpSession s){admin.decideRide(actor(s),id,b.decision(),b.evidence());lifecycle.afterDepartures();}
     @GetMapping("/reports") public List<AdminService.ReportView> reports(HttpSession s){return admin.reports(actor(s));}
     @GetMapping("/members/{id}/restrictions") public List<MemberRestriction> restrictions(@PathVariable long id,HttpSession s){return admin.restrictions(actor(s),id);}
     @PostMapping("/members/{id}/restrictions") public MemberRestriction restrict(@PathVariable long id,@Valid @RequestBody RestrictionBody b,@RequestHeader("Idempotency-Key") String key,HttpSession s){return admin.restrict(actor(s),id,b.until(),b.evidence(),key);}

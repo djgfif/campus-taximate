@@ -30,6 +30,8 @@ public class PartyCanceler {
         party.setStatus(party.paymentFlow() ? PartyStatus.DISSOLVED : PartyStatus.CANCELED);
         if (party.paymentFlow()) payments.refundForDissolution(party.getId(),leavingRequestIds);
         EndReason survivor = party.getBoardedAt() != null ? EndReason.LEFT_ALONE : EndReason.PARTY_CANCELED;
+        party.revokeBoardingCode();
+        party.setRouteVerificationPending(false);
         Instant nextSlot = AppClock.nextSlotAfter(now);
         for (RideRequest rider : riders) {
             Instant lastSlot = rider.resultBy();

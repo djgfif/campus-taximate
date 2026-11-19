@@ -20,7 +20,7 @@ public class WebConfig implements WebMvcConfigurer {
     /** 화면 주소를 새로고침해도 앱이 열리게 한다. */
     @Override
     public void addViewControllers(ViewControllerRegistry registry) {
-        for (String path : new String[] {"/history", "/request/school", "/request/home", "/parties/{id}"}) {
+        for (String path : new String[] {"/history", "/request/school", "/request/home", "/parties/{id}", "/admin", "/boarding-cases"}) {
             registry.addViewController(path).setViewName("forward:/index.html");
         }
     }

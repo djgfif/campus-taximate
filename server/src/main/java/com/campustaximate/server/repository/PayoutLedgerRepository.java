@@ -10,4 +10,5 @@ public interface PayoutLedgerRepository extends JpaRepository<PayoutLedger, Long
     boolean existsByPartyId(Long partyId);
     boolean existsBySettlementId(Long settlementId);
     Optional<PayoutLedger> findBySettlementId(Long settlementId);
+    Optional<PayoutLedger> findByPartyId(Long partyId);
 }

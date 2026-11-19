@@ -36,13 +36,14 @@ public class PaymentLifecycleService {
 
     /** 출발 전에 먼저 처리해 뒤늦은 스케줄러 실행이 운행 미성사를 운행 시작으로 바꾸지 않는다. */
     public void beforeDepartures() {
+        shrinker.retryPending();
         payments.reconcileExcludedPrepayments();
         // V10에서 해산 후 남겨 둔 직전 취소 보류도 다음 회차에 같은 원칙으로 해제한다.
         for(var party:parties.findByStatus(PartyStatus.DISSOLVED)) if(party.paymentFlow() && party.getStartedAt()==null
                 && orders.findByPartyIdOrderById(party.getId()).stream().anyMatch(payments::refundHeld)) payments.refundForDissolution(party.getId());
         for(var party:parties.findByStatus(PartyStatus.PAYER_PENDING)) noShows.expireSuccession(party.getId());
         for (Party candidate : parties.findByStatus(PartyStatus.PREPAYING)) {
-            if (!candidate.paymentFlow() || clock.now().isBefore(candidate.getPrepayDeadlineAt())) continue;
+            if (!candidate.paymentFlow() || candidate.isRouteVerificationPending() || clock.now().isBefore(candidate.getPrepayDeadlineAt())) continue;
             // PG 조회는 일행 트랜잭션 밖에서 하고 적용 직전에 잠금으로 최신 상태를 확인한다.
             for(PaymentOrder order:orders.findByPartyIdOrderById(candidate.getId())) {
                 if(order.getPurpose()==PaymentPurpose.PREPAY && order.getStatus()!=PaymentStatus.APPROVED && order.getExcludedAt()==null) payments.reconcilePrepay(order.getId());
@@ -64,23 +65,29 @@ public class PaymentLifecycleService {
                 }
                 return ids;
             });
-            if(expired!=null && !expired.isEmpty()) shrinker.remove(candidate.getId(),expired,clock.now(),false,"PREPAY_UNPAID",null,Set.of());
+            if(expired!=null && !expired.isEmpty()) {
+                try {
+                    shrinker.remove(candidate.getId(),expired,clock.now(),false,"PREPAY_UNPAID",null,Set.of());
+                } catch(com.campustaximate.server.common.ApiException deferred) {
+                    if(!"ROUTE_RETRY_PENDING".equals(deferred.getCode())) throw deferred;
+                    continue;
+                }
+            }
             tx().executeWithoutResult(status->{
                 Party party=parties.findByIdForUpdate(candidate.getId()).orElseThrow();
                 if(party.getStatus()!=PartyStatus.PREPAYING) return;
                 boolean pending=orders.findByPartyIdOrderById(party.getId()).stream().anyMatch(o->o.getPurpose()==PaymentPurpose.PREPAY
                         && !o.getMemberId().equals(party.getPayer().getId()) && o.getExcludedAt()==null && o.getStatus()!=PaymentStatus.APPROVED
                         && requests.findById(o.getRequestId()).map(r->r.getParty()!=null && r.getParty().getId().equals(party.getId())).orElse(false));
-                if(!pending) party.setStatus(PartyStatus.READY);
+                if(!pending && !party.isRouteVerificationPending()) party.setStatus(PartyStatus.READY);
             });
         }
         for(Party candidate:parties.findByStatus(PartyStatus.READY)) {
             if(!candidate.paymentFlow() || candidate.getStartedAt()!=null || clock.now().isBefore(candidate.getDepartureAt().plusSeconds(300))) continue;
             tx().executeWithoutResult(status->{
                 Party party=parties.findByIdForUpdate(candidate.getId()).orElseThrow();
-                if(party.getStatus()==PartyStatus.READY && party.getStartedAt()==null) {
-                    if(party.getBoardedAt()!=null) rideConfirmations.start(party,party.getBoardedAt());
-                    else rideConfirmations.ask(party);
+                if(party.getStatus()==PartyStatus.READY && party.getStartedAt()==null && !party.isRouteVerificationPending()) {
+                    rideConfirmations.ask(party);
                 }
             });
         }
@@ -89,16 +96,18 @@ public class PaymentLifecycleService {
     }
 
     public void afterDepartures() {
+        for(Party candidate:parties.findByStatus(PartyStatus.AWAITING_FARE)) tx().executeWithoutResult(status ->
+            noShows.closeBoarding(parties.findByIdForUpdate(candidate.getId()).orElseThrow()));
         for(var c:boardingCases.findByStatusAndDeadlineAtLessThanEqual("PENDING",clock.now())) noShows.adjudicate(c.getId());
         for(Party candidate:parties.findByStatus(PartyStatus.RIDE_UNCONFIRMED)) tx().executeWithoutResult(status->{
             Party party=parties.findByIdForUpdate(candidate.getId()).orElseThrow();
-            if(party.getStatus()==PartyStatus.RIDE_UNCONFIRMED && !clock.now().isBefore(party.getDepartureAt().plusSeconds(24*3600))) rideConfirmations.notOperated(party);
+            if(party.getStatus()==PartyStatus.RIDE_UNCONFIRMED && (party.getBoardingDeadlineAt()==null || !clock.now().isBefore(party.getBoardingDeadlineAt())) && !clock.now().isBefore(party.getDepartureAt().plusSeconds(24*3600))) rideConfirmations.expireUnstarted(party);
         });
         for (Party candidate : parties.findByStatus(PartyStatus.AWAITING_FARE)) {
             tx().executeWithoutResult(status -> {
                 Party party = parties.findByIdForUpdate(candidate.getId()).orElseThrow();
                 if (party.getStatus() != PartyStatus.AWAITING_FARE || settlements.findByParty(party).isPresent()) return;
-                Instant start = party.getStartedAt() == null ? party.getDepartureAt() : party.getStartedAt();
+                Instant start = party.getFareRecoveryAt()!=null?party.getFareRecoveryAt():party.getStartedAt() == null ? party.getDepartureAt() : party.getStartedAt();
                 if (!clock.now().isBefore(start.plusSeconds(24 * 3600))) {
                     party.setStatus(PartyStatus.FARE_MISSING); payments.refundAll(party.getId(), "정산 금액 미입력");
                 } else if (party.getFareRemindedAt() == null && !clock.now().isBefore(start.plusSeconds(12 * 3600))) {
@@ -129,7 +138,7 @@ public class PaymentLifecycleService {
         Settlement settlement = settlements.findByParty(party).orElseThrow();
         if (clock.now().isBefore(settlement.getObjectionDeadlineAt())) return;
         if (objections.existsBySettlementIdAndResolvedAtIsNull(settlement.getId())) { party.setStatus(PartyStatus.REVIEW_PENDING); return; }
-        if(noShows.unresolved(partyId)) return;
+        if(party.getBoardingDeadlineAt()!=null && clock.now().isBefore(party.getBoardingDeadlineAt()) || noShows.unresolved(partyId)) return;
         party.setStatus(PartyStatus.SETTLED); settlement.setFinalizedAt(clock.now());
         List<SettlementShare> allocations = shares.findBySettlementIdOrderByRideOrder(settlement.getId());
         compensation.apply(party,settlement,allocations);

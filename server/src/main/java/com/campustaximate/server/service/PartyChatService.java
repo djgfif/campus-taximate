@@ -8,15 +8,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,8 +26,6 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 @RequiredArgsConstructor
 public class PartyChatService {
-    private static final Duration CHAT_LIMIT = Duration.ofHours(24);
-    private static final Duration KEEP = Duration.ofDays(7);
     private static final int MAX_PER_MINUTE = 10;
     private static final Set<String> IMAGE_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
     private final PartyRepository parties;
@@ -42,8 +37,7 @@ public class PartyChatService {
     private final PushService push;
     private final MemberRepository members;
 
-    @Value("${app.upload-dir}")
-    private String uploadDir;
+    private final MediaFiles media;
 
     /** memberId는 시스템 알림이면 null. unread는 보낸 사람을 뺀 현재 일행원 중 아직 안 읽은 사람 수. clientId는 내 메시지에만. */
     public record MessageView(long id, Long memberId, String nickname, String text, Instant createdAt, boolean mine,
@@ -131,7 +125,7 @@ public class PartyChatService {
         if (file == null || file.isEmpty()) throw ApiException.badRequest("IMAGE_REQUIRED", "보낼 사진을 골라 주세요.");
         String type = imageType(file);
         requireRate(actor, partyId);
-        String path = store(partyId, file);
+        String path = media.storeChatImage(partyId, file);
         PartyMessage saved = messages.save(PartyMessage.image(party, mine.getMember(), path, type, now(), key));
         advanceRead(partyId, actor, saved.getId());
         announce(partyId, riders, actor, "사진을 보냈어요");
@@ -144,7 +138,7 @@ public class PartyChatService {
         requireMember(actor, currentMembers(party));
         PartyMessage m = messages.findById(messageId).filter(x -> x.getParty().getId().equals(partyId) && x.getImagePath() != null)
                 .orElseThrow(() -> ApiException.notFound("사진이 없어요."));
-        if (expired(party) || !Files.exists(Path.of(m.getImagePath()))) throw ApiException.notFound("보관 기간이 지나 사진이 삭제됐어요.");
+        if (expired(party) || !media.readable(m.getImagePath())) throw ApiException.notFound("보관 중인 사진이 없어요.");
         return new ImageFile(Path.of(m.getImagePath()), m.getImageType());
     }
 
@@ -196,9 +190,7 @@ public class PartyChatService {
         for (long partyId : messages.findPartyIdsWithMessages()) {
             Party party = lock(partyId);
             if (expired(party)) {
-                messages.findImagePaths(partyId).forEach(p -> {
-                    try { Files.deleteIfExists(Path.of(p)); } catch (IOException ignored) { /* 다음 회차에 다시 시도하지 않는다: 행은 지운다 */ }
-                });
+                messages.findImagePaths(partyId).forEach(media::deleteAfterCommit);
                 messages.deleteForParty(partyId);
                 reads.deleteForParty(partyId);
             }
@@ -256,18 +248,6 @@ public class PartyChatService {
         }
     }
 
-    private String store(long partyId, MultipartFile file) {
-        try {
-            Path dir = Path.of(uploadDir, "chat", String.valueOf(partyId));
-            Files.createDirectories(dir);
-            Path target = dir.resolve(UUID.randomUUID().toString());
-            file.transferTo(target.toAbsolutePath());
-            return target.toString();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
     private Party lock(long partyId) {
         return parties.findByIdForUpdate(partyId).orElseThrow(() -> ApiException.forbidden("현재 일행원만 채팅할 수 있어요."));
     }
@@ -304,9 +284,7 @@ public class PartyChatService {
     }
 
     private Instant endsAt(Party party) {
-        Instant deadline = party.getDepartureAt().plus(CHAT_LIMIT);
-        Instant settled = party.getSettledAt();
-        return settled != null && settled.isBefore(deadline) ? settled : deadline;
+        return MediaRetention.chatEndsAt(party);
     }
 
     private boolean closed(Party party) {
@@ -315,7 +293,7 @@ public class PartyChatService {
     }
 
     private boolean expired(Party party) {
-        return !clock.now().isBefore(endsAt(party).plus(KEEP));
+        return MediaRetention.chatExpired(party, clock.now());
     }
 
     private MessageView view(PartyMessage message, long actor, long partyId, Map<Long, Long> readBy) {

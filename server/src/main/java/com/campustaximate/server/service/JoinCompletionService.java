@@ -13,8 +13,8 @@ public class JoinCompletionService {
     private final PartyChatService chatLog;
     public boolean pending(PaymentOrder order,Party party){
         return joins.findByPaymentOrderId(order.getId()).filter(j->"PENDING".equals(j.getState())&&Objects.equals(party.getPendingJoinId(),j.getId())
-                &&Objects.equals(party.getPayer().getId(),j.getPayerId())&&party.getGroupVersion()==j.getBaseGroupVersion()&&List.of(PartyStatus.PREPAYING,PartyStatus.READY).contains(party.getStatus())
-                &&party.getStartedAt()==null&&party.getCalledAt()==null&&clock.now().isBefore(j.getDeadlineAt())).isPresent();
+                &&Objects.equals(party.getPayer().getId(),j.getPayerId())&&party.getGroupVersion()==j.getBaseGroupVersion()
+                &&party.canAcceptJoin()&&clock.now().isBefore(j.getDeadlineAt())).isPresent();
     }
     /** true면 만료된 합류의 입금이므로 전액 환불한다. 일반 선결제에는 개입하지 않는다. */
     @Transactional(propagation=Propagation.MANDATORY)

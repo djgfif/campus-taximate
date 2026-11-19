@@ -32,6 +32,7 @@ public class DemoScenarioService {
     private final NoShowService noShows;
     private final PartyJoinService joins;
     private final DemoChat chat;
+    private final BoardingCodeService boardingCodes;
 
     private PartyService.PartyView party(long actor) {
         return parties.openParties(actor).stream().findFirst().orElseGet(()->requests.findFirstByMemberIdAndPartyIsNotNullOrderByIdDesc(actor)
@@ -122,9 +123,16 @@ public class DemoScenarioService {
                         var payer=parties.view(p.payerId(),p.id());
                         if(sample(p.payerId(),actor)&&payer.canCall()) readiness.call(p.payerId(),p.id());
                         moveTo(p.departureAt());
-                    } else moveTo(p.departureAt().plusSeconds(300));
+                    } else if(sample(p.payerId(),actor)) {
+                        boardingCodes.open(p.payerId(),p.id());
+                        var code=boardingCodes.state(p.payerId(),p.id());
+                        for(var m:p.members()) if(m.memberId()!=p.payerId() && sample(m.memberId(),actor)) boardingCodes.confirm(m.memberId(),p.id(),code.code(),code.generation());
+                        boardingCodes.start(p.payerId(),p.id());
+                    } else return progress(actor,"일행 화면에서 실제 탑승·코드 열기와 운행 시작을 눌러 주세요.");
                 }
                 case AWAITING_FARE -> {
+                    var window=boardingCodes.state(p.payerId(),p.id());
+                    if(window.deadlineAt()!=null && clock.now().isBefore(window.deadlineAt())) moveTo(window.deadlineAt());
                     if(!sample(p.payerId(),actor)) return progress(actor,"내 실제 금액과 영수증을 일행 화면에서 입력해 주세요.");
                     settlements.submitForDemo(p.payerId(),p.id(),p.expectedTotal(),null,null);
                 }
@@ -211,9 +219,13 @@ public class DemoScenarioService {
             }
             moveTo(p.departureAt().plusSeconds(300));
             if(scenario==Scenario.RIDE_UNCONFIRMED) return progress(actor,"운행 시작 표시 없이 T+5분이 됐어요. 탔어요 / 못 탔어요로 답해 보세요.");
+            readiness.call(p.payerId(),p.id());
+            boardingCodes.open(p.payerId(),p.id());
+            var window=boardingCodes.state(p.payerId(),p.id());
+            for(var m:p.members()) if(m.memberId()!=p.payerId() && !Objects.equals(absent,m.memberId())) boardingCodes.confirm(m.memberId(),p.id(),window.code(),window.generation());
+            boardingCodes.start(p.payerId(),p.id());
+            moveTo(window.deadlineAt());
             var current=parties.view(actor,p.id());
-            if(current.status()==PartyStatus.RIDE_UNCONFIRMED) confirmations.answer(p.payerId(),p.id(),true);
-            current=parties.view(actor,p.id());
             if(current.settlement()==null) settlements.submitForDemo(p.payerId(),p.id(),p.expectedTotal(),null,null);
             if(scenario==Scenario.NO_SHOW) {
                 for(var m:parties.view(actor,p.id()).members()) noShows.vote(m.memberId(),p.id(),absent,false);

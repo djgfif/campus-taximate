@@ -35,6 +35,7 @@ import org.springframework.test.web.servlet.ResultActions;
 @AutoConfigureMockMvc
 @ActiveProfiles("demo")
 class MatchingConnectionTest {
+    @org.springframework.beans.factory.annotation.Autowired private com.campustaximate.server.service.LoginTokenService testTokens;
     private static final Instant NOW = Instant.parse("2026-11-10T00:00:00Z");
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
@@ -101,7 +102,7 @@ class MatchingConnectionTest {
 
     private ResultActions create(long member, Map<String, Object> body) throws Exception {
         MockHttpSession session = new MockHttpSession();
-        session.setAttribute("memberId", member);
+        com.campustaximate.server.AuthenticatedTestSession.authenticate(session, member, testTokens);
         return mvc.perform(post("/api/requests").session(session).contentType(MediaType.APPLICATION_JSON)
                 .content(json.writeValueAsString(body)));
     }

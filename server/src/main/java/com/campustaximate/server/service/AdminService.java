@@ -22,11 +22,12 @@ public class AdminService {
     private final MemberRestrictionRepository restrictions; private final PaymentOrderRepository orders;
     private final HubRepository hubs; private final SchoolRepository schools; private final AppClock clock;
     private final RideRequestRepository requests;
+    private final PayoutLedgerRepository payouts;
     public void requireAdmin(long actor) {
         if(!members.findById(actor).map(Member::isAdmin).orElse(false))throw ApiException.forbidden("관리자만 이용할 수 있어요.");
     }
     public record CaseSummary(BoardingCase investigation,PartyMemberTerm boarding,boolean receiptPresent,long absentVotes,long presentVotes,boolean explanationPresent) {}
-    public record ChatLine(long id,long memberId,String text,Instant createdAt) {}
+    public record ChatLine(long id,long memberId,String text,Instant createdAt,String kind,String imageUrl) {}
     public record CaseDetail(CaseSummary summary,List<BoardingVote> votes,BoardingExplanation explanation,List<ChatLine> chat) {}
     public List<CaseSummary> noShowReviews(long actor) {
         requireAdmin(actor);
@@ -42,7 +43,31 @@ public class AdminService {
         requireAdmin(actor);var c=cases.findById(id).orElseThrow(()->ApiException.notFound("없는 조사입니다."));
         return new CaseDetail(summary(c),votes.findByCaseIdOrderById(id),explanations.findByCaseId(id).orElse(null),
                 // 판정 근거는 일행원이 쓴 대화만. 시스템 알림(보낸 사람 없음)은 뺀다.
-                messages.findTop50ByPartyIdOrderByIdDesc(c.getPartyId()).stream().filter(m->m.getMember()!=null).map(m->new ChatLine(m.getId(),m.getMember().getId(),m.getText(),m.getCreatedAt())).toList());
+                chatExpired(parties.findById(c.getPartyId()).orElseThrow()) ? List.of() :
+                messages.findTop50ByPartyIdOrderByIdDesc(c.getPartyId()).stream().filter(m->m.getMember()!=null && Objects.equals(m.getParty().getId(),c.getPartyId()))
+                    .map(m->new ChatLine(m.getId(),m.getMember().getId(),m.getText(),m.getCreatedAt(),m.getKind(),
+                        PartyMessage.IMAGE.equals(m.getKind()) && m.getImagePath()!=null
+                            ? "/api/admin/no-shows/"+id+"/messages/"+m.getId()+"/image" : null)).toList());
+    }
+    /** Same retention boundary as PartyChatService: min(settlement, departure + 24h) + 7 days. */
+    private boolean chatExpired(Party party) {
+        Instant end=party.getDepartureAt().plus(java.time.Duration.ofHours(24));
+        if(party.getSettledAt()!=null && party.getSettledAt().isBefore(end)) end=party.getSettledAt();
+        return !clock.now().isBefore(end.plus(java.time.Duration.ofDays(7)));
+    }
+    public PartyChatService.ImageFile noShowMessageImage(long actor,long caseId,long messageId) {
+        requireAdmin(actor);
+        var c=cases.findById(caseId).orElseThrow(()->ApiException.notFound("없는 조사입니다."));
+        Party party=parties.findById(c.getPartyId()).orElseThrow(()->ApiException.notFound("없는 일행입니다."));
+        var message=messages.findById(messageId).filter(m->Objects.equals(m.getParty().getId(),c.getPartyId())
+                && m.getMember()!=null && PartyMessage.IMAGE.equals(m.getKind()) && m.getImagePath()!=null)
+                .orElseThrow(()->ApiException.notFound("사진이 없어요."));
+        if(chatExpired(party)) throw ApiException.notFound("보관 기간이 지나 사진이 삭제됐어요.");
+        java.nio.file.Path path=java.nio.file.Path.of(message.getImagePath());
+        if(!java.nio.file.Files.isRegularFile(path) || !java.nio.file.Files.isReadable(path)
+                || (message.getImageType()==null || !Set.of("image/jpeg","image/png","image/webp").contains(message.getImageType())))
+            throw ApiException.notFound("보관 중인 사진이 없습니다.");
+        return new PartyChatService.ImageFile(path,message.getImageType());
     }
     private Party lockParty(long id){return parties.findByIdForUpdate(id).orElseThrow(()->ApiException.notFound("없는 일행입니다."));}
     private static void evidence(String s){if(s==null||s.isBlank()||s.length()>2000)throw ApiException.badRequest("EVIDENCE_REQUIRED","판정 근거를 1~2000자로 입력해 주세요.");}
@@ -91,20 +116,26 @@ public class AdminService {
         s.setObjectionDeadlineAt(clock.now());audit(actor,"FARE_DECISION","PARTY",partyId,accept?"ACCEPTED":"REJECTED",evidence,k,f);
     }
     @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
-    public void decideRide(long actor,long partyId,String evidence){
+    public void decideRide(long actor,long partyId,String decision,String evidence){
         requireAdmin(actor);evidence(evidence);Party party=lockParty(partyId);
-        String k="RIDE:"+partyId,f=evidence.strip();if(done(k,f))return;
+        if(!List.of("OPERATED","NOT_OPERATED").contains(decision==null?"":decision)) throw ApiException.badRequest("RIDE_DECISION_REQUIRED","운행 또는 미운행을 명시적으로 선택해 주세요.");
+        String k="RIDE:"+partyId,f=decision+":"+evidence.strip();if(done(k,f))return;
         if(party.getStatus()!=PartyStatus.REVIEW_PENDING||!"RIDE_DISPUTE".equals(party.getReviewReason()))throw ApiException.conflict("NOT_REVIEWABLE","운행 여부 검토 대상이 아니에요.");
-        var s=settlements.findByParty(party).orElse(null);boolean operated=s!=null&&s.getReceiptPath()!=null;
-        if(operated){
-            if(party.getStartedAt()==null)rides.start(party,party.getDepartureAt());
-            settlementService.correctByAdmin(party,s,s.getPaidAmount());
-            // 요금 이의가 따로 있으면 계속 검토한다.
-            if(objections.existsBySettlementIdAndResolvedAtIsNull(s.getId()))party.setStatus(PartyStatus.REVIEW_PENDING);
-            else {party.setStatus(PartyStatus.OBJECTION_WINDOW);}
-        }else rides.notOperated(party);
+        if(payouts.existsByPartyId(partyId) || orders.findByPartyIdOrderById(partyId).stream().anyMatch(o->o.getRefundedAmount()>0 || o.getPurpose()==PaymentPurpose.ADDITIONAL && o.getApprovedAmount()>0))
+            throw ApiException.conflict("FINANCIAL_FINAL","이미 실행된 환불·추가 결제·지급은 운행 판정으로 되돌릴 수 없어요. 별도 재무 처리가 필요해요.");
+        var s=settlements.findByParty(party).orElse(null);
+        boolean unavailable=s!=null && (s.getReceiptPath()==null || !java.nio.file.Files.isRegularFile(java.nio.file.Path.of(s.getReceiptPath())));
+        boolean recovery=party.getStartedAt()==null;
+        if("OPERATED".equals(decision)) {
+            rides.recoverOperated(party);
+            if(s!=null) {
+                settlementService.correctByAdmin(party,s,s.getPaidAmount());
+                party.setStatus(objections.existsBySettlementIdAndResolvedAtIsNull(s.getId())?PartyStatus.REVIEW_PENDING:PartyStatus.OBJECTION_WINDOW);
+            }
+        } else rides.notOperated(party);
         party.setAdminReviewRequired(false);party.setReviewReason(null);
-        audit(actor,"RIDE_DECISION","PARTY",partyId,operated?"OPERATED":"NOT_OPERATED",evidence,k,f);
+        audit(actor,"RIDE_DECISION","PARTY",partyId,decision+(recovery&&"OPERATED".equals(decision)?"_ADMIN_RECOVERY":""),
+            evidence+(unavailable?" [영수증 사용 불가: 명시적 판정, 부재로 운행 여부 추정하지 않음]":""),k,f);
     }
     public record ReportView(long id,long partyId,long reporterId,long reportedId,String reason,String memo,Instant createdAt) {}
     public List<ReportView> reports(long actor){requireAdmin(actor);return reports.findAll().stream().map(r->new ReportView(r.getId(),r.getParty().getId(),r.getReporterId(),r.getReportedId(),r.getReason().name(),r.getMemo(),r.getCreatedAt())).toList();}

@@ -74,7 +74,7 @@ public class SlotService {
     private final MatchingDiagnostics diagnostics;
     private final PartyJoinService joins;
     private final ReentrantLock lock = new ReentrantLock();
-    private final Map<List<Long>, Instant> rejected = new ConcurrentHashMap<>();
+    private final Map<RouteGroupVerifier.RejectionKey, Instant> rejected = new ConcurrentHashMap<>();
     @Value("${app.public-url}")
     private String publicUrl;
 
@@ -163,8 +163,7 @@ public class SlotService {
         }
         if(party.paymentFlow()) {
             // 새 흐름은 전원 도착 때만 기존 출발 처리를 하고, 미표시자를 노쇼로 빼지 않는다.
-            if(party.isInstant()) rideConfirmations.markBoardingUnconfirmed(party);
-            if(riders.stream().allMatch(RideRequest::isArrived) && (!party.isInstant()||party.getCalledAt()!=null)) rideConfirmations.start(party,now);
+            // Arrival never opens the boarding code or starts a ride.
             return Set.of();
         }
         Set<Long> noShows = new HashSet<>();

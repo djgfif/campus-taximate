@@ -20,6 +20,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class LoginTokenFilter extends OncePerRequestFilter {
 
     static final String COOKIE = "taximate_login";
+    public static final String TOKEN_KEY = "loginToken";
     static final String SESSION_KEY = "memberId";
 
     private final LoginTokenService tokens;
@@ -40,17 +41,19 @@ public class LoginTokenFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        tokenOf(request).ifPresent(token -> {
-            Optional<Long> member = tokens.memberOf(token);
-            if (member.isPresent()) {
-                request.getSession().setAttribute(SESSION_KEY, member.get());
-            } else {
-                HttpSession session = request.getSession(false);
-                if (session != null) {
-                    session.removeAttribute(SESSION_KEY);
-                }
-            }
-        });
+        HttpSession session = request.getSession(false);
+        Optional<String> cookie = tokenOf(request);
+        String token = cookie.orElseGet(() -> session != null && session.getAttribute(TOKEN_KEY) instanceof String saved ? saved : null);
+        Optional<Long> member = token == null ? Optional.empty() : tokens.memberOf(token);
+        if (member.isPresent()) {
+            HttpSession authenticated = request.getSession();
+            if (!member.get().equals(authenticated.getAttribute(SESSION_KEY))) request.changeSessionId();
+            authenticated.setAttribute(SESSION_KEY, member.get());
+            authenticated.setAttribute(TOKEN_KEY, token);
+        } else if (session != null) {
+            session.removeAttribute(SESSION_KEY);
+            session.removeAttribute(TOKEN_KEY);
+        }
         chain.doFilter(request, response);
     }
 }

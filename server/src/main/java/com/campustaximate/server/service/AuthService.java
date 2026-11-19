@@ -45,12 +45,14 @@ public class AuthService {
     private String secret;
 
     /** 코드를 만들어 메일로 보내고 코드를 돌려준다. 호출하는 쪽은 시연 계정에만 이 값을 내보낸다. */
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public String requestCode(String rawEmail) {
         String email = normalize(rawEmail);
-        School school = schools.findByEmailDomain(email.substring(email.indexOf('@') + 1))
+        // The school row serializes first registration, including the absent-member case.
+        // Existing-account code consumption and failure counters use the member row lock.
+        School school = schools.findByEmailDomainForUpdate(email.substring(email.indexOf('@') + 1))
                 .orElseThrow(() -> ApiException.badRequest("SCHOOL_NOT_FOUND", "등록된 학교 메일이 아닙니다."));
-        Member member = members.findByEmail(email).orElseGet(() -> new Member(school, email));
+        Member member = members.findByEmailForUpdate(email).orElseGet(() -> new Member(school, email));
         Instant now = clock.now();
         boolean tooSoon = member.getLoginCodeSentAt() != null
                 && now.isBefore(member.getLoginCodeSentAt().plus(RESEND_WAIT));
@@ -69,10 +71,10 @@ public class AuthService {
     }
 
     /** 실패 횟수를 남겨야 하므로 거절해도 롤백하지 않는다. */
-    @Transactional(noRollbackFor = ApiException.class)
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW, noRollbackFor = ApiException.class)
     public long login(String rawEmail, String code) {
         String email = normalize(rawEmail);
-        Member member = members.findByEmail(email).orElseThrow(AuthService::invalidCode);
+        Member member = members.findByEmailForUpdate(email).orElseThrow(AuthService::invalidCode);
         requireNotLocked(member, clock.now());
         boolean live = member.getLoginCode() != null && clock.now().isBefore(member.getLoginCodeExpiresAt());
         if (!live) {
@@ -93,15 +95,15 @@ public class AuthService {
     /** 메일 인증을 마친 회원이 비밀번호를 정하거나 바꾼다. */
     @Transactional
     public void setPassword(long memberId, String password) {
-        Member member = members.findById(memberId).orElseThrow(ApiException::unauthorized);
+        Member member = members.findByIdForUpdate(memberId).orElseThrow(ApiException::unauthorized);
         member.setPasswordHash(PasswordHasher.hash(password));
     }
 
     /** 실패 횟수를 남겨야 하므로 거절해도 롤백하지 않는다. */
-    @Transactional(noRollbackFor = ApiException.class)
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW, noRollbackFor = ApiException.class)
     public long signIn(String rawEmail, String password) {
         String email = normalize(rawEmail);
-        Member member = members.findByEmail(email).orElseThrow(AuthService::invalidPassword);
+        Member member = members.findByEmailForUpdate(email).orElseThrow(AuthService::invalidPassword);
         requireNotLocked(member, clock.now());
         if (!PasswordHasher.matches(password, member.getPasswordHash())) {
             countDailyFailure(member, clock.now());
@@ -116,7 +118,7 @@ public class AuthService {
 
     @Transactional
     public void completeProfile(long memberId, String nickname, Gender gender) {
-        Member member = members.findById(memberId).orElseThrow(ApiException::unauthorized);
+        Member member = members.findByIdForUpdate(memberId).orElseThrow(ApiException::unauthorized);
         if (member.hasProfile()) {
             throw ApiException.conflict("PROFILE_EXISTS", "이미 프로필을 입력했습니다.");
         }

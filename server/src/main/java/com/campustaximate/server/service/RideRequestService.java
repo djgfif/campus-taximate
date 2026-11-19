@@ -252,8 +252,8 @@ public class RideRequestService {
             if(reference.getParty()==null) throw ApiException.conflict("CANNOT_CANCEL", "취소할 수 없는 상태입니다.");
             var party=partyRepository.findByIdForUpdate(reference.getParty().getId()).orElseThrow();
             if(version!=null && (party.getGroupVersion()!=version || party.getGroupVersion()<=1)) throw ApiException.conflict("PARTY_CHANGED", "일행이 바뀌었어요. 다시 확인해 주세요.");
-            if(!reference.canCancelAt(clock.now())) throw ApiException.conflict("DEPARTED", "출발 시각이 지나 취소할 수 없습니다.");
-            boolean free=party.paymentFlow() && (changed?clock.now().isBefore(party.getDepartureAt().minusSeconds(600)):!clock.now().isAfter(party.freeCancelUntil()));
+            if(reference.getPendingExitReason()==null && !reference.canCancelAt(clock.now())) throw ApiException.conflict("DEPARTED", "출발 시각이 지나 취소할 수 없습니다.");
+            boolean free=reference.getPendingExitReason()!=null || party.paymentFlow() && (changed?clock.now().isBefore(party.getDepartureAt().minusSeconds(600)):!clock.now().isAfter(party.freeCancelUntil()));
             return new Plan(party.getId(),free,party.getGroupVersion(),party.paymentFlow());
         });
         if(plan==null) return true;
@@ -261,7 +261,6 @@ public class RideRequestService {
         shrinker.remove(plan.partyId(),Set.of(requestId),clock.now(),false,
                 plan.free()?(changed?"CHANGE_EXIT_FREE":"FREE_CANCEL"):"LATE_CANCEL",plan.groupVersion(),held);
         boolean free=plan.free() && !partyTerms.findByPartyIdAndRequestId(plan.partyId(),requestId).map(t->t.isRefundHeld() || "LATE_CANCEL".equals(t.getExitReason())).orElse(false);
-        if(free) payments.refundMember(plan.partyId(),memberId,"무료 취소");
         return free;
     }
 

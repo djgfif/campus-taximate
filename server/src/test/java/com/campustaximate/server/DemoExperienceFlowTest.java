@@ -25,6 +25,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @ActiveProfiles("demo") @AutoConfigureMockMvc
 @Import(DemoExperienceFlowTest.FixedTime.class)
 class DemoExperienceFlowTest {
+    @org.springframework.beans.factory.annotation.Autowired private com.campustaximate.server.service.LoginTokenService testTokens;
     static final Instant NOW=Instant.parse("2026-11-12T00:00:00Z");
     @TestConfiguration(proxyBeanMethods=false)
     static class FixedTime {
@@ -69,7 +70,7 @@ class DemoExperienceFlowTest {
         rides.create(me,new RideRequestService.NewRequest(Direction.FROM_HUB,hub.getId(),NOW.plusSeconds(3600),NOW.plusSeconds(7200),null,"내 목적지",37.833,127.146,"사용자"));
     }
     PartyService.PartyView current() { return views.openParties(me).getFirst(); }
-    MockHttpSession session() { var s=new MockHttpSession();s.setAttribute("memberId",me);return s; }
+    MockHttpSession session() { var s=new MockHttpSession();com.campustaximate.server.AuthenticatedTestSession.authenticate(s, me, testTokens);return s; }
     @Test void roleChoiceCreatesFartherSampleAndKeepsMyPrepaymentForMe() {
         request();demo.matchNow(me,DemoService.Role.PASSENGER);
         var p=current();assertThat(p.payer()).isFalse();
@@ -82,13 +83,20 @@ class DemoExperienceFlowTest {
         assertThat(chat.read(me,p.id(),null).messages()).anyMatch(m->m.memberId()!=null && m.memberId()!=me); // 샘플 계정의 첫인사
         assertThat(chat.read(me,p.id(),null).messages()).anyMatch(m->m.text().contains("결제"));
     }
+    @Autowired BoardingCodeService boardingCodes;
+    @Autowired PartyReadinessService readiness;
     @Test void payerRoleAndNextStepReachCallDepartureAndSettlement() {
         request();demo.matchNow(me,DemoService.Role.PAYER);assertThat(current().payer()).isTrue();
         scenarios.next(me);assertThat(current().status()).isEqualTo(PartyStatus.READY);
         scenarios.next(me);assertThat(clock.now()).isEqualTo(current().departureAt().minusSeconds(600));
-        views.arrive(me,current().id());scenarios.next(me);assertThat(current().status()).isEqualTo(PartyStatus.AWAITING_FARE);
+        views.arrive(me,current().id());scenarios.next(me);
+        assertThat(current().status()).isEqualTo(PartyStatus.READY);
+        readiness.call(me,current().id()); boardingCodes.open(me,current().id());boardingCodes.start(me,current().id());
+        assertThat(current().status()).isEqualTo(PartyStatus.AWAITING_FARE);
         assertThat(chat.read(me,current().id(),null).messages()).anyMatch(m->m.text().startsWith("도착했어요"));
-        var before=clock.now();assertThat(scenarios.next(me).message()).contains("영수증");assertThat(clock.now()).isEqualTo(before);
+        var deadline=boardingCodes.state(me,current().id()).deadlineAt();
+        assertThat(scenarios.next(me).message()).contains("영수증");
+        assertThat(clock.now()).isEqualTo(deadline);
     }
     @Test void instantScenarioCreatesInstantRequestAndParty() {
         var p=scenarios.scenario(me,DemoScenarioService.Scenario.INSTANT,DemoService.Role.PASSENGER);
@@ -121,7 +129,8 @@ class DemoExperienceFlowTest {
     @Test void explicitMySuccessionScenarioAcceptsAndPreservesPrepayment() {
         scenarios.scenario(me,DemoScenarioService.Scenario.MY_SUCCESSION,DemoService.Role.PAYER);
         var p=current();assertThat(p.payer()).isTrue();assertThat(p.successionStatus()).isEqualTo("ACCEPTED");
-        assertThat(p.status()).isEqualTo(PartyStatus.AWAITING_FARE);
+        assertThat(p.status()).isEqualTo(PartyStatus.READY);
+        assertThat(p.startedAt()).isNull();
         assertThat(orders.findByPartyIdAndMemberIdAndPurpose(p.id(),me,PaymentPurpose.PREPAY).orElseThrow().getRefundedAmount()).isZero();
     }
     @Test void tPlusFiveAsksRideConfirmationWithoutRefund() {

@@ -25,8 +25,8 @@ public class PartyJoinService {
                         List<MatchRequest> input,Map<Long,Long> expected,Map<Long,Long> fares,Map<Long,GeoPoint> origins){}
     private Instant cutoff(Party p){return p.isInstant()?p.getConfirmedAt().plusSeconds(settings.instantPrepMinutes()*60L):p.getDepartureAt().minusSeconds(settings.leadMinutes()*60L);}
     private void open(Party p){
-        if(!p.paymentFlow()||p.getDirection()!=Direction.FROM_HUB||p.getHub()==null||!p.getHub().isActive()||!p.getHub().isFieldChecked()||p.getCalledAt()!=null||!List.of(PartyStatus.PREPAYING,PartyStatus.READY).contains(p.getStatus())
-                ||p.getStartedAt()!=null||!clock.now().isBefore(cutoff(p)))throw ApiException.conflict("JOIN_CLOSED","합류 마감이 지났거나 합류할 수 없는 일행이에요.");
+        if(!p.canAcceptJoin()||p.getDirection()!=Direction.FROM_HUB||p.getHub()==null||!p.getHub().isActive()||!p.getHub().isFieldChecked()
+                ||!clock.now().isBefore(cutoff(p)))throw ApiException.conflict("JOIN_CLOSED","합류 마감이 지났거나 합류할 수 없는 일행이에요.");
     }
     private Plan readPlan(long actor,long partyId,long requestId){
         Party p=parties.findById(partyId).orElseThrow(()->ApiException.notFound("없는 일행입니다."));open(p);

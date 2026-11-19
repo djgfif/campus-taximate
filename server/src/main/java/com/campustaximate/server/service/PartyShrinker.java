@@ -43,6 +43,7 @@ public class PartyShrinker {
     private final PlatformTransactionManager transactionManager;
     private final AppClock clock;
     private final PartyChangeService changes;
+    private final PaymentService payments;
 
     private static final int MAX_DELAY_SECONDS = 15 * 60;
     private static final Set<String> FREE_EXITS = Set.of("PREPAY_UNPAID", "FREE_CANCEL", "CHANGE_EXIT_FREE");
@@ -51,7 +52,8 @@ public class PartyShrinker {
                         long soloFare, int walkSeconds) {
     }
 
-    private record Plan(long version, Direction direction, GeoPoint anchor, long total, List<Stay> stays, boolean paymentFlow) {
+    private record Plan(long version, Direction direction, GeoPoint anchor, long total, List<Stay> stays, boolean paymentFlow,
+                        Instant departure, List<com.campustaximate.matching.MatchRequest> inputs, java.util.Map<Long,GeoPoint> origins) {
     }
 
     /** departed이면 남은 사람은 탑승 완료가 된다. */
@@ -65,7 +67,12 @@ public class PartyShrinker {
         Plan plan = tx.execute(status -> {
             Party party=parties.findByIdForUpdate(partyId).orElseThrow();
             if(groupVersion!=null && party.getGroupVersion()!=groupVersion) throw ApiException.conflict("PARTY_CHANGED", "일행이 바뀌었어요. 다시 확인해 주세요.");
-            changes.capture(party,requests.findByPartyOrderByRideOrder(party),true);
+            if(FREE_EXITS.contains(reason)) {
+                for(var rider:requests.findByPartyOrderByRideOrder(party)) if(requested.contains(rider.getId()) && rider.getPendingExitReason()==null) {
+                    rider.setPendingExitReason(reason);rider.setExitRequestedAt(now);
+                }
+                party.setRouteVerificationPending(true);parties.flush();
+            }
             if(!requests.findByPartyOrderByRideOrder(party).stream().map(RideRequest::getId).toList().containsAll(leaving)) throw ApiException.conflict("NOT_IN_PARTY", "이미 일행에서 빠진 요청입니다.");
             return plan(partyId,leaving);
         });
@@ -73,7 +80,7 @@ public class PartyShrinker {
             cancel(tx, partyId, leaving, now, departed, reason, held, plan.version());
             return;
         }
-        Recalculated result = recalculateOrKeep(plan, departed);
+        Recalculated result = recalculateOrKeep(plan, departed, !departed && FREE_EXITS.contains(reason));
         if (result == null || !departed && FREE_EXITS.contains(reason) && result.fresh() && !meetsConditions(plan, result)) {
             cancel(tx, partyId, leaving, now, departed, reason, held, plan.version());
             return;
@@ -81,11 +88,23 @@ public class PartyShrinker {
         tx.executeWithoutResult(status -> apply(partyId, leaving, plan, result, departed, reason, held));
     }
 
+    public void retryPending() {
+        for(var request:requests.findByPendingExitReasonIsNotNull()) {
+            if(request.getParty()==null) continue;
+            try {
+                remove(request.getParty().getId(),Set.of(request.getId()),request.getExitRequestedAt(),false,request.getPendingExitReason(),null,Set.of());
+            } catch(ApiException deferred) {
+                if(!Set.of("ROUTE_RETRY_PENDING","CONFLICT").contains(deferred.getCode())) throw deferred;
+            }
+        }
+    }
+
     /** 이미 택시를 탄 일행은 조회가 실패해도 취소하지 않는다. 취소하면 결제자가 낸 돈을 나눌 길이 없어진다. */
-    private Recalculated recalculateOrKeep(Plan plan, boolean departed) {
+    private Recalculated recalculateOrKeep(Plan plan, boolean departed, boolean enforce) {
         try {
-            return recalculate(plan);
+            return recalculate(plan,enforce);
         } catch (RouteClient.RouteUnavailableException e) {
+            if(enforce) throw new ApiException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,"ROUTE_RETRY_PENDING","경로를 확인하지 못해 변경을 보류했어요. 무료 요청 시각은 보존하며 다음 회차에 다시 확인해요.");
             return departed || plan.paymentFlow() ? keepStoredValues(plan) : null;
         } catch (IllegalArgumentException e) {
             return null;
@@ -147,7 +166,12 @@ public class PartyShrinker {
                         rider.getSoloKm(), rider.getSoloSeconds(), rider.getSoloFare(), walk));
             }
         }
-        return new Plan(party.getVersion(), party.getDirection(), party.anchorPoint(), party.getExpectedTotal(), stays, party.paymentFlow());
+        var remaining=requests.findByPartyOrderByRideOrder(party).stream().filter(r->!leaving.contains(r.getId())).toList();
+        var inputs=remaining.stream().flatMap(r->SlotService.toEngine(r).stream())
+            .filter(r->r.anchorId()==(party.getHub()!=null?party.getHub().getId():party.getSchool().getId())).toList();
+        var origins=new java.util.HashMap<Long,GeoPoint>(); remaining.forEach(r->origins.put(r.getId(),r.origin()));
+        return new Plan(party.getVersion(), party.getDirection(), party.anchorPoint(), party.getExpectedTotal(), stays, party.paymentFlow(),
+            party.getDepartureAt(),inputs,origins);
     }
 
     /** fresh는 경로를 새로 조회해 얻은 값이라는 뜻이다. 저장값을 그대로 쓴 경우에는 조건을 다시 검사하지 않는다. */
@@ -155,7 +179,22 @@ public class PartyShrinker {
                                 long total, List<Long> shares, boolean fresh) {
     }
 
-    private Recalculated recalculate(Plan plan) {
+    private Recalculated recalculate(Plan plan, boolean enforce) {
+        if(plan.direction()==Direction.FROM_HUB) {
+            var order=new ArrayList<>(plan.inputs());
+            order.sort(TripPlan.of(plan.direction()).comparator());
+            var fares=new java.util.HashMap<Long,Long>(); plan.stays().forEach(r->fares.put(r.id(),r.soloFare()));
+            var verifier=new RouteGroupVerifier(routes,new java.util.HashMap<>(),clock.now(),paths,fares,plan.origins(),plan.departure())
+                .fixedDeparture(plan.departure()).enforceGroupConstraints(enforce);
+            var candidate=new com.campustaximate.matching.Candidate(order,0,plan.departure(),List.of());
+            var verdict=verifier.verify(candidate);
+            if(verdict==com.campustaximate.matching.Verdict.UNAVAILABLE) throw new RouteClient.RouteUnavailableException("Shrink route unavailable",null);
+            if(verdict!=com.campustaximate.matching.Verdict.PASS) return null;
+            var verified=verifier.routesOf(order);
+            var units=SettlementCalculator.ratioUnits(verified.solo().stream().map(RouteClient.Route::fare).toList());
+            return new Recalculated(order.stream().map(com.campustaximate.matching.MatchRequest::id).toList(),verified.solo(),verified.rideSeconds(),
+                verified.total(),SettlementCalculator.shares(verified.total(),units,TripPlan.of(plan.direction()).payerIndex(order.size())),true);
+        }
         TripPlan trip = TripPlan.of(plan.direction());
         List<RouteClient.Route> alone = new ArrayList<>();
         for (Stay stay : plan.stays()) {
@@ -217,7 +256,9 @@ public class PartyShrinker {
             Party party = parties.findByIdForUpdate(partyId).orElseThrow();
             if(party.getVersion()!=version) throw ApiException.conflict("CONFLICT", "일행이 바뀌었어요. 다시 확인해 주세요.");
             requireOpen(party, leaving, departed, reason);
-            changes.changed(party,leaving,reason,held);
+            changes.capture(party,requests.findByPartyOrderByRideOrder(party),true);
+        Instant accepted=requests.findByPartyOrderByRideOrder(party).stream().filter(r->leaving.contains(r.getId())).map(RideRequest::getExitRequestedAt).filter(java.util.Objects::nonNull).min(Instant::compareTo).orElse(clock.now());
+        changes.changed(party,leaving,reason,held,accepted);
             canceler.cancel(party, leaving, now);
         });
     }
@@ -228,7 +269,7 @@ public class PartyShrinker {
         boolean closed = riders.stream().anyMatch(rider -> rider.getStatus() != RequestStatus.MATCHED);
         boolean tooLate = !departed && !"PREPAY_UNPAID".equals(reason) && riders.stream()
                 .filter(rider -> leaving.contains(rider.getId()) && !rider.isNoShow())
-                .anyMatch(rider -> !rider.canCancelAt(clock.now()));
+                .anyMatch(rider -> rider.getPendingExitReason()==null && !rider.canCancelAt(clock.now()));
         if (closed || tooLate) {
             throw ApiException.conflict("DEPARTED", "출발 시각이 지나 취소할 수 없습니다.");
         }
@@ -240,10 +281,15 @@ public class PartyShrinker {
             throw ApiException.conflict("CONFLICT", "일행이 바뀌었습니다. 다시 시도해 주세요.");
         }
         requireOpen(party, leaving, departed, reason);
-        changes.changed(party,leaving,reason,held);
+        changes.capture(party,requests.findByPartyOrderByRideOrder(party),true);
+        Instant accepted=requests.findByPartyOrderByRideOrder(party).stream().filter(r->leaving.contains(r.getId())).map(RideRequest::getExitRequestedAt).filter(java.util.Objects::nonNull).min(Instant::compareTo).orElse(clock.now());
+        changes.changed(party,leaving,reason,held,accepted);
         List<RideRequest> stay = new ArrayList<>();
         for (RideRequest rider : requests.findByPartyOrderByRideOrder(party)) {
             if (leaving.contains(rider.getId())) {
+                if (party.paymentFlow() && FREE_EXITS.contains(reason)) {
+                    payments.refundMember(partyId, rider.getMember().getId(), "무료 이탈 환불");
+                }
                 rider.clearParty();
                 rider.finish(RequestStatus.CANCELED);
             } else {
@@ -276,8 +322,11 @@ public class PartyShrinker {
             party.setStatus(com.campustaximate.server.domain.PartyStatus.AWAITING_FARE);
             if (party.getStartedAt() == null) party.setStartedAt(clock.now());
         }
+        party.setRouteVerificationPending(stay.stream().anyMatch(r->r.getPendingExitReason()!=null));
         party.setExpectedTotal(result.total());
-        party.setPayer(stay.get(trip.payerIndex(stay.size())).getMember());
+        var nextPayer=stay.get(trip.payerIndex(stay.size())).getMember();
+        if(!party.getPayer().getId().equals(nextPayer.getId())) party.revokeBoardingCode();
+        party.setPayer(nextPayer);
         if (stay.get(0).getBoardAt() != null) {
             party.setDepartureAt(stay.get(0).getBoardAt());
         }

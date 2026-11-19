@@ -1,0 +1,2 @@
+ALTER TABLE payment_order ADD COLUMN ride_review_held BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE payment_order ADD COLUMN ride_review_conflict BOOLEAN NOT NULL DEFAULT FALSE;

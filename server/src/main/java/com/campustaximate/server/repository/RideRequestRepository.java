@@ -14,6 +14,8 @@ import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface RideRequestRepository extends JpaRepository<RideRequest, Long> {
+    java.util.List<RideRequest> findByPendingExitReasonIsNotNull();
+
 
     @Override
     @EntityGraph(attributePaths = {"points", "points.hub", "hub", "school", "member"})

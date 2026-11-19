@@ -224,7 +224,9 @@ public class ApiController {
         HttpSession session = request.getSession();
         request.changeSessionId();
         session.setAttribute(SESSION_KEY, id);
-        response.addHeader(HttpHeaders.SET_COOKIE, loginCookie(tokens.issue(id), LoginTokenService.VALID).toString());
+        String token = tokens.issue(id);
+        session.setAttribute(LoginTokenFilter.TOKEN_KEY, token);
+        response.addHeader(HttpHeaders.SET_COOKIE, loginCookie(token, LoginTokenService.VALID).toString());
     }
 
     @PostMapping("/auth/profile")
@@ -234,7 +236,7 @@ public class ApiController {
 
     @PostMapping("/auth/logout")
     public void logout(HttpServletRequest request, HttpServletResponse response, HttpSession session) {
-        LoginTokenFilter.tokenOf(request).ifPresent(tokens::revoke);
+        LoginTokenFilter.tokenOf(request).or(() -> java.util.Optional.ofNullable((String) session.getAttribute(LoginTokenFilter.TOKEN_KEY))).ifPresent(tokens::revoke);
         endSession(response, session);
     }
 
@@ -339,7 +341,7 @@ public class ApiController {
     @GetMapping("/parties/{partyId}/messages/{messageId}/image")
     public ResponseEntity<Resource> messageImage(@PathVariable long partyId, @PathVariable long messageId, HttpSession session) {
         var file = chat.image(memberId(session), partyId, messageId);
-        return ResponseEntity.ok().header("X-Content-Type-Options", "nosniff").header("Cache-Control", "private, max-age=3600")
+        return ResponseEntity.ok().header("X-Content-Type-Options", "nosniff").header("Cache-Control", "no-store")
                 .contentType(MediaType.parseMediaType(file.contentType())).body(new FileSystemResource(file.path()));
     }
 
@@ -433,6 +435,19 @@ public class ApiController {
         parties.arrive(memberId(session), id);
     }
 
+    private final com.campustaximate.server.service.BoardingCodeService boardingCodes;
+    public record BoardingCodeBody(String code, int generation) {}
+    @GetMapping("/parties/{id}/boarding-code")
+    public com.campustaximate.server.service.BoardingCodeService.State boardingState(@PathVariable long id,HttpSession session) {
+        return boardingCodes.state(memberId(session),id);
+    }
+    @PostMapping("/parties/{id}/boarding-code")
+    public void boardingCode(@PathVariable long id,@RequestBody BoardingCodeBody body,HttpSession session) {
+        boardingCodes.confirm(memberId(session),id,body.code(),body.generation());
+    }
+    @PostMapping("/parties/{id}/start")
+    public void startRide(@PathVariable long id,HttpSession session) { boardingCodes.start(memberId(session),id); }
+
     @PostMapping("/parties/{id}/boarded")
     public void boarded(@PathVariable long id, HttpSession session) {
         parties.board(memberId(session), id);
@@ -475,6 +490,7 @@ public class ApiController {
         }
         return ResponseEntity.ok()
                 .header("X-Content-Type-Options", "nosniff")
+                .header("Cache-Control", "no-store")
                 .contentType(MediaType.parseMediaType(settlement.getReceiptContentType()))
                 .body(new FileSystemResource(Path.of(settlement.getReceiptPath())));
     }

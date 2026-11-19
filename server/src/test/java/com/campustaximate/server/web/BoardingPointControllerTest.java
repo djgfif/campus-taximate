@@ -18,6 +18,7 @@ import org.springframework.test.context.ActiveProfiles;
 @AutoConfigureMockMvc
 @ActiveProfiles("demo")
 class BoardingPointControllerTest {
+    @org.springframework.beans.factory.annotation.Autowired private com.campustaximate.server.service.LoginTokenService testTokens;
     @Autowired org.springframework.test.web.servlet.MockMvc mvc;
     @Autowired HubRepository hubs;
     @Autowired MemberRepository members;
@@ -27,7 +28,7 @@ class BoardingPointControllerTest {
     @BeforeEach void prepare() {
         session = new MockHttpSession();
         var member = members.findByEmail("demo-f1@daejin.ac.kr").orElseThrow();
-        session.setAttribute(LoginTokenFilter.SESSION_KEY, member.getId());
+        com.campustaximate.server.AuthenticatedTestSession.authenticate(session, member.getId(), testTokens);
     }
     @Test void returnsOnlyCheckedActivePointsWithinTenMinutesNearestFirstAtMostThree() throws Exception {
         var school = members.findByEmail("demo-f1@daejin.ac.kr").orElseThrow().getSchool();

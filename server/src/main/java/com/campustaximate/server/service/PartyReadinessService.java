@@ -25,7 +25,7 @@ public class PartyReadinessService {
     public record State(boolean callReady,boolean canCall,List<String> notReadyReasons) { }
 
     public State state(Party party,long actor,List<RideRequest> riders) {
-        boolean phase=List.of(PartyStatus.PREPAYING,PartyStatus.READY).contains(party.getStatus());
+        boolean phase=party.canChangeBeforeRide() && List.of(PartyStatus.PREPAYING,PartyStatus.READY,PartyStatus.RIDE_UNCONFIRMED).contains(party.getStatus());
         var reasons=new ArrayList<String>();
         boolean paid=true;
         for(var rider:riders) {
@@ -38,17 +38,19 @@ public class PartyReadinessService {
         if(party.isInstant()&&!close) reasons.add("아직 도착 또는 2분 안 도착 표시를 하지 않은 일행이 있어요.");
         boolean time= !clock.now().isBefore(party.isInstant()?party.getDepartureAt():party.getDepartureAt().minusSeconds(600));
         if(!party.isInstant()&&!time) reasons.add("예약 일행은 출발 10분 전부터 호출할 수 있어요.");
-        boolean pending=party.getPendingJoinId()!=null && joins.activeReservation(party.getPendingJoinId());
-        if(pending)reasons.add("합류 선결제를 기다리고 있어요.");
-        boolean ready=phase && paid && !pending && (party.isInstant()?close:time);
-        boolean allowed=phase && (party.isInstant()?ready||time:ready) && party.getCalledAt()==null && party.getPayer().getId()==actor;
+        boolean waitingForJoin=party.getPendingJoinId()!=null && joins.activeReservation(party.getPendingJoinId());
+        if(party.isRouteVerificationPending()) reasons.add("일행 변경 경로를 재확인 중이에요. 확인 후 호출과 탑승을 진행해 주세요.");
+        if(waitingForJoin)reasons.add("합류 선결제를 기다리고 있어요.");
+        boolean clear=phase && paid && !waitingForJoin && !party.isRouteVerificationPending();
+        boolean ready=clear && (party.isInstant()?close:time);
+        boolean allowed=clear && (party.isInstant()?close||time:time) && party.getCalledAt()==null && party.getPayer().getId()==actor;
         return new State(ready,allowed,List.copyOf(reasons));
     }
 
     @Transactional
     public void prepare(long actor,long id,String state) {
         Party party=parties.findByIdForUpdate(id).orElseThrow(()->ApiException.notFound("없는 일행입니다."));
-        if(!party.isInstant() || !List.of(PartyStatus.PREPAYING,PartyStatus.READY).contains(party.getStatus())) throw ApiException.conflict("NOT_PREPARING","준비 상태를 표시할 수 없는 일행입니다.");
+        if(!party.isInstant() || !List.of(PartyStatus.PREPAYING,PartyStatus.READY,PartyStatus.RIDE_UNCONFIRMED).contains(party.getStatus())) throw ApiException.conflict("NOT_PREPARING","준비 상태를 표시할 수 없는 일행입니다.");
         RideRequest mine=requests.findByPartyOrderByRideOrder(party).stream().filter(r->r.getMember().getId()==actor).findFirst()
                 .orElseThrow(()->ApiException.forbidden("현재 일행원만 표시할 수 있어요."));
         if(mine.getStatus()!=RequestStatus.MATCHED) throw ApiException.conflict("NOT_PREPARING","이미 운행을 시작했어요.");
@@ -72,7 +74,7 @@ public class PartyReadinessService {
             var riders=requests.findByPartyOrderByRideOrder(party);
             if(!state(party,actor,riders).canCall()) throw ApiException.conflict("CALL_NOT_READY","아직 호출 준비가 되지 않았어요.");
             party.setCalledAt(clock.now());
-            if(party.isInstant()&&!clock.now().isBefore(party.getDepartureAt())) confirmations.markBoardingUnconfirmed(party);
+            // Calling a taxi does not prove boarding.
         });
     }
 }

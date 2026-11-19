@@ -25,6 +25,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @ActiveProfiles("demo")
 @org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 class PaymentFlowTest {
+    @org.springframework.beans.factory.annotation.Autowired private com.campustaximate.server.service.LoginTokenService testTokens;
     private static final Instant NOW = Instant.parse("2026-11-10T08:30:00Z");
     @Autowired org.springframework.test.web.servlet.MockMvc mvc;
     @Autowired PaymentService payments;
@@ -47,6 +48,7 @@ class PaymentFlowTest {
     @Autowired PartyChangeRepository partyChanges;
     @Autowired RideConfirmationRepository rideAnswers;
     @Autowired PartyService partyService;
+    @Autowired BoardingCodeService boardingCodes;
     @Autowired PartyReadinessService readiness;
     @Autowired PartyJoinService joins;
     @Autowired PartyJoinRepository partyJoins;
@@ -111,6 +113,7 @@ class PaymentFlowTest {
         approve(0); approve(1);
         at(parties.findById(partyId).orElseThrow().getPrepayDeadlineAt()); lifecycle.beforeDepartures();
         at(NOW.plusSeconds(1800)); slots.runLocked(() -> { slots.process(clock.now()); return null; });
+        boardAndStart(-1);
         assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.AWAITING_FARE);
     }
     MockMultipartFile receipt() { return new MockMultipartFile("receipt","r.png","image/png",new byte[]{(byte)0x89,80,78,71,13,10,26,10,1}); }
@@ -308,6 +311,7 @@ class PaymentFlowTest {
         assertThat(parties.findById(partyId).orElseThrow().getPayer().getId()).isEqualTo(ids.get(1));
         assertThat(order(1).getRefundTarget()).isZero();
         at(NOW.plusSeconds(600));lifecycle.beforeDepartures();at(NOW.plusSeconds(1800));slots.runLocked(()->{slots.process(clock.now());return null;});
+        boardAndStart(2);
         settlementService.submit(ids.get(1),partyId,12000,receipt(),null,null);
         finalizeFare();
         assertThat(order(1).getRefundedAmount()).isEqualTo(6440);
@@ -331,10 +335,81 @@ class PaymentFlowTest {
         assertThat(order(0).getRefundedAmount()).isZero();
         assertThat(requests.findById(request).orElseThrow().isNoShow()).isFalse();
         at(NOW.plusSeconds(7200));slots.runLocked(()->{slots.process(clock.now());return null;});
+        boardAndStart(0);
         submit(20000);finalizeFare();
         var charge=compensationEntries.findByPartyIdOrderByRequestId(partyId).stream().filter(e->e.getMemberId().equals(ids.get(0))).findFirst().orElseThrow();
         assertThat(charge.getCharge()).isEqualTo(3200);assertThat(order(0).getRefundedAmount()).isEqualTo(480);
         assertThat(requests.findById(request).orElseThrow().isNoShow()).isFalse();
+    }
+
+    @Test void boardingWindowUsesActualPayerBoardingAndArrivalNeverStartsRide() {
+        approve(0); approve(1); at(NOW.plusSeconds(600)); lifecycle.beforeDepartures();
+        at(NOW.plusSeconds(1800)); slots.process(clock.now());
+        assertThat(parties.findById(partyId).orElseThrow().getStartedAt()).isNull();
+        assertThatThrownBy(()->boardingCodes.start(ids.get(2),partyId)).isInstanceOf(ApiException.class);
+        at(NOW.plusSeconds(2222)); readiness.call(ids.get(2),partyId); boardingCodes.open(ids.get(2),partyId);
+        var state=boardingCodes.state(ids.get(2),partyId);
+        assertThat(state.deadlineAt()).isEqualTo(clock.now().plusSeconds(300));
+        assertThat(state.code()).matches("[0-9]{6}");
+        assertThat(boardingCodes.state(ids.get(0),partyId).code()).isNull();
+        assertThat(boardingCodes.state(ids.get(1),partyId).code()).isNull();
+        boardingCodes.open(ids.get(2),partyId);
+        assertThat(boardingCodes.state(ids.get(2),partyId)).isEqualTo(state);
+        assertThatThrownBy(()->submit(16800)).isInstanceOf(ApiException.class);
+        boardingCodes.start(ids.get(2),partyId); boardingCodes.start(ids.get(2),partyId);
+        assertThat(requests.findByStatus(RequestStatus.MATCHED)).hasSize(3);
+        assertThat(boardingCases.count()).isZero();
+        assertThatThrownBy(()->submit(16800)).isInstanceOf(ApiException.class);
+        boardingCodes.confirm(ids.get(0),partyId,state.code(),state.generation());
+        boardingCodes.confirm(ids.get(0),partyId,state.code(),state.generation());
+        assertThat(boardingCodes.state(ids.get(0),partyId).confirmed()).isTrue();
+        at(state.deadlineAt()); lifecycle.afterDepartures();
+        assertThatThrownBy(()->boardingCodes.confirm(ids.get(1),partyId,state.code(),state.generation())).isInstanceOf(ApiException.class);
+        assertThat(investigation(1).getStatus()).isEqualTo("PENDING");
+        assertThat(rider(1).isNoShow()).isFalse();
+        assertThat(requests.findByStatus(RequestStatus.COMPLETED)).hasSize(2);
+    }
+    @Test void fiveCodeFailuresSurviveOuterRollbackAndConcurrentRequests() throws Exception {
+        approve(0); approve(1); at(NOW.plusSeconds(600)); lifecycle.beforeDepartures();
+        at(NOW.plusSeconds(1200)); readiness.call(ids.get(2),partyId); boardingCodes.open(ids.get(2),partyId); var state=boardingCodes.state(ids.get(2),partyId);
+        String wrong=state.code().equals("000000")?"999999":"000000";
+        new TransactionTemplate(manager).executeWithoutResult(tx->{
+            assertThatThrownBy(()->boardingCodes.confirm(ids.get(0),partyId,wrong,state.generation())).isInstanceOf(ApiException.class);
+            tx.setRollbackOnly();
+        });
+        assertThat(boardingCodes.state(ids.get(0),partyId).remainingAttempts()).isEqualTo(4);
+        var executor=java.util.concurrent.Executors.newFixedThreadPool(8);
+        try {
+            var jobs=new ArrayList<java.util.concurrent.Future<?>>();
+            for(int i=0;i<8;i++) jobs.add(executor.submit(()->{
+                try { boardingCodes.confirm(ids.get(0),partyId,wrong,state.generation()); } catch(ApiException expected) { }
+            }));
+            for(var job:jobs) job.get(20,java.util.concurrent.TimeUnit.SECONDS);
+        } finally { executor.shutdownNow(); }
+        assertThat(boardingCodes.state(ids.get(0),partyId).remainingAttempts()).isZero();
+        assertThatThrownBy(()->boardingCodes.confirm(ids.get(0),partyId,state.code(),state.generation()))
+            .isInstanceOfSatisfying(ApiException.class,e->assertThat(e.getCode()).isEqualTo("CODE_LOCKED"));
+        assertThat(rider(0).getBoardingConfirmedAt()).isNull();
+    }
+    @Test void successionRevokesCodeKeepsConfirmedRidersAndRequiresNewBoardingAndStart() {
+        approve(0); approve(1); at(NOW.plusSeconds(600)); lifecycle.beforeDepartures();
+        at(NOW.plusSeconds(1800)); readiness.call(ids.get(2),partyId); boardingCodes.open(ids.get(2),partyId);
+        var original=boardingCodes.state(ids.get(2),partyId);
+        boardingCodes.confirm(ids.get(0),partyId,original.code(),original.generation());
+        new TransactionTemplate(manager).executeWithoutResult(tx->{ parties.findByIdForUpdate(partyId).orElseThrow().setBoardedAt(null); requests.findById(rider(2).getId()).orElseThrow().setBoardingConfirmedAt(null); });
+        noShows.vote(ids.get(0),partyId,ids.get(2),false);
+        noShows.succession(ids.get(1),partyId,true);
+        assertThat(parties.findById(partyId).orElseThrow().getStartedAt()).isNull();
+        assertThat(boardingCodes.state(ids.get(1),partyId).code()).isNull();
+        assertThat(boardingCodes.state(ids.get(0),partyId).confirmed()).isTrue();
+        assertThatThrownBy(()->boardingCodes.start(ids.get(1),partyId)).isInstanceOf(ApiException.class);
+        at(NOW.plusSeconds(2040)); boardingCodes.open(ids.get(1),partyId);
+        var next=boardingCodes.state(ids.get(1),partyId);
+        assertThat(next.generation()).isGreaterThan(original.generation());
+        assertThat(next.deadlineAt()).isEqualTo(clock.now().plusSeconds(300));
+        assertThatThrownBy(()->boardingCodes.confirm(ids.get(0),partyId,original.code(),original.generation())).isInstanceOf(ApiException.class);
+        boardingCodes.start(ids.get(1),partyId);
+        assertThat(parties.findById(partyId).orElseThrow().getStartedAt()).isEqualTo(clock.now());
     }
 
     /** 결제사가 확정적으로 거절하면 재시도하지 않고, 새 결제 키로 다시 결제할 수 있다. */
@@ -350,6 +425,14 @@ class PaymentFlowTest {
         approve(0);
         assertThat(order(0).getStatus()).isEqualTo(PaymentStatus.APPROVED);
         assertThat(order(0).getApprovedAmount()).isEqualTo(o.getAmount());
+        depart(); submit(16800); finalizeFare();
+        assertThat(operations.findByPaymentOrderIdOrderById(o.getId())).anySatisfy(op->{
+            assertThat(op.getType()).isEqualTo(PaymentOperationType.CONFIRM);
+            assertThat(op.getStatus()).isEqualTo(PaymentOperationStatus.CANCELED);
+        });
+        assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.COMPLETED);
+        assertThat(order(0).getRefundedAmount()).isEqualTo(480);
+        assertThat(payouts.findAll()).singleElement().satisfies(payout->assertThat(payout.getAmount()).isEqualTo(8800));
     }
 
     @Test void lostApprovalResponseIsRecoveredWithoutSecondCharge() {
@@ -452,11 +535,14 @@ class PaymentFlowTest {
     }
     @Test void n08PayerRodeStartsFareInputAndInvestigatesUnconfirmedMembers() {
         unconfirmed();rideConfirmations.answer(ids.get(2),partyId,true);
+        assertThat(parties.findById(partyId).orElseThrow().getStartedAt()).isNull();
+        readiness.call(ids.get(2),partyId); boardingCodes.open(ids.get(2),partyId); boardingCodes.start(ids.get(2),partyId);
+        at(boardingCodes.state(ids.get(2),partyId).deadlineAt());lifecycle.afterDepartures();
         assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.AWAITING_FARE);
         assertThat(requests.findByStatus(RequestStatus.COMPLETED)).hasSize(1);
         assertThat(requests.findByStatus(RequestStatus.CANCELED)).hasSize(2);
         assertThat(boardingCases.findByPartyIdOrderByRequestId(partyId)).hasSize(2).allMatch(BoardingCase::pending);
-        assertThat(terms.findByPartyIdOrderById(partyId)).allMatch(t->t.getBoardingUnconfirmedAt()!=null);
+        assertThat(terms.findByPartyIdOrderById(partyId)).filteredOn(t->t.getMemberId()!=ids.get(2)).allMatch(t->t.getBoardingUnconfirmedAt()!=null);
         assertThat(members.findAll().stream().filter(m->ids.contains(m.getId()))).allMatch(m->m.getNoShowCount()==0);
         assertThat(partyService.view(ids.get(2),partyId).canSettle()).isTrue();
         verify(gateway,never()).cancel(anyString(),anyLong(),anyString(),anyString());
@@ -471,7 +557,10 @@ class PaymentFlowTest {
         assertThatThrownBy(()->submit(16800)).isInstanceOf(ApiException.class);
     }
     @Test void fareWithinTPlus24IsAcceptedWithoutPayerAnswer() {
-        unconfirmed();at(NOW.plusSeconds(1800+23*3600));submit(16800);
+        unconfirmed();at(NOW.plusSeconds(1800+23*3600));
+        assertThatThrownBy(()->submit(16800)).isInstanceOfSatisfying(ApiException.class,e->assertThat(e.getCode()).isEqualTo("NOT_STARTED"));
+        readiness.call(ids.get(2),partyId); boardingCodes.open(ids.get(2),partyId);boardingCodes.start(ids.get(2),partyId);
+        at(boardingCodes.state(ids.get(2),partyId).deadlineAt());lifecycle.afterDepartures();submit(16800);
         assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.OBJECTION_WINDOW);
         assertThat(allocations.findAll()).hasSize(1);assertThat(boardingCases.findByPartyIdOrderByRequestId(partyId)).hasSize(2);assertThat(order(0).getRefundedAmount()).isZero();
     }
@@ -554,7 +643,7 @@ class PaymentFlowTest {
 
     @Test void rideConfirmationApiRequiresMembershipAndKeepsFirstAnswer() throws Exception {
         unconfirmed();var session=new org.springframework.mock.web.MockHttpSession();
-        session.setAttribute("memberId",ids.get(2));
+        com.campustaximate.server.AuthenticatedTestSession.authenticate(session, ids.get(2), testTokens);
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/parties/"+partyId+"/ride-confirmation")
                 .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{\"rode\":true}"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isUnauthorized());
@@ -563,7 +652,7 @@ class PaymentFlowTest {
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.myRideAnswer").value(true))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.canConfirmRide").value(false))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.status").value("AWAITING_FARE"));
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.status").value("RIDE_UNCONFIRMED"));
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/parties/"+partyId+"/ride-confirmation")
                 .session(session).contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{\"rode\":false}"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isConflict());
@@ -571,7 +660,7 @@ class PaymentFlowTest {
     }
     @Test void changedExitApiUsesServerVersionAndRefundPolicy() throws Exception {
         changedGroup();at(NOW.plusSeconds(1200));var session=new org.springframework.mock.web.MockHttpSession();
-        session.setAttribute("memberId",ids.get(0));
+        com.campustaximate.server.AuthenticatedTestSession.authenticate(session, ids.get(0), testTokens);
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/parties/"+partyId+"/leave-after-change")
                 .session(session).contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{\"groupVersion\":1}"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isConflict());
@@ -583,15 +672,35 @@ class PaymentFlowTest {
         assertThat(payouts.findAll()).singleElement().satisfies(p->{assertThat(p.getMemberId()).isEqualTo(ids.get(2));assertThat(p.getAmount()).isEqualTo(3200);});
     }
 
-    @Test void changeExitRechecksCallDeadlineAfterRouteLookup() {
+    @Test void changeExitKeepsFreeRequestTimeWhenRouteLookupCrossesCallDeadline() {
         approve(0);approve(1);at(NOW.plusSeconds(600));lifecycle.beforeDepartures();
         new TransactionTemplate(manager).executeWithoutResult(s->{var p=parties.findByIdForUpdate(partyId).orElseThrow();p.setGroupVersion(2);});
         at(NOW.plusSeconds(1199));
         doAnswer(c->{at(NOW.plusSeconds(1201));return c.callRealMethod();}).when(routeClient)
                 .routeAt(any(),any(),any());
-        assertThat(rideRequests.leaveAfterChange(ids.get(0),partyId,2)).isFalse();payments.retryDue();
-        assertThat(order(0).getRefundedAmount()).isZero();
-        assertThat(terms.findByPartyIdAndMemberId(partyId,ids.get(0)).orElseThrow().isRefundHeld()).isTrue();
+        assertThat(rideRequests.leaveAfterChange(ids.get(0),partyId,2)).isTrue();payments.retryDue();
+        assertThat(order(0).getRefundedAmount()).isEqualTo(3680);
+        assertThat(terms.findByPartyIdAndMemberId(partyId,ids.get(0)).orElseThrow().isRefundHeld()).isFalse();
+    }
+
+    @Test void deferredFreeExitBlocksCallThenRefundsEvenAfterCallDeadline() {
+        approve(0);approve(1);at(NOW.plusSeconds(600));lifecycle.beforeDepartures();
+        new TransactionTemplate(manager).executeWithoutResult(s->parties.findByIdForUpdate(partyId).orElseThrow().setGroupVersion(2));
+        at(NOW.plusSeconds(1199));
+        var calls = new java.util.concurrent.atomic.AtomicBoolean(true);
+        doAnswer(c->{
+            if(calls.get()) throw new com.campustaximate.server.route.RouteClient.RouteUnavailableException("route temporarily unavailable",null);
+            return c.callRealMethod();
+        }).when(routeClient).routeAt(any(),any(),any());
+        assertThatThrownBy(()->rideRequests.leaveAfterChange(ids.get(0),partyId,2))
+            .isInstanceOfSatisfying(ApiException.class,e->assertThat(e.getCode()).isEqualTo("ROUTE_RETRY_PENDING"));
+        at(NOW.plusSeconds(1201));
+        assertThat(partyService.view(ids.get(2),partyId).canCall()).isFalse();
+        assertThat(order(0).getRefundTarget()).isZero();
+        calls.set(false);lifecycle.beforeDepartures();payments.retryDue();
+        assertThat(parties.findById(partyId).orElseThrow().isRouteVerificationPending()).isFalse();
+        assertThat(order(0).getRefundedAmount()).isEqualTo(3680);
+        assertThat(rider(0).getStatus()).isEqualTo(RequestStatus.CANCELED);
     }
 
     @Test void overdueApprovalRacingDeadlineProcessingAlwaysClearsOnlyThatMembersRestriction() throws Exception {
@@ -620,7 +729,7 @@ class PaymentFlowTest {
         new TransactionTemplate(manager).executeWithoutResult(tx->{
             var p=parties.findByIdForUpdate(partyId).orElseThrow();p.setInstant(true);p.setDepartureAt(NOW.plusSeconds(540));p.setPrepayDeadlineAt(NOW.plusSeconds(180));
             orders.findByPartyIdOrderById(partyId).forEach(o->o.setDeadlineAt(NOW.plusSeconds(180)));
-            requests.findByPartyOrderByRideOrder(p).forEach(r->r.setArrived(false));
+            requests.findByPartyOrderByRideOrder(p).forEach(r->{r.setArrived(false);r.setMode(RequestMode.INSTANT);});
         });
     }
     @Test void i04ReadyRequiresBothPrepaymentsAndEveryMembersArrivalPromise() {
@@ -650,7 +759,7 @@ class PaymentFlowTest {
         at(NOW.plusSeconds(540));var ready=partyService.view(ids.get(2),partyId);
         assertThat(ready.callReady()).isFalse();assertThat(ready.canCall()).isTrue();
         readiness.call(ids.get(2),partyId);
-        assertThat(terms.findByPartyIdOrderById(partyId)).allMatch(t->t.getBoardingUnconfirmedAt()!=null);
+        assertThat(terms.findByPartyIdOrderById(partyId)).allMatch(t->t.getBoardingUnconfirmedAt()==null);
         assertThat(requests.findByStatus(RequestStatus.MATCHED)).hasSize(3);assertThat(requests.findAll()).allMatch(r->!r.isNoShow());
         at(NOW.plusSeconds(840));lifecycle.beforeDepartures();assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.RIDE_UNCONFIRMED);
     }
@@ -660,7 +769,7 @@ class PaymentFlowTest {
         at(NOW.plusSeconds(1200));assertThat(partyService.view(ids.get(2),partyId).canCall()).isTrue();
     }
     @Test void preparationApisRequireMemberAndServerChecksCallReadiness() throws Exception {
-        instantParty();var session=new org.springframework.mock.web.MockHttpSession();session.setAttribute("memberId",ids.get(2));
+        instantParty();var session=new org.springframework.mock.web.MockHttpSession();com.campustaximate.server.AuthenticatedTestSession.authenticate(session, ids.get(2), testTokens);
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/parties/"+partyId+"/readiness").session(session)
                 .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{\"state\":\"NEARBY\"}"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
@@ -709,11 +818,24 @@ class PaymentFlowTest {
     long adminId(){return members.findByEmail("demo-admin@daejin.ac.kr").orElseThrow().getId();}
     RideRequest rider(int index){return requests.findAll().stream().filter(r->r.getMember().getId().equals(ids.get(index))).findFirst().orElseThrow();}
     BoardingCase investigation(int index){return boardingCases.findByPartyIdAndRequestId(partyId,rider(index).getId()).orElseThrow();}
+    void boardAndStart(int missing) {
+        long payer=parties.findById(partyId).orElseThrow().getPayer().getId();
+        readiness.call(payer,partyId);
+        boardingCodes.open(payer,partyId);
+        var state=boardingCodes.state(payer,partyId);
+        for(int i=0;i<ids.size();i++) {
+            long member=ids.get(i);
+            if(i!=missing && member!=payer && requests.findAll().stream().anyMatch(r->r.getParty()!=null&&r.getParty().getId()==partyId&&r.getMember().getId()==member))
+                boardingCodes.confirm(member,partyId,state.code(),state.generation());
+        }
+        boardingCodes.start(payer,partyId);
+        at(state.deadlineAt()); lifecycle.afterDepartures();
+    }
     void departWithout(int index){
         approve(0);approve(1);at(NOW.plusSeconds(600));lifecycle.beforeDepartures();
         new TransactionTemplate(manager).executeWithoutResult(tx->requests.findById(rider(index).getId()).orElseThrow().setArrived(false));
         at(NOW.plusSeconds(1800));
-        new TransactionTemplate(manager).executeWithoutResult(tx->rideConfirmations.start(parties.findByIdForUpdate(partyId).orElseThrow(),clock.now()));
+        boardAndStart(1);
     }
     void reviewB(){departWithout(1);submit(15500);at(investigation(1).getDeadlineAt());lifecycle.afterDepartures();assertThat(investigation(1).getStatus()).isEqualTo("REVIEW");}
     CompensationEntry comp(int index){return compensationEntries.findByPartyIdOrderByRequestId(partyId).stream().filter(e->e.getMemberId().equals(ids.get(index))).findFirst().orElseThrow();}
@@ -760,7 +882,7 @@ class PaymentFlowTest {
         // rider() 대신 현재 일행 요청을 지정해 과거 기록과 섞이지 않게 한다.
         approve(0);approve(1);at(NOW.plusSeconds(600));lifecycle.beforeDepartures();
         new TransactionTemplate(manager).executeWithoutResult(tx->{var p=parties.findByIdForUpdate(partyId).orElseThrow();requests.findByPartyOrderByRideOrder(p).stream().filter(r->r.getMember().getId().equals(ids.get(1))).forEach(r->r.setArrived(false));});
-        at(NOW.plusSeconds(1800));new TransactionTemplate(manager).executeWithoutResult(tx->rideConfirmations.start(parties.findByIdForUpdate(partyId).orElseThrow(),clock.now()));
+        at(NOW.plusSeconds(1800));boardAndStart(1);
         var c=boardingCases.findByPartyIdOrderByRequestId(partyId).getFirst();noShows.vote(ids.get(0),partyId,ids.get(1),false);
         assertThat(memberRestrictions.findAll()).isEmpty();at(c.getDeadlineAt());noShows.adjudicate(c.getId());
         assertThat(memberRestrictions.findAll()).singleElement().satisfies(r->{assertThat(r.getReason()).isEqualTo("NO_SHOW_REPEATED");assertThat(r.getExpiresAt()).isEqualTo(clock.now().plusSeconds(7*86400));});
@@ -768,12 +890,13 @@ class PaymentFlowTest {
     }
     void absentPayerOffer(){
         approve(0);approve(1);at(NOW.plusSeconds(600));lifecycle.beforeDepartures();
-        new TransactionTemplate(manager).executeWithoutResult(tx->requests.findById(rider(2).getId()).orElseThrow().setArrived(false));
+        new TransactionTemplate(manager).executeWithoutResult(tx->{ parties.findByIdForUpdate(partyId).orElseThrow().setBoardedAt(null); requests.findById(rider(2).getId()).orElseThrow().setBoardingConfirmedAt(null); });
         at(NOW.plusSeconds(1800));noShows.vote(ids.get(0),partyId,ids.get(2),false);
         assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.PAYER_PENDING);
     }
     @Test void N06_payerSuccessionKeepsDepositUntilFinalizationAndHasNoCompensationFromOriginalPayer(){
         absentPayerOffer();noShows.succession(ids.get(1),partyId,true);
+        boardAndStart(2);
         assertThat(parties.findById(partyId).orElseThrow().getPayer().getId()).isEqualTo(ids.get(1));assertThat(order(1).getRefundedAmount()).isZero();
         settlementService.submit(ids.get(1),partyId,12000,receipt(),null,null);finalizeFare();
         assertThat(order(1).getRefundedAmount()).isEqualTo(6440);assertThat(comp(2).getCharge()).isZero();assertThat(rider(2).isNoShow()).isTrue();
@@ -820,18 +943,18 @@ class PaymentFlowTest {
         new TransactionTemplate(manager).executeWithoutResult(tx->parties.findByIdForUpdate(partyId).orElseThrow().setGroupVersion(2));
         at(NOW.plusSeconds(1201));assertThat(rideRequests.leaveAfterChange(ids.get(1),partyId,2)).isFalse();
         assertThat(investigation(1).getKind()).isEqualTo("LATE_CANCEL");assertThat(investigation(1).getStatus()).isEqualTo("CONFIRMED");
-        at(NOW.plusSeconds(1800));slots.runLocked(()->{slots.process(clock.now());return null;});submit(15500);finalizeFare();
+        at(NOW.plusSeconds(1800));slots.runLocked(()->{slots.process(clock.now());return null;});boardAndStart(1);submit(15500);finalizeFare();
         assertThat(comp(1).getCharge()).isEqualTo(4300);assertThat(order(1).getRefundedAmount()).isEqualTo(2140);assertThat(rider(1).isNoShow()).isFalse();
     }
     @Test void A01_adminPathsRejectNormalMemberAndAllowAdmin() throws Exception {
-        var user=new org.springframework.mock.web.MockHttpSession();user.setAttribute("memberId",ids.get(0));
-        var administrator=new org.springframework.mock.web.MockHttpSession();administrator.setAttribute("memberId",adminId());
+        var user=new org.springframework.mock.web.MockHttpSession();com.campustaximate.server.AuthenticatedTestSession.authenticate(user, ids.get(0), testTokens);
+        var administrator=new org.springframework.mock.web.MockHttpSession();com.campustaximate.server.AuthenticatedTestSession.authenticate(administrator, adminId(), testTokens);
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/admin/no-shows").session(user)).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isForbidden());
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/admin/no-shows").session(administrator)).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
         assertThatThrownBy(()->admin.noShowReviews(ids.get(0))).isInstanceOf(ApiException.class);
     }
     @Test void adminDecisionIsIdempotentAndAutomaticallySettlesAfterInvestigation() throws Exception {
-        reviewB();var session=new org.springframework.mock.web.MockHttpSession();session.setAttribute("memberId",adminId());long id=investigation(1).getId();
+        reviewB();var session=new org.springframework.mock.web.MockHttpSession();com.campustaximate.server.AuthenticatedTestSession.authenticate(session, adminId(), testTokens);long id=investigation(1).getId();
         String json="{\"decision\":\"NO_SHOW\",\"evidence\":\"탑승 확인 자료 검토\"}";
         for(int i=0;i<2;i++) mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/admin/no-shows/"+id+"/decision").session(session).contentType(org.springframework.http.MediaType.APPLICATION_JSON).content(json)).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
         assertThat(adminAudits.count()).isEqualTo(1);assertThat(order(1).getRefundedAmount()).isEqualTo(2140);assertThat(payouts.count()).isEqualTo(1);
@@ -867,9 +990,27 @@ class PaymentFlowTest {
         assertThat(order(0).getRefundedAmount()).isEqualTo(480);assertThat(order(1).getRefundedAmount()).isEqualTo(840);
         assertThat(adminAudits.findAll()).singleElement().satisfies(a->{assertThat(a.getActorId()).isEqualTo(adminId());assertThat(a.getEvidence()).isEqualTo("영수증 금액 확인");});
     }
-    @Test void adminRideDisputeWithoutReceiptMeansNotOperatedAndFullRefund(){
+    @Test void payerBoardingWithoutStartRoutesToReviewAndAllowsFareRecovery() {
+        approve(0); approve(1); at(NOW.plusSeconds(1800)); lifecycle.beforeDepartures();
+        readiness.call(ids.get(2),partyId); boardingCodes.open(ids.get(2),partyId);
+        at(NOW.plusSeconds(1800 + 24 * 3600)); lifecycle.beforeDepartures(); lifecycle.afterDepartures();
+        assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.REVIEW_PENDING);
+        assertThat(order(0).getRefundTarget()).isZero();
+        admin.decideRide(adminId(),partyId,"OPERATED","실제 운행을 별도 자료로 확인");
+        assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.AWAITING_FARE);
+        assertThat(rider(0).getBoardingConfirmedAt()).isNull();
+        submit(16800);
+        assertThat(settlements.findAll()).hasSize(1);
+    }
+    @Test void positiveAnswerWithoutStartPreventsAutomaticRefund() {
+        unconfirmed(); rideConfirmations.answer(ids.get(2),partyId,true);
+        at(NOW.plusSeconds(1800 + 24 * 3600)); lifecycle.afterDepartures();
+        assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.REVIEW_PENDING);
+        assertThat(order(0).getRefundTarget()).isZero();
+    }
+    @Test void adminExplicitNonOperationDecisionRefundsPrepayments(){
         unconfirmed();rideConfirmations.answer(ids.get(0),partyId,true);rideConfirmations.answer(ids.get(2),partyId,false);
-        admin.decideRide(adminId(),partyId,"영수증이 없어 운행 미성사로 판정");lifecycle.afterDepartures();
+        admin.decideRide(adminId(),partyId,"NOT_OPERATED","일행 증언을 대조해 미운행 판정");lifecycle.afterDepartures();
         assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.NOT_OPERATED);
         assertThat(order(0).getRefundedAmount()).isEqualTo(3680);assertThat(order(1).getRefundedAmount()).isEqualTo(6440);
     }
@@ -878,7 +1019,7 @@ class PaymentFlowTest {
         new TransactionTemplate(manager).executeWithoutResult(tx->parties.findByIdForUpdate(partyId).orElseThrow().setRideAskedAt(clock.now()));
         rideConfirmations.answer(ids.get(0),partyId,false);rideConfirmations.answer(ids.get(2),partyId,true);
         assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.REVIEW_PENDING);
-        admin.decideRide(adminId(),partyId,"결제자 영수증으로 운행 확인");finalizeFare();
+        admin.decideRide(adminId(),partyId,"OPERATED","결제자 영수증으로 운행 확인");finalizeFare();
         assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.COMPLETED);assertThat(payouts.count()).isEqualTo(1);
     }
     @Test void adminReviewListOmitsChatAndDetailContainsOnlyTheInvestigatedParty() throws Exception {
@@ -889,7 +1030,7 @@ class PaymentFlowTest {
             jdbc.update("insert into party_message(party_id,member_id,text,created_at) values(?,?,?,?)",other.getId(),ids.get(0),"다른 일행 비공개 자료",java.sql.Timestamp.from(clock.now()));
         });
         assertThat(admin.noShowDetail(adminId(),id).chat()).singleElement().satisfies(m->assertThat(m.text()).isEqualTo("해당 일행 자료"));
-        var session=new org.springframework.mock.web.MockHttpSession();session.setAttribute("memberId",adminId());
+        var session=new org.springframework.mock.web.MockHttpSession();com.campustaximate.server.AuthenticatedTestSession.authenticate(session, adminId(), testTokens);
         var response=mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/admin/no-shows").session(session)).andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
         assertThat(response).doesNotContain("해당 일행 자료","다른 일행 비공개 자료","chat");
     }
@@ -938,14 +1079,14 @@ class PaymentFlowTest {
     }
     @Test void ownInvestigationsRemainDiscoverableAfterRemovalAndAdminReceiptRequiresRole() throws Exception {
         departWithout(1);submit(15500);
-        var user=new org.springframework.mock.web.MockHttpSession();user.setAttribute("memberId",ids.get(1));
+        var user=new org.springframework.mock.web.MockHttpSession();com.campustaximate.server.AuthenticatedTestSession.authenticate(user, ids.get(1), testTokens);
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/boarding-cases").session(user))
             .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
             .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].investigation.memberId").value(ids.get(1)))
             .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].investigation.partyId").value(partyId));
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/admin/parties/"+partyId+"/receipt").session(user))
             .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isForbidden());
-        var administrator=new org.springframework.mock.web.MockHttpSession();administrator.setAttribute("memberId",adminId());
+        var administrator=new org.springframework.mock.web.MockHttpSession();com.campustaximate.server.AuthenticatedTestSession.authenticate(administrator, adminId(), testTokens);
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/admin/parties/"+partyId+"/receipt").session(administrator))
             .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
             .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().contentType("image/png"));
@@ -956,7 +1097,7 @@ class PaymentFlowTest {
         rideConfirmations.answer(ids.get(0),partyId,false);rideConfirmations.answer(ids.get(2),partyId,true);
         at(investigation(1).getDeadlineAt());lifecycle.afterDepartures();
         assertThat(investigation(1).getStatus()).isEqualTo("PENDING");assertThat(rider(1).isNoShow()).isFalse();
-        admin.decideRide(adminId(),partyId,"기사 거절로 운행하지 못했고 영수증 없음");lifecycle.afterDepartures();
+        admin.decideRide(adminId(),partyId,"NOT_OPERATED","기사 거절로 운행하지 못했다는 증언 확인");lifecycle.afterDepartures();
         assertThat(investigation(1).getStatus()).isEqualTo("EXONERATED");assertThat(rider(1).isNoShow()).isFalse();
         assertThat(order(0).getRefundedAmount()).isEqualTo(3680);assertThat(order(1).getRefundedAmount()).isEqualTo(6440);
         assertThat(payments.get(ids.get(1),order(1).getOrderId()).refundHeld()).isFalse();
@@ -1042,14 +1183,16 @@ class PaymentFlowTest {
         doAnswer(c->provider.get(c.getArgument(0))).when(gateway).get(anyString());payments.retryDue();payments.retryDue();
         assertN13(5600,840);verify(gateway,times(1)).cancel(eq(order(1).getPaymentKey()),eq(840L),anyString(),anyString());
     }
-    @Test void N13_changeExitRechecksCallDeadlineEvenWhenDissolutionClearsRefundHold() {
+    @Test void N13_preDeadlineChangeExitStaysFreeWhenDissolutionFinishesAfterDeadline() {
         prepareN13(15000);approve(1);at(NOW.plusSeconds(6599));
         doAnswer(c->{at(NOW.plusSeconds(6601));return c.callRealMethod();})
             // 트랜잭션 프록시를 거치지 않게 스파이 본체에 스텁한다(MANDATORY 전파라 프록시로 부르면 실제 메서드가 실행된다).
             .when(org.springframework.test.util.AopTestUtils.<PartyChangeService>getUltimateTargetObject(changeService)).changed(any(Party.class),anySet(),anyString(),anySet());
-        assertThat(rideRequests.leaveAfterChange(ids.get(1),partyId,2)).isFalse();payments.retryDue();
-        assertN13(5600,840);assertThat(terms.findByPartyIdAndMemberId(partyId,ids.get(1)).orElseThrow().isRefundHeld()).isFalse();
-        assertThat(terms.findByPartyIdAndMemberId(partyId,ids.get(1)).orElseThrow().getExitReason()).isEqualTo("LATE_CANCEL");
+        assertThat(rideRequests.leaveAfterChange(ids.get(1),partyId,2)).isTrue();payments.retryDue();
+        assertThat(order(1).getRefundedAmount()).isEqualTo(6440);
+        assertThat(compensationEntries.count()).isZero();
+        assertThat(payouts.count()).isZero();
+        assertThat(terms.findByPartyIdAndMemberId(partyId,ids.get(1)).orElseThrow().isRefundHeld()).isFalse();
     }
 
     long waitingJoiner(long memberId,double km){
@@ -1145,5 +1288,57 @@ class PaymentFlowTest {
         assertThat(partyJoins.findByStateOrderById("PENDING")).singleElement().satisfies(j->{assertThat(j.getMemberId()).isEqualTo(member);assertThat(j.getRequestId()).isEqualTo(request);});
         assertThat(requests.findByStatus(RequestStatus.MATCHED)).hasSize(3);assertThat(requests.findByStatus(RequestStatus.JOINING)).hasSize(1);
         approveJoin(partyJoins.findByStateOrderById("PENDING").getFirst());assertThat(requests.findByStatus(RequestStatus.MATCHED)).hasSize(4);
+    }
+
+    @Test void excludedBoardingSubjectKeepsNicknameAndOnlyOwnExplanationIsVisible() {
+        departWithout(1);
+        long subject=ids.get(1), peer=ids.get(0), caseId=investigation(1).getId();
+        noShows.explain(subject,caseId,"본인과 관리자에게만 보이는 소명");
+        assertThat(partyService.view(peer,partyId).members()).noneMatch(m->m.memberId()==subject);
+        var peerView=noShows.list(peer,partyId).stream().filter(v->v.investigation().getId()==caseId).findFirst().orElseThrow();
+        assertThat(peerView.nickname()).isEqualTo(members.findById(subject).orElseThrow().getNickname());
+        assertThat(peerView.explanation()).isNull();
+        assertThat(noShows.list(subject,partyId)).anySatisfy(v->assertThat(v.explanation().getExplanation()).isEqualTo("본인과 관리자에게만 보이는 소명"));
+        assertThat(noShows.mine(subject)).anySatisfy(v->assertThat(v.explanation().getExplanation()).isEqualTo("본인과 관리자에게만 보이는 소명"));
+        assertThat(admin.noShowDetail(adminId(),caseId).explanation().getExplanation()).isEqualTo("본인과 관리자에게만 보이는 소명");
+    }
+
+    @Test void expiredReceiptCannotBeUsedAsProofOfNonOperation() {
+        depart();submit(16800);
+        new TransactionTemplate(manager).executeWithoutResult(tx->{
+            var p=parties.findByIdForUpdate(partyId).orElseThrow();p.setStatus(PartyStatus.REVIEW_PENDING);p.setReviewReason("RIDE_DISPUTE");
+        });
+        at(settlements.findAll().getFirst().getStoredAt().plusSeconds(7*86400));
+        settlementService.purgeReceipts();
+        assertThat(settlements.findAll().getFirst().getReceiptPath()).isNull();
+        assertThatThrownBy(()->admin.decideRide(adminId(),partyId,null,"보관 기한 이후 확인"))
+            .isInstanceOfSatisfying(ApiException.class,e->assertThat(e.getCode()).isEqualTo("RIDE_DECISION_REQUIRED"));
+        assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.REVIEW_PENDING);
+        assertThat(order(0).getRefundTarget()).isZero();
+    }
+    @Test void receiptPurgeWaitsForPartyLockHeldByAdministrativeDecision() throws Exception {
+        depart();submit(16800);
+        var receiptPath=java.nio.file.Path.of(settlements.findAll().getFirst().getReceiptPath());
+        at(settlements.findAll().getFirst().getStoredAt().plusSeconds(7*86400));
+        var locked=new java.util.concurrent.CountDownLatch(1);
+        var release=new java.util.concurrent.CountDownLatch(1);
+        var executor=java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            var adminJob=executor.submit(()->new TransactionTemplate(manager).executeWithoutResult(tx->{
+                var p=parties.findByIdForUpdate(partyId).orElseThrow();
+                p.setStatus(PartyStatus.REVIEW_PENDING);p.setReviewReason("RIDE_DISPUTE");
+                locked.countDown();
+                try { if(!release.await(10,java.util.concurrent.TimeUnit.SECONDS)) throw new AssertionError("test release timed out"); }
+                catch(InterruptedException e) {throw new RuntimeException(e);}
+                admin.decideRide(adminId(),partyId,"OPERATED","보관 중 영수증과 실제 탑승 기록 확인");
+                assertThat(receiptPath).exists();
+            }));
+            assertThat(locked.await(10,java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            var purger=executor.submit(()->settlementService.purgeReceipts());
+            assertThatThrownBy(()->purger.get(200,java.util.concurrent.TimeUnit.MILLISECONDS)).isInstanceOf(java.util.concurrent.TimeoutException.class);
+            assertThat(receiptPath).exists();
+            release.countDown();adminJob.get(20,java.util.concurrent.TimeUnit.SECONDS);purger.get(20,java.util.concurrent.TimeUnit.SECONDS);
+            assertThat(receiptPath).doesNotExist();assertThat(settlements.findAll().getFirst().getReceiptPath()).isNull();
+        } finally {release.countDown();executor.shutdownNow();}
     }
 }

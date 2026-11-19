@@ -147,6 +147,8 @@ class FlowTest {
         advanceToConfirmation();
         JsonNode party = onlyParty(users.get(0));
         long partyId = party.get("id").asLong();
+        // 이 회귀는 구형 일행의 자동 출발과 취소 재계산이 경합하는 계약을 검증한다.
+        legacyParty(partyId);
         long requestId = party.get("myRequestId").asLong();
         for (MockHttpSession user : users) {
             mvc.perform(post("/api/parties/" + partyId + "/arrive").session(user)).andExpect(status().isOk());
@@ -748,6 +750,14 @@ class FlowTest {
             mvc.perform(post("/api/parties/" + partyId + "/arrive").session(user)).andExpect(status().isOk());
         }
         advance(30);
+        MockHttpSession payer=payerOf(users);
+        mvc.perform(post("/api/parties/"+partyId+"/call").session(payer)).andExpect(status().isOk());
+        mvc.perform(post("/api/parties/"+partyId+"/boarded").session(payer)).andExpect(status().isOk());
+        JsonNode code=read(mvc.perform(get("/api/parties/"+partyId+"/boarding-code").session(payer)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        for(var user:users) if(user!=payer) mvc.perform(post("/api/parties/"+partyId+"/boarding-code").session(user).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(Map.of("code",code.get("code").asText(),"generation",code.get("generation").asInt())))).andExpect(status().isOk());
+        mvc.perform(post("/api/parties/"+partyId+"/start").session(payer)).andExpect(status().isOk());
+        advance(5);
         return users;
     }
 

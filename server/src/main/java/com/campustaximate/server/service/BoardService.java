@@ -107,9 +107,9 @@ public class BoardService {
     }
 
     private boolean joinable(Party party, Instant now) {
-        return party.paymentFlow() && party.getDirection() == Direction.FROM_HUB && party.getHub() != null
-                && party.getHub().isActive() && party.getHub().isFieldChecked() && party.getCalledAt() == null
-                && party.getStartedAt() == null && party.getPendingJoinId() == null && now.isBefore(cutoff(party));
+        return party.canAcceptJoin() && party.getDirection() == Direction.FROM_HUB && party.getHub() != null
+                && party.getHub().isActive() && party.getHub().isFieldChecked()
+                && party.getPendingJoinId() == null && now.isBefore(cutoff(party));
     }
 
     private Instant cutoff(Party party) {

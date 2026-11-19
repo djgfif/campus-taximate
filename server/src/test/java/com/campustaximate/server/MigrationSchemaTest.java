@@ -17,6 +17,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(properties = {
         "app.account-key=test-account-key", "app.kakao.rest-key=test", "spring.mail.host=localhost",
         "app.demo.enabled=false", "spring.jpa.hibernate.ddl-auto=validate", "spring.flyway.enabled=true",
+        "app.toss.secret-key=test-schema-validation-only",
 })
 class MigrationSchemaTest {
 
@@ -139,6 +140,22 @@ class MigrationSchemaTest {
             try(var row=sql.executeQuery("select pending_join_id from ride_request where 1=0")){assertThat(row.getMetaData().getColumnCount()).isEqualTo(1);}
             try(var row=sql.executeQuery("select state,deadline_at,base_group_version,payer_id from party_join where 1=0")){assertThat(row.getMetaData().getColumnCount()).isEqualTo(4);}
             try(var row=sql.executeQuery("select expected_share,ride_order from party_join_member where 1=0")){assertThat(row.getMetaData().getColumnCount()).isEqualTo(2);}
+        }
+    }
+    @Test void v15UpgradeAddsBoardingWithoutReinterpretingExistingArrivalOrStart() throws Exception {
+        String url="jdbc:h2:mem:v15_"+java.util.UUID.randomUUID().toString().replace("-","")+";MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1";
+        org.flywaydb.core.Flyway.configure().dataSource(url,"sa","").target("15").load().migrate();
+        try(var connection=java.sql.DriverManager.getConnection(url,"sa","");var sql=connection.createStatement()) {
+            sql.executeUpdate("insert into school(id,lat,lon,email_domain,gate_name,name) values(1,37,127,'v15.ac.kr','gate','school')");
+            sql.executeUpdate("insert into hub(id,lat,lon,meeting_point,name) values(1,37,127,'gate','hub')");
+            sql.executeUpdate("insert into member(id,school_id,email,login_code_failures,login_failures_today,no_show_count) values(1,1,'a@v15.ac.kr',0,0,0)");
+            sql.executeUpdate("insert into party(id,hub_id,payer_id,departure_at,expected_total,version,direction,status,payment_flow_version) values(1,1,1,current_timestamp,16800,0,'FROM_HUB','READY',2)");
+            org.flywaydb.core.Flyway.configure().dataSource(url,"sa","").load().migrate();
+            try(var row=sql.executeQuery("select boarding_generation,boarding_code,boarding_deadline_at,started_at,status from party where id=1")) {
+                assertThat(row.next()).isTrue();assertThat(row.getInt(1)).isZero();assertThat(row.getString(2)).isNull();assertThat(row.getTimestamp(3)).isNull();assertThat(row.getTimestamp(4)).isNull();assertThat(row.getString(5)).isEqualTo("READY");
+            }
+            sql.executeUpdate("insert into boarding_attempt(party_id,member_id,generation,failures) values(1,1,1,5)");
+            org.junit.jupiter.api.Assertions.assertThrows(java.sql.SQLException.class,()->sql.executeUpdate("insert into boarding_attempt(party_id,member_id,generation,failures) values(1,1,1,0)"));
         }
     }
 }

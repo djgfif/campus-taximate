@@ -74,7 +74,7 @@ public class BoardingMonitor {
             return Set.of();
         }
         if(party.paymentFlow()) {
-            if(party.getBoardedAt()!=null) rideConfirmations.start(party,party.getBoardedAt());
+            // Explicit payer /start is required.
             return Set.of();
         }
         for (RideRequest rider : riders) {
