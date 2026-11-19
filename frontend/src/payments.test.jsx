@@ -24,19 +24,36 @@ describe('선결제 카드', () => {
     expect(create).toHaveBeenCalledWith(11, 'PREPAY')
     expect(screen.getByText('처음 안내된 내 몫에 여유 15%를 더해 미리 결제해요.')).toBeTruthy()
     expect(screen.getByText(/^기한 /).textContent).toContain('10')
-    expect(screen.getByText('카드 결제를 준비하지 못했어요. 잠시 뒤 다시 확인해 주세요.')).toBeTruthy()
+    expect(screen.getByText('시연용 모의 결제예요. 실제 돈은 나가지 않아요.')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '시연 결제하기' }))
     await waitFor(() => expect(confirm).toHaveBeenCalledWith({ orderId: order.orderId, amount: 3680, paymentKey: 'demo_ui_' + order.orderId }))
     await waitFor(() => expect(updated).toHaveBeenCalledOnce())
     await waitFor(() => expect(screen.queryByRole('button', { name: '시연 결제하기' })).toBeNull())
   })
 
-  it('키가 없고 시연 모드가 아니면 모의 승인 버튼을 보여 주지 않는다', () => {
+  it('시연 모드가 아니면 모의 승인 버튼을 보여 주지 않는다', () => {
     const confirm = vi.spyOn(api, 'confirmPayment')
     render(<PaymentCard partyId={11} myId={2} now={now} knownOrder={order} config={{ demo: false }} clientKey="" />)
+    expect(screen.queryByRole('button', { name: '시연 결제하기' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '카드로 결제하기' })).toBeNull()
+    expect(confirm).not.toHaveBeenCalled()
+  })
+
+  it('서버가 모의 결제면 화면에 토스 키가 있어도 토스 결제창 대신 모의 결제를 연다', () => {
+    render(<PaymentCard partyId={11} myId={2} now={now} knownOrder={order} config={{ demo: true }} clientKey="test_ck" />)
+    expect(screen.getByRole('button', { name: '시연 결제하기' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '카드로 결제하기' })).toBeNull()
+  })
+
+  it('서버가 실제 결제면 토스 키가 있을 때만 카드 결제를 열고 모의 승인은 숨긴다', () => {
+    const real = { ...order, simulated: false }
+    render(<PaymentCard partyId={11} myId={2} now={now} knownOrder={real} config={{ demo: true }} clientKey="test_ck" />)
+    expect(screen.getByRole('button', { name: '카드로 결제하기' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '시연 결제하기' })).toBeNull()
+    cleanup()
+    render(<PaymentCard partyId={11} myId={2} now={now} knownOrder={real} config={{ demo: true }} clientKey="" />)
     expect(screen.getByText('카드 결제를 준비하지 못했어요. 잠시 뒤 다시 확인해 주세요.')).toBeTruthy()
     expect(screen.queryByRole('button', { name: '시연 결제하기' })).toBeNull()
-    expect(confirm).not.toHaveBeenCalled()
   })
 
   it('처리 중인 주문에는 결제 버튼을 다시 열지 않는다', () => {

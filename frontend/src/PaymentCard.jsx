@@ -57,10 +57,12 @@ export default function PaymentCard({ partyId, purpose = 'PREPAY', myId, now, co
               : !['REQUIRED', 'OVERDUE'].includes(order.status) ? <Say>결제 상태를 확인하고 있어요.</Say> : null}
       {extra && late && order.status !== 'APPROVED' && <Say tone="stop-tone">추가 결제 기한이 지났어요. 결제를 마치면 새 요청 제한이 풀려요.</Say>}
       {(order.refundRequestedAmount > 0 || order.refundedAmount > 0) && <p className="note">환불은 카드사에 반영되기까지 3~4영업일 정도 걸려요.</p>}
-      {payable && (clientKey ? <Btn onClick={() => pay(false)}>카드로 결제하기</Btn> : <>
-        <Say>카드 결제를 준비하지 못했어요. 잠시 뒤 다시 확인해 주세요.</Say>
-        {config?.demo && order.simulated && <Btn onClick={() => pay(true)}>시연 결제하기</Btn>}
-      </>)}
+      {/* 결제 방식은 서버의 주문(order.simulated)만 따른다. 화면에 토스 키가 빌드돼 있어도 모의 결제 서버면 토스 창을 열지 않는다. */}
+      {payable && (order.simulated ? <>
+        <p className="note">시연용 모의 결제예요. 실제 돈은 나가지 않아요.</p>
+        {config?.demo && <Btn onClick={() => pay(true)}>시연 결제하기</Btn>}
+      </> : clientKey ? <Btn onClick={() => pay(false)}>카드로 결제하기</Btn>
+        : <Say>카드 결제를 준비하지 못했어요. 잠시 뒤 다시 확인해 주세요.</Say>)}
     </>}
     {error && <p role="alert">{error}</p>}
     {!knownOrder && <Btn className="small quiet" onClick={() => { setActionError(''); setReload((n) => n + 1) }}>주문 다시 확인</Btn>}
