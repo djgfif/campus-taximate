@@ -43,10 +43,10 @@ def requests(path):
     return out
 
 
-def summarize(groups, days, reqs):
+def summarize(groups, days, reqs, policies=POLICIES):
     """정책·수요별 지표. 밀린 시간은 매칭된 예약 요청의 실제 출발 − 원하던 가장 이른 출발."""
     res = {}
-    for pol in POLICIES:
+    for pol in policies:
         for n in sorted({int(d['case_id'].split('_day')[0][1:]) for d in days}):
             key = lambda cid: cid.split('_day')[0] == f'n{n}'
             dd = [d for d in days if d['policy'] == pol and key(d['case_id'])]
@@ -72,13 +72,13 @@ def summarize(groups, days, reqs):
     return res
 
 
-def simulate(command, src, out, bias, margin):
+def simulate(command, src, out, bias, margin, policies=POLICIES):
     out.mkdir(parents=True, exist_ok=True)
     with (out / 'sim.log').open('w', encoding='utf-8') as log:
         subprocess.run(command + ['com.campustaximate.server.service.C11Simulation', str(src / 'cases.tsv'), str(src / 'matrix.tsv'),
                                   str(HERE / '.cache/kr-public/tims-errors.csv'), str(out / 'groups.tsv'), str(out / 'days.csv'), '-', str(bias),
-                                  ','.join(POLICIES), str(margin)], cwd=ROOT, check=True, stdout=log, stderr=log)
-    return summarize(c11.read_tsv(out / 'groups.tsv'), c7.read_csv(out / 'days.csv'), requests(src / 'cases.tsv'))
+                                  ','.join(policies), str(margin)], cwd=ROOT, check=True, stdout=log, stderr=log)
+    return summarize(c11.read_tsv(out / 'groups.tsv'), c7.read_csv(out / 'days.csv'), requests(src / 'cases.tsv'), policies)
 
 
 def main():
