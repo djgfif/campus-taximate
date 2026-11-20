@@ -93,6 +93,16 @@ class PeopleBoardFlowTest {
         homeReq.setOriginLat(school.getLat()); homeReq.setOriginLon(school.getLon()); homeReq.setOriginName(school.getName());
         homeReq.setPointName("의정부역"); homeReq.setPointLat(37.7380); homeReq.setPointLon(127.0460);
         assertThat(BoardService.displayDirection(homeReq)).isEqualTo(com.campustaximate.matching.Direction.FROM_HUB);
+
+        // 택시가 출발하는 곳은 승차 지점이다. 정문에서 타서 학교 근처(0.8km)로 가면, 걸어온 출발지가 더 멀어도 등교가 아니다.
+        var gate = new Hub("대진대 정문", "정문 앞", school.getLat(), school.getLon(), java.util.Set.of(school));
+        var nearby = new RideRequest();
+        nearby.setMember(peer);
+        nearby.setDirection(com.campustaximate.matching.Direction.FROM_HUB);
+        nearby.setHub(gate);
+        nearby.setOriginLat(school.getLat() + 0.0100); nearby.setOriginLon(school.getLon()); nearby.setOriginName("기숙사 뒤");
+        nearby.setPointName("학교 앞 원룸촌"); nearby.setPointLat(school.getLat() + 0.0072); nearby.setPointLon(school.getLon());
+        assertThat(BoardService.displayDirection(nearby)).isEqualTo(com.campustaximate.matching.Direction.FROM_HUB);
     }
 
     @Test void failedJoinDoesNotLeaveAWaitingRequest() {

@@ -226,6 +226,8 @@ class CommuteFlowTest {
         assertThat(state(users.get(2)).get("latestRequest").get("endReason").asText()).isEqualTo("LEFT_ALONE");
         assertThat(history(users.get(2)).get(0).get("stage").asText()).isEqualTo("LEFT_ALONE");
         assertThat(history(users.get(0)).get(0).get("stage").asText()).isEqualTo("NO_SHOW");
+        // 홈 등교/하교 탭은 서버가 정한 표시 방향을 쓴다(규칙은 BoardService.displayDirection 한 곳).
+        assertThat(history(users.get(0)).get(0).get("displayDirection").asText()).isEqualTo("TO_SCHOOL");
     }
 
     @Test

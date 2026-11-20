@@ -119,14 +119,26 @@ public class BoardService {
                 : party.getDepartureAt().minusSeconds(settings.leadMinutes() * 60L);
     }
 
-    /** 공통 승차(FROM_HUB)로 만든 등교 요청(목적지가 학교 근처)을 게시판·대기 집계에서 등교로 구분한다. */
+    /**
+     * 공통 승차(FROM_HUB)로 만든 등교 요청을 게시판·대기 집계·이용 내역에서 등교로 구분한다. 이 규칙은 서버 한 곳에만 둔다
+     * (화면은 응답의 displayDirection을 그대로 쓴다). 택시가 출발하는 승차 지점보다 목적지가 학교에 가깝고,
+     * 목적지가 학교에서 1km 안이면 등교다. 승차 지점이 없으면 요청자의 출발지로 본다.
+     */
     public static Direction displayDirection(RideRequest r) {
+        return displayDirection(r, r.getMember() != null ? r.getMember().getSchool() : null);
+    }
+
+    /**
+     * 요청자의 학교를 따로 받는 판정. 응답을 만드는 곳(트랜잭션 밖)에서는 요청의 회원을 지연 로딩할 수 없으므로,
+     * 학교를 함께 읽어 둔 로그인 회원의 학교를 넘긴다. 학교를 모르면 원래 방향을 쓴다.
+     */
+    public static Direction displayDirection(RideRequest r, com.campustaximate.server.domain.School school) {
         if (r.getDirection() == Direction.TO_SCHOOL) return Direction.TO_SCHOOL;
-        var school = r.getMember() != null ? r.getMember().getSchool() : null;
         if (school == null) return r.getDirection();
         var campus = new com.campustaximate.matching.GeoPoint(school.getLat(), school.getLon());
+        var start = r.getHub() != null ? new com.campustaximate.matching.GeoPoint(r.getHub().getLat(), r.getHub().getLon()) : r.origin();
         double destinationDistance = r.point().distanceKm(campus);
-        return destinationDistance <= 1.0 && r.origin().distanceKm(campus) > destinationDistance
+        return destinationDistance <= 1.0 && start.distanceKm(campus) > destinationDistance
                 ? Direction.TO_SCHOOL : Direction.FROM_HUB;
     }
 

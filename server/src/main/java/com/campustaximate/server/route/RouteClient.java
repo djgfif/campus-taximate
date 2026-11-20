@@ -16,6 +16,15 @@ public interface RouteClient {
         return route(origin, stops);
     }
 
+    /**
+     * 여럿이 함께 타는 일행 경로. 같은 곳에 내려 정차가 하나로 합쳐져도 일행 요금으로 다룬다.
+     * 기본은 routeAt과 같고, 확정 분담금 견적(QuotedRouteClient)만 일행 여유분을 더한다.
+     * 일행 경로는 반드시 이 메서드로 조회한다. 구현 클래스를 확인해 분기하면 감싸는 층이 생길 때 여유분이 조용히 빠진다.
+     */
+    default Route sharedRouteAt(GeoPoint origin, List<GeoPoint> stops, Instant departure) {
+        return routeAt(origin, stops, departure);
+    }
+
     /** 한 지점에서 여러 지점까지의 거리와 시간. 응답에 없는 목적지는 결과에서 빠진다. */
     Map<String, RoadLeg> legs(GeoPoint origin, Map<String, GeoPoint> destinations);
 

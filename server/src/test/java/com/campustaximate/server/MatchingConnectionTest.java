@@ -54,6 +54,9 @@ class MatchingConnectionTest {
 
     @BeforeEach
     void prepare() {
+        // 일행 경로는 RouteClient.sharedRouteAt으로 조회한다. 모의 객체도 실제 기본 동작(routeAt 위임)을 따르게 해,
+        // 아래 테스트가 routeAt에 건 응답과 호출 횟수 확인이 일행 경로에도 그대로 적용되게 한다.
+        doCallRealMethod().when(routes).sharedRouteAt(any(), anyList(), nullable(Instant.class));
         PaymentTestSupport.clear(jdbc);
         requests.deleteAll();
         parties.deleteAll();

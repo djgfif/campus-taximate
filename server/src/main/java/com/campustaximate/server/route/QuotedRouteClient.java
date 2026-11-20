@@ -42,6 +42,7 @@ public final class QuotedRouteClient implements RouteClient {
     }
 
     /** 목적지가 하나로 합쳐져도 여럿이 함께 타는 일행 경로는 여유분(margin)을 적용한다. */
+    @Override
     public Route sharedRouteAt(GeoPoint origin, List<GeoPoint> stops, Instant departure) {
         if (stops.size() > 1 || margin == 0) {
             return routeAt(origin, stops, departure);

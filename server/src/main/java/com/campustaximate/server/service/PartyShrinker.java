@@ -245,9 +245,7 @@ public class PartyShrinker {
     /** 등교. 승차 시각을 앞당기지 않으므로 탑승 시간은 그대로 두고 전체 요금만 다시 구한다. */
     private long fixedRides(TripPlan trip, GeoPoint school, List<Stay> stays, List<Integer> rides) {
         TripPath path = trip.sharedPath(school, stays.stream().map(Stay::own).toList()).merged();
-        RouteClient.Route route = routes instanceof com.campustaximate.server.route.QuotedRouteClient quoted
-                ? quoted.sharedRouteAt(path.origin(), path.stops(), stays.get(0).boardAt())
-                : routes.routeAt(path.origin(), path.stops(), stays.get(0).boardAt());
+        RouteClient.Route route = routes.sharedRouteAt(path.origin(), path.stops(), stays.get(0).boardAt());
         paths.remember(path.origin(), path.stops(), route);
         stays.forEach(stay -> rides.add(stay.rideSeconds()));
         return route.fare();

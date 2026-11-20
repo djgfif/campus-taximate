@@ -34,10 +34,11 @@ describe('진행 중 띠는 내 할 일 기준으로 말한다', () => {
     expect(await screen.findByText('다른 사람들이 결제하는 중이에요')).toBeTruthy()
     expect(screen.queryByText('선결제를 해 주세요')).toBeNull()
   })
-  it('공통 승차(FROM_HUB)로 만든 등교 기록도 등교 탭 최근 경로에 보인다', async () => {
+  it('공통 승차(FROM_HUB)로 만든 등교 기록도 서버가 정한 표시 방향대로 등교 탭 최근 경로에 보인다', async () => {
+    // 등교/하교 구분은 서버(BoardService.displayDirection)가 정해 이용 내역에 displayDirection으로 보낸다.
     api.history.mockResolvedValue([
-      { id: 1, direction: 'FROM_HUB', anchorName: '역전 정류장', anchorLat: 37.45, anchorLon: 127.0, pointName: '한빛대학교', pointLat: 37.5, pointLon: 127.0 },
-      { id: 2, direction: 'FROM_HUB', anchorName: '정문', anchorLat: 37.5, anchorLon: 127.0, pointName: '의정부역', pointLat: 37.4, pointLon: 127.0 },
+      { id: 1, direction: 'FROM_HUB', displayDirection: 'TO_SCHOOL', anchorName: '역전 정류장', pointName: '한빛대학교' },
+      { id: 2, direction: 'FROM_HUB', displayDirection: 'FROM_HUB', anchorName: '정문', pointName: '의정부역' },
     ])
     const onStart = vi.fn()
     render(<Home state={{ now, parties: [], restricted: false }} myId={1} onStart={onStart} onReopen={vi.fn()} />)
