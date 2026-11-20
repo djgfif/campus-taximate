@@ -1,9 +1,9 @@
 import React from 'react'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import ErrorBoundary from './ErrorBoundary.jsx'
-import { NoShow, Unmatched } from './RequestStatus.jsx'
-import { Sheet } from './ui.jsx'
+import { NoShow, Unmatched, Waiting } from './RequestStatus.jsx'
+import { Sheet, TabBar, bottomInset } from './ui.jsx'
 import { ReportSheet, SettledFeedback } from './MemberSafety.jsx'
 import { PartyChat } from './PartyScreens.jsx'
 import { api } from './api.js'
@@ -17,6 +17,30 @@ beforeAll(() => {
   window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} })
 })
 afterEach(() => { cleanup(); vi.restoreAllMocks() })
+
+describe('알림 위치', () => {
+  it('아래에 붙은 행동 영역 중 가장 위 가장자리 바로 위에 띄운다', () => {
+    document.body.innerHTML = '<div class="chat-task"></div><div class="chat-form"></div><div class="foot"></div>'
+    const at = { 'chat-task': [500, 700], 'chat-form': [700, 800], foot: [-200, -100] }
+    for (const el of document.body.children) el.getBoundingClientRect = () => ({ top: at[el.className][0], bottom: at[el.className][1], height: at[el.className][1] - at[el.className][0] })
+    // 화면 높이 800: 할 일 카드 위(500)부터 300px. 화면 밖으로 스크롤된 foot은 세지 않는다.
+    expect(bottomInset(document, 800)).toBe(300)
+    document.body.innerHTML = ''
+    expect(bottomInset(document, 800)).toBe(0)
+  })
+})
+
+describe('일행 찾는 중', () => {
+  it('기다리는 동안에도 아래 탭으로 다른 화면에 갈 수 있고, 요청 취소와 탭바는 한 덩어리로 붙는다', () => {
+    const onTab = vi.fn()
+    const view = render(<Waiting latest={{ ...latest, direction: 'FROM_HUB', status: 'WAITING', windowStart: '2026-11-08T23:00:00Z', windowEnd: '2026-11-09T00:00:00Z' }}
+      now="2026-11-08T21:00:00Z" config={{}} run={vi.fn()} onMenu={() => {}} tabBar={<TabBar current="home" onTab={onTab} />} />)
+    const dock = view.container.querySelector('.dock')
+    expect(dock.querySelector('.foot').textContent).toContain('요청 취소')
+    fireEvent.click(within(dock.querySelector('.tabbar')).getByRole('button', { name: '내 정보' }))
+    expect(onTab).toHaveBeenCalledWith('me')
+  })
+})
 
 describe('끝난 요청 화면', () => {
   const props = { latest, onRetry: () => {}, onHome: () => {}, onMenu: () => {} }

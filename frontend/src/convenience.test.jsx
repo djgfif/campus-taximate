@@ -47,11 +47,14 @@ describe('학생 안내', () => {
     expect(within(secondary).getByRole('button', { name: '내 탑승 취소', hidden: true })).toBeTruthy()
     expect(screen.getByText(/결제자는 선결제가 없어요/)).toBeTruthy()
     expect(screen.queryByText(/결제자 외 일행은/)).toBeNull()
-    // 아직 부를 때가 아니면 카카오T도 꺼 둔다
-    expect(screen.getByRole('button', { name: '카카오T 열기' }).disabled).toBe(true)
-    expect(screen.getByRole('button', { name: '택시 불렀어요' })).toBeTruthy()
+    // 아직 부를 때가 아니면 호출 버튼은 그리지 않는다. 지금 누를 수 있는 것만 카드에 둔다.
+    expect(screen.queryByRole('button', { name: '카카오T 열기' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '택시 불렀어요' })).toBeNull()
     view.rerender(<PartyScreen party={{ ...party, canCall: true }} now={now} myId={1} run={vi.fn()} />)
     expect(screen.getByRole('link', { name: '카카오T 열기' })).toBeTruthy()
+    // 부를 수 있게 되면 굵은 버튼은 "택시 불렀어요" 하나, 도착 표시는 보조 버튼이다
+    expect(screen.getByRole('button', { name: '택시 불렀어요' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '도착했어요' }).className).toContain('line')
   })
   it('카카오T 앱 링크를 열 때 웹 안내도 제공한다', () => {
     render(<KakaoTaxi />)

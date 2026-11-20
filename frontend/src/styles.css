@@ -96,6 +96,10 @@ summary::-webkit-details-marker { display: none; }
 .body { flex: 1; display: flex; flex-direction: column; }
 /* 아래 고정 행동 줄. 바탕을 꽉 채워 위 내용과 글자가 겹치지 않게 한다 */
 .foot { position: sticky; bottom: 0; z-index: 5; display: flex; flex-direction: column; gap: 4px; padding: 12px var(--gutter) calc(12px + var(--safe-b)); border-top: 1px solid var(--line); background: var(--paper); }
+/* 행동 줄 + 탭바 한 덩어리. 안쪽 둘은 따로 붙지 않는다. */
+.dock { position: sticky; bottom: 0; z-index: 8; margin-top: auto; background: var(--paper); }
+.dock > .foot, .dock > .tabbar { position: static; }
+.dock > .foot { padding-bottom: 10px; }
 .nav, .aside { display: none; }
 
 .pad { display: flex; flex-direction: column; gap: 16px; padding: 8px var(--gutter) 24px; }
@@ -149,7 +153,7 @@ summary::-webkit-details-marker { display: none; }
 .demo-more[open] { display: flex; flex-direction: column; gap: 8px; }
 .demo-more .demo-login { margin: 0; padding: 0; border: 0; }
 /* 장면이 바뀔 때 잠깐 뜨는 자막 */
-.demo-caption { position: fixed; z-index: 75; top: calc(14px + var(--safe-t)); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; max-width: calc(100% - 24px); margin: 0; padding: 10px 16px; border-radius: var(--r-m); background: var(--ink); color: #fff; font-size: 15px; font-weight: 600; white-space: nowrap; animation: caption 0.36s var(--ease); }
+.demo-caption { position: fixed; z-index: 75; top: var(--float-top); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; max-width: calc(100% - 24px); margin: 0; padding: 10px 16px; border-radius: var(--r-m); background: var(--ink); color: #fff; font-size: 15px; font-weight: 600; white-space: nowrap; animation: caption 0.36s var(--ease); }
 @keyframes caption { from { opacity: 0; transform: translate(-50%, -12px); } }
 .demo-caption b { font-size: 12px; font-weight: 600; color: var(--amber); }
 /* 발표자 창 */
@@ -326,12 +330,17 @@ button.item:active { opacity: 0.6; }
 }
 
 /* 알림 */
-.toasts { position: fixed; left: 50%; top: calc(10px + var(--safe-t)); z-index: 70; width: min(420px, calc(100% - 24px)); transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+/* 시연 자막은 맨 위 제목 줄 아래(--float-top)에 띄워 제목·시각·내 몫을 가리지 않는다. */
+.app { --float-top: calc(var(--safe-t) + var(--bar) + 6px); }
+.app:has(.room-head) { --float-top: calc(var(--safe-t) + 90px); }
+@media (min-width: 1024px) { .app:has(.room-head) { --float-top: calc(var(--safe-t) + var(--bar) + 90px); } }
+/* 알림은 아래 행동 영역 바로 위(--toast-inset, Toaster가 잰다)에 띄운다. 위쪽 제목·본문 첫 줄을 가리지 않는다. */
+.toasts { position: fixed; left: 50%; bottom: calc(max(var(--toast-inset, 0px), var(--safe-b)) + 10px); z-index: 70; width: min(420px, calc(100% - 24px)); transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
 .toast { display: flex; align-items: flex-start; gap: 10px; padding: 13px 14px; border-radius: var(--r-m); background: var(--ink); color: #fff; font-size: 13px; font-weight: 500; line-height: 1.45; animation: drop 0.36s var(--ease); }
 .toast svg { flex: none; margin-top: 1px; color: var(--amber); }
 .toast.bad { background: var(--stop); }
 .toast.bad svg { color: #fff; }
-@keyframes drop { from { transform: translateY(-16px); opacity: 0; } }
+@keyframes drop { from { transform: translateY(16px); opacity: 0; } }
 
 /* 불러오는 중 */
 .bone { display: block; border-radius: var(--r-s); background: linear-gradient(90deg, var(--mist) 25%, var(--line) 37%, var(--mist) 63%); background-size: 400% 100%; animation: shine 1.4s ease infinite; }
@@ -507,6 +516,7 @@ button.item:active { opacity: 0.6; }
 .memo .field { margin-top: 8px; }
 .foot-sum { margin: 0 0 6px; font-size: 13px; color: var(--road); text-align: center; }
 .foot-sum b { font-weight: 600; color: var(--ink); }
+.foot-sum s { color: var(--faint); }
 .foot-rule { margin: 0 0 6px; font-size: 12px; color: var(--road); text-align: center; }
 
 /* 6-4 일행 찾는 중: 길 위를 오가는 택시 하나 */
@@ -523,6 +533,11 @@ button.item:active { opacity: 0.6; }
 .stepper { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
 .stepper li { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 12px; color: var(--road); text-align: center; }
 .stepper li span { display: block; width: 100%; height: 3px; border-radius: 999px; background: var(--line); }
+/* 일행방 할 일 카드 맨 위 한 줄: 막대와 지금 단계 이름만 */
+.stepper.compact { gap: 3px; }
+.stepper.compact li { gap: 4px; font-size: 11px; color: var(--faint); }
+.stepper.compact li:not(.now) { color: transparent; }
+.stepper.compact li.now { color: var(--ink); }
 .stepper li.done span, .stepper li.now span { background: var(--amber); }
 .stepper li.now { color: var(--ink); font-weight: 700; }
 .stepper.ended li span { background: var(--line); }

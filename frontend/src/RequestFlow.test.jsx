@@ -62,6 +62,35 @@ describe('새 탑승 요청', () => {
     expect(api.createRequest).not.toHaveBeenCalled()
   })
 
+  it('고른 시연 지점이 선택 칸에도 남고, 직접 고치면 비워진다', async () => {
+    render(<RequestForm {...props} />)
+    await chooseOrigin(); await chooseDestination()
+    expect(screen.getByLabelText('시연 도착지').value).toBe('0')
+    fireEvent.change(screen.getByRole('textbox', { name: /^도착지/ }), { target: { value: '다른 곳' } })
+    expect(screen.getByLabelText('시연 도착지').value).toBe('')
+  })
+
+  it('요청 전에 같이 탈 때의 상한(최소 절약 규칙)을 보여 준다', async () => {
+    render(<RequestForm {...props} />)
+    await chooseOrigin(); await chooseDestination()
+    // 16,800원 × 0.9 = 15,120원 → 반올림 여유를 두고 100원 단위로 올림
+    expect(await screen.findByText('15,200원 이하')).toBeTruthy()
+    expect(screen.getByText(/10% 이상 싸고 15분 넘게 늦어지지 않을 때만/)).toBeTruthy()
+  })
+
+  it('출발 가능 범위를 30분보다 좁히면 넓히라고 알려 준다', async () => {
+    render(<RequestForm {...props} />)
+    await chooseOrigin(); await chooseDestination()
+    // 이 시각(출발까지 25분)에는 여유 안내가 이미 있다. 범위까지 좁으면 두 안내를 한 문장으로 묶는다.
+    expect(screen.queryByText(/출발 가능 범위 \d+분/)).toBeNull()
+    fireEvent.change(screen.getByLabelText('출발 가능 범위'), { target: { value: '20' } })
+    expect(screen.getByText('출발까지 25분, 출발 가능 범위 20분이라 같이 탈 학생을 찾기 어려워요. 40분 넘게 여유를 두고 범위를 30분 넘게 잡으면 일행이 생기기 쉬워요.')).toBeTruthy()
+    expect(document.querySelectorAll('.lead-note')).toHaveLength(1)
+    fireEvent.change(screen.getByLabelText('출발 가능 범위'), { target: { value: '30' } })
+    expect(screen.queryByText(/출발 가능 범위 \d+분/)).toBeNull()
+    expect(screen.getByText(/출발까지 25분이라 같이 탈 사람을 찾을 시간이 짧아요/)).toBeTruthy()
+  })
+
   it('출발지를 고르면 가장 가까운 승차 지점 하나가 미리 골라진다', async () => {
     render(<RequestForm {...props} />)
     await chooseOrigin(); await chooseDestination()
@@ -76,7 +105,7 @@ describe('새 탑승 요청', () => {
     expect(choices).toHaveLength(3)
     for (const choice of choices) check(choice)
     expect(screen.getByText('걸어서 약 3분, 추정')).toBeTruthy()
-    await screen.findByText('약 16,800원, 30분')
+    await screen.findByText('15,200원 이하')
     expect(api.nearbyPoints).toHaveBeenCalledWith({ lat: 37.8, lon: 127.1 })
     fireEvent.click(screen.getByRole('button', { name: '일행 찾기' }))
     await waitFor(() => expect(api.createRequest).toHaveBeenCalledOnce())
@@ -116,9 +145,9 @@ describe('새 탑승 요청', () => {
     render(<RequestForm {...props} />)
     await chooseOrigin(); await chooseDestination()
     check((await screen.findAllByRole('checkbox'))[0])
-    await screen.findByText('약 16,800원, 30분')
+    await screen.findByText('15,200원 이하')
     fireEvent.change(screen.getByLabelText('출발지', { selector: 'input' }), { target: { value: '다른 출발지' } })
-    expect(screen.queryByText('약 16,800원, 30분')).toBeNull()
+    expect(screen.queryByText('15,200원 이하')).toBeNull()
     expect(screen.getByRole('button', { name: '일행 찾기' }).disabled).toBe(true)
     expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
   })

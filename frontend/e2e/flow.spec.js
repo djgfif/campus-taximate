@@ -91,9 +91,10 @@ async function boardingState(page, partyId) {
 }
 
 async function callTaxiWhenReady(page) {
+  // 호출 버튼은 부를 수 있을 때만 나타난다. 그 전에는 카드에 언제 부를 수 있는지가 쓰여 있다.
   const button = page.getByRole('button', { name: '택시 불렀어요', exact: true })
+  for (let i = 0; i < 30 && !(await button.isVisible()); i++) await demo(page, '5분 뒤')
   await expect(button).toBeVisible()
-  for (let i = 0; i < 30 && !(await button.isEnabled()); i++) await demo(page, '5분 뒤')
   await expect(button).toBeEnabled()
   await button.click()
   await expect(page.getByRole('dialog', { name: '기사님께 보여 줄 화면' })).toBeVisible()
@@ -116,7 +117,8 @@ test('승차 지점 요청부터 이의 기간과 정산 완료까지 화면으�
   await page.getByLabel('시연 출발지').selectOption({ index: 1 })
   await page.getByLabel('시연 도착지').selectOption({ label: '역전 버스 정류장' })
   await page.getByRole('checkbox').first().check()
-  await expect(page.getByText(/^약 [\d,]+원, \d+분$/)).toBeVisible()
+  // 미리보기가 오면 같이 탈 때의 상한(최소 절약 규칙)이 보인다
+  await expect(page.getByText(/^[\d,]+원 이하$/)).toBeVisible()
   await page.locator('.foot').getByRole('button', { name: '일행 찾기' }).click()
   await expect(page.getByRole('heading', { name: '같이 탈 학생을 찾고 있어요' })).toBeVisible()
 

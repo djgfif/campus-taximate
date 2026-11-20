@@ -390,10 +390,10 @@ function stepOf(party) {
   return 0
 }
 
-export function PartyStepper({ party }) {
+export function PartyStepper({ party, compact = false }) {
   const ended = ['DISSOLVED', 'NOT_OPERATED'].includes(party.status)
   const current = stepOf(party)
-  return <ol className={`stepper${ended ? ' ended' : ''}`} aria-label="진행 단계">
+  return <ol className={`stepper${ended ? ' ended' : ''}${compact ? ' compact' : ''}`} aria-label={compact ? '지금 단계' : '진행 단계'}>
     {STEPS.map((step, i) => <li key={step} className={i < current ? 'done' : i === current ? 'now' : ''}
       aria-current={i === current ? 'step' : undefined}><span aria-hidden="true" />{step}</li>)}
   </ol>
@@ -440,24 +440,26 @@ function NextAction({ party, now, myId, mine, config, run, onUpdated, onDriver }
       detail = '기사님께 내릴 순서를 보여 주세요.'
       extra = <Btn className="line" onClick={onDriver}>기사님께 보여 줄 화면</Btn>
     } else {
-      // 결제자는 선결제가 없다. 호출 버튼은 늘 보이되, 준비가 안 되면 꺼 두고 이유를 보여 준다.
+      // 결제자는 선결제가 없다. 지금 누를 수 없는 호출 버튼은 그리지 않고, 언제 부를 수 있는지를 한 문장으로 알린다.
+      // 부를 때가 되면 이 카드가 호출 단계로 바뀐다(카카오T 열기 → 택시 불렀어요).
+      const reasons = party.notReadyReasons?.length ? party.notReadyReasons.join(' ') : ''
       if (party.canCall) {
         title = '이제 택시를 불러 주세요'
-        detail = '카카오T에서 부른 뒤 "택시 불렀어요"를 누르면 일행에게 알려져요.'
+        detail = party.instant && !party.callReady
+          ? '예상 출발 시각이 되어 호출할 수 있어요. 아직 도착하지 않은 일행은 탑승 미확인으로 기록해요.'
+          : '카카오T에서 부른 뒤 "택시 불렀어요"를 누르면 일행에게 알려져요.'
+        extra = <>
+          <KakaoTaxi />
+          <Btn onClick={() => run(async () => { await api.callParty(party.id); onDriver() }, '택시를 불렀다고 알렸어요')}>택시 불렀어요</Btn>
+        </>
       } else if (party.instant) {
         title = '확정 즉시 승차 지점으로 출발해 주세요'
-        detail = '나는 선결제하지 않아요. 다들 결제하고 도착하면 택시를 부를 수 있어요.'
+        detail = reasons || '나는 선결제하지 않아요. 다들 결제하고 도착하면 택시를 부를 수 있어요.'
       } else {
         title = party.status === 'PREPAYING' ? '다른 사람들이 결제하는 중이에요' : `${formatTime(party.callAt || party.departureAt)}쯤 택시를 불러요`
-        detail = '결제자는 선결제가 없어요. 부를 때가 되면 버튼이 켜져요.'
+        detail = reasons || '결제자는 선결제가 없어요. 부를 때가 되면 여기서 바로 부를 수 있어요.'
         tone = 'calm'
       }
-      extra = <>
-        {!party.canCall && party.notReadyReasons?.map((reason) => <p className="note" key={reason}>{reason}</p>)}
-        {party.instant && party.canCall && !party.callReady && <Say>예상 출발 시각이 되어 호출할 수 있어요. 아직 도착하지 않은 일행은 탑승 미확인으로 기록해요.</Say>}
-        <KakaoTaxi disabled={!party.canCall} />
-        <Btn disabled={!party.canCall} onClick={() => run(async () => { await api.callParty(party.id); onDriver() }, '택시를 불렀다고 알렸어요')}>택시 불렀어요</Btn>
-      </>
     }
   } else if (waiting) {
     const goBy = mine?.boardAt || party.departureAt
@@ -513,8 +515,10 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
   const free = party.freeCancelUntil && new Date(now) <= new Date(party.freeCancelUntil)
   const owesPrepay = party.status === 'PREPAYING' && !party.payer
   const canArrive = waiting && !owesPrepay && (party.instant ? !mine?.arrived : party.canArrive)
+  // 카드의 굵은 버튼은 하나만: 결제자가 지금 택시를 부를 수 있으면 그게 주 행동이고 도착 표시는 보조 버튼이다.
+  const calling = party.payer && waiting && party.canCall && !party.calledAt
   const primary = canArrive
-    ? <Btn onClick={() => run(() => (party.instant ? api.prepareParty(party.id, 'ARRIVED') : api.arrive(party.id)), '도착을 표시했어요')}>도착했어요</Btn> : null
+    ? <Btn className={calling ? 'line' : undefined} onClick={() => run(() => (party.instant ? api.prepareParty(party.id, 'ARRIVED') : api.arrive(party.id)), '도착을 표시했어요')}>도착했어요</Btn> : null
   const order = [...members].sort((a, b) => a.rideOrder - b.rideOrder)
   const [people] = usePeople(party.id, party.groupVersion)
   const personOf = (memberId) => people.find((p) => p.memberId === memberId)
@@ -524,6 +528,9 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
       header={<Meter compact label={!knownPartyStatus(party.status) ? partyLabel(party.status) : party.instant ? '출발(예상)' : '출발'} value={formatTime(party.departureAt)} detail={meetPlace(party)} tag={roleTag(party)} />}
       tools={party.payer ? [{ label: '기사님께 보여 주기', onClick: () => setDriver(true) }] : []}
       action={<>
+          {/* 지금 어디쯤인지(확정 → 선결제 → 모이기 → 탑승 → 정산)를 카드 맨 위 한 줄로. 자세한 순서는 (i) 일행 정보에 있다.
+              선결제할 차례에는 결제 카드에만 집중하게 숨긴다. */}
+          {!owesPrepay && <PartyStepper party={party} compact />}
           <NextAction party={party} now={now} myId={myId} mine={mine} config={config} run={run} onUpdated={onUpdated} onDriver={() => setDriver(true)} />
           {['READY', 'RIDE_UNCONFIRMED', 'AWAITING_FARE'].includes(party.status) && <BoardingCodePanel party={party} now={now} onUpdated={onUpdated} />}
           {party.canLeaveAfterChange && <Say tone="stop-tone" title="일행이 바뀌었어요">현재 내 몫은 {won(party.myShare)}이에요. 원하지 않으면 {party.changeExitFree ? '호출 전까지 무료로' : ''} 빠질 수 있어요.

@@ -62,6 +62,12 @@ export function formatDateTime(value) {
 
 export const won = (value) => `${Number(value).toLocaleString()}원`
 
+/**
+ * 요청 전에 보여 줄 "같이 타면 이 금액 이하". 서버는 일행 합계가 혼자 요금 합의 (1 - 최소 절약률) 이하일 때만 묶고,
+ * 몫은 혼자 요금 비율로 나누므로 내 몫도 그 이하다. 몫을 나눌 때 생기는 몇 원의 반올림(10원 여유)까지 덮고 100원 단위로 올린다.
+ */
+export const shareCap = (soloFare, minSavingRate) => Math.ceil((soloFare * (1 - minSavingRate) + 10) / 100) * 100
+
 export const PARTY_LABEL = {
   CONFIRMED: '일행 확정', SETTLING: '이전 정산 기록', COMPLETED: '완료', UNSETTLED: '정산 미입력', CANCELED: '취소',
   RIDE_UNCONFIRMED: '탔는지 확인하는 중', PREPAYING: '선결제하는 중', READY: '모이는 중', PAYER_PENDING: '결제자 정하는 중',

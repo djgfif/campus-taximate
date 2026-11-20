@@ -95,7 +95,8 @@ export default function App() {
   }, [navigate])
 
   useEffect(() => {
-    api.config().then(setConfig).catch(() => toast('서버에 연결하지 못했습니다. 잠시 뒤 다시 열어 주세요.', 'bad'))
+    // 설정과 로그인 정보는 같은 서버에서 온다. 연결 실패는 아래 전체 화면 카드 하나로만 알린다(알림과 카드가 겹치지 않게).
+    api.config().then(setConfig).catch((e) => setDown(e.status === 429 ? 'busy' : true))
     api.me().then(setMe).catch((e) => (e.status === 401 ? setMe(null) : setDown(e.status === 429 ? 'busy' : true)))
   }, [])
 
@@ -294,8 +295,9 @@ function Flow({ state, config, myId, run, refresh, onMenu, onHistory, onPush, pu
     return <PartyScreen party={party} now={state.now} myId={myId} config={config} run={run} onUpdated={refresh} onMenu={onMenu}
       onDetail={() => navigate('/parties/' + party.id + '?detail=1')} onHome={home} />
   }
-  if (latest?.status === 'JOINING') return <Joining latest={latest} config={config} now={state.now} myId={myId} run={run} onUpdated={refresh} onMenu={onMenu} />
-  if (latest?.status === 'WAITING') return <Waiting latest={latest} now={state.now} config={config} run={run} onMenu={onMenu} onPush={pushOn ? null : onPush} />
+  // 기다리는 동안에도 다른 탭(내 정보, 이용 내역)으로 갈 수 있게 탭바를 둔다. 홈으로 돌아오면 다시 이 화면이다.
+  if (latest?.status === 'JOINING') return <Joining latest={latest} config={config} now={state.now} myId={myId} run={run} onUpdated={refresh} onMenu={onMenu} tabBar={tabBar} />
+  if (latest?.status === 'WAITING') return <Waiting latest={latest} now={state.now} config={config} run={run} onMenu={onMenu} onPush={pushOn ? null : onPush} tabBar={tabBar} />
   if (requestPath && !state.restricted) {
     const Request = requestPath === 'school' ? SchoolRequest : HomeRequest
     return <Request initial={location.state?.initial} config={config} now={state.now} run={run} onClose={() => navigate('/', { replace: true })} />

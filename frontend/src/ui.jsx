@@ -19,13 +19,15 @@ export function useWide() {
  * 위는 내용, 아래는 지금 할 행동을 고정한다.
  * 넓은 화면: aside가 있으면 왼쪽 판(400px) + 오른쪽 지도, 없으면 지도 없이 가운데 한 칸이다.
  */
-export function Screen({ children, foot, aside }) {
+export function Screen({ children, foot, aside, tabBar }) {
   const wide = useWide()
+  const footer = foot && <div className="foot">{foot}</div>
   return (
     <div className={aside === undefined ? 'screen solo' : 'screen'}>
       <div className="pane">
         <div className="body">{children}</div>
-        {foot && <div className="foot">{foot}</div>}
+        {/* 행동 줄과 탭바는 한 덩어리로 아래에 붙인다. 따로 붙이면 둘 다 bottom: 0이라 겹친다. */}
+        {tabBar ? <div className="dock">{footer}{tabBar}</div> : footer}
       </div>
       {wide && aside !== undefined && <aside className="aside">{aside}</aside>}
     </div>
@@ -316,8 +318,29 @@ export function toast(message, tone = '') {
   push(message, tone)
 }
 
+/** 아래에 붙은 행동 영역(행동 줄·탭바·일행방 할 일 카드·입력창) 중 가장 위쪽 가장자리. 알림은 그 바로 위에 띄운다. */
+const BOTTOM_STACK = '.dock, .foot, .tabbar, .chat-task, .chat-form'
+export function bottomInset(doc = document, height = window.innerHeight) {
+  let top = height
+  for (const el of doc.querySelectorAll(BOTTOM_STACK)) {
+    const rect = el.getBoundingClientRect()
+    // 보이면서 위 가장자리가 화면 아래 2/3 안에 있는 것만 센다(화면 밖이나 위쪽에 있는 것은 뺀다).
+    if (rect.height > 0 && rect.top > height / 3 && rect.top < height) top = Math.min(top, rect.top)
+  }
+  return Math.max(0, height - top)
+}
+
 export function Toaster() {
   const [items, setItems] = useState([])
+  const [inset, setInset] = useState(0)
+  // 알림이 떠 있는 동안 화면이 바뀌어도(요청 → 대기 화면) 아래 행동 영역 바로 위를 따라간다.
+  useEffect(() => {
+    if (items.length === 0) return undefined
+    let frame
+    const follow = () => { setInset(bottomInset()); frame = requestAnimationFrame(follow) }
+    follow()
+    return () => cancelAnimationFrame(frame)
+  }, [items.length])
   useEffect(() => {
     let id = 0
     push = (message, tone) => {
@@ -329,7 +352,7 @@ export function Toaster() {
     return () => { push = () => {} }
   }, [])
   return (
-    <div className="toasts" role="status" aria-live="polite">
+    <div className="toasts" role="status" aria-live="polite" style={{ '--toast-inset': inset + 'px' }}>
       {items.map((item) => (
         <div key={item.key} className={`toast ${item.tone}`}>
           {item.tone === 'bad' ? <AlertTriangle size={18} /> : <Check size={18} />}
