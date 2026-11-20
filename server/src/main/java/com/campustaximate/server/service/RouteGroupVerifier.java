@@ -11,7 +11,6 @@ import com.campustaximate.matching.TripPlan;
 import com.campustaximate.matching.Verdict;
 import com.campustaximate.matching.Verification;
 import com.campustaximate.matching.MatchingSettings;
-import com.campustaximate.server.route.QuotedRouteClient;
 import com.campustaximate.server.route.RouteClient;
 import com.campustaximate.settlement.SettlementCalculator;
 import java.time.Duration;
@@ -258,9 +257,7 @@ final class RouteGroupVerifier implements GroupVerifier {
     }
 
     private RouteClient.Route sharedRouteAt(GeoPoint origin, List<GeoPoint> stops, Instant departure) {
-        return routes instanceof QuotedRouteClient quoted
-                ? quoted.sharedRouteAt(origin, stops, departure)
-                : routes.routeAt(origin, stops, departure);
+        return routes.sharedRouteAt(origin, stops, departure);
     }
 
     private RouteClient.Route shownFare(MatchRequest rider, RouteClient.Route alone) {

@@ -4909,6 +4909,14 @@
               "DEPART",
               "ARRIVE"
             ]
+          },
+          "displayDirection": {
+            "type": "string",
+            "description": "홈 등교/하교 탭에 쓰는 표시 방향. 공통 승차(FROM_HUB)라도 학교 쪽으로 가면 TO_SCHOOL.",
+            "enum": [
+              "FROM_HUB",
+              "TO_SCHOOL"
+            ]
           }
         }
       },

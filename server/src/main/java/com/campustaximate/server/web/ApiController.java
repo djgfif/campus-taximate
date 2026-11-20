@@ -153,28 +153,26 @@ public class ApiController {
                               String pointName, double pointLat, double pointLon, long soloFare, int soloMinutes,
                               String memo, WaitingInsightService.Insight insight,
                               RideHistoryService.Stage stage, Long paid, EndReason endReason,
-                              double anchorLat, double anchorLon, Long partyPaid, Integer partySize, Long partyId, List<Long> partyIds, RequestMode mode, TimeBasis timeBasis) {
+                              double anchorLat, double anchorLon, Long partyPaid, Integer partySize, Long partyId, List<Long> partyIds, RequestMode mode, TimeBasis timeBasis,
+                              Direction displayDirection) {
         RequestView withPartyIds(List<Long> ids) {
             return new RequestView(id, status, direction, hubId, anchorName, windowStart, windowEnd, arriveBy,
                     resultBy, pointName, pointLat, pointLon, soloFare, soloMinutes, memo, insight, stage, paid,
-                    endReason, anchorLat, anchorLon, partyPaid, partySize, partyId, ids.isEmpty() ? partyIds : ids, mode, timeBasis);
+                    endReason, anchorLat, anchorLon, partyPaid, partySize, partyId, ids.isEmpty() ? partyIds : ids, mode, timeBasis, displayDirection);
         }
 
-        static RequestView of(RideRequest r) {
-            return of(r, null, null, null);
-        }
-
-        static RequestView of(RideHistoryService.Entry e) {
-            return of(e.request(), null, e.stage(), e.paid(), e.partyPaid(), e.partySize());
+        /** school: 이 요청을 한 회원(로그인한 본인)의 학교. 응답은 트랜잭션 밖에서 만들어 요청의 회원을 지연 로딩할 수 없어 따로 받는다. */
+        static RequestView of(RideHistoryService.Entry e, School school) {
+            return of(e.request(), null, e.stage(), e.paid(), e.partyPaid(), e.partySize(), school);
         }
 
         static RequestView of(RideRequest r, WaitingInsightService.Insight insight,
-                              RideHistoryService.Stage stage, Long paid) {
-            return of(r, insight, stage, paid, null, null);
+                              RideHistoryService.Stage stage, Long paid, School school) {
+            return of(r, insight, stage, paid, null, null, school);
         }
 
         private static RequestView of(RideRequest r, WaitingInsightService.Insight insight,
-                                      RideHistoryService.Stage stage, Long paid, Long partyPaid, Integer partySize) {
+                                      RideHistoryService.Stage stage, Long paid, Long partyPaid, Integer partySize, School school) {
             String anchor = r.getHub() != null ? r.getHub().getName() : r.getSchool().getGateName();
             return new RequestView(r.getId(), r.getStatus(), r.getDirection(),
                     r.getHub() == null ? null : r.getHub().getId(), anchor, r.getWindowStart(), r.getWindowEnd(),
@@ -183,7 +181,9 @@ public class ApiController {
                     r.isNoShow() ? EndReason.NO_SHOW : r.getEndReason(),
                     r.getHub() != null ? r.getHub().getLat() : r.getSchool().getLat(),
                     r.getHub() != null ? r.getHub().getLon() : r.getSchool().getLon(), partyPaid, partySize, r.getParty() == null ? null : r.getParty().getId(),
-                    r.getParty() == null ? List.of() : List.of(r.getParty().getId()),r.getMode(),r.getTimeBasis());
+                    r.getParty() == null ? List.of() : List.of(r.getParty().getId()),r.getMode(),r.getTimeBasis(),
+                    // 홈 등교/하교 탭이 쓰는 표시 방향. 규칙은 BoardService.displayDirection 한 곳에만 있다.
+                    com.campustaximate.server.service.BoardService.displayDirection(r, school));
         }
     }
 
@@ -316,7 +316,7 @@ public class ApiController {
     public Map<String, Object> state(HttpSession session) {
         long id = memberId(session);
         Object latest = requests.findFirstByMemberIdOrderByIdDesc(id)
-                .<Object>map(r -> RequestView.of(r, insights.of(r.getId()), null, null)).orElse("");
+                .<Object>map(r -> RequestView.of(r, insights.of(r.getId()), null, null, mySchool(id))).orElse("");
         return Map.of("now", clock.now(), "latestRequest", latest, "parties", parties.openParties(id),
                 "restricted", rideRequests.isRestricted(id),
                 "restriction", java.util.Optional.ofNullable(safety.activeRestriction(id)).<Object>map(r -> r).orElse(""),
@@ -426,8 +426,15 @@ public class ApiController {
 
     @GetMapping("/history")
     public List<RequestView> history(HttpSession session) {
-        return history.of(memberId(session)).stream()
-                .map(e -> RequestView.of(e).withPartyIds(safety.partyIds(e.request().getId()))).toList();
+        long id = memberId(session);
+        School school = mySchool(id);
+        return history.of(id).stream()
+                .map(e -> RequestView.of(e, school).withPartyIds(safety.partyIds(e.request().getId()))).toList();
+    }
+
+    /** 로그인 회원의 학교(학교까지 함께 읽어 트랜잭션 밖에서도 쓸 수 있다). 등교/하교 표시 방향 판정에 쓴다. */
+    private School mySchool(long memberId) {
+        return members.findWithSchoolById(memberId).map(Member::getSchool).orElse(null);
     }
 
     @GetMapping("/parties/{id}")

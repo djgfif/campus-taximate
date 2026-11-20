@@ -10,7 +10,7 @@ import java.util.*;
 import org.junit.jupiter.api.Test;
 
 class RouteGroupVerifierTest {
-    private final RouteClient routes = mock(RouteClient.class);
+    private final RouteClient routes = mock(RouteClient.class, org.mockito.Answers.CALLS_REAL_METHODS);
     private final Instant now = Instant.parse("2026-11-06T00:00:00Z");
     private final Hub hub = new Hub(1, new GeoPoint(37, 127));
 

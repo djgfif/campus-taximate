@@ -7,28 +7,13 @@ import MapView from './MapView.jsx'
 import { formatTime, partyLabel, remaining, routeLabel } from './format.js'
 import { Say, Screen, TopBar, useWide } from './ui.jsx'
 
-/** 두 위경도 사이의 직선 거리(km). */
-function distanceKm(aLat, aLon, bLat, bLon) {
-  const rad = Math.PI / 180
-  const dLat = (bLat - aLat) * rad
-  const dLon = (bLon - aLon) * rad
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(aLat * rad) * Math.cos(bLat * rad) * Math.sin(dLon / 2) ** 2
-  return 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(a)))
-}
-
-/** 공통 승차(FROM_HUB)로 만든 등교 기록(목적지가 학교 근처)을 홈 등교 탭에서도 분류한다. */
-function displayDirection(item, school) {
-  if (item.direction === 'TO_SCHOOL') return 'TO_SCHOOL'
-  if (!school || item.pointLat == null || item.pointLon == null) return item.direction
-  const toDest = distanceKm(item.pointLat, item.pointLon, school.lat, school.lon)
-  const toAnchor = item.anchorLat != null && item.anchorLon != null ? distanceKm(item.anchorLat, item.anchorLon, school.lat, school.lon) : Infinity
-  return toDest <= 1.0 && toAnchor > toDest ? 'TO_SCHOOL' : 'FROM_HUB'
-}
-
-/** 최근 요청을 방향과 지점별로 하나씩 남긴다. */
-function recentRoutes(history, school) {
+/**
+ * 최근 요청을 방향과 지점별로 하나씩 남긴다. 등교/하교 구분은 서버가 정한 displayDirection을 그대로 쓴다
+ * (공통 승차로 학교에 가는 요청도 등교). 규칙은 서버(BoardService.displayDirection) 한 곳에만 둔다.
+ */
+function recentRoutes(history) {
   const seen = new Set()
-  return history.map((item) => ({ ...item, displayDirection: displayDirection(item, school) })).filter((item) => {
+  return history.map((item) => ({ ...item, displayDirection: item.displayDirection || item.direction })).filter((item) => {
     const key = `${item.displayDirection}:${item.pointName}`
     if (seen.has(key)) return false
     seen.add(key)
@@ -94,7 +79,7 @@ export default function Home({ state, myId, config, school: knownSchool, onStart
     return () => { closed = true }
   }, [knownSchool])
   const toSchool = direction === 'TO_SCHOOL'
-  const recent = recentRoutes(history, school).filter((item) => item.displayDirection === direction).slice(0, 3)
+  const recent = recentRoutes(history).filter((item) => item.displayDirection === direction).slice(0, 3)
   const blocked = state.restricted
   const map = <HomeMap school={school} board={board} direction={direction} />
 

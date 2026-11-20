@@ -17,7 +17,7 @@ class MatchingDiagnosticsTest {
         Instant slot=Instant.parse("2026-11-12T00:00:00Z");var hub=new Hub(1,new GeoPoint(37,127));
         var a=new MatchRequest(1,1,hub,Gender.FEMALE,slot,slot.plusSeconds(3600),new GeoPoint(37.01,127),1,600);
         var b=new MatchRequest(2,2,hub,Gender.FEMALE,slot,slot.plusSeconds(3600),new GeoPoint(37.02,127),2,600);
-        var candidate=new Candidate(List.of(a,b),3,slot.plusSeconds(1500),List.of(600,1200));var routes=mock(RouteClient.class);
+        var candidate=new Candidate(List.of(a,b),3,slot.plusSeconds(1500),List.of(600,1200));var routes=mock(RouteClient.class, org.mockito.Answers.CALLS_REAL_METHODS);
         doAnswer(c->{List<GeoPoint> stops=c.getArgument(1);return new RouteClient.Route(3,stops.size()*600,stops.size()==1?10000:19000,List.of(),Collections.nCopies(stops.size(),600));}).when(routes).routeAt(any(),anyList(),any());
         assertThat(new RouteGroupVerifier(routes,new HashMap<>(),slot).check(candidate).verdict()).isEqualTo(Verdict.FAIL);
         doThrow(new RouteClient.RouteUnavailableException("모의 시간 초과",null)).when(routes).routeAt(any(),anyList(),any());
