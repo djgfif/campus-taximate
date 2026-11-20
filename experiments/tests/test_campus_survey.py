@@ -1,3 +1,4 @@
+import importlib.util
 import json
 from collections import Counter
 from pathlib import Path
@@ -8,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import campus_survey as c13
 
 REPORT = c13.REPORTS / 'c13-campus-survey.json'
+HAS_PYPROJ = importlib.util.find_spec('pyproj') is not None
 
 
 class C13UnitTests(unittest.TestCase):
@@ -17,6 +19,7 @@ class C13UnitTests(unittest.TestCase):
         self.assertEqual(c13.query(dict(name='단국대학교', branch='제2캠퍼스', region='충남')), '단국대학교 충남')
         self.assertEqual(c13.query(dict(name='대진대학교', branch='본교', region='경기')), '대진대학교')
 
+    @unittest.skipUnless(HAS_PYPROJ, 'pyproj is not installed in this Python environment')
     def test_student_excess_removes_regional_season(self):
         grids = {'g': Counter({m: 10 * c13.DAYS[m] for m in c13.DAYS})}
         for m in ('2025-03', '2025-04', '2025-05', '2025-09', '2025-10', '2025-11'):

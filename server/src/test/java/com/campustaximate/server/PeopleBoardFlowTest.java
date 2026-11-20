@@ -75,6 +75,26 @@ class PeopleBoardFlowTest {
         assertThat(board.of(me).parties()).isEmpty();
     }
 
+    @Test void commonBoardingToCampusShowsUnderToSchoolOnBoard() {
+        var school = new School("대진대학교", "daejin.ac.kr", "대진대 정문", 37.8707, 127.1561);
+        var peer = new Member(school, "peer@daejin.ac.kr");
+        var hub = new Hub("역전 정류장", "1번 출구", 37.8000, 127.1000, java.util.Set.of(school));
+        var req = new RideRequest();
+        req.setMember(peer);
+        req.setDirection(com.campustaximate.matching.Direction.FROM_HUB);
+        req.setHub(hub);
+        req.setOriginLat(37.8000); req.setOriginLon(127.1000); req.setOriginName("역전");
+        req.setPointName(school.getName()); req.setPointLat(school.getLat()); req.setPointLon(school.getLon());
+        assertThat(BoardService.displayDirection(req)).isEqualTo(com.campustaximate.matching.Direction.TO_SCHOOL);
+
+        var homeReq = new RideRequest();
+        homeReq.setMember(peer);
+        homeReq.setDirection(com.campustaximate.matching.Direction.FROM_HUB);
+        homeReq.setOriginLat(school.getLat()); homeReq.setOriginLon(school.getLon()); homeReq.setOriginName(school.getName());
+        homeReq.setPointName("의정부역"); homeReq.setPointLat(37.7380); homeReq.setPointLon(127.0460);
+        assertThat(BoardService.displayDirection(homeReq)).isEqualTo(com.campustaximate.matching.Direction.FROM_HUB);
+    }
+
     @Test void failedJoinDoesNotLeaveAWaitingRequest() {
         demo.openBoardParty(me);
         var card = board.of(me).parties().getFirst();

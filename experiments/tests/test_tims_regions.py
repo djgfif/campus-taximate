@@ -1,3 +1,4 @@
+import importlib.util
 from pathlib import Path
 import sys
 import unittest
@@ -12,6 +13,7 @@ class GridRegionTests(unittest.TestCase):
         for value in ('다사200001','다사000200','SCHOOL','다사0137','aa123123'):
             with self.assertRaises(ValueError):tr.grid_center(value)
 
+    @unittest.skipUnless(importlib.util.find_spec('shapely') is not None, 'shapely is not installed in this Python environment')
     def test_polygon_not_nearest_point_and_hole_ambiguity(self):
         from shapely.geometry import Polygon
         a=Polygon([(0,0),(10,0),(10,10),(0,10)],holes=[[(4,4),(6,4),(6,6),(4,6)]])

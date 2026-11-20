@@ -190,6 +190,19 @@ class PaymentFlowTest {
         assertThat(reserveEntry().getAmount()).isZero();
         assertThat(adminAudits.findAll()).singleElement().satisfies(a->assertThat(a.getDecision()).isEqualTo("ACCEPTED"));
     }
+    /** (d) 실제 요금이 확정 금액 절반 미만 또는 결제자 확정 몫 미만이면 관리자 검토로 가고, 확정 지급액은 음수가 되지 않는다. */
+    @Test void p05AbnormallyLowFareWaitsForAdminAndClampsPayoutAtZero() {
+        depart(); submit(5000);
+        Party held=parties.findById(partyId).orElseThrow();
+        assertThat(held.getStatus()).isEqualTo(PartyStatus.REVIEW_PENDING);
+        assertThat(held.getReviewReason()).isEqualTo("FARE_EXCEPTION");
+        assertThat(held.isAdminReviewRequired()).isTrue();
+        // 관리자가 낮은 실제 요금을 그대로 인정하더라도 지급액은 0원 하한을 유지한다.
+        admin.decideFare(adminId(),partyId,false,null,"실제 할인 적용 영수증 확인"); lifecycle.afterDepartures();
+        assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.COMPLETED);
+        assertThat(payouts.findAll()).singleElement().satisfies(p->assertThat(p.getAmount()).isZero());
+        assertThat(reserveEntry().getAmount()).isEqualTo(3200 + 5600);
+    }
     @Test void p06OnlyUnpaidMemberIsRemovedWithoutNoShow() {
         approve(0); at(NOW.plusSeconds(600)); lifecycle.beforeDepartures();
         assertThat(requests.findByStatus(RequestStatus.MATCHED)).hasSize(2);

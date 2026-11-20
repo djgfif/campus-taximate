@@ -11,6 +11,7 @@ import com.campustaximate.matching.TripPlan;
 import com.campustaximate.matching.Verdict;
 import com.campustaximate.matching.Verification;
 import com.campustaximate.matching.MatchingSettings;
+import com.campustaximate.server.route.QuotedRouteClient;
 import com.campustaximate.server.route.RouteClient;
 import com.campustaximate.settlement.SettlementCalculator;
 import java.time.Duration;
@@ -146,7 +147,7 @@ final class RouteGroupVerifier implements GroupVerifier {
         try {
             for (int attempt = 0; attempt < MAX_BACKTRACK_QUERIES; attempt++) {
                 if (departure.isBefore(minimum)) return reject(candidate);
-                full = routes.routeAt(hub, stops, departure);
+                full = sharedRouteAt(hub, stops, departure);
                 List<Integer> legs = legSeconds(full, stops.size());
                 if (legs == null) return unavailable(candidate);
                 seconds.clear();
@@ -218,7 +219,7 @@ final class RouteGroupVerifier implements GroupVerifier {
         List<Instant> boardAt = new ArrayList<>();
         try {
             for (int attempt = 0; attempt < MAX_BACKTRACK_QUERIES && !fits; attempt++) {
-                full = routes.routeAt(merged.get(0), mergedStops, departure);
+                full = sharedRouteAt(merged.get(0), mergedStops, departure);
                 Instant arrival = departure.plusSeconds(full.seconds() + (long) stopCount * ToSchoolPlan.STOP_SECONDS);
                 fits = !arrival.isAfter(first.arriveBy());
                 if (!fits) {
@@ -254,6 +255,12 @@ final class RouteGroupVerifier implements GroupVerifier {
             return unavailable(candidate);
         }
         return finish(candidate, new VerifiedRoutes(solo, rides, full.fare(), departure, boardAt));
+    }
+
+    private RouteClient.Route sharedRouteAt(GeoPoint origin, List<GeoPoint> stops, Instant departure) {
+        return routes instanceof QuotedRouteClient quoted
+                ? quoted.sharedRouteAt(origin, stops, departure)
+                : routes.routeAt(origin, stops, departure);
     }
 
     private RouteClient.Route shownFare(MatchRequest rider, RouteClient.Route alone) {

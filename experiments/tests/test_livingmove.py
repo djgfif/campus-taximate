@@ -1,4 +1,5 @@
 from datetime import date
+import importlib.util
 import io
 from pathlib import Path
 import sys
@@ -30,6 +31,7 @@ class LivingMoveTests(unittest.TestCase):
         self.assertEqual(lm.point_code(dict(h_code='1132052100'),set()),('11320000','서울 자치구 후퇴'))
         self.assertEqual(lm.region_flow({'11320521':2,'11320522':3},dict(h_code='1132052300'),set())[1],5)
 
+    @unittest.skipUnless(importlib.util.find_spec('duckdb') is not None, 'duckdb is not installed in this Python environment')
     def test_streaming_aggregate_and_mask_denominators(self):
         with tempfile.TemporaryDirectory() as folder:
             cache=Path(folder);(cache/'living-move').mkdir()

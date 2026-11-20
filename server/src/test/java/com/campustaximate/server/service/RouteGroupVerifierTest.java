@@ -162,6 +162,27 @@ class RouteGroupVerifierTest {
     }
 
     @Test
+    void sameDestinationPartyStillGetsQuotedMargin() {
+        var raw = new RouteClient() {
+            public Route route(GeoPoint origin, List<GeoPoint> stops) { return new Route(5, 600, 10000, List.of(), List.of(600)); }
+            public java.util.Map<String, com.campustaximate.matching.RoadLeg> legs(GeoPoint o, java.util.Map<String, GeoPoint> d) { return java.util.Map.of(); }
+            public boolean simulated() { return true; }
+        };
+        var quoted = new com.campustaximate.server.route.QuotedRouteClient(raw, 0.0657, 0.01);
+        GeoPoint sameStop = new GeoPoint(37.05, 127.0);
+        Instant departure = now.plusSeconds(3600);
+        List<MatchRequest> order = List.of(
+                new MatchRequest(1, 1, hub, Gender.FEMALE, departure, departure.plusSeconds(1800), sameStop, 5, 600),
+                new MatchRequest(2, 2, hub, Gender.FEMALE, departure, departure.plusSeconds(1800), sameStop, 5, 600));
+        Candidate c = new Candidate(order, 10, departure, List.of());
+        var verifier = new RouteGroupVerifier(quoted, new HashMap<>(), now);
+        assertThat(verifier.verify(c)).isEqualTo(Verdict.PASS);
+        // GeoPoint.mergeStops로 stops가 1곳으로 합쳐져도 일행 확정 금액은 bias + margin(1%)이 적용된다.
+        assertThat(verifier.routesOf(order).total()).isEqualTo(10757);
+        assertThat(verifier.routesOf(order).solo()).extracting(RouteClient.Route::fare).containsExactly(10657L, 10657L);
+    }
+
+    @Test
     void unavailableRouteIsNotCachedAsRejected() {
         when(routes.routeAt(any(), anyList(), any())).thenThrow(new RouteClient.RouteUnavailableException("모의 장애", null));
         var verifier = new RouteGroupVerifier(routes, new HashMap<>(), now);

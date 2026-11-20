@@ -1308,6 +1308,15 @@
           "demo-controller"
         ],
         "operationId": "next",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MatchBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "OK",
@@ -2087,6 +2096,40 @@
         }
       }
     },
+    "/api/payments/history/{requestId}": {
+      "get": {
+        "tags": [
+          "payment-controller"
+        ],
+        "operationId": "history",
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OrderView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/parties/{partyId}/messages/{messageId}/image": {
       "get": {
         "tags": [
@@ -2515,7 +2558,7 @@
         "tags": [
           "api-controller"
         ],
-        "operationId": "history",
+        "operationId": "history_1",
         "responses": {
           "200": {
             "description": "OK",
@@ -2655,6 +2698,26 @@
                   "items": {
                     "$ref": "#/components/schemas/Peer"
                   }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/reserve": {
+      "get": {
+        "tags": [
+          "admin-controller"
+        ],
+        "operationId": "reserve",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReserveView"
                 }
               }
             }
@@ -3519,6 +3582,9 @@
           },
           "nearby": {
             "type": "boolean"
+          },
+          "prepaid": {
+            "type": "boolean"
           }
         }
       },
@@ -3718,6 +3784,9 @@
           "unreadChat": {
             "type": "integer",
             "format": "int64"
+          },
+          "myPrepaid": {
+            "type": "boolean"
           }
         }
       },
@@ -4033,6 +4102,9 @@
           "memberId": {
             "type": "integer",
             "format": "int64"
+          },
+          "nickname": {
+            "type": "string"
           },
           "status": {
             "type": "string"
@@ -4772,7 +4844,11 @@
               "NOT_OPERATED",
               "FARE_MISSING",
               "DISSOLVED",
-              "RIDE_UNCONFIRMED"
+              "RIDE_UNCONFIRMED",
+              "BOARDING_UNCONFIRMED",
+              "BOARDING_REVIEW",
+              "BOARDING_NO_SHOW",
+              "BOARDING_EXONERATED"
             ]
           },
           "paid": {
@@ -4784,7 +4860,13 @@
             "enum": [
               "NO_SHOW",
               "PARTY_CANCELED",
-              "LEFT_ALONE"
+              "LEFT_ALONE",
+              "ROUTE_VERIFICATION_EXPIRED",
+              "BOARDING_UNCONFIRMED",
+              "PREPAY_UNPAID",
+              "FREE_CANCEL",
+              "CHANGE_EXIT_FREE",
+              "LATE_CANCEL"
             ]
           },
           "anchorLat": {
@@ -4949,6 +5031,66 @@
           }
         }
       },
+      "ReserveEntry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "settlementId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "partyId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "covered": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "paidAmount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "fixedTotal": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ReserveView": {
+        "type": "object",
+        "properties": {
+          "balance": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "covered": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "settlements": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "recent": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReserveEntry"
+            }
+          }
+        }
+      },
       "ReportView": {
         "type": "object",
         "properties": {
@@ -5057,6 +5199,12 @@
           "refundTarget": {
             "type": "integer",
             "format": "int64"
+          },
+          "rideReviewHeld": {
+            "type": "boolean"
+          },
+          "rideReviewConflict": {
+            "type": "boolean"
           },
           "deadlineAt": {
             "type": "string",

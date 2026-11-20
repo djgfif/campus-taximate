@@ -169,7 +169,7 @@ public class PaymentLifecycleService {
                     .ifPresent(r -> notifications.toMember(r.getMember(), "[캠퍼스 택시메이트] 분담금 결제 요청", "선결제하지 않은 분담금 " + share.getAmount() + "원을 24시간 안에 결제해 주세요."));
         }
         SettlementShare payer = allocations.stream().filter(SettlementShare::isPayer).findFirst().orElseThrow();
-        long payout=settlement.getPaidAmount() - payer.getAmount();
+        long payout = Math.max(0, settlement.getPaidAmount() - payer.getAmount());
         if (!payouts.existsBySettlementId(settlement.getId())) {
             PayoutLedger ledger = new PayoutLedger(); ledger.setSettlementId(settlement.getId()); ledger.setPartyId(partyId);
             ledger.setMemberId(payer.getMemberId()); ledger.setAmount(payout);

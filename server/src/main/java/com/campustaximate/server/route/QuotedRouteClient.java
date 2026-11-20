@@ -9,7 +9,7 @@ import java.util.Map;
 /**
  * 확정 분담금(S43)의 견적. 카카오 예상 요금은 실제 미터보다 평균적으로 낮아서(TIMS 2025, +6.57%)
  * 모든 요금에 (1 + bias)를 곱해 "실제로 낼 것으로 기대되는 요금"으로 쓴다.
- * 여러 곳에 내리는 일행 경로(정차 2곳 이상)에는 정산 적립금을 쌓는 여유분 margin을 더한다.
+ * 일행 경로에는 정산 적립금을 쌓는 여유분 margin을 더한다(목적지가 하나로 합쳐진 일행도 포함).
  * 혼자 가는 경로(정차 1곳)는 여유분 없이 bias만 적용하므로, 절약 기준(혼자보다 10% 이상)은 여유분만큼만 엄격해진다.
  */
 public final class QuotedRouteClient implements RouteClient {
@@ -36,19 +36,27 @@ public final class QuotedRouteClient implements RouteClient {
         return Math.max(1, Math.round(fare * (1 + bias + margin)));
     }
 
-    private Route quote(Route route, List<GeoPoint> stops) {
-        long fare = stops.size() > 1 ? shared(route.fare(), bias, margin) : solo(route.fare(), bias);
+    private Route quote(Route route, boolean shared) {
+        long fare = shared ? shared(route.fare(), bias, margin) : solo(route.fare(), bias);
         return route.withFare(fare);
+    }
+
+    /** 목적지가 하나로 합쳐져도 여럿이 함께 타는 일행 경로는 여유분(margin)을 적용한다. */
+    public Route sharedRouteAt(GeoPoint origin, List<GeoPoint> stops, Instant departure) {
+        if (stops.size() > 1 || margin == 0) {
+            return routeAt(origin, stops, departure);
+        }
+        return quote(delegate.routeAt(origin, stops, departure), true);
     }
 
     @Override
     public Route route(GeoPoint origin, List<GeoPoint> stops) {
-        return quote(delegate.route(origin, stops), stops);
+        return quote(delegate.route(origin, stops), stops.size() > 1);
     }
 
     @Override
     public Route routeAt(GeoPoint origin, List<GeoPoint> stops, Instant departure) {
-        return quote(delegate.routeAt(origin, stops, departure), stops);
+        return quote(delegate.routeAt(origin, stops, departure), stops.size() > 1);
     }
 
     @Override

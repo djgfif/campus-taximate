@@ -34,7 +34,10 @@ class C11UnitTests(unittest.TestCase):
         self.assertGreater(stats['probability_ever_negative'], 0)
 
     def test_java_self_tests_cover_fixed_ledger_and_bias_baseline(self):
-        java = json.loads((c11.CACHE / 'java-command.json').read_text(encoding='utf-8'))
+        cmd_path = c11.CACHE / 'java-command.json'
+        if not cmd_path.exists():
+            self.skipTest('C11 local cache not present: ' + str(cmd_path))
+        java = json.loads(cmd_path.read_text(encoding='utf-8'))
         for cls, marker in (('C11Finance', 'operator conservation passed'), ('C11Simulation', 'minimum-saving checks passed')):
             out = subprocess.run(java[:-1] + ['com.campustaximate.server.service.' + cls, '--self-test'],
                                  cwd=c11.ROOT, capture_output=True, text=True, check=True).stdout
@@ -70,7 +73,10 @@ class C11ReportTests(unittest.TestCase):
             self.assertLess(abs(prod - zero), .01, n)
 
     def test_forecast_trained_on_disjoint_days(self):
-        model = json.loads((c11.CACHE / 'forecast.json').read_text(encoding='utf-8'))
+        forecast_path = c11.CACHE / 'forecast.json'
+        if not forecast_path.exists():
+            self.skipTest('C11 local cache not present: ' + str(forecast_path))
+        model = json.loads(forecast_path.read_text(encoding='utf-8'))
         self.assertFalse(set(model['train_seeds']) & set(model['eval_seeds']))
 
     def test_every_selected_group_replays_through_production_verifier(self):

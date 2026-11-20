@@ -7,11 +7,29 @@ import MapView from './MapView.jsx'
 import { formatTime, partyLabel, remaining, routeLabel } from './format.js'
 import { Say, Screen, TopBar, useWide } from './ui.jsx'
 
+/** 두 위경도 사이의 직선 거리(km). */
+function distanceKm(aLat, aLon, bLat, bLon) {
+  const rad = Math.PI / 180
+  const dLat = (bLat - aLat) * rad
+  const dLon = (bLon - aLon) * rad
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(aLat * rad) * Math.cos(bLat * rad) * Math.sin(dLon / 2) ** 2
+  return 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(a)))
+}
+
+/** 공통 승차(FROM_HUB)로 만든 등교 기록(목적지가 학교 근처)을 홈 등교 탭에서도 분류한다. */
+function displayDirection(item, school) {
+  if (item.direction === 'TO_SCHOOL') return 'TO_SCHOOL'
+  if (!school || item.pointLat == null || item.pointLon == null) return item.direction
+  const toDest = distanceKm(item.pointLat, item.pointLon, school.lat, school.lon)
+  const toAnchor = item.anchorLat != null && item.anchorLon != null ? distanceKm(item.anchorLat, item.anchorLon, school.lat, school.lon) : Infinity
+  return toDest <= 1.0 && toAnchor > toDest ? 'TO_SCHOOL' : 'FROM_HUB'
+}
+
 /** 최근 요청을 방향과 지점별로 하나씩 남긴다. */
-function recentRoutes(history) {
+function recentRoutes(history, school) {
   const seen = new Set()
-  return history.filter((item) => {
-    const key = `${item.direction}:${item.pointName}`
+  return history.map((item) => ({ ...item, displayDirection: displayDirection(item, school) })).filter((item) => {
+    const key = `${item.displayDirection}:${item.pointName}`
     if (seen.has(key)) return false
     seen.add(key)
     return true
@@ -71,7 +89,7 @@ export default function Home({ state, myId, config, onStart, onReopen, onChanged
     api.school().then(setSchool).catch(() => setSchool(null))
   }, [])
   const toSchool = direction === 'TO_SCHOOL'
-  const recent = recentRoutes(history).filter((item) => item.direction === direction).slice(0, 3)
+  const recent = recentRoutes(history, school).filter((item) => item.displayDirection === direction).slice(0, 3)
   const blocked = state.restricted
   const map = <HomeMap school={school} board={board} direction={direction} />
 
@@ -115,9 +133,9 @@ export default function Home({ state, myId, config, onStart, onReopen, onChanged
           <ul className="recent" aria-label="최근 경로">
             {recent.map((item) => (
               <li key={item.id}>
-                <button type="button" onClick={() => onStart({ direction: item.direction, initial: item })}>
+                <button type="button" onClick={() => onStart({ direction: item.displayDirection, initial: item })}>
                   <Clock size={18} aria-hidden="true" />
-                  <span><b>{item.pointName}</b><small>{toSchool ? `${item.anchorName}까지` : `${item.anchorName}에서`}</small></span>
+                  <span><b>{item.pointName}</b><small>{item.direction === 'TO_SCHOOL' ? `${item.anchorName}까지` : `${item.anchorName}에서`}</small></span>
                 </button>
               </li>
             ))}

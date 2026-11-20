@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { api } from './api.js'
 import PaymentCard from './PaymentCard.jsx'
 import { PlaceField } from './RequestFlow.jsx'
@@ -15,9 +15,11 @@ export function BoardSection({ now, config, onJoined, disabled, onLoaded, direct
   const [board, setBoard] = useState(null)
   const [error, setError] = useState('')
   const [joining, setJoining] = useState(null)
+  const onLoadedRef = useRef(onLoaded)
+  useEffect(() => { onLoadedRef.current = onLoaded }, [onLoaded])
   useEffect(() => {
     let closed = false
-    api.board().then((next) => { if (!closed) { setBoard(next); setError(''); onLoaded?.(next) } }).catch((e) => !closed && setError(e.message))
+    api.board().then((next) => { if (!closed) { setBoard(next); setError(''); onLoadedRef.current?.(next) } }).catch((e) => !closed && setError(e.message))
     return () => { closed = true }
   }, [now])
   if (error) return null

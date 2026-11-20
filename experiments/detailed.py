@@ -10,6 +10,7 @@ from functools import lru_cache
 import json
 import math
 from operator import mul
+import os
 from pathlib import Path
 import random
 import statistics
@@ -548,7 +549,7 @@ def main():
     p.add_argument('--routing-cache', type=Path, help='Calibrated OSRM artifacts (default public-cache/osrm)')
     p.add_argument('--days', type=int, default=30)
     p.add_argument('--seed', type=int, default=20261119)
-    p.add_argument('--java-home', default='C:/Users/gkho0/.jdks/ms-21.0.12.1')
+    p.add_argument('--java-home', default=os.environ.get('JAVA_HOME'))
     p.add_argument('--boot-package', type=Path)
     p.add_argument('--build', action='store_true')
     p.add_argument('--maven', default='mvn')
