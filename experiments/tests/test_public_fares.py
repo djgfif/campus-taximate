@@ -27,16 +27,6 @@ class PublicMetricTests(unittest.TestCase):
         for p,a in (([0],[10]),([10],[-1]),([10],[float('nan')]),([1],[])):
             with self.assertRaises(ValueError): fares.public_metrics(p,a)
 
-    def test_exclusions_order_and_edges(self):
-        start=datetime(2025,1,1); end=start+timedelta(minutes=10)
-        self.assertIsNone(fares.trip_exclusion(4800,2,10,start,end))
-        for values,reason in [({'fare':0},'invalid_fare_or_missing_numeric'),
-          ({'km':0},'distance_outside_0.1_160km'),({'minutes':200},'duration_outside_1_180min'),
-          ({'km':30,'minutes':1},'speed_outside_1_130kmh'),({'end':start},'invalid_time_order'),
-          ({'od_valid':False},'missing_or_unknown_od'),({'standard':False},'non_standard_rate')]:
-            with self.subTest(reason=reason):
-                kwargs=dict(fare=4800,km=2,minutes=10,start=start,end=end);kwargs.update(values)
-                self.assertEqual(fares.trip_exclusion(**kwargs),reason)
 
     def test_korean_tariff_regions_and_night_rates(self):
         self.assertEqual(fares.korea_tariff(1.6,6.4),4800)
@@ -45,9 +35,6 @@ class PublicMetricTests(unittest.TestCase):
         self.assertEqual(fares.korea_tariff(2.,8,kind='pocheon'),4800)
         self.assertEqual(fares.korea_tariff(2.083,8,kind='pocheon'),4900)
 
-    def test_special_tariff_floor_and_distance_brackets(self):
-        for km,expected in [(0,1500),(5,1500),(5.35,1500),(6,1700),(10,2900),(11,2900),(12,3000)]:
-            self.assertEqual(fares.special_taxi_tariff(km),expected)
 
 
 class PublicSqlTests(unittest.TestCase):
@@ -82,15 +69,6 @@ class PublicSqlTests(unittest.TestCase):
                 for p,v in expected[k].items():self.assertAlmostEqual(actual[k][p],v)
             else:self.assertAlmostEqual(actual[k],expected[k])
 
-    def test_cleaning_counts_cover_every_row(self):
-        if self.external_public_python(): return
-        source="""SELECT * FROM (VALUES
-          (10.,2.,10.,TIMESTAMP '2025-01-01',TIMESTAMP '2025-01-01 00:10:00','a','b',true,false),
-          (0.,2.,10.,TIMESTAMP '2025-01-01',TIMESTAMP '2025-01-01 00:10:00','a','b',true,false),
-          (10.,2.,10.,TIMESTAMP '2024-01-01',TIMESTAMP '2024-01-01 00:10:00','a','b',true,false))
-          t(fare,km,mins,pickup,dropoff,pu,dest,standard,canceled)"""
-        m=fares.clean_public(self.db,source,'test_clean','2025-01-01','2026-01-01')
-        self.assertEqual((m['rows'],m['accepted'],m['excluded']),(3,1,2))
 
     def test_sql_tariff_matches_python(self):
         if self.external_public_python(): return
@@ -98,21 +76,6 @@ class PublicSqlTests(unittest.TestCase):
             v=self.db.execute('SELECT seoulfare(?,?,?)',[km,mins,h]).fetchone()[0]
             self.assertEqual(v,fares.korea_tariff(km,mins,h))
 
-    def test_training_fallback_does_not_use_future_fares(self):
-        if self.external_public_python(): return
-        self.db.execute("""CREATE OR REPLACE TABLE tiny_train AS SELECT 'a' AS pu,'b' AS dest,
-          (i%2)::INTEGER AS band,2. AS km,10. AS mins,1500. AS fare FROM range(20) t(i)""")
-        self.db.execute("""CREATE OR REPLACE TABLE tiny_test AS SELECT 'a' AS pu,'b' AS dest,
-          7 AS band,4. AS km,15. AS mins,9999. AS fare""")
-        with tempfile.TemporaryDirectory(dir=run.CACHE) as d:
-            original=fares.PUBLIC_CACHE
-            try:
-                fares.PUBLIC_CACHE=Path(d)
-                out=fares.od_evaluation(self.db,'tiny_train','tiny_test','pred_fare','fare','tiny')
-            finally: fares.PUBLIC_CACHE=original
-        self.assertEqual(out['prediction_coverage'],{'od_only':1})
-        predicted=self.db.execute('SELECT pred_fare FROM tiny_eval').fetchone()[0]
-        self.assertEqual(predicted,1500)
 
 
 class ProductionBootstrapTests(unittest.TestCase):

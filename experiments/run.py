@@ -242,12 +242,12 @@ def sensitivity_report(java,groups,actual_path,cohort,seed,repetitions,source_ma
     distributions={}; public=None
     if actual_path.suffix.lower()==".json":
         public=json.loads(actual_path.read_text(encoding="utf-8"))
-        for name,key in (("korea_primary","korea"),("nyc_reference","nyc")):
+        for name,key in (("korea_primary","tims"),):
             value=public[key]
-            if value["status"]=="COMPLETED":
+            if value["monthly_status"]=="COMPLETED":
                 artifact=value["errors"]; path=Path(artifact["path"])
                 if sha(path)!=artifact["sha256"]: raise ValueError("C5 empirical distribution hash mismatch")
-                distributions[name]=(path,value["overall"]["n"])
+                distributions[name]=(path,value["errors"]["n"])
     else:
         _,details=analyze(actual_path)
         errors=[row['signed_relative'] for row in details if row.get('cohort')=='prospective']
@@ -255,9 +255,9 @@ def sensitivity_report(java,groups,actual_path,cohort,seed,repetitions,source_ma
             path=CACHE/'optional-observed-errors.csv'
             path.write_text('\n'.join(map(str,errors))+'\n',encoding='utf-8')
             distributions['optional_private_observed']=(path,len(errors))
-    result={"seed":seed,"replicates":repetitions,"matched_groups":file_manifest(groups),"distributions":{},
+    result={"matching_baseline":summarize(HERE/"reports"/(cohort+".csv")),"seed":seed,"replicates":repetitions,"matched_groups":file_manifest(groups),"distributions":{},
             "production_source":source_manifest,"c5_report":file_manifest(actual_path)}
-    if public and public['korea']['status']!='COMPLETED':
+    if public and public['tims']['monthly_status']!='COMPLETED':
         result['distributions']['korea_primary']={"status":public['korea']['status'],"n":0}
     for name,(path,n) in distributions.items():
         csv_path=CACHE/(cohort+'-'+name+'-bootstrap.csv')
@@ -266,8 +266,11 @@ def sensitivity_report(java,groups,actual_path,cohort,seed,repetitions,source_ma
     if not distributions: result['status']='BLOCKED_NO_EMPIRICAL_ERRORS'
     target=HERE/'reports'/'c6-error-sensitivity.json'
     combined=json.loads(target.read_text(encoding='utf-8')) if target.is_file() else {"schema_version":2,"cohorts":{}}
-    combined.update(generated_at=datetime.now(timezone.utc).isoformat(),
-       conclusion="한국 오차 분포가 확보되지 않은 경우 한국 주 결과는 미측정으로 남긴다. NYC 적용은 참고 스트레스 실험이다.",
+    combined['cohorts']={k:v for k,v in combined['cohorts'].items()
+        if v.get('c5_report',{}).get('sha256')==sha(actual_path)
+        and 'mean_abs_bill_gap_krw' in v.get('distributions',{}).get('korea_primary',{}).get('scenarios',{}).get('empirical',{}).get('ratio',{})}
+    combined.update(tool_sha256={p.name:sha(p) for p in (HERE/'run.py',HERE/'fares.py',HERE/'acquire_public.py')},generated_at=datetime.now(timezone.utc).isoformat(),
+       conclusion="한국 오차 분포가 확보되지 않은 경우 한국 주 결과는 미측정으로 남긴다. TIMS 격자·월 평균 잔차만 사용한다.",
        presentation_sentence="예상 요금으로 매칭을 고정하고 공개 운행 오차를 정산에만 반영해 추가 결제·손해 가능성을 점검했다.",
        definitions={"mean_actual_saving":"mean(1-share_i / independent_actual_solo_i), matched riders only",
         "harmed_rate":"share_i > independent_actual_solo_i; denominator all matched riders",
@@ -278,32 +281,35 @@ def sensitivity_report(java,groups,actual_path,cohort,seed,repetitions,source_ma
         "equal_comparison":"Same groups, payer, actual shared and solo fares; equal expected shares generate their own prepaid amounts"},
        limitations=["MatchingRound/RouteGroupVerifier run once on expected fares. No error enters matching.",
         "SettlementCalculator and PaymentService.prepayAmount are compiled from current production sources.",
-        "한국 경로 환산/NYC 운행 오차를 포천 동승에 독립 적용하는 외적 타당성은 입증하지 않는다.",
-        "NYC 금액 USD를 KRW로 환산하지 않고 무차원 상대오차만 사용한다.",
+        "TIMS 집계 평균 잔차는 개별 운행 오차 분산을 과소추정한다. 실제 합승 성과 미검증.",
         "확정 매칭자 기준이며 미매칭자를 절약률 분모에 넣지 않는다. 반복 시행은 학생 이용 실적/관측 표본 수가 아니다.",
-        "오차 확대 시 비양수 요금이 되는 일행-반복은 해당 민감도 조건에서 제외하고 건수를 공개한다. ×1.5/×2는 양수 요금에 조건부인 지표이며 전체 확대 분포의 무조건 평균이 아니다. 0에 가까운 양수 단독 요금 때문에 평균 절약률의 꼬리 민감성도 크다."])
+        "오차 확대 시 비양수 요금이 되는 일행-반복은 해당 민감도 조건에서 제외하고 건수를 공개한다. 평균을 유지한 편차 ×1.5/×2는 양수 요금에 조건부인 지표이며 전체 확대 분포의 무조건 평균이 아니다. 0에 가까운 양수 단독 요금 때문에 평균 절약률의 꼬리 민감성도 크다."])
     combined['cohorts'][cohort]=result
     primary=combined['cohorts'].get('korea-cached',result)['distributions'].get('korea_primary',{})
     if primary.get('status')=='COMPLETED':
         baseline=primary['scenarios']['epsilon_0']['ratio']; measured=primary['scenarios']['empirical']['ratio']
-        combined['conclusion']=(f"한국 경로 환산 오차를 정산에 적용하면 비율 정산 평균 실제 절약률 "
+        combined['conclusion']=(f"TIMS 집계 잔차를 정산에 적용하면 비율 정산 평균 실제 절약률 "
           f"{baseline['mean_actual_saving']:.2%}→{measured['mean_actual_saving']:.2%}, 손해 비율 {measured['harmed_rate']:.2%}, "
           f"비결제자 추가 결제 {measured['additional_payment_rate']:.2%}. 합계 오류 {measured['conservation_errors']}건. 모의실험 결과다.")
         combined['presentation_sentence']=combined['conclusion']
     json_write(target,combined)
     lines=['# C6 공개 오차 분포 반영 모의 운영','',combined['conclusion'],'','발표용 한 문장: '+combined['presentation_sentence'],'',
-      '| 입력 | 오차 자료 | 조건 | 정산 | 평균 실제 절약률 | 손해 비율 | 추가 결제(비결제자) | 환불(비결제자) | 평균 환불 원 | 합계 오류 | 비양수 배수로 제외된 일행-반복 |',
-      '|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|']
+      '| 입력 | 오차 자료 | 조건 | 정산 | 평균 실제 절약률 | 손해 비율 | 추가 결제(비결제자) | 환불(비결제자) | 평균 환불 원 | 청구 차이 절댓값 평균(원) | 추가결제 발생시 평균(원) | 합계 오류 | 비양수 배수로 제외된 일행-반복 |',
+      '|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|']
     for cname,c in combined['cohorts'].items():
         for dname,d in c['distributions'].items():
             if d['status']!='COMPLETED':
                 lines.append(f'| {cname} | {dname} | 미측정: {d["status"]} | — | — | — | — | — | — | — | — |'); continue
             for label,methods in d['scenarios'].items():
                 for method,m in methods.items():
-                    lines.append(f'| {cname} | {dname} | {label} | {method} | {m["mean_actual_saving"]:.2%} | {m["harmed_rate"]:.2%} | {m["additional_payment_rate"]:.2%} | {m["refund_rate"]:.2%} | {m["mean_refund_krw"]:.2f} | {m["conservation_errors"]} | {m["invalid_scaled_groups"]} |')
+                    lines.append(f'| {cname} | {dname} | {label} | {method} | {m["mean_actual_saving"]:.2%} | {m["harmed_rate"]:.2%} | {m["additional_payment_rate"]:.2%} | {m["refund_rate"]:.2%} | {m["mean_refund_krw"]:.2f} | {m["mean_abs_bill_gap_krw"]:.2f} | {m["mean_additional_krw"]:.2f} | {m["conservation_errors"]} | {m["invalid_scaled_groups"]} |')
+    lines+=['','## 고정 매칭 지표','','| 입력 | 요청 | 매칭률 | 예상 비율 절약률 | 지연(분) |','|---|---:|---:|---:|---:|']
+    for cname,c in combined['cohorts'].items():
+        b=c['matching_baseline']
+        lines.append(f"| {cname} | {b['requests']} | {b['matching_rate']:.2%} | {b['mean_ratio_saving_matched']:.2%} | {b['mean_delay_minutes_matched']:.3f} |")
     lines+=['','각 조건은 고정 시드로 1,000회 이상 반복한다. JSON에 원본 오차 표본 수·분모·입력/생산 코드 해시를 기록했다.',
       '','## 정의','',*['- '+k+': '+v for k,v in combined['definitions'].items()],'','## 한계','',*['- '+x for x in combined['limitations']],
-      '','출처: [C5 공개자료 보고서](public-fares.md), https://www.data.go.kr/data/15115859/fileData.do , https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page','']
+      '','출처: [C5 공개자료 보고서](public-fares.md), https://www.data.go.kr/data/15165682/fileData.do','']
     (target.with_suffix('.md')).write_text('\n'.join(lines),encoding='utf-8')
     return result
 

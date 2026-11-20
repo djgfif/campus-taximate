@@ -16,7 +16,7 @@ import java.util.*;
 public final class DetailedSimulation {
     static final Instant BASE = Instant.parse("2026-11-17T03:00:00Z"); // noon KST, aligned 5-min slot
     record Flags(boolean instant, boolean paid, boolean absent, double soloError) {}
-    record Config(int delay, double saving, long seed, boolean empirical, Map<Long, Flags> flags) {}
+    record Config(int delay, double saving, long seed, boolean empirical, double errorScale, Map<Long, Flags> flags) {}
     record CachedRound(RoundResult result, Map<List<MatchRequest>, RouteGroupVerifier.VerifiedRoutes> routes,
                        double elapsed, int[] checks) {}
     record BaselineReplay(String signature, Map<Integer,CachedRound> rounds) {}
@@ -53,6 +53,8 @@ public final class DetailedSimulation {
     }
     static void run(ExperimentRunner.Case c, Config cfg, Map<ExperimentRunner.Pair, RoadLeg> matrix,
                     double[] errors, PrintWriter riders, PrintWriter groups, PrintWriter days) {
+        double center=Arrays.stream(errors).average().orElseThrow();
+        double[] scaled=Arrays.stream(errors).map(x->center+cfg.errorScale()*(x-center)).filter(x->x>-1).toArray();
         MatchingSettings s=settings(cfg.delay(),cfg.saving());
         var ordered=c.requests.stream().sorted(Comparator.comparingDouble(ExperimentRunner.Input::arrival)
                 .thenComparingLong(ExperimentRunner.Input::id)).toList();
@@ -115,7 +117,7 @@ public final class DetailedSimulation {
                 List<Long> expectedEqual=SettlementCalculator.shares(route.total(),Collections.nCopies(n,1L),payer);
                 conserve(expectedRatio,route.total());conserve(expectedEqual,route.total());
                 long errorSeed=groupSeed(cfg.seed(),g.order().stream().map(MatchRequest::id).sorted().toList());
-                double e=errors[new Random(errorSeed).nextInt(errors.length)];
+                double e=scaled[new Random(errorSeed).nextInt(scaled.length)];
                 long bill=actual(route.total(),cfg.empirical()?e:0);
                 List<Long> fullRatio=SettlementCalculator.shares(bill,SettlementCalculator.ratioUnits(units),payer);
                 List<Long> fullEqual=SettlementCalculator.shares(bill,Collections.nCopies(n,1L),payer);
@@ -194,7 +196,7 @@ public final class DetailedSimulation {
         for(String line:Files.readAllLines(input)) {
             String[] p=line.split("\t");
             if(p[0].equals("CASE")) {current=new Config(Integer.parseInt(p[18]),Double.parseDouble(p[19]),Long.parseLong(p[20]),
-                    p[21].equals("1"),new HashMap<>());configs.put(p[2],current);}
+                    p[21].equals("1"),Double.parseDouble(p[22]),new HashMap<>());configs.put(p[2],current);}
             if(p[0].equals("R"))current.flags().put(Long.parseLong(p[1]),new Flags(p[10].equals("1"),p[11].equals("1"),p[12].equals("1"),Double.parseDouble(p[13])));
         }return configs;
     }
@@ -220,7 +222,7 @@ public final class DetailedSimulation {
         var a=new ExperimentRunner.Input(1,1,new GeoPoint(37.88,127.21),5,600,10000,0,1200);
         var b=new ExperimentRunner.Input(2,2,new GeoPoint(37.89,127.22),6,600,10000,0,1200);
         c.requests.add(a);c.requests.add(b);
-        var cfg=new Config(20,.05,1,false,Map.of(1L,new Flags(false,true,false,0),2L,new Flags(false,true,false,0)));
+        var cfg=new Config(20,.05,1,false,1.,Map.of(1L,new Flags(false,true,false,0),2L,new Flags(false,true,false,0)));
         var s=settings(20,.05);var order=List.of(request(c,a,cfg,s),request(c,b,cfg,s));
         var candidate=new Candidate(order,18,BASE.plusSeconds(1500),List.of(600,1560));
         var m=new ExperimentRunner.Model(c,Map.of(new ExperimentRunner.Pair(1,2),new RoadLeg(13,16*60)));

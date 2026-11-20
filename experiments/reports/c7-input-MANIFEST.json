@@ -1,45 +1,107 @@
 {
-  "generated_at": "2026-11-19T14:16:57.239180+00:00",
+  "generated_at": "2026-11-20T05:55:06.232866+00:00",
   "files": [
     {
-      "path": "C:\\work\\01_Projects\\Team\\campus-taximate-sim\\experiments\\.cache\\kr-public\\seoul_dcall_2025.csv",
-      "url": "https://www.data.go.kr/data/15115859/fileData.do",
-      "bytes": 338587487,
-      "sha256": "f704ecea1f9c0d65a5dbd096d90868a1f2126d91213d846ec071c4bbaece5889",
-      "role": "original; only allowlisted normalized timestamps used"
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\detailed.py",
+      "url": null,
+      "bytes": 60081,
+      "sha256": "12441b50c772b1f62ada3240a7611737080b470e74746f28fbafb12b6b4f0707",
+      "role": "C7 tool"
     },
     {
-      "path": "C:\\work\\01_Projects\\Team\\campus-taximate-sim\\experiments\\.cache\\seoul-safe.csv",
-      "url": "https://www.data.go.kr/data/15115859/fileData.do",
-      "bytes": 174989203,
-      "sha256": "07ad34c6abb312b97d480aa5535505dbf28223337b8cbed0bba71317438770ab",
-      "role": "allowlisted normalized input"
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\livingmove.py",
+      "url": null,
+      "bytes": 10815,
+      "sha256": "5ca7f924c4a8e3e57c41f5e3ff24cccdb379d0096937a19f962657ce61266216",
+      "role": "aggregate tool"
     },
     {
-      "path": "C:\\work\\01_Projects\\Team\\campus-taximate-sim\\experiments\\.cache\\kr-public\\tims_2025.zip",
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\fares.py",
+      "url": null,
+      "bytes": 25930,
+      "sha256": "ff4960fcaa44cf2e0d29dd3fcff7d3c3d2e31d42c8b5326b2a57abf5725be297",
+      "role": "C5 tool"
+    },
+    {
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\run.py",
+      "url": null,
+      "bytes": 28246,
+      "sha256": "010b3b566f6527bf79896d83ae0fcb4cc465a59affd659c695f010723b669d23",
+      "role": "C6 tool"
+    },
+    {
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\tims_regions.py",
+      "url": null,
+      "bytes": 12546,
+      "sha256": "8c0b2680cd8cd6da5c71384f4f2ac32438644010a1ce614c021f18ffa858f99e",
+      "role": "region-assignment tool"
+    },
+    {
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\tims-regions.csv",
+      "url": null,
+      "bytes": 12363244,
+      "sha256": "92a946c12c14c79a91e0f3cb177c56496e5381117f5f0254b40a18e0663a793f",
+      "role": "official grid-center regions"
+    },
+    {
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\tims-region-MANIFEST.json",
+      "url": null,
+      "bytes": 21989,
+      "sha256": "102af586864945a9ee5460645ee32eca886de933fb0ffeabf55de8013c49f576",
+      "role": "region provenance and denominators"
+    },
+    {
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\sgis-admin-2025.zip",
+      "url": null,
+      "bytes": 269032521,
+      "sha256": "f1cf0f9de453ac7eaacb273f39cee52851183372b9ddfda428a967c3a670b2c6",
+      "role": "official 2025Q2 boundary source"
+    },
+    {
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move-pocheon.csv",
+      "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+      "bytes": 5672983,
+      "sha256": "a52183e89ffd8f84dd1979bf7b022bed4a97f42b275d48baf5663515ea563078",
+      "role": "Pocheon origin aggregate, purpose 3"
+    },
+    {
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move-summary.json",
+      "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+      "bytes": 2249478,
+      "sha256": "90fa40030351e77e98bbc4ec1765acfdd56120fb13f09fc06bee5a512eb21e9d"
+    },
+    {
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\point-regions.json",
+      "url": null,
+      "bytes": 27036,
+      "sha256": "66660bbd9da3e62d234a903a7b0c099560f0b0bd5bc8f374c82e1d38dabc4230",
+      "role": "cached administrative point mapping"
+    },
+    {
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\tims_2025.zip",
       "url": "https://www.data.go.kr/data/15165682/fileData.do",
       "bytes": 25212642,
       "sha256": "8a0b3afc6cad5902bbab66a40a307fc5d27f64d03d44f964adead7ce8e1f498a"
     },
     {
-      "path": "C:\\work\\01_Projects\\Team\\campus-taximate-sim\\experiments\\.cache\\tims-monthly-safe.csv",
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\tims-monthly-safe.csv",
       "url": "https://www.data.go.kr/data/15165682/fileData.do",
       "bytes": 78062037,
       "sha256": "1e066b828e13af81d7333584e51e1f0cc490eb0d0156677aaa3a505f883faaf3",
       "role": "normalized monthly grids"
     },
     {
-      "path": "C:\\work\\01_Projects\\Team\\campus-taximate-sim\\experiments\\.cache\\kr-errors.csv",
-      "url": "https://www.data.go.kr/data/15115859/fileData.do",
-      "bytes": 4806759,
-      "sha256": "c9336299ad46807619d3f78fae5d2b5f653414abb66931d6dedfa0317f50c88a",
-      "role": "derived C5 general-taxi counterfactual relative errors"
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\tims-errors.csv",
+      "url": "https://www.data.go.kr/data/15165682/fileData.do",
+      "bytes": 815882,
+      "sha256": "85f60cd99132b051fc724deb17d27a70a92ffd952dc002dbf06fc7b462adf48f",
+      "role": "grid-month mean relative residual"
     },
     {
-      "path": "C:\\work\\01_Projects\\Team\\campus-taximate-sim\\experiments\\reports\\public-fares.json",
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\reports\\public-fares.json",
       "url": null,
-      "bytes": 148418,
-      "sha256": "9982a2f9862be040c7b4cdf2b9602b134e9108cc6818cf850aa97d78f65ac834",
+      "bytes": 77316,
+      "sha256": "ea74fd093e0a98ebe76e94b1630ca275f97fc958cc14971ce339f5c07a55fe82",
       "role": "C5 definition and error sample hash"
     },
     {
@@ -71,87 +133,379 @@
       "role": "read-only historical cache"
     },
     {
-      "path": "C:\\work\\01_Projects\\Team\\campus-taximate-sim\\experiments\\.cache\\c7\\cases.tsv",
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\c7\\cases.tsv",
       "url": null,
-      "bytes": 9083436,
-      "sha256": "c02a6a4a7e38f69b3fb62521a172c91fe53b318d059208deea4db62ac6083704",
+      "bytes": 10677743,
+      "sha256": "28b8fff160ac6059e4f8cd84b448697393ecc284341c5376ca4fd99a613aaaee",
       "role": "generated seeded C7 proxy requests"
-    },
-    {
-      "path": "C:\\work\\01_Projects\\Team\\campus-taximate-sim\\experiments\\.cache\\kr-public\\pocheon-taxi-stands.csv",
-      "url": "https://www.data.go.kr/data/15088028/fileData.do",
-      "bytes": 1695,
-      "sha256": "d85be906cf838edc451824a3c6ee65e4ff65ccafb18dfe28891e94f88994e195",
-      "role": "stand addresses only"
-    },
-    {
-      "path": "C:\\work\\01_Projects\\Team\\campus-taximate-sim\\experiments\\.cache\\gg-stops-page.html",
-      "url": "https://data.gg.go.kr/portal/data/service/selectServicePage.do?infId=MZCREO5CKHZM6PJEA55P37391662&infSeq=1",
-      "bytes": 643379,
-      "sha256": "c5ac0abf14cddc40f0b87de4b5706623100bea4c6868346d584c0845fc8b780b",
-      "role": "incomplete catalogue only; not passenger data"
     }
   ],
   "acquisition": {
-    "generated_at": "2026-11-19T13:50:53.661Z",
-    "sources": [
+    "generated_at": "2026-11-20T05:21:52.375390+00:00",
+    "selection": "all",
+    "files": [
       {
-        "file": ".cache/kr-public/pocheon-taxi-stands.csv",
-        "url": "https://www.data.go.kr/cmm/cmm/fileDownload.do?atchFileId=FILE_000000003200757&fileDetailSn=1&dataNm=%EA%B2%BD%EA%B8%B0%EB%8F%84%20%ED%8F%AC%EC%B2%9C%EC%8B%9C_%ED%83%9D%EC%8B%9C%EC%8A%B9%EC%B0%A8%EC%9E%A5%20%ED%98%84%ED%99%A9_20250601",
-        "bytes": 1695,
-        "sha256": "d85be906cf838edc451824a3c6ee65e4ff65ccafb18dfe28891e94f88994e195",
-        "verified_at": "2026-11-19T13:50:54.249Z",
-        "catalogue": "https://www.data.go.kr/data/15088028/fileData.do",
-        "login_required": false,
-        "needCaptcha": false
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\tims_2025.zip",
+        "url": "https://www.data.go.kr/data/15165682/fileData.do",
+        "bytes": 25212642,
+        "sha256": "8a0b3afc6cad5902bbab66a40a307fc5d27f64d03d44f964adead7ce8e1f498a"
       },
       {
-        "file": ".cache/gg-stops-page.html",
-        "url": "https://data.gg.go.kr/portal/data/service/selectServicePage.do?infId=MZCREO5CKHZM6PJEA55P37391662&infSeq=1",
-        "bytes": 643379,
-        "sha256": "c5ac0abf14cddc40f0b87de4b5706623100bea4c6868346d584c0845fc8b780b",
-        "verified_at": "2026-11-19T13:50:54.727Z",
-        "role": "catalogue_only",
-        "complete_html": false
+        "date": "2026-10-01",
+        "dataset": "OA-22300",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261001.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+        "bytes": 78924109,
+        "sha256": "b47845d9efe8e96ae5af6ffae1c0be2d50966dabceb5607c54d466976aec9ab9"
+      },
+      {
+        "date": "2026-10-01",
+        "dataset": "OA-22299",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261001.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+        "bytes": 53752170,
+        "sha256": "ae99ef93884f84703a8547b85e614d574573fd9dc029e28185e26827693d2347"
+      },
+      {
+        "date": "2026-10-02",
+        "dataset": "OA-22300",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261002.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+        "bytes": 81236525,
+        "sha256": "0f0d9ed386e367781115b29604e2627a869d9ea933c041d765e9b019cdd46970"
+      },
+      {
+        "date": "2026-10-02",
+        "dataset": "OA-22299",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261002.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+        "bytes": 55529013,
+        "sha256": "df897f03b353466f80ab17d6e86465135a26da15a8a4c004157938cb1946a092"
+      },
+      {
+        "date": "2026-10-05",
+        "dataset": "OA-22300",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261005.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+        "bytes": 60892148,
+        "sha256": "3a69e6c8adb8789960f126f4f92d55b7c3122a8af32b5ae7745d03bc9083391c"
+      },
+      {
+        "date": "2026-10-05",
+        "dataset": "OA-22299",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261005.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+        "bytes": 41836215,
+        "sha256": "056f9ff5da262b665ec59f14aa547ec91c237dad43f8cb6bf15cd13f796f441a"
+      },
+      {
+        "date": "2026-10-06",
+        "dataset": "OA-22300",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261006.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+        "bytes": 77426073,
+        "sha256": "27a439fc44d2078b6cb8a786a74ae312597bb1eddf5d4f8500bcc13ab6531e56"
+      },
+      {
+        "date": "2026-10-06",
+        "dataset": "OA-22299",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261006.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+        "bytes": 52867685,
+        "sha256": "f1f980c5500a12cf29cc729a7ff038f658a5899970e8d581c5c7d9f8b0458be2"
+      },
+      {
+        "date": "2026-10-07",
+        "dataset": "OA-22300",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261007.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+        "bytes": 80883516,
+        "sha256": "5beb7c12239b8d7e9860590e4236f8ad2ae6574c10b00fa007107dedf2b3aaee"
+      },
+      {
+        "date": "2026-10-07",
+        "dataset": "OA-22299",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261007.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+        "bytes": 53711053,
+        "sha256": "3125885448b6d05e6c0b3fb47784bdde8919cd41c2541a4db26cb595706a1d0a"
+      },
+      {
+        "date": "2026-10-08",
+        "dataset": "OA-22300",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261008.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+        "bytes": 81486383,
+        "sha256": "719e91680006c52291bf38431f0295210b0a837364c71f49f405f09c96dc4467"
+      },
+      {
+        "date": "2026-10-08",
+        "dataset": "OA-22299",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261008.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+        "bytes": 55667020,
+        "sha256": "c6ee62316def0e599469a4ecfffd9a684f578b0d3689dd992e4dcdc126c517e9"
+      },
+      {
+        "date": "2026-10-12",
+        "dataset": "OA-22300",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261012.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+        "bytes": 78475260,
+        "sha256": "2dd33840d00dca06a5250cb4cd8eacbbaa15752a7c454816b68633b4e97fd39f"
+      },
+      {
+        "date": "2026-10-12",
+        "dataset": "OA-22299",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261012.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+        "bytes": 52368538,
+        "sha256": "e854aacf1e191c3600125b610129a7544924b473717cedadf7d8ea09c8e96da6"
+      },
+      {
+        "date": "2026-10-13",
+        "dataset": "OA-22300",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261013.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+        "bytes": 78742427,
+        "sha256": "ae5d690630810e620cfde87986eb638fc1bf5acc71e29903e5d7f1b10b71c445"
+      },
+      {
+        "date": "2026-10-13",
+        "dataset": "OA-22299",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261013.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+        "bytes": 52184025,
+        "sha256": "3261b17d1c7012cd915b7f1dd089cbeea4e89689f23f37d56124fc8a77445c85"
+      },
+      {
+        "date": "2026-10-14",
+        "dataset": "OA-22300",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261014.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+        "bytes": 78895460,
+        "sha256": "18d6d7774155e83d8e6786b8d5603e783fb150290e9a29da8d3d9f5d480bd6d7"
+      },
+      {
+        "date": "2026-10-14",
+        "dataset": "OA-22299",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261014.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+        "bytes": 53891051,
+        "sha256": "b5f7262659d3a611d7dc410d72a3a57e8ab2241ed5797e69ebfbf7ea82ec01e3"
+      },
+      {
+        "date": "2026-10-15",
+        "dataset": "OA-22300",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261015.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+        "bytes": 79257832,
+        "sha256": "e01b2cfcd3e9bdb4720dc06c6b99292c33686962954c60cbbbfc45aefd812529"
+      },
+      {
+        "date": "2026-10-15",
+        "dataset": "OA-22299",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261015.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+        "bytes": 53823284,
+        "sha256": "2304305833cc2a91a0dc12803f9b8b1974e14b81ecb03767aaf0c77db5a02945"
+      },
+      {
+        "date": "2026-10-16",
+        "dataset": "OA-22300",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261016.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+        "bytes": 81942961,
+        "sha256": "b790b737b32b60e5daf0b6e465c344b8e5b77e633b4eafcf174effd0ed7e15ca"
+      },
+      {
+        "date": "2026-10-16",
+        "dataset": "OA-22299",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261016.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+        "bytes": 55439289,
+        "sha256": "34c363b6eb8541ae2d374cebb320405bbe22941678f3dee0c4aa99f09323caf4"
+      },
+      {
+        "date": "2026-10-19",
+        "dataset": "OA-22300",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261019.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+        "bytes": 76641733,
+        "sha256": "2a24a27070684ec39fc1fc324a499b4aedc4ac07447ef5c53ca5d52d0df7f2fc"
+      },
+      {
+        "date": "2026-10-19",
+        "dataset": "OA-22299",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261019.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+        "bytes": 52288583,
+        "sha256": "119783a94fc215dbbf23452993c654144f29acbb9b0cde91f72b39c1352cc1d6"
+      },
+      {
+        "date": "2026-10-20",
+        "dataset": "OA-22300",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261020.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+        "bytes": 78488081,
+        "sha256": "f25ac3f09393c91e48ed4037fcf6ae12bec26be67ac1e82553b8ee3998e26ac6"
+      },
+      {
+        "date": "2026-10-20",
+        "dataset": "OA-22299",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261020.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+        "bytes": 53551003,
+        "sha256": "3dcc9a3ff523c6def4daf21d89a8753b26316323b94051b5a0a255ec04e38213"
+      },
+      {
+        "date": "2026-10-21",
+        "dataset": "OA-22300",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261021.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+        "bytes": 80449474,
+        "sha256": "43b9d1127e6dcd33ea1e6ff4295ec84319e6f6efc1a98ae0d2b6065187b09863"
+      },
+      {
+        "date": "2026-10-21",
+        "dataset": "OA-22299",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261021.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+        "bytes": 53136097,
+        "sha256": "a38b9b9c40067b91a1add1a95799162dce494f3b5408740db397cf9daa018de7"
+      },
+      {
+        "date": "2026-10-22",
+        "dataset": "OA-22300",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261022.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+        "bytes": 79052581,
+        "sha256": "bfaf84b7086c4046edea4f33ff5c7be38a9384a6ec1b1cee40cf3894d6f47c0c"
+      },
+      {
+        "date": "2026-10-22",
+        "dataset": "OA-22299",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261022.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+        "bytes": 53845912,
+        "sha256": "3e6d99bce2a84f33a9433b0dc4a97e4ff217fb3386ed58ed506ebd5bb9c681e5"
+      },
+      {
+        "date": "2026-10-23",
+        "dataset": "OA-22300",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261023.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+        "bytes": 81571044,
+        "sha256": "f34b4b0ddfc7fdbe8531de944fb3dd56d22980b15239d4f456d8d4e058e8edcd"
+      },
+      {
+        "date": "2026-10-23",
+        "dataset": "OA-22299",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261023.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+        "bytes": 55632847,
+        "sha256": "01de383f21f8187ce4bbe1624d276d8d8efcf657ce9f7e8f4bcaf662fba1d2dc"
+      },
+      {
+        "date": "2026-10-26",
+        "dataset": "OA-22300",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261026.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+        "bytes": 77310722,
+        "sha256": "ac550d261bd9a26426e5a55654da115f7b55dc5b926de164b6af9df605a2e163"
+      },
+      {
+        "date": "2026-10-26",
+        "dataset": "OA-22299",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261026.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+        "bytes": 51900519,
+        "sha256": "b957ec2a4fa4e9a1d65c288619f8f381d60bf0bbc00aeba67ab68659646a19d5"
+      },
+      {
+        "date": "2026-10-27",
+        "dataset": "OA-22300",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261027.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+        "bytes": 75255373,
+        "sha256": "5b5679a2dde8e107e1f793e7a5aa4028b06de32f1c04ee61853c2db53a4bd13b"
+      },
+      {
+        "date": "2026-10-27",
+        "dataset": "OA-22299",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261027.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+        "bytes": 49768385,
+        "sha256": "f74a8bad4507610495cbe50b312e7037055db8f15f27ab208165ac1760614ddb"
+      },
+      {
+        "date": "2026-10-28",
+        "dataset": "OA-22300",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261028.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+        "bytes": 79080357,
+        "sha256": "9bbfc50481ced3a326eeb56c938173cf7a945220ec6c85eaf8d6f99947583bee"
+      },
+      {
+        "date": "2026-10-28",
+        "dataset": "OA-22299",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261028.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+        "bytes": 53749469,
+        "sha256": "3e1abeb4cd0ce2df0a721dbe14aaa57345bdfec95837553b5113e9e00637898b"
+      },
+      {
+        "date": "2026-10-29",
+        "dataset": "OA-22300",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261029.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+        "bytes": 78261454,
+        "sha256": "25a611e51112248eb1bd83c8dcd095245aa5d572aa22d5246152e1a8daebad38"
+      },
+      {
+        "date": "2026-10-29",
+        "dataset": "OA-22299",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261029.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+        "bytes": 53210885,
+        "sha256": "5fdda8cc8ca0c1f1c5fa1dc92f854b89b705cac57d818bec3bcc62d75a4fda06"
+      },
+      {
+        "date": "2026-10-30",
+        "dataset": "OA-22300",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261030.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+        "bytes": 81695026,
+        "sha256": "6f8401670df91ca6b49adafe3f303f9eee40a006f8448205c66506643c7d8c06"
+      },
+      {
+        "date": "2026-10-30",
+        "dataset": "OA-22299",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261030.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+        "bytes": 55650913,
+        "sha256": "77fea69772c64d36d8ae128934df2f74628f7826288d8791c3fe74b064eee303"
+      },
+      {
+        "date": "2026-10-31",
+        "dataset": "OA-22300",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261031.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+        "bytes": 75117693,
+        "sha256": "899ec22fd22746ec5f26d406ea0de46c271fa8d2aba20b93e03a8f22905ed4aa"
+      },
+      {
+        "date": "2026-10-31",
+        "dataset": "OA-22299",
+        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261031.zip",
+        "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+        "bytes": 52063677,
+        "sha256": "6d45d58e0f036e82ae2d4ed9ecce209f7b846011a4ee729179d182c2ff0714db"
       }
     ],
-    "failures": [
-      {
-        "source": "gyeonggi_bus_stops",
-        "url": "https://data.gg.go.kr/portal/data/service/selectServicePage.do?infId=MZCREO5CKHZM6PJEA55P37391662&infSeq=1",
-        "error": "Server returned truncated catalogue HTML (ends inside sdkInput value); no dataset CSV/API schema available. API key requirement and time columns could not be verified.",
-        "published_candidate_links": []
-      }
-    ],
-    "requests": [
-      {
-        "url": "https://www.data.go.kr/data/15088028/fileData.do",
-        "method": "GET",
-        "status": 200
-      },
-      {
-        "url": "https://www.data.go.kr/tcs/dss/selectFileDataDownload.do",
-        "method": "POST",
-        "status": 200
-      },
-      {
-        "url": "https://www.data.go.kr/cmm/cmm/check-limit.json",
-        "method": "POST",
-        "status": 200
-      },
-      {
-        "url": "https://www.data.go.kr/cmm/cmm/fileDownload.do?atchFileId=FILE_000000003200757&fileDetailSn=1&dataNm=%EA%B2%BD%EA%B8%B0%EB%8F%84%20%ED%8F%AC%EC%B2%9C%EC%8B%9C_%ED%83%9D%EC%8B%9C%EC%8A%B9%EC%B0%A8%EC%9E%A5%20%ED%98%84%ED%99%A9_20250601",
-        "method": "GET",
-        "status": 200
-      },
-      {
-        "url": "https://data.gg.go.kr/portal/data/service/selectServicePage.do?infId=MZCREO5CKHZM6PJEA55P37391662&infSeq=1",
-        "method": "GET",
-        "status": 200
-      }
-    ]
+    "raw_policy": "원본은 .cache 안에만 저장. 공개 결과에는 SHA256와 비식별 집계만 포함."
   },
-  "generated_input_sha256": "c02a6a4a7e38f69b3fb62521a172c91fe53b318d059208deea4db62ac6083704",
+  "generated_input_sha256": "28b8fff160ac6059e4f8cd84b448697393ecc284341c5376ca4fd99a613aaaee",
   "source_dependencies": {
     "source_sha256": {
       "matching-engine/src/main/java/com/campustaximate/matching/Candidate.java": "73e7e8d176fd976f1a92970605c4c55e52a3aeb4c6036fba881bfb79870b4019",
@@ -180,12 +534,14 @@
       "server/src/main/java/com/campustaximate/server/common/ApiExceptionHandler.java": "0d8126543b31f5f0948afc23f2a11d78268a52acc4342feb782fdb0e5f9e8bca",
       "server/src/main/java/com/campustaximate/server/common/AppClock.java": "9e6310548dc7f0ab24687fd4d667dc96a5555c0c77e5a2a25536403d793f0dbf",
       "server/src/main/java/com/campustaximate/server/common/DemoDatabaseReset.java": "705b487decd6fdceb3d55e0c7902e2c8b56f69e32d547f32421619efd08f2f16",
+      "server/src/main/java/com/campustaximate/server/common/DemoDropoffConfiguration.java": "ac258ffdda8f20439c968a5b2f9919f48e5f88bfff7caf1e850fbb3c99b3ac9a",
       "server/src/main/java/com/campustaximate/server/common/InstantMatchingConfiguration.java": "387e3788d03fd73923638b6d3f67e077275341170d5a1d3beaed416500012eb0",
       "server/src/main/java/com/campustaximate/server/common/LockRetry.java": "1388e9235e796f3b820030169045919240ca95b5ea97bff5d52e5e2d5a515f15",
       "server/src/main/java/com/campustaximate/server/common/LockRetryConfiguration.java": "901d862bab0f5c7826b9c9a51007d0a8f3001fba940eb6c5b978ce03f470821c",
       "server/src/main/java/com/campustaximate/server/common/RequiredSettingsCheck.java": "f6beffb696ad5c7f147ac55aa2b09a623c086f819a0d581e2230d1140c733da4",
       "server/src/main/java/com/campustaximate/server/common/RetryingTransactionTemplate.java": "b733afb1e8bd60161101e3defa71c4b81e8d8105d7a37f5e0709eb7fe05f0c59",
       "server/src/main/java/com/campustaximate/server/common/SchedulingConfiguration.java": "f2acba77c3070a8bc07845ddebf082f639e590722674a7b343c6d11a56501659",
+      "server/src/main/java/com/campustaximate/server/common/SchoolSeedConfiguration.java": "eb3695260b586e82665d8f682a827fc91f88c3dad62ee6ea092870ac3983c2bc",
       "server/src/main/java/com/campustaximate/server/domain/AccountNumberConverter.java": "588f5dce59d0a209b8f13d0b64d5fa3792b4378def60d7902fe541126f68ea5c",
       "server/src/main/java/com/campustaximate/server/domain/AdminAudit.java": "7847839ef554dd197d93357d5ed5ad5858fbd6ab6a35b26520e2d0b136b93db6",
       "server/src/main/java/com/campustaximate/server/domain/BoardingAttempt.java": "c591ac126d2ab254bbeac27de333552eb7ca83fb344630447bac8ff1f5b433a3",
@@ -289,11 +645,11 @@
       "server/src/main/java/com/campustaximate/server/service/ChangeBus.java": "681207eff96320a07e179ad4f9ec1e4829b47c99e0696ddf1a97ed71c01ea004",
       "server/src/main/java/com/campustaximate/server/service/ChangeListener.java": "f0e9f721d41817d36b71bb514e07b73cd608f724552a962c77224d5f6556f2f1",
       "server/src/main/java/com/campustaximate/server/service/CompensationService.java": "e62faf11929b73a34c6e8580789a4d2381996da9a5e7af5011bc060d59c1a57c",
-      "server/src/main/java/com/campustaximate/server/service/DataSeeder.java": "49b2bf34e662c98645e465b50869b0f2fa1f9193c83a7f98ea8fcd380df9a3e3",
+      "server/src/main/java/com/campustaximate/server/service/DataSeeder.java": "79b6b50935b90205c4b3423a457af4f826c726215ab8e21d0a648d6c5c6db7fb",
       "server/src/main/java/com/campustaximate/server/service/DemoChat.java": "96664ebe8b1cbeb968a52a0cefb0ae1036af18f274efbdbd6144936cba67d8cd",
-      "server/src/main/java/com/campustaximate/server/service/DemoRouteSelector.java": "b7069de189ec3757c5fb449b172a737ee90723aef148f13c200c85d718b4a745",
-      "server/src/main/java/com/campustaximate/server/service/DemoScenarioService.java": "ab327760e38439cfb49fa6cf52c50342c591745481619ab4842d0569bb79174f",
-      "server/src/main/java/com/campustaximate/server/service/DemoService.java": "8970c427c98eeb01ab4ee91392e35b82d2966aaef89c51060e057b287d2d8c84",
+      "server/src/main/java/com/campustaximate/server/service/DemoRouteSelector.java": "dbab0ab1dab736f5293af31cde553bcc328eb8587151218ca45734b1e981517f",
+      "server/src/main/java/com/campustaximate/server/service/DemoScenarioService.java": "23e1feef1e1a11f3758745251c703125a1b3c68d96bbd0adff530f2aa59ce904",
+      "server/src/main/java/com/campustaximate/server/service/DemoService.java": "c45432297d24e50f102bb2ac5bc16421333d1aa88708c47a82830a998b5569cf",
       "server/src/main/java/com/campustaximate/server/service/DemoTalk.java": "d8c192c01f1db12fc1abe38f937470cf9aa075f6d9341bdc14ec8ef7d2a060f1",
       "server/src/main/java/com/campustaximate/server/service/FareAccuracyService.java": "af2c5aed66038bae435382ca4b1de92aa288c46c84c4a02dba1bfcbf190ed598",
       "server/src/main/java/com/campustaximate/server/service/JoinCompletionService.java": "6b14c4b931bc104c9bbf11d85452412a82b9d69b5c026b6848985c1ae89de490",
@@ -311,7 +667,7 @@
       "server/src/main/java/com/campustaximate/server/service/PartyChatService.java": "aaf5853597e8f48a0437a958b8b1a5485a6c14e0d7bba3343a901615074466aa",
       "server/src/main/java/com/campustaximate/server/service/PartyJoinService.java": "9ec338463a30f34b19ed11aa9e0ecad3973d87c2ef64b7b95c79682ab6a3c655",
       "server/src/main/java/com/campustaximate/server/service/PartyReadinessService.java": "9c3a5463a094cfd22b771fd6d551334b0fecc7e441ca5120e867ab341be632f1",
-      "server/src/main/java/com/campustaximate/server/service/PartyService.java": "5b0d1d5b2e6f97a6c4dbe863d4a8bb3ae5a8c9643941e6358a8d5af34d0f7996",
+      "server/src/main/java/com/campustaximate/server/service/PartyService.java": "3a5e170a0948b2d61227d4e910fce8aea22c23c3d27cdf97a73519a18ccc3d64",
       "server/src/main/java/com/campustaximate/server/service/PartyShrinker.java": "2c04096f0d7abffc8a0250997686c409f03ec911078ac9ff03e6cf06f5a69b51",
       "server/src/main/java/com/campustaximate/server/service/PasswordHasher.java": "4ec8687d59165763f569d798055bc73f9f84e2da8b0829c617067592beaa623e",
       "server/src/main/java/com/campustaximate/server/service/PaymentLifecycleService.java": "c367a2d390ac0d30bdbc249823bca5d532810d0e6501d2fe0ee548ca23a251a4",
@@ -333,11 +689,11 @@
       "server/src/main/java/com/campustaximate/server/TaximateApplication.java": "0ae6d3bb84ed6027a1a2835d4393a3384a5e07ff9bd30d4e28288f849f21084a",
       "server/src/main/java/com/campustaximate/server/web/AccessInterceptor.java": "9c0ac54ba0d2d2d844aede0b6d72ed78d0b59b6f3456347592a0d20826ee5f30",
       "server/src/main/java/com/campustaximate/server/web/AdminController.java": "fe6e459009b56912d7764e59af3e0d0eebfbc75c88d0aca499b5f551a096a055",
-      "server/src/main/java/com/campustaximate/server/web/ApiController.java": "401a846b8d1814a655cea03a3098cb13a8728983234673be5d706bb12967d733",
+      "server/src/main/java/com/campustaximate/server/web/ApiController.java": "9ba620cefa157d23e75a78fb0a8c8bbb9f48029a15a10e369b4c213401436fe1",
       "server/src/main/java/com/campustaximate/server/web/ApiFailureFilter.java": "c04e4b2c106b40356b467bade6d374463b124dec1d7b44c0dbf8ee0785b551c7",
       "server/src/main/java/com/campustaximate/server/web/BoardingCaseController.java": "f3d7bfac51e313745230d7b503fc7be258a3acb3d8b96dd1311ae437fe83efee",
       "server/src/main/java/com/campustaximate/server/web/BoardingPointController.java": "dec8feab13e2c33508945797a235dde24480306e9a7b730cf331c4b516b6f378",
-      "server/src/main/java/com/campustaximate/server/web/DemoController.java": "2004d18216960ac67c68b264fa6fae25fc24ea4f2e6d7675478642e34060ca5c",
+      "server/src/main/java/com/campustaximate/server/web/DemoController.java": "114b57500934f414242dfc69c1b3e813c0c7e2c8ad73d515d5699044b6e74e43",
       "server/src/main/java/com/campustaximate/server/web/LoginTokenFilter.java": "494d6f304c3cc4ca252268ee200cb44805cd184b12f9a61634ef66a4f3ae6e0f",
       "server/src/main/java/com/campustaximate/server/web/PartyDecisionController.java": "d1489db99ccd6601a4b5e649052b83a56b113051a7b61a8c27ebe3cdee2c5fbb",
       "server/src/main/java/com/campustaximate/server/web/PartyJoinController.java": "5286f8effd84a34479b03a1290c53c784b5d062c581dc6b96eef059ce5198fd4",
@@ -347,10 +703,10 @@
       "server/src/main/java/com/campustaximate/server/web/RateLimitFilter.java": "1f5b6440a36adc9d657e0e5edf67cbd2ccd4bd2bf1a8854bdd3eaf40fb3225f3",
       "server/src/main/java/com/campustaximate/server/web/RequestLogFilter.java": "56207cc8a9dc4d9db5f5dc3e0933894945162164419087eeb420b33eef2c0875",
       "server/src/main/java/com/campustaximate/server/web/SecurityHeadersFilter.java": "78bc069e682079c97b5877268b6de86ec4486706cb98c15221a5498c4e5d5659",
-      "server/src/main/java/com/campustaximate/server/web/WebConfig.java": "0d765e3efb9b0fda50df45fc40f3ef0feda12e2303b3b49486215073f553b598",
-      "experiments/java/com/campustaximate/server/service/DetailedSimulation.java": "018678adaa41b1e7e8cc21ee00d39d3df45ae81e68899b31e0372dc85231ab55",
-      "experiments/java/com/campustaximate/server/service/ExperimentRunner.java": "4242c54e10ae4179d2e7b0a31d14250762d1596e563f671e5c3ecb3345370846",
-      "experiments/java/com/campustaximate/server/service/SimulationCompensation.java": "b3fa09122700bb0c08fcc6e3553e513f23d14c48c5022e3e170fe003a6b3ea27"
+      "server/src/main/java/com/campustaximate/server/web/WebConfig.java": "b149dc1823e4bebe4049282ce2e84bfc31e20fdd419ccfca225e67d6ab454512",
+      "experiments/java/com/campustaximate/server/service/DetailedSimulation.java": "450a0c6760ae2df5c00463ad280a76838a56331c85c99aecfa3ec5cc05fc05c7",
+      "experiments/java/com/campustaximate/server/service/ExperimentRunner.java": "b864bcb5e7db04a1f57a80d14d0174e9bbb2f426e35ade6ada8eb185e089a1bf",
+      "experiments/java/com/campustaximate/server/service/SimulationCompensation.java": "36d594cf13f24335af5dfa8ead1344aead2c6a6780bce287231ee49e80ce0a78"
     },
     "compiled_source_sha256": {
       "matching-engine/src/main/java/com/campustaximate/matching/Candidate.java": "73e7e8d176fd976f1a92970605c4c55e52a3aeb4c6036fba881bfb79870b4019",
@@ -379,12 +735,14 @@
       "server/src/main/java/com/campustaximate/server/common/ApiExceptionHandler.java": "0d8126543b31f5f0948afc23f2a11d78268a52acc4342feb782fdb0e5f9e8bca",
       "server/src/main/java/com/campustaximate/server/common/AppClock.java": "9e6310548dc7f0ab24687fd4d667dc96a5555c0c77e5a2a25536403d793f0dbf",
       "server/src/main/java/com/campustaximate/server/common/DemoDatabaseReset.java": "705b487decd6fdceb3d55e0c7902e2c8b56f69e32d547f32421619efd08f2f16",
+      "server/src/main/java/com/campustaximate/server/common/DemoDropoffConfiguration.java": "ac258ffdda8f20439c968a5b2f9919f48e5f88bfff7caf1e850fbb3c99b3ac9a",
       "server/src/main/java/com/campustaximate/server/common/InstantMatchingConfiguration.java": "387e3788d03fd73923638b6d3f67e077275341170d5a1d3beaed416500012eb0",
       "server/src/main/java/com/campustaximate/server/common/LockRetry.java": "1388e9235e796f3b820030169045919240ca95b5ea97bff5d52e5e2d5a515f15",
       "server/src/main/java/com/campustaximate/server/common/LockRetryConfiguration.java": "901d862bab0f5c7826b9c9a51007d0a8f3001fba940eb6c5b978ce03f470821c",
       "server/src/main/java/com/campustaximate/server/common/RequiredSettingsCheck.java": "f6beffb696ad5c7f147ac55aa2b09a623c086f819a0d581e2230d1140c733da4",
       "server/src/main/java/com/campustaximate/server/common/RetryingTransactionTemplate.java": "b733afb1e8bd60161101e3defa71c4b81e8d8105d7a37f5e0709eb7fe05f0c59",
       "server/src/main/java/com/campustaximate/server/common/SchedulingConfiguration.java": "f2acba77c3070a8bc07845ddebf082f639e590722674a7b343c6d11a56501659",
+      "server/src/main/java/com/campustaximate/server/common/SchoolSeedConfiguration.java": "eb3695260b586e82665d8f682a827fc91f88c3dad62ee6ea092870ac3983c2bc",
       "server/src/main/java/com/campustaximate/server/domain/AccountNumberConverter.java": "588f5dce59d0a209b8f13d0b64d5fa3792b4378def60d7902fe541126f68ea5c",
       "server/src/main/java/com/campustaximate/server/domain/AdminAudit.java": "7847839ef554dd197d93357d5ed5ad5858fbd6ab6a35b26520e2d0b136b93db6",
       "server/src/main/java/com/campustaximate/server/domain/BoardingAttempt.java": "c591ac126d2ab254bbeac27de333552eb7ca83fb344630447bac8ff1f5b433a3",
@@ -488,11 +846,11 @@
       "server/src/main/java/com/campustaximate/server/service/ChangeBus.java": "681207eff96320a07e179ad4f9ec1e4829b47c99e0696ddf1a97ed71c01ea004",
       "server/src/main/java/com/campustaximate/server/service/ChangeListener.java": "f0e9f721d41817d36b71bb514e07b73cd608f724552a962c77224d5f6556f2f1",
       "server/src/main/java/com/campustaximate/server/service/CompensationService.java": "e62faf11929b73a34c6e8580789a4d2381996da9a5e7af5011bc060d59c1a57c",
-      "server/src/main/java/com/campustaximate/server/service/DataSeeder.java": "49b2bf34e662c98645e465b50869b0f2fa1f9193c83a7f98ea8fcd380df9a3e3",
+      "server/src/main/java/com/campustaximate/server/service/DataSeeder.java": "79b6b50935b90205c4b3423a457af4f826c726215ab8e21d0a648d6c5c6db7fb",
       "server/src/main/java/com/campustaximate/server/service/DemoChat.java": "96664ebe8b1cbeb968a52a0cefb0ae1036af18f274efbdbd6144936cba67d8cd",
-      "server/src/main/java/com/campustaximate/server/service/DemoRouteSelector.java": "b7069de189ec3757c5fb449b172a737ee90723aef148f13c200c85d718b4a745",
-      "server/src/main/java/com/campustaximate/server/service/DemoScenarioService.java": "ab327760e38439cfb49fa6cf52c50342c591745481619ab4842d0569bb79174f",
-      "server/src/main/java/com/campustaximate/server/service/DemoService.java": "8970c427c98eeb01ab4ee91392e35b82d2966aaef89c51060e057b287d2d8c84",
+      "server/src/main/java/com/campustaximate/server/service/DemoRouteSelector.java": "dbab0ab1dab736f5293af31cde553bcc328eb8587151218ca45734b1e981517f",
+      "server/src/main/java/com/campustaximate/server/service/DemoScenarioService.java": "23e1feef1e1a11f3758745251c703125a1b3c68d96bbd0adff530f2aa59ce904",
+      "server/src/main/java/com/campustaximate/server/service/DemoService.java": "c45432297d24e50f102bb2ac5bc16421333d1aa88708c47a82830a998b5569cf",
       "server/src/main/java/com/campustaximate/server/service/DemoTalk.java": "d8c192c01f1db12fc1abe38f937470cf9aa075f6d9341bdc14ec8ef7d2a060f1",
       "server/src/main/java/com/campustaximate/server/service/FareAccuracyService.java": "af2c5aed66038bae435382ca4b1de92aa288c46c84c4a02dba1bfcbf190ed598",
       "server/src/main/java/com/campustaximate/server/service/JoinCompletionService.java": "6b14c4b931bc104c9bbf11d85452412a82b9d69b5c026b6848985c1ae89de490",
@@ -510,7 +868,7 @@
       "server/src/main/java/com/campustaximate/server/service/PartyChatService.java": "aaf5853597e8f48a0437a958b8b1a5485a6c14e0d7bba3343a901615074466aa",
       "server/src/main/java/com/campustaximate/server/service/PartyJoinService.java": "9ec338463a30f34b19ed11aa9e0ecad3973d87c2ef64b7b95c79682ab6a3c655",
       "server/src/main/java/com/campustaximate/server/service/PartyReadinessService.java": "9c3a5463a094cfd22b771fd6d551334b0fecc7e441ca5120e867ab341be632f1",
-      "server/src/main/java/com/campustaximate/server/service/PartyService.java": "5b0d1d5b2e6f97a6c4dbe863d4a8bb3ae5a8c9643941e6358a8d5af34d0f7996",
+      "server/src/main/java/com/campustaximate/server/service/PartyService.java": "3a5e170a0948b2d61227d4e910fce8aea22c23c3d27cdf97a73519a18ccc3d64",
       "server/src/main/java/com/campustaximate/server/service/PartyShrinker.java": "2c04096f0d7abffc8a0250997686c409f03ec911078ac9ff03e6cf06f5a69b51",
       "server/src/main/java/com/campustaximate/server/service/PasswordHasher.java": "4ec8687d59165763f569d798055bc73f9f84e2da8b0829c617067592beaa623e",
       "server/src/main/java/com/campustaximate/server/service/PaymentLifecycleService.java": "c367a2d390ac0d30bdbc249823bca5d532810d0e6501d2fe0ee548ca23a251a4",
@@ -532,11 +890,11 @@
       "server/src/main/java/com/campustaximate/server/TaximateApplication.java": "0ae6d3bb84ed6027a1a2835d4393a3384a5e07ff9bd30d4e28288f849f21084a",
       "server/src/main/java/com/campustaximate/server/web/AccessInterceptor.java": "9c0ac54ba0d2d2d844aede0b6d72ed78d0b59b6f3456347592a0d20826ee5f30",
       "server/src/main/java/com/campustaximate/server/web/AdminController.java": "fe6e459009b56912d7764e59af3e0d0eebfbc75c88d0aca499b5f551a096a055",
-      "server/src/main/java/com/campustaximate/server/web/ApiController.java": "401a846b8d1814a655cea03a3098cb13a8728983234673be5d706bb12967d733",
+      "server/src/main/java/com/campustaximate/server/web/ApiController.java": "9ba620cefa157d23e75a78fb0a8c8bbb9f48029a15a10e369b4c213401436fe1",
       "server/src/main/java/com/campustaximate/server/web/ApiFailureFilter.java": "c04e4b2c106b40356b467bade6d374463b124dec1d7b44c0dbf8ee0785b551c7",
       "server/src/main/java/com/campustaximate/server/web/BoardingCaseController.java": "f3d7bfac51e313745230d7b503fc7be258a3acb3d8b96dd1311ae437fe83efee",
       "server/src/main/java/com/campustaximate/server/web/BoardingPointController.java": "dec8feab13e2c33508945797a235dde24480306e9a7b730cf331c4b516b6f378",
-      "server/src/main/java/com/campustaximate/server/web/DemoController.java": "2004d18216960ac67c68b264fa6fae25fc24ea4f2e6d7675478642e34060ca5c",
+      "server/src/main/java/com/campustaximate/server/web/DemoController.java": "114b57500934f414242dfc69c1b3e813c0c7e2c8ad73d515d5699044b6e74e43",
       "server/src/main/java/com/campustaximate/server/web/LoginTokenFilter.java": "494d6f304c3cc4ca252268ee200cb44805cd184b12f9a61634ef66a4f3ae6e0f",
       "server/src/main/java/com/campustaximate/server/web/PartyDecisionController.java": "d1489db99ccd6601a4b5e649052b83a56b113051a7b61a8c27ebe3cdee2c5fbb",
       "server/src/main/java/com/campustaximate/server/web/PartyJoinController.java": "5286f8effd84a34479b03a1290c53c784b5d062c581dc6b96eef059ce5198fd4",
@@ -546,13 +904,13 @@
       "server/src/main/java/com/campustaximate/server/web/RateLimitFilter.java": "1f5b6440a36adc9d657e0e5edf67cbd2ccd4bd2bf1a8854bdd3eaf40fb3225f3",
       "server/src/main/java/com/campustaximate/server/web/RequestLogFilter.java": "56207cc8a9dc4d9db5f5dc3e0933894945162164419087eeb420b33eef2c0875",
       "server/src/main/java/com/campustaximate/server/web/SecurityHeadersFilter.java": "78bc069e682079c97b5877268b6de86ec4486706cb98c15221a5498c4e5d5659",
-      "server/src/main/java/com/campustaximate/server/web/WebConfig.java": "0d765e3efb9b0fda50df45fc40f3ef0feda12e2303b3b49486215073f553b598",
-      "experiments/java/com/campustaximate/server/service/DetailedSimulation.java": "018678adaa41b1e7e8cc21ee00d39d3df45ae81e68899b31e0372dc85231ab55",
-      "experiments/java/com/campustaximate/server/service/ExperimentRunner.java": "4242c54e10ae4179d2e7b0a31d14250762d1596e563f671e5c3ecb3345370846",
-      "experiments/java/com/campustaximate/server/service/SimulationCompensation.java": "b3fa09122700bb0c08fcc6e3553e513f23d14c48c5022e3e170fe003a6b3ea27"
+      "server/src/main/java/com/campustaximate/server/web/WebConfig.java": "b149dc1823e4bebe4049282ce2e84bfc31e20fdd419ccfca225e67d6ab454512",
+      "experiments/java/com/campustaximate/server/service/DetailedSimulation.java": "450a0c6760ae2df5c00463ad280a76838a56331c85c99aecfa3ec5cc05fc05c7",
+      "experiments/java/com/campustaximate/server/service/ExperimentRunner.java": "b864bcb5e7db04a1f57a80d14d0174e9bbb2f426e35ade6ada8eb185e089a1bf",
+      "experiments/java/com/campustaximate/server/service/SimulationCompensation.java": "36d594cf13f24335af5dfa8ead1344aead2c6a6780bce287231ee49e80ce0a78"
     },
     "maven_package_path": "C:\\work\\01_Projects\\Team\\campus-taximate\\server\\target\\server-0.1.0.jar",
-    "maven_package_sha256": "7bf40a5a5aa12348b23d311836b59abdaab56373a09d9b55939bbc42287cc526",
+    "maven_package_sha256": "2396c249fce40b6de9869325fef73ee74fd3d857f24040487c1eaec1daaf0747",
     "maven_pom_sha256": {
       "pom.xml": "8bca13a98e85906ac434e7200d15475aa2b6344d85111b9d2e66c16fd821745b",
       "server/pom.xml": "68b76e1ebfb3f6f6e1cc9cc3d9b273ecd3d9ed4beaef6f0147295cf73987499f",
@@ -677,8 +1035,8 @@
     "jdk_major": 21
   },
   "cache_output_sha256": {
-    "riders.csv": "cedbcb5243fd6f4d539f6b65ffa7b7cdae981e8054b4c28f0d1306f65ec2930a",
-    "groups.csv": "48cd731d9d1335e6563e2eace8003c285501c17104784e6cb2b2d0afe68611d0",
-    "days.csv": "51ee75f68be09080845a5e1084ae1ac27b34b8f2fc35e84bbfb6e69f71bda5a2"
+    "riders.csv": "1358fb772b2c9658f8a26a7c8c60332a29c21a235c9e52d90957d58f5c5a3fc6",
+    "groups.csv": "bfd29541fd51c52dacdadc5a15a3a7f91e9ea37d560eb85cdbde16f4d66a99bb",
+    "days.csv": "78a5779494cf1aa7706dd6a2572874ce461cbf78b8561e0e633ea3aa88ac55ea"
   }
 }

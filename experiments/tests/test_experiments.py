@@ -104,6 +104,20 @@ class FareTests(unittest.TestCase):
             self.assertEqual(report["exclusion_reasons"], {"missing_field": 1})
 
 
+class PublicArtifactTests(unittest.TestCase):
+    def test_korean_public_input_hash(self):
+        path=run.HERE/'reports'/'public-fares.json'
+        if not path.exists():self.skipTest('Run C5 first')
+        report=json.loads(path.read_text(encoding='utf-8'))
+        self.assertEqual(report['schema_version'],3)
+        self.assertEqual(report['tool_sha256'],run.sha(run.HERE/'fares.py'))
+        errors=report['tims']['errors']
+        self.assertEqual(errors['sha256'],run.sha(Path(errors['path'])))
+        self.assertEqual(errors['grain'],'grid_month_mean')
+        self.assertEqual(set(report['tims']['monthly']) & {'national','commute','pocheon_cached_grids'},
+                         {'national','commute','pocheon_cached_grids'})
+
+
 class ReplayTests(unittest.TestCase):
     def test_input_generation_is_seeded(self):
         with tempfile.TemporaryDirectory() as folder:

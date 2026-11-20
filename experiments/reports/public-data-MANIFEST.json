@@ -1,148 +1,531 @@
 {
-  "generated_at": "2026-11-19T12:39:30.465Z",
-  "sources": [
+  "generated_at": "2026-11-20T05:56:07.836125+00:00",
+  "files": [
     {
-      "file": ".cache/kr-public/seoul_dcall_2025.csv",
-      "url": "https://www.data.go.kr/cmm/cmm/fileDownload.do?atchFileId=FILE_000000003648626&fileDetailSn=1&dataNm=%EC%84%9C%EC%9A%B8%EC%8B%9C%EC%84%A4%EA%B3%B5%EB%8B%A8_%EC%9E%A5%EC%95%A0%EC%9D%B8%EC%BD%9C%ED%83%9D%EC%8B%9C%20%ED%83%91%EC%8A%B9%EB%82%B4%EC%97%AD_20251231",
-      "bytes": 338587487,
-      "sha256": "f704ecea1f9c0d65a5dbd096d90868a1f2126d91213d846ec071c4bbaece5889",
-      "verified_at": "2026-11-19T12:39:31.920Z",
-      "catalogue": "https://www.data.go.kr/data/15115859/fileData.do",
-      "login_required": false,
-      "needCaptcha": false
-    },
-    {
-      "file": ".cache/kr-public/tims_2025.zip",
-      "url": "https://www.data.go.kr/cmm/cmm/fileDownload.do?atchFileId=FILE_000000007678376&fileDetailSn=1&dataNm=%ED%95%9C%EA%B5%AD%EA%B5%90%ED%86%B5%EC%95%88%EC%A0%84%EA%B3%B5%EB%8B%A8_%ED%83%9D%EC%8B%9C%EC%9A%B4%ED%96%89%EC%A0%95%EB%B3%B4%20%EA%B2%A9%EC%9E%90%EB%B3%84%20%EC%98%81%EC%97%85%ED%86%B5%EA%B3%84_20251231",
-      "bytes": 25212642,
-      "sha256": "8a0b3afc6cad5902bbab66a40a307fc5d27f64d03d44f964adead7ce8e1f498a",
-      "verified_at": "2026-11-19T12:39:40.872Z",
-      "catalogue": "https://www.data.go.kr/data/15165682/fileData.do",
-      "login_required": false,
-      "needCaptcha": false
-    },
-    {
-      "file": ".cache/yellow_tripdata_2026-08.parquet",
-      "url": "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2026-08.parquet",
-      "bytes": 59043961,
-      "sha256": "6683a025443afcbb28ac4f238fcbb6334767dc69fab4a16b1eb16a78dcd013cd",
-      "verified_at": "2026-11-19T12:39:41.604Z",
-      "month": "2026-08"
-    },
-    {
-      "file": ".cache/yellow_tripdata_2026-09.parquet",
-      "url": "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2026-09.parquet",
-      "bytes": 67374896,
-      "sha256": "32d8d883e3fb9c0d681f4d47b205afe0fcb2a4830739673b4dd3bafbac9b0086",
-      "verified_at": "2026-11-19T12:39:41.758Z",
-      "month": "2026-09"
-    },
-    {
-      "file": ".cache/taxi_zone_lookup.csv",
-      "url": "https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv",
-      "bytes": 12331,
-      "sha256": "1a99e105092230f8620f301edcca7f80d3080642ff404d28ed957d3fa222c8ed",
-      "verified_at": "2026-11-19T12:39:42.553Z"
-    },
-    {
-      "file": ".cache/nyc-data-dictionary.pdf",
-      "url": "https://www.nyc.gov/assets/tlc/downloads/pdf/data_dictionary_trip_records_yellow.pdf",
-      "bytes": 148556,
-      "sha256": "b9e9f0ecfa6bd9cc847283379173fd764fe1ab76d2fa143329f541cb1f479993",
-      "verified_at": "2026-11-19T12:39:42.977Z"
-    },
-    {
-      "file": ".cache/nyc-tariff.html",
-      "url": "https://www.nyc.gov/site/tlc/passengers/taxi-fare.page",
-      "bytes": 30917,
-      "sha256": "0ff25b76b57b4a21c5767a065726083d798805cc0c92197333c87912bf5f2a42",
-      "verified_at": "2026-11-19T12:39:42.983Z"
-    }
-  ],
-  "failures": [],
-  "requests": [
-    {
-      "url": "https://www.data.go.kr/data/15115859/fileData.do",
-      "method": "GET",
-      "status": 200
-    },
-    {
-      "url": "https://www.data.go.kr/tcs/dss/selectFileDataDownload.do",
-      "method": "POST",
-      "status": 200
-    },
-    {
-      "url": "https://www.data.go.kr/cmm/cmm/check-limit.json",
-      "method": "POST",
-      "status": 200
-    },
-    {
-      "url": "https://www.data.go.kr/data/15165682/fileData.do",
-      "method": "GET",
-      "status": 200
-    },
-    {
-      "url": "https://www.data.go.kr/tcs/dss/selectFileDataDownload.do",
-      "method": "POST",
-      "status": 200
-    },
-    {
-      "url": "https://www.data.go.kr/cmm/cmm/check-limit.json",
-      "method": "POST",
-      "status": 200
-    },
-    {
-      "url": "https://www.data.go.kr/cmm/cmm/fileDownload.do?atchFileId=FILE_000000007678376&fileDetailSn=1&dataNm=%ED%95%9C%EA%B5%AD%EA%B5%90%ED%86%B5%EC%95%88%EC%A0%84%EA%B3%B5%EB%8B%A8_%ED%83%9D%EC%8B%9C%EC%9A%B4%ED%96%89%EC%A0%95%EB%B3%B4%20%EA%B2%A9%EC%9E%90%EB%B3%84%20%EC%98%81%EC%97%85%ED%86%B5%EA%B3%84_20251231",
-      "method": "GET",
-      "status": 200
-    },
-    {
-      "url": "https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page",
-      "method": "GET",
-      "status": 200
-    },
-    {
-      "url": "https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv",
-      "method": "GET",
-      "status": 200
-    },
-    {
-      "url": "https://www.nyc.gov/assets/tlc/downloads/pdf/data_dictionary_trip_records_yellow.pdf",
-      "method": "GET",
-      "status": 200
-    }
-  ],
-  "analysis_sources": {
-    "seoul": {
-      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\seoul_dcall_2025.csv",
-      "url": "https://www.data.go.kr/data/15115859/fileData.do",
-      "bytes": 338587487,
-      "sha256": "f704ecea1f9c0d65a5dbd096d90868a1f2126d91213d846ec071c4bbaece5889",
-      "rows": 1729476
-    },
-    "nyc": [
-      {
-        "month": "2026-08",
-        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\yellow_tripdata_2026-08.parquet",
-        "url": "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2026-08.parquet",
-        "bytes": 59043961,
-        "sha256": "6683a025443afcbb28ac4f238fcbb6334767dc69fab4a16b1eb16a78dcd013cd",
-        "rows": 3336716
-      },
-      {
-        "month": "2026-09",
-        "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\yellow_tripdata_2026-09.parquet",
-        "url": "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2026-09.parquet",
-        "bytes": 67374896,
-        "sha256": "32d8d883e3fb9c0d681f4d47b205afe0fcb2a4830739673b4dd3bafbac9b0086",
-        "rows": 3876044
-      }
-    ],
-    "tims": {
       "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\tims_2025.zip",
       "url": "https://www.data.go.kr/data/15165682/fileData.do",
       "bytes": 25212642,
       "sha256": "8a0b3afc6cad5902bbab66a40a307fc5d27f64d03d44f964adead7ce8e1f498a"
+    },
+    {
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\tims-monthly-safe.csv",
+      "url": null,
+      "bytes": 78062037,
+      "sha256": "1e066b828e13af81d7333584e51e1f0cc490eb0d0156677aaa3a505f883faaf3"
+    },
+    {
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\tims-errors.csv",
+      "url": "https://www.data.go.kr/data/15165682/fileData.do",
+      "bytes": 815882,
+      "sha256": "85f60cd99132b051fc724deb17d27a70a92ffd952dc002dbf06fc7b462adf48f",
+      "n": 41391,
+      "mean": 0.06616951643354747,
+      "stdev": 0.28285462698841524,
+      "min": -0.8192771084337349,
+      "max": 47.270833333333336,
+      "grain": "grid_month_mean",
+      "scope": "5~25km commute grids, Pocheon daytime formula, one equally weighted residual per grid-month",
+      "percentiles": {
+        "5": -0.165540155628074,
+        "10": -0.1092436974789916,
+        "25": -0.005257725877506645,
+        "50": 0.07119341563786001,
+        "75": 0.14214834554989422,
+        "90": 0.2107526881720431,
+        "95": 0.2577716043480295
+      },
+      "spread_rule": "scale=0: no error; otherwise mean + scale*(residual-mean); 1.0/1.5/2.0",
+      "limitation": "TIMS 잔차는 격자-월 집계 평균이므로 개별 운행 오차 분산을 과소추정한다. 통학권에는 다른 요금 지역도 섞인다."
+    },
+    {
+      "path": "C:\\work\\01_Projects\\Team\\taximate-matching-sim\\realdata\\data\\tims_annual_grids.csv",
+      "url": null,
+      "bytes": 25593907,
+      "sha256": "c89532669712768a16df6fc96fe4c0e8ebe66722d8c8d67851e9b11cc2da0a67"
+    },
+    {
+      "path": "C:\\work\\01_Projects\\Team\\taximate-matching-sim\\realdata\\data\\tims_commute_grids.csv",
+      "url": null,
+      "bytes": 523102,
+      "sha256": "a89376709d38d460d1655cd03164dbf79e92bf1eb284c3157f3180fb2469d3d6"
+    },
+    {
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\point-regions.json",
+      "url": null,
+      "bytes": 27036,
+      "sha256": "66660bbd9da3e62d234a903a7b0c099560f0b0bd5bc8f374c82e1d38dabc4230"
+    },
+    {
+      "path": "C:\\work\\01_Projects\\Team\\taximate-matching-sim\\realdata\\data\\korea_points.json",
+      "url": null,
+      "bytes": 18146,
+      "sha256": "bce192096b01e7dc045ca601e1aef0bb1187d5a8e3ce0d25ab4c6f9a055530cb"
+    },
+    {
+      "date": "2026-10-01",
+      "dataset": "OA-22300",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261001.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+      "bytes": 78924109,
+      "sha256": "b47845d9efe8e96ae5af6ffae1c0be2d50966dabceb5607c54d466976aec9ab9"
+    },
+    {
+      "date": "2026-10-02",
+      "dataset": "OA-22300",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261002.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+      "bytes": 81236525,
+      "sha256": "0f0d9ed386e367781115b29604e2627a869d9ea933c041d765e9b019cdd46970"
+    },
+    {
+      "date": "2026-10-05",
+      "dataset": "OA-22300",
+      "included": false,
+      "exclusion_reason": "개천절 대체공휴일",
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261005.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+      "bytes": 60892148,
+      "sha256": "3a69e6c8adb8789960f126f4f92d55b7c3122a8af32b5ae7745d03bc9083391c"
+    },
+    {
+      "date": "2026-10-06",
+      "dataset": "OA-22300",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261006.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+      "bytes": 77426073,
+      "sha256": "27a439fc44d2078b6cb8a786a74ae312597bb1eddf5d4f8500bcc13ab6531e56"
+    },
+    {
+      "date": "2026-10-07",
+      "dataset": "OA-22300",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261007.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+      "bytes": 80883516,
+      "sha256": "5beb7c12239b8d7e9860590e4236f8ad2ae6574c10b00fa007107dedf2b3aaee"
+    },
+    {
+      "date": "2026-10-08",
+      "dataset": "OA-22300",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261008.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+      "bytes": 81486383,
+      "sha256": "719e91680006c52291bf38431f0295210b0a837364c71f49f405f09c96dc4467"
+    },
+    {
+      "date": "2026-10-12",
+      "dataset": "OA-22300",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261012.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+      "bytes": 78475260,
+      "sha256": "2dd33840d00dca06a5250cb4cd8eacbbaa15752a7c454816b68633b4e97fd39f"
+    },
+    {
+      "date": "2026-10-13",
+      "dataset": "OA-22300",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261013.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+      "bytes": 78742427,
+      "sha256": "ae5d690630810e620cfde87986eb638fc1bf5acc71e29903e5d7f1b10b71c445"
+    },
+    {
+      "date": "2026-10-14",
+      "dataset": "OA-22300",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261014.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+      "bytes": 78895460,
+      "sha256": "18d6d7774155e83d8e6786b8d5603e783fb150290e9a29da8d3d9f5d480bd6d7"
+    },
+    {
+      "date": "2026-10-15",
+      "dataset": "OA-22300",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261015.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+      "bytes": 79257832,
+      "sha256": "e01b2cfcd3e9bdb4720dc06c6b99292c33686962954c60cbbbfc45aefd812529"
+    },
+    {
+      "date": "2026-10-16",
+      "dataset": "OA-22300",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261016.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+      "bytes": 81942961,
+      "sha256": "b790b737b32b60e5daf0b6e465c344b8e5b77e633b4eafcf174effd0ed7e15ca"
+    },
+    {
+      "date": "2026-10-19",
+      "dataset": "OA-22300",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261019.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+      "bytes": 76641733,
+      "sha256": "2a24a27070684ec39fc1fc324a499b4aedc4ac07447ef5c53ca5d52d0df7f2fc"
+    },
+    {
+      "date": "2026-10-20",
+      "dataset": "OA-22300",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261020.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+      "bytes": 78488081,
+      "sha256": "f25ac3f09393c91e48ed4037fcf6ae12bec26be67ac1e82553b8ee3998e26ac6"
+    },
+    {
+      "date": "2026-10-21",
+      "dataset": "OA-22300",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261021.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+      "bytes": 80449474,
+      "sha256": "43b9d1127e6dcd33ea1e6ff4295ec84319e6f6efc1a98ae0d2b6065187b09863"
+    },
+    {
+      "date": "2026-10-22",
+      "dataset": "OA-22300",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261022.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+      "bytes": 79052581,
+      "sha256": "bfaf84b7086c4046edea4f33ff5c7be38a9384a6ec1b1cee40cf3894d6f47c0c"
+    },
+    {
+      "date": "2026-10-23",
+      "dataset": "OA-22300",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261023.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+      "bytes": 81571044,
+      "sha256": "f34b4b0ddfc7fdbe8531de944fb3dd56d22980b15239d4f456d8d4e058e8edcd"
+    },
+    {
+      "date": "2026-10-26",
+      "dataset": "OA-22300",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261026.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+      "bytes": 77310722,
+      "sha256": "ac550d261bd9a26426e5a55654da115f7b55dc5b926de164b6af9df605a2e163"
+    },
+    {
+      "date": "2026-10-27",
+      "dataset": "OA-22300",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261027.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+      "bytes": 75255373,
+      "sha256": "5b5679a2dde8e107e1f793e7a5aa4028b06de32f1c04ee61853c2db53a4bd13b"
+    },
+    {
+      "date": "2026-10-28",
+      "dataset": "OA-22300",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261028.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+      "bytes": 79080357,
+      "sha256": "9bbfc50481ced3a326eeb56c938173cf7a945220ec6c85eaf8d6f99947583bee"
+    },
+    {
+      "date": "2026-10-29",
+      "dataset": "OA-22300",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261029.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+      "bytes": 78261454,
+      "sha256": "25a611e51112248eb1bd83c8dcd095245aa5d572aa22d5246152e1a8daebad38"
+    },
+    {
+      "date": "2026-10-30",
+      "dataset": "OA-22300",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261030.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+      "bytes": 81695026,
+      "sha256": "6f8401670df91ca6b49adafe3f303f9eee40a006f8448205c66506643c7d8c06"
+    },
+    {
+      "date": "2026-10-31",
+      "dataset": "OA-22300",
+      "included": false,
+      "exclusion_reason": "주말",
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong3_20261031.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22300/F/1/datasetView.do",
+      "bytes": 75117693,
+      "sha256": "899ec22fd22746ec5f26d406ea0de46c271fa8d2aba20b93e03a8f22905ed4aa"
+    },
+    {
+      "date": "2026-10-01",
+      "dataset": "OA-22299",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261001.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+      "bytes": 53752170,
+      "sha256": "ae99ef93884f84703a8547b85e614d574573fd9dc029e28185e26827693d2347"
+    },
+    {
+      "date": "2026-10-02",
+      "dataset": "OA-22299",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261002.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+      "bytes": 55529013,
+      "sha256": "df897f03b353466f80ab17d6e86465135a26da15a8a4c004157938cb1946a092"
+    },
+    {
+      "date": "2026-10-05",
+      "dataset": "OA-22299",
+      "included": false,
+      "exclusion_reason": "개천절 대체공휴일",
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261005.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+      "bytes": 41836215,
+      "sha256": "056f9ff5da262b665ec59f14aa547ec91c237dad43f8cb6bf15cd13f796f441a"
+    },
+    {
+      "date": "2026-10-06",
+      "dataset": "OA-22299",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261006.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+      "bytes": 52867685,
+      "sha256": "f1f980c5500a12cf29cc729a7ff038f658a5899970e8d581c5c7d9f8b0458be2"
+    },
+    {
+      "date": "2026-10-07",
+      "dataset": "OA-22299",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261007.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+      "bytes": 53711053,
+      "sha256": "3125885448b6d05e6c0b3fb47784bdde8919cd41c2541a4db26cb595706a1d0a"
+    },
+    {
+      "date": "2026-10-08",
+      "dataset": "OA-22299",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261008.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+      "bytes": 55667020,
+      "sha256": "c6ee62316def0e599469a4ecfffd9a684f578b0d3689dd992e4dcdc126c517e9"
+    },
+    {
+      "date": "2026-10-12",
+      "dataset": "OA-22299",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261012.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+      "bytes": 52368538,
+      "sha256": "e854aacf1e191c3600125b610129a7544924b473717cedadf7d8ea09c8e96da6"
+    },
+    {
+      "date": "2026-10-13",
+      "dataset": "OA-22299",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261013.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+      "bytes": 52184025,
+      "sha256": "3261b17d1c7012cd915b7f1dd089cbeea4e89689f23f37d56124fc8a77445c85"
+    },
+    {
+      "date": "2026-10-14",
+      "dataset": "OA-22299",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261014.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+      "bytes": 53891051,
+      "sha256": "b5f7262659d3a611d7dc410d72a3a57e8ab2241ed5797e69ebfbf7ea82ec01e3"
+    },
+    {
+      "date": "2026-10-15",
+      "dataset": "OA-22299",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261015.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+      "bytes": 53823284,
+      "sha256": "2304305833cc2a91a0dc12803f9b8b1974e14b81ecb03767aaf0c77db5a02945"
+    },
+    {
+      "date": "2026-10-16",
+      "dataset": "OA-22299",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261016.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+      "bytes": 55439289,
+      "sha256": "34c363b6eb8541ae2d374cebb320405bbe22941678f3dee0c4aa99f09323caf4"
+    },
+    {
+      "date": "2026-10-19",
+      "dataset": "OA-22299",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261019.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+      "bytes": 52288583,
+      "sha256": "119783a94fc215dbbf23452993c654144f29acbb9b0cde91f72b39c1352cc1d6"
+    },
+    {
+      "date": "2026-10-20",
+      "dataset": "OA-22299",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261020.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+      "bytes": 53551003,
+      "sha256": "3dcc9a3ff523c6def4daf21d89a8753b26316323b94051b5a0a255ec04e38213"
+    },
+    {
+      "date": "2026-10-21",
+      "dataset": "OA-22299",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261021.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+      "bytes": 53136097,
+      "sha256": "a38b9b9c40067b91a1add1a95799162dce494f3b5408740db397cf9daa018de7"
+    },
+    {
+      "date": "2026-10-22",
+      "dataset": "OA-22299",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261022.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+      "bytes": 53845912,
+      "sha256": "3e6d99bce2a84f33a9433b0dc4a97e4ff217fb3386ed58ed506ebd5bb9c681e5"
+    },
+    {
+      "date": "2026-10-23",
+      "dataset": "OA-22299",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261023.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+      "bytes": 55632847,
+      "sha256": "01de383f21f8187ce4bbe1624d276d8d8efcf657ce9f7e8f4bcaf662fba1d2dc"
+    },
+    {
+      "date": "2026-10-26",
+      "dataset": "OA-22299",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261026.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+      "bytes": 51900519,
+      "sha256": "b957ec2a4fa4e9a1d65c288619f8f381d60bf0bbc00aeba67ab68659646a19d5"
+    },
+    {
+      "date": "2026-10-27",
+      "dataset": "OA-22299",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261027.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+      "bytes": 49768385,
+      "sha256": "f74a8bad4507610495cbe50b312e7037055db8f15f27ab208165ac1760614ddb"
+    },
+    {
+      "date": "2026-10-28",
+      "dataset": "OA-22299",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261028.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+      "bytes": 53749469,
+      "sha256": "3e1abeb4cd0ce2df0a721dbe14aaa57345bdfec95837553b5113e9e00637898b"
+    },
+    {
+      "date": "2026-10-29",
+      "dataset": "OA-22299",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261029.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+      "bytes": 53210885,
+      "sha256": "5fdda8cc8ca0c1f1c5fa1dc92f854b89b705cac57d818bec3bcc62d75a4fda06"
+    },
+    {
+      "date": "2026-10-30",
+      "dataset": "OA-22299",
+      "included": true,
+      "exclusion_reason": null,
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261030.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+      "bytes": 55650913,
+      "sha256": "77fea69772c64d36d8ae128934df2f74628f7826288d8791c3fe74b064eee303"
+    },
+    {
+      "date": "2026-10-31",
+      "dataset": "OA-22299",
+      "included": false,
+      "exclusion_reason": "주말",
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\living-move\\seoul_purpose_admdong4_in_20261031.zip",
+      "url": "https://data.seoul.go.kr/dataList/OA-22299/F/1/datasetView.do",
+      "bytes": 52063677,
+      "sha256": "6d45d58e0f036e82ae2d4ed9ecce209f7b846011a4ee729179d182c2ff0714db"
+    },
+    {
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\sgis-admin-2025.zip",
+      "url": "https://www.data.go.kr/data/15129688/fileData.do",
+      "bytes": 269032521,
+      "sha256": "f1cf0f9de453ac7eaacb273f39cee52851183372b9ddfda428a967c3a670b2c6"
+    },
+    {
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\tims-regions.csv",
+      "url": null,
+      "bytes": 12363244,
+      "sha256": "92a946c12c14c79a91e0f3cb177c56496e5381117f5f0254b40a18e0663a793f"
+    },
+    {
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\tims-region-MANIFEST.json",
+      "url": null,
+      "bytes": 21989,
+      "sha256": "102af586864945a9ee5460645ee32eca886de933fb0ffeabf55de8013c49f576"
     }
-  }
+  ],
+  "tool_sha256": {
+    "fares.py": "ff4960fcaa44cf2e0d29dd3fcff7d3c3d2e31d42c8b5326b2a57abf5725be297",
+    "livingmove.py": "5ca7f924c4a8e3e57c41f5e3ff24cccdb379d0096937a19f962657ce61266216",
+    "acquire_public.py": "c80203b0fbc59d183f8c3deb7abead02aa0723618c5e548790fb78500b3588c3",
+    "acquire-public.mjs": "fae5b6770d2699b0f4af8e28f6cb7366b3270a76a0a0149fb29f64851112caee",
+    "tims_regions.py": "8c0b2680cd8cd6da5c71384f4f2ac32438644010a1ce614c021f18ffa858f99e"
+  },
+  "metadata_refresh": "20 weekdays excluding 2026-10-05 and 2026-10-09; official SGIS region mapping added. TIMS C5 fare/error inputs and results unchanged."
 }

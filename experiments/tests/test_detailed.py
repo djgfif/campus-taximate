@@ -32,7 +32,7 @@ class DesignTests(unittest.TestCase):
 
     def test_required_levels_without_factorial_explosion(self):
         scenarios = c7.scenarios()
-        self.assertEqual(len(scenarios), 20)
+        self.assertEqual(len(scenarios), 24)
         self.assertEqual(len({s.name for s in scenarios}), len(scenarios))
         grid = [s for s in scenarios if s.axis in ('기본', '요청수×지연')]
         self.assertEqual({(s.requests, s.delay) for s in grid},
@@ -68,6 +68,62 @@ class DesignTests(unittest.TestCase):
             rows=[l.split('\t') for l in target.read_text().splitlines() if l.startswith('R\t')]
             self.assertTrue(all(r[10:13]==['0','1','0'] for r in rows))
             self.assertTrue(all(int(r[9])-int(r[8])==1200 for r in rows))
+
+    def test_mean_preserving_error_spread(self):
+        errors=[-.2,.1,.4]
+        for scale in (1.,1.5,2.):
+            scaled=c7.scale_errors(errors,scale)
+            self.assertAlmostEqual(statistics.mean(scaled),statistics.mean(errors))
+            self.assertAlmostEqual(statistics.pstdev(scaled),statistics.pstdev(errors)*scale)
+        self.assertEqual(c7.scale_errors(errors,0),[0.])
+
+    def test_region_weight_respects_unrepresented_grids(self):
+        points=[dict(id=1,grid='a'),dict(id=2,grid='b'),dict(id=3,grid='c')]
+        mapping=[dict(id=1,h_code='4115051000',sigungu='의정부'),dict(id=2,h_code='4115052000',sigungu='의정부'),
+                 dict(id=3,h_code='4165025000',sigungu='포천')]
+        counts={'a':10,'b':30,'c':100}
+        totals={'41150000':400,'41650000':1000}
+        regions={'a':'41150000','b':'41150000','c':'41650000'}
+        m=c7.weight_regions(points,counts,mapping,{'41150000':60,'41650000':20,'41360000':20},totals,regions)
+        self.assertEqual([p['probability'] for p in points],[.1875,.5625,.25])
+        self.assertAlmostEqual(m['lost_destination_share'],.92)
+        self.assertAlmostEqual(m['represented_flow_share'],.08)
+        self.assertEqual(m['pocheon_within_city_share'],.2)
+        self.assertAlmostEqual(sum(r['represented_share']+r['lost_share'] for r in m['region_coverage']),1.)
+        self.assertEqual({r['tims_coverage'] for r in m['represented_regions']},{.1})
+        c7.weight_regions(points,counts,mapping,{'41150000':60},totals,regions)
+        self.assertEqual(points[-1]['probability'],0.)
+        with self.assertRaises(ValueError):c7.weight_regions(points,counts,mapping,{'41150000':60},{},regions)
+
+    def test_large_pocheon_flow_is_not_all_dumped_on_cached_grids(self):
+        points=[dict(id=1,grid='a'),dict(id=2,grid='a'),dict(id=3,grid='b')]
+        mapping=[dict(id=1,h_code='4165025000',sigungu='포천'),dict(id=2,h_code='4165025000',sigungu='포천'),
+                 dict(id=3,h_code='4115051000',sigungu='의정부')]
+        m=c7.weight_regions(points,{'a':10,'b':100},mapping,{'41650000':80,'41150000':20},
+            {'41650000':1000,'41150000':100},{'a':'41650000','b':'41150000'})
+        self.assertAlmostEqual(m['pocheon_simulated_share'],.8/20.8)
+        row=next(r for r in m['represented_regions'] if r['code']=='41650000')
+        self.assertEqual(row['represented_grid_trips'],10)
+        self.assertEqual(row['tims_coverage'],.01)
+        self.assertEqual(row['represented_share'],.008)
+        self.assertAlmostEqual(points[0]['probability'],points[1]['probability'])
+
+    def test_seoul_uses_same_district_in_flow_and_tims_denominator(self):
+        points=[dict(id=1,grid='a')]
+        m=c7.weight_regions(points,{'a':10},[dict(id=1,h_code='1132052100',sigungu='도봉')],
+            {'11320521':40,'11320522':60},{'11320000':100},{'a':'11320000'})
+        self.assertAlmostEqual(m['represented_flow_share'],.1)
+        self.assertAlmostEqual(m['lost_destination_share'],.9)
+        self.assertEqual(m['represented_regions'][0]['code'],'11320000')
+
+    def test_exclude_intra_pocheon_zeros_only_city_destinations(self):
+        points=[dict(id=1,region_code='41650000',weight=8),dict(id=2,region_code='41150000',weight=2)]
+        scenario=next(s for s in c7.scenarios() if s.name=='exclude_intra_pocheon')
+        selected=c7.scenario_points(points,scenario)
+        self.assertEqual([p['id'] for p in selected],[2])
+        self.assertEqual(scenario.requests,100)
+        rows=c7.generate_day(selected,[dict(hour=17,probability=1)],123,100)
+        self.assertTrue(all(r['point']['id']==2 for r in rows))
 
 
 class MeasurementTests(unittest.TestCase):
@@ -158,7 +214,7 @@ class ProductionIntegrationTests(unittest.TestCase):
             self.skipTest('Run full C7 to validate exported results')
         report=json.loads(report_path.read_text(encoding='utf-8'))
         self.assertEqual(report['status'],'COMPLETED')
-        self.assertEqual(report['conditions'],20)
+        self.assertEqual(report['conditions'],24)
         self.assertEqual(report['new_kakao_api_calls'],0)
         self.assertEqual(report['verification']['conservation_errors'],0)
         self.assertEqual(report['confidence_interval']['repetitions'],10000)
@@ -166,11 +222,25 @@ class ProductionIntegrationTests(unittest.TestCase):
         self.assertTrue(report['compensation']['original_payer_exempt'])
         by={s['parameters']['name']:s for s in report['scenarios']}
         self.assertTrue(all(s['days']>=30 for s in report['scenarios']))
-        for name in ('no_error','noshow5','noshow5_no_error'):
+        for name in ('no_error','noshow5','noshow5_no_error','error_x1_5','error_x2'):
             for key in ('matching_rate','mean_delay_minutes','mean_wait_minutes'):
                 self.assertEqual(by['base']['metrics'][key],by[name]['metrics'][key])
         self.assertAlmostEqual(sum(h['probability'] for h in report['demand']['hourly_distribution']),1.)
         self.assertEqual(report['demand']['candidate_points'],118)
+        self.assertEqual(report['demand']['cached_point_mapping_count'],121)
+        self.assertEqual(report['demand']['livingmove_days'],20)
+        coverage=report['demand']['region_coverage']
+        self.assertAlmostEqual(sum(r['represented_share'] for r in coverage)+report['demand']['lost_destination_share'],1.)
+        self.assertTrue(all(0<=r['tims_coverage']<=1 for r in coverage))
+        self.assertAlmostEqual(sum(r['probability'] for r in report['demand']['exclude_intra_pocheon']['point_probabilities']),1.)
+        self.assertTrue(all(r['probability']==0 for r in report['demand']['exclude_intra_pocheon']['point_probabilities'] if r['id'] in (7,12,47,64)))
+        self.assertEqual(len(report['demand']['all_cached_point_probabilities']),121)
+        self.assertAlmostEqual(sum(p['probability'] for p in report['demand']['all_cached_point_probabilities']),1.)
+        self.assertAlmostEqual(sum(p['probability'] for p in report['demand']['point_probabilities']),1.)
+        self.assertIn('living-move',report['demand']['time_rule'])
+        self.assertGreater(report['demand']['pocheon_simulated_share'],0)
+        self.assertEqual({r['scale'] for r in report['demand']['error_sensitivity']},{1.,1.5,2.})
+        self.assertEqual({by[n]['parameters']['requests'] for n in ('n50_d15','base','participation150')},{50,100,150})
         for s in report['scenarios']:
             self.assertLessEqual(s['metrics']['mean_delay_minutes']['mean'],s['parameters']['delay'])
             for key,m in s['metrics'].items():

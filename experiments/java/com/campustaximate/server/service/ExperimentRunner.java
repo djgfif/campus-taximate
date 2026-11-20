@@ -194,12 +194,13 @@ public final class ExperimentRunner {
     record FixedGroup(String cohort, int payer, long expected, List<Long> units) {}
     static final class BootstrapTotals {
         long groups, riders, nonpayers, conservation, harmed, additional, refunded, refundAmount, clipped, invalidGroups;
-        double saving;
+        double saving, billGap, absoluteBillGap, additionalAmount;
         void add(FixedGroup group, long actual, List<Long> soloActual, boolean equal) {
             List<Long> weights = equal ? Collections.nCopies(group.units().size(), 1L) : group.units();
             List<Long> predicted = SettlementCalculator.shares(group.expected(), weights, group.payer());
             List<Long> shares = SettlementCalculator.shares(actual, weights, group.payer());
             groups++;
+            billGap+=actual-group.expected(); absoluteBillGap+=Math.abs(actual-group.expected());
             if (shares.stream().mapToLong(Long::longValue).sum() != actual) conservation++;
             for (int i=0; i<shares.size(); i++) {
                 riders++;
@@ -209,19 +210,20 @@ public final class ExperimentRunner {
                 nonpayers++;
                 // Invoke the production prepayment rule, not a second implementation.
                 long prepay = PaymentService.prepayAmount(predicted.get(i));
-                if (shares.get(i)>prepay) additional++;
+                if (shares.get(i)>prepay) {additional++; additionalAmount+=shares.get(i)-prepay;}
                 if (shares.get(i)<prepay) { refunded++; refundAmount += prepay-shares.get(i); }
             }
         }
         void write(PrintWriter out, String scale, String method, int repetitions) {
-            out.printf(Locale.ROOT, "%s,%s,%d,%d,%d,%d,%d,%.12f,%.12f,%.12f,%.12f,%.6f,%d,%d%n", scale, method,
+            out.printf(Locale.ROOT, "%s,%s,%d,%d,%d,%d,%d,%.12f,%.12f,%.12f,%.12f,%.6f,%d,%d,%.6f,%.6f,%.6f%n", scale, method,
                 repetitions, groups, riders, nonpayers, conservation, saving/Math.max(1,riders),
                 harmed/(double)Math.max(1,riders), additional/(double)Math.max(1,nonpayers),
-                refunded/(double)Math.max(1,nonpayers), refundAmount/(double)Math.max(1,refunded), clipped, invalidGroups);
+                refunded/(double)Math.max(1,nonpayers), refundAmount/(double)Math.max(1,refunded), clipped, invalidGroups, billGap/Math.max(1,groups), absoluteBillGap/Math.max(1,groups), additionalAmount/Math.max(1,additional));
         }
     }
-    static long draw(long expected, double scale, double[] errors, Random rng, BootstrapTotals totals) {
-        double multiplier = 1+scale*errors[rng.nextInt(errors.length)];
+    static long draw(long expected, double scale, double center, double[] errors, Random rng, BootstrapTotals totals) {
+        double residual=errors[rng.nextInt(errors.length)];
+        double multiplier = 1+(scale==0?0:center+scale*(residual-center));
         if (multiplier<=0) { totals.clipped++; return 0; }
         long value = Math.max(1, Math.round(expected*multiplier));
         if (value>10_000_000) throw new IllegalArgumentException("Bootstrap fare exceeds production calculator limit; do not silently cap");
@@ -239,14 +241,15 @@ public final class ExperimentRunner {
         int repetitions=Integer.parseInt(args[4]); long seed=Long.parseLong(args[5]);
         if (repetitions<1000 || groups.isEmpty()) throw new IllegalArgumentException("Need >=1000 replicates and matched groups");
         try (PrintWriter out=new PrintWriter(Files.newBufferedWriter(Path.of(args[3])))) {
-            out.println("scale,method,replicates,group_settlements,riders,nonpayers,conservation_errors,mean_actual_saving,harmed_rate,additional_payment_rate,refund_rate,mean_refund_krw,nonpositive_multiplier_draws,invalid_scaled_groups");
+            out.println("scale,method,replicates,group_settlements,riders,nonpayers,conservation_errors,mean_actual_saving,harmed_rate,additional_payment_rate,refund_rate,mean_refund_krw,nonpositive_multiplier_draws,invalid_scaled_groups,mean_bill_gap_krw,mean_abs_bill_gap_krw,mean_additional_krw");
+            double center=Arrays.stream(errors).average().orElseThrow();
             for (double scale : new double[]{0,1,1.5,2}) {
                 // Same random draws for each scale and both settlements, for paired comparisons.
                 Random rng=new Random(seed); BootstrapTotals ratio=new BootstrapTotals(), equal=new BootstrapTotals();
                 for (int rep=0; rep<repetitions; rep++) for (FixedGroup group : groups) {
-                    long actual=draw(group.expected(),scale,errors,rng,ratio);
+                    long actual=draw(group.expected(),scale,center,errors,rng,ratio);
                     List<Long> solos=new ArrayList<>();
-                    for (long solo : group.units()) solos.add(draw(solo,scale,errors,rng,ratio));
+                    for (long solo : group.units()) solos.add(draw(solo,scale,center,errors,rng,ratio));
                     // Additive tail amplification can imply impossible nonpositive
                     // fares. Do not invent a 1-won actual fare. Report and exclude
                     // that group-replicate from this stress scenario's denominators.
