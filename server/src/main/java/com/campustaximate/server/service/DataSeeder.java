@@ -15,9 +15,10 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 
-/** 학교와 거점 초기 데이터. 좌표는 시연용 샘플이라 실제 거점 좌표로 바꿔야 한다. */
+/** 학교와 거점 초기 데이터는 설정(app.schools)에서 만든다. 시연 계정은 첫 학교의 메일 도메인으로 만든다. */
 @Component
 @RequiredArgsConstructor
+@lombok.extern.slf4j.Slf4j
 public class DataSeeder implements ApplicationRunner {
 
     public static final int DEMO_MEMBERS_PER_GENDER = 4;
@@ -41,15 +42,16 @@ public class DataSeeder implements ApplicationRunner {
             new Dropoff("주공아파트 앞 정류장", 37.8240, 127.1425),
             new Dropoff("역전 버스 정류장", 37.8150, 127.1390));
 
-    /** 시드가 만든 시연 계정인지 메일로 판단한다. 가입으로는 같은 메일을 만들 수 없다. */
+    /** 시드가 만든 시연 계정인지 메일로 판단한다. 시연 계정은 시연 프로필에서만 만들어진다. */
     public static boolean isSeededDemo(String email) {
-        return email.matches("demo-[fm][1-" + DEMO_MEMBERS_PER_GENDER + "]@daejin\\.ac\\.kr");
+        return email.matches("demo-[fm][1-" + DEMO_MEMBERS_PER_GENDER + "]@[^@]+");
     }
 
     private final SchoolRepository schools;
     private final HubRepository hubs;
     private final MemberRepository members;
     private final org.springframework.core.env.Environment environment;
+    private final com.campustaximate.server.common.SchoolSeedConfiguration seeds;
 
     @Value("${app.demo.enabled}")
     private boolean demo;
@@ -57,15 +59,28 @@ public class DataSeeder implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         demo = demo && environment.acceptsProfiles(org.springframework.core.env.Profiles.of("demo"));
-        if (schools.count() > 0) {
-            if(demo) seedDemo(schools.findAll().getFirst());
-            return;
+        if (schools.count() == 0) {
+            if (seeds.getSchools().isEmpty()) {
+                log.warn("app.schools 설정이 비어 있어 학교를 만들지 않았습니다. 학교가 없으면 아무도 가입할 수 없습니다.");
+                return;
+            }
+            for (var seed : seeds.getSchools()) {
+                School school = schools.save(new School(seed.getName(), seed.getEmailDomain().trim().toLowerCase(java.util.Locale.ROOT),
+                        seed.getGateName(), seed.getLat(), seed.getLon()));
+                hubs.save(new Hub(seed.getGateName(), seed.spot(), seed.getLat(), seed.getLon(), Set.of(school)));
+            }
         }
-        School school = schools.save(new School("대진대학교", "daejin.ac.kr", "학교 정문", 37.875, 127.155));
-        hubs.save(new Hub("학교 정문", "정문 앞 버스 정류장", 37.875, 127.155, Set.of(school)));
-        if (demo) {
-            seedDemo(school);
-        }
+        if (demo) seedDemo(demoSchool());
+    }
+
+    /** 시연 계정이 속한 학교. 가장 먼저 만든 학교다. */
+    private School demoSchool() {
+        return schools.findAll().stream().min(java.util.Comparator.comparing(School::getId)).orElseThrow();
+    }
+
+    /** 시연 계정 이름(demo-f1 등)의 메일 주소. */
+    public String demoEmail(String account) {
+        return account + "@" + demoSchool().getEmailDomain();
     }
 
     private void seedDemo(School school) {
@@ -77,14 +92,16 @@ public class DataSeeder implements ApplicationRunner {
     }
 
     private void seedAdmin(School school) {
-        Member admin=members.findByEmail("demo-admin@daejin.ac.kr").orElseGet(()->new Member(school,"demo-admin@daejin.ac.kr"));
+        String email = "demo-admin@" + school.getEmailDomain();
+        Member admin=members.findByEmail(email).orElseGet(()->new Member(school,email));
         admin.setNickname("시연 관리자");admin.setGender(Gender.FEMALE);admin.setAdmin(true);
         if(admin.getPasswordHash()==null) admin.setPasswordHash(PasswordHasher.hash(DEMO_PASSWORD));
         members.save(admin);
     }
 
     private void seedMember(School school, String id, String nickname, Gender gender, int index) {
-        var existing = members.findByEmail(id + "@daejin.ac.kr");
+        String email = id + "@" + school.getEmailDomain();
+        var existing = members.findByEmail(email);
         if (existing.isPresent()) {
             Member old = existing.get();
             if (old.getNickname() == null || OLD_NICKNAMES.contains(old.getNickname())) old.setNickname(nickname);
@@ -92,7 +109,7 @@ public class DataSeeder implements ApplicationRunner {
             members.save(old);
             return;
         }
-        Member member = new Member(school, id + "@daejin.ac.kr");
+        Member member = new Member(school, email);
         member.setNickname(nickname);
         member.setGender(gender);
         member.setDepartment(DEPARTMENTS.get(index));

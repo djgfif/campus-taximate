@@ -19,6 +19,14 @@ spring:
       ddl-auto: create-drop
 
 app:
+  # 시연 학교. 시연 계정(demo-f1 등)과 시연 지점은 이 학교 주변 기준이다.
+  schools:
+    - name: 대진대학교
+      email-domain: daejin.ac.kr
+      gate-name: 학교 정문
+      gate-spot: 정문 앞 버스 정류장
+      lat: 37.875
+      lon: 127.155
   payment:
     simulated: true
   cookie-secure: false

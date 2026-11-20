@@ -88,6 +88,7 @@ public class ApiController {
     private final MailService mail;
     private final MemberRepository members;
     private final HubRepository hubs;
+    private final com.campustaximate.server.repository.SchoolRepository schools;
     private final RideRequestRepository requests;
     private final RouteClient routes;
     private final AppClock clock;
@@ -192,7 +193,10 @@ public class ApiController {
 
     @GetMapping("/config")
     public Map<String, Object> config() {
-        return Map.of("demo", demo.enabled(), "simulatedRoute", routes.simulated(), "now", clock.now(),
+        // 로그인 화면이 학교 이름과 메일 예시를 보여 줄 수 있게 학교 목록을 함께 준다.
+        var schoolList = schools.findAll().stream().sorted(java.util.Comparator.comparing(School::getId))
+                .map(s -> Map.of("name", s.getName(), "emailDomain", s.getEmailDomain())).toList();
+        return Map.of("demo", demo.enabled(), "simulatedRoute", routes.simulated(), "now", clock.now(), "schools", schoolList,
                 "mailEnabled", mail.enabled(), "sampleDropoffs", DataSeeder.SAMPLE_DROPOFFS,"instantMatching",Map.of(
                     "matchMinutes",instantSettings.getInstantMatchMinutes(),"prepMinutes",instantSettings.getInstantPrepMinutes(),
                     "dispatchMinutes",instantSettings.getInstantDispatchMinutes(),"maxWalkSeconds",instantSettings.getInstantMaxWalkSeconds()));

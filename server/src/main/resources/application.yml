@@ -42,6 +42,17 @@ spring:
       mail.smtp.writetimeout: 5000
 
 app:
+  # 처음 띄울 때 만들 학교. 학교마다 학생 메일 도메인이 하나이고, 가입한 메일 도메인으로 학교가 정해진다.
+  # 여러 학교를 넣으면 한 서버에서 학교별로 따로 매칭한다. 이미 학교가 있는 데이터베이스에는 다시 만들지 않는다.
+  # 예)
+  # schools:
+  #   - name: 한빛대학교
+  #     email-domain: hanbit.ac.kr
+  #     gate-name: 정문
+  #     gate-spot: 정문 앞 버스 정류장
+  #     lat: 37.5
+  #     lon: 127.0
+  schools: []
   matching:
     join-payment-minutes: 5
     instant-match-minutes: 5

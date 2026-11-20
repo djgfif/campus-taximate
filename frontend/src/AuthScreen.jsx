@@ -13,7 +13,18 @@ function AuthHero({ title, lead }) {
 }
 
 /** 평소에는 메일과 비밀번호로 로그인한다. 가입과 비밀번호 재설정만 학교 메일 코드로 인증한다. */
+/** 학교가 하나면 그 학교 이름과 메일 예시를, 여럿이면 일반 문구를 쓴다. 학교 이름은 서버 설정에서 온다. */
+function schoolCopy(config) {
+  const schools = config?.schools || []
+  const only = schools.length === 1 ? schools[0] : null
+  return {
+    lead: only ? `${only.name} 메일로 로그인하세요.` : '학교 메일로 로그인하세요.',
+    placeholder: only ? `학번@${only.emailDomain}` : '학교 메일 주소',
+  }
+}
+
 export default function AuthScreen({ config, onLogin }) {
+  const copy = schoolCopy(config)
   const [step, setStep] = useState('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -56,7 +67,7 @@ export default function AuthScreen({ config, onLogin }) {
   const back = () => { setStep('signin'); setCode(''); setInfo('') }
   const emailField = (
     <label className="field">학교 메일
-      <input type="email" value={email} autoComplete="email" placeholder="학번@daejin.ac.kr"
+      <input type="email" value={email} autoComplete="email" placeholder={copy.placeholder}
         onChange={(e) => setEmail(e.target.value)} />
     </label>
   )
@@ -69,7 +80,7 @@ export default function AuthScreen({ config, onLogin }) {
           <Btn className="quiet" onClick={() => setStep('email')}>처음이거나 비밀번호를 잊었어요</Btn>
         </>
       )}>
-        <AuthHero title={<>같은 방향 학생과<br />택시비를 나눠요</>} lead="대진대 학교 메일로 로그인하세요." />
+        <AuthHero title={<>같은 방향 학생과<br />택시비를 나눠요</>} lead={copy.lead} />
         <div className="pad auth-form">
           {emailField}
           <label className="field">비밀번호

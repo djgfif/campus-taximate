@@ -19,6 +19,7 @@ public class DemoController {
     private final DemoService demo;
     private final DemoScenarioService scenarios;
     private final MemberRepository members;
+    private final com.campustaximate.server.service.DataSeeder seeder;
     private final LoginTokenService tokens;
     @Value("${app.cookie-secure}") private boolean secureCookie;
     public record MatchBody(DemoService.Role role) { }
@@ -34,7 +35,7 @@ public class DemoController {
     @PostMapping("/login")
     public void login(@Valid @RequestBody LoginBody body,HttpServletRequest request,HttpServletResponse response) {
         demo.requireEnabled();
-        var member=members.findByEmail(body.account()+"@daejin.ac.kr").orElseThrow(()->ApiException.notFound("시연 계정이 없습니다."));
+        var member=members.findByEmail(seeder.demoEmail(body.account())).orElseThrow(()->ApiException.notFound("시연 계정이 없습니다."));
         LoginTokenFilter.tokenOf(request).ifPresent(tokens::revoke);
         request.getSession(); request.changeSessionId();
         request.getSession().setAttribute(LoginTokenFilter.SESSION_KEY,member.getId());

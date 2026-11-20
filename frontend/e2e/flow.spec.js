@@ -10,7 +10,7 @@ const ACCOUNTS = { pc: ['demo-f3', 'demo-f4'], phone: ['demo-m3', 'demo-m4'] }
 
 async function login(page, id, { activeParty = false } = {}) {
   await page.goto('/')
-  await page.getByPlaceholder('학번@daejin.ac.kr').fill(`${id}@daejin.ac.kr`)
+  await page.getByLabel('학교 메일').fill(`${id}@daejin.ac.kr`)
   await page.getByLabel('비밀번호').fill('demo1234')
   await page.getByRole('button', { name: '로그인', exact: true }).click()
   if (activeParty) await expect(page.getByRole('tab', { name: '진행', exact: true })).toBeVisible({ timeout: 15000 })
