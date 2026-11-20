@@ -40,8 +40,10 @@ def main():
             bands.append(f"{lo}~{hi if hi < 10000 else ''}건 {int(sel.sum())}곳 {pct(float(np.median(mm[sel])))}")
     km = np.array([r['mean_solo_km'] for r in ok]); m35 = np.array([at(r, 35) for r in ok])
     L.append('- 학생 수준 수요 구간별 매칭률 중앙값: ' + ', '.join(bands) + '. 매칭을 가르는 첫째 요인은 학교의 학생 택시 수요다.')
-    L.append(f"- 같은 하루 35건이면 평균 혼자 이동 거리와 매칭률의 상관 {np.corrcoef(km, m35)[0, 1]:.2f}. 가까이 흩어지는 도심 캠퍼스(평균 6~8km)는 61~64%, "
-             '멀리 흩어지는 교외 캠퍼스(포천·화성·안성, 14~24km)는 35~47%다.')
+    near, far = km <= np.quantile(km, .25), km >= np.quantile(km, .75)
+    L.append(f"- 같은 하루 35건이면 평균 혼자 이동 거리(흐름 가중)와 매칭률의 상관 {np.corrcoef(km, m35)[0, 1]:.2f}. "
+             f"이동이 짧은 하위 1/4 캠퍼스({km[near].min():.0f}~{km[near].max():.0f}km)는 매칭률 {pct(float(m35[near].min()))}~{pct(float(m35[near].max()))}, "
+             f"긴 상위 1/4({km[far].min():.0f}~{km[far].max():.0f}km)는 {pct(float(m35[far].min()))}~{pct(float(m35[far].max()))}다.")
     if dj:
         L.append(f"- 대진대(캠퍼스 좌표에서 다시 계산): 35건 {pct(at(dj, 35))}, 70건 {pct(at(dj, 70))}, 학생 수준 {dj['observed_level']}건 {pct(obs(dj) and obs(dj)['match_rate'])}. "
                  f"평균 혼자 이동 {dj['mean_solo_km']:.1f}km.")
@@ -55,7 +57,7 @@ def main():
         L += ['', '## 계산하지 못한 곳', ''] + [f"- {r['campus']} {r['branch']}: {r['skipped']}" for r in skipped]
     L += ['', '## 한계', '',
           '- 출발 흐름은 캠퍼스가 있는 행정동(서울) 또는 시군구(경기·인천) 전체의 귀가 이동이라 학생 외 이동이 섞인다. 경기·인천은 시 전체라 더 거칠다.',
-          '- 목적지는 서울을 자치구로 묶어 TIMS 격자 승차 비율로 나눈다. 흐름의 약 70%를 덮는 상위 격자(최대 400곳)만 쓴다.',
+          '- 목적지는 서울을 자치구로 묶어 TIMS 격자 승차 비율로 나눈다. 시군구마다 대표 격자를 두고 최대 800격자로 줄이며, 고르지 않은 격자의 흐름은 같은 시군구의 가까운 격자로 옮긴다. 줄인 탓에 매칭이 조금 높게 나오는 정도는 [c13-representation-check.md](c13-representation-check.md)에서 잰다.',
           '- 경로 시간 보정은 포천 통학권 카카오 400건에서 구한 배수(1.567)를 모든 학교에 쓴다. 서울 혼잡은 다를 수 있다.',
           '- 10일 축소 실행이라 학교별 값의 오차가 C12(30일)보다 크다.',
           '- 학생 수준이 하루 10건 미만(또는 음수)인 곳은 10건으로 올려 계산했다.', '']

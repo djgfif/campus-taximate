@@ -54,6 +54,7 @@ def summarize(groups, days, reqs, policies=POLICIES):
             if not dd: continue
             saving = [1 - a / u for g in gg for a, u in zip(c11.split_numbers(g['expected']), c11.split_numbers(g['units']))]
             waits = [x for g in gg for x in c11.split_numbers(g['waits'])]
+            delays = [x for g in gg for x in c11.split_numbers(g['delays'])]
             shifts, beyond = [], 0
             for g in gg:
                 for i in (int(x) for x in g['ids'].split(';')):
@@ -67,7 +68,7 @@ def summarize(groups, days, reqs, policies=POLICIES):
             ms = statistics.mean(saving) if saving else 0
             res.setdefault(pol, {})[str(n)] = dict(
                 match_rate=matched / req, mean_saving_matched=ms, requester_saving=matched / req * ms,
-                mean_wait=statistics.mean(waits) if waits else None, mean_shift=statistics.mean(shifts) if shifts else None,
+                mean_wait=statistics.mean(waits) if waits else None, mean_delay=statistics.mean(delays) if delays else None, mean_shift=statistics.mean(shifts) if shifts else None,
                 beyond_window=beyond, daily=[int(d['matched']) / int(d['requests']) for d in dd])
     return res
 

@@ -15,6 +15,23 @@ class MetroUnitTests(unittest.TestCase):
         a, b, c = m.fit_tariff(pts, 'seoul')
         self.assertAlmostEqual(a, 3000, delta=1); self.assertAlmostEqual(b, 900, delta=1); self.assertAlmostEqual(c, 50, delta=1)
 
+    def test_representation_keeps_every_region_flow(self):
+        import math
+        from unittest import mock
+        pts = []
+        for r, (n, w) in enumerate([(30, .6), (5, .3), (3, .1)]):
+            for k in range(n):
+                pts.append(dict(id=len(pts) + 1, region_code=f'R{r}', trips=n - k, lat=37 + r * .2 + k * .001, lon=127, weight=w * (n - k) / sum(range(1, n + 1))))
+        fake = lambda client, src, dst: ([dict(km=5 + 10 * (p['lat'] - 37) * 10, seconds=600) for p in dst], None)
+        with mock.patch.object(m.om, 'table_rows', fake):
+            sel, cov = m.represent(pts, dict(lat=37, lon=127), None, {'x': 1}, {'R0': 6, 'R1': 3, 'R2': 1}, max_grids=6)
+        self.assertEqual(len(sel), 6)
+        self.assertEqual({p['region_code'] for p in sel}, {'R0', 'R1', 'R2'})  # 작은 먼 시군구도 대표 격자를 갖는다
+        share = {r: sum(p['probability'] for p in sel if p['region_code'] == r) for r in ('R0', 'R1', 'R2')}
+        for r, w in (('R0', .6), ('R1', .3), ('R2', .1)):
+            self.assertAlmostEqual(share[r], w)
+        self.assertAlmostEqual(cov['represented_flow_share'], 1)
+
     def test_campus_id_is_stable(self):
         self.assertEqual(m.campus_id(dict(name='대진대학교', branch='본교')), m.campus_id(dict(name='대진대학교', branch='본교')))
 

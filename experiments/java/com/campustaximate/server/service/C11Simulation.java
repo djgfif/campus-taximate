@@ -17,8 +17,9 @@ public final class C11Simulation {
     static double bias;
     /** C12: 지금 서비스 그대로(마감 확정 = 운영 기본 earlyConfirmMinutes, 확정 분담금 여유분). */
     static double currentMargin=.01;
-    static MatchingSettings settings(int early) {
-        var s=MatchingSettings.everyMinute();return new MatchingSettings(s.maxDelayMinutes(),s.minSavingRate(),s.maxCandidates(),
+    static MatchingSettings settings(int early) {var s=MatchingSettings.everyMinute();return settings(early,s.maxDelayMinutes(),s.minSavingRate());}
+    static MatchingSettings settings(int early,int delay,double saving) {
+        var s=MatchingSettings.everyMinute();return new MatchingSettings(delay,saving,s.maxCandidates(),
             s.maxGroupSize(),s.maxVerifications(),s.leadMinutes(),s.slotMinutes(),s.reservationSlotMinutes(),early,s.searchMillis(),
             s.instantMatchMinutes(),s.instantPrepMinutes(),s.instantDispatchMinutes());
     }
@@ -46,8 +47,9 @@ public final class C11Simulation {
     static long marked(long quote,double margin){return Math.max(1,Math.round(quote*(1+bias+margin)));}
     /** The rider's alternative is a solo taxi with the same expected meter bias, so solo quotes get (1+bias) but no margin. */
     static long markedSolo(long quote){return Math.max(1,Math.round(quote*(1+bias)));}
-    static boolean minSaving(List<Long> fixed,List<Long> solo) {
-        for(int i=0;i<fixed.size();i++)if(Math.multiplyExact(fixed.get(i),10)>Math.multiplyExact(solo.get(i),9))return false;
+    static boolean minSaving(List<Long> fixed,List<Long> solo){return minSaving(fixed,solo,10);}
+    static boolean minSaving(List<Long> fixed,List<Long> solo,int savingPercent) {
+        for(int i=0;i<fixed.size();i++)if(Math.multiplyExact(fixed.get(i),100)>Math.multiplyExact(solo.get(i),100-savingPercent))return false;
         return true;
     }
     /** First route call in each FROM_HUB verification is the shared route, even with duplicate endpoints. */
@@ -78,19 +80,24 @@ public final class C11Simulation {
         // FLEXnn: 같은 서비스에서 예약 요청의 출발 가능 폭만 20분 → nn분(편과 같은 '늦게 출발해도 됨'을 시간 고정 없이 쓰는 비교군)
         int slotMinutes=policy.startsWith("SLOT")?Integer.parseInt(policy.substring(4)):0;
         int flexMinutes=policy.startsWith("FLEX")?Integer.parseInt(policy.substring(4)):0;
+        // CFG-Dd-Ss-Ww: 같은 서비스에서 지연 한도 d분, 최소 절약 s%, 예약 출발 가능 범위 w분
+        int delay=MatchingSettings.everyMinute().maxDelayMinutes(),savingPercent=(int)Math.round(MatchingSettings.everyMinute().minSavingRate()*100);
+        if(policy.startsWith("CFG-")){var p=policy.split("-");delay=Integer.parseInt(p[1].substring(1));savingPercent=Integer.parseInt(p[2].substring(1));
+            flexMinutes=Integer.parseInt(p[3].substring(1));}
+        final int flex=flexMinutes,saving=savingPercent;
         boolean current=policy.equals("CURRENT")||slotMinutes>0||flexMinutes>0;
         boolean markup=policy.startsWith("MARKUP")||current;double margin=current?currentMargin:markup?Double.parseDouble(policy.substring(6)):0;
         int early=current?MatchingSettings.everyMinute().earlyConfirmMinutes():policy.startsWith("EARLY")?Integer.parseInt(policy.substring(5)):
             policy.equals("WAIT-TO-DEADLINE")||policy.equals("FORECAST-AWARE")?0:10;
-        var s=settings(early);var plan=TripPlan.of(Direction.FROM_HUB,s);
+        var s=settings(early,delay,saving/100.);var plan=TripPlan.of(Direction.FROM_HUB,s);
         var all=c.requests.stream().map(r->cfg.flags().get(r.id()).instant()?DetailedSimulation.request(c,r,cfg,s)
-            :slotMinutes>0?slotted(c,r,s,slotMinutes):flexMinutes>0?flexible(c,r,s,flexMinutes):DetailedSimulation.request(c,r,cfg,s)).toList();
+            :slotMinutes>0?slotted(c,r,s,slotMinutes):flex>0?flexible(c,r,s,flex):DetailedSimulation.request(c,r,cfg,s)).toList();
         var model=new ExperimentRunner.Model(c,matrix);var routes=new MarkedRoute(model,margin,markup);
         Map<Long,Long> fares=new HashMap<>();c.requests.forEach(r->fares.put(r.id(),r.fare()));
         Map<Long,Long> shown=new HashMap<>();fares.forEach((id,f)->shown.put(id,markup?markedSolo(f):f));
         Set<Long> finished=new HashSet<>();Map<RouteGroupVerifier.RejectionKey,Instant> rejected=new HashMap<>();
         LegProvider legs=(a,b)->Optional.of(model.between(a.own(),b.own()));int groups=0,matched=0,expired=0,rounds=0,warnings=0,parity=0;
-        int end=c.requests.stream().mapToInt(ExperimentRunner.Input::deadline).max().orElse(0)+1200+Math.max(slotMinutes,flexMinutes)*60;
+        int end=c.requests.stream().mapToInt(ExperimentRunner.Input::deadline).max().orElse(0)+1200+Math.max(slotMinutes,flex)*60;
         for(int second=0;second<=end && finished.size()<all.size();second+=60){
             Instant slot=BASE.plusSeconds(second);var waiting=all.stream().filter(r->!finished.contains(r.id())&&!r.requestedAt().isAfter(slot)).toList();
             if(waiting.isEmpty())continue;
@@ -104,7 +111,7 @@ public final class C11Simulation {
                     routes.begin();var vr=verifier.check(g);if(vr.verdict()!=Verdict.PASS)return vr;
                     var rt=verifier.routesOf(g.order());rawQuotes.put(g.order(),routes.raw);
                     if(markup){var units=rt.solo().stream().map(Route::fare).toList();var fixed=SettlementCalculator.shares(rt.total(),SettlementCalculator.ratioUnits(units),units.size()-1);
-                        if(!minSaving(fixed,units))return new Verification(Verdict.FAIL,null);}
+                        if(!minSaving(fixed,units,saving))return new Verification(Verdict.FAIL,null);}
                     return vr;
                 }
             };

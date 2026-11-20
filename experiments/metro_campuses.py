@@ -3,7 +3,8 @@
 학교마다 같은 방식으로:
 1. 출발지: 캠퍼스 좌표의 행정구역. 서울은 행정동(8자리), 경기·인천은 시군구(생활이동이 시군구 단위).
 2. 귀가 흐름: 생활이동 OA-22300 2026-10 평일 20일, 그 출발지의 귀가(목적 3) 목적지·출발 시각.
-3. 목적지: 목적지 시군구(서울은 자치구로 묶음) 흐름 × 그 안의 TIMS 2025 격자 승차 비율. 흐름 80%를 덮는 상위 격자, 최대 400곳.
+3. 목적지: 목적지 시군구(서울은 자치구로 묶음) 흐름 × 그 안의 TIMS 2025 격자 승차 비율. 시군구마다 대표 격자를 두고 최대 800곳,
+   고르지 않은 격자의 흐름은 같은 시군구의 가까운 격자로 옮겨 시군구별 흐름을 지킨다.
 4. 경로: 로컬 OSRM(캠퍼스 좌표 → 격자, 격자 ↔ 격자), 시간은 C7 카카오 보정 배수. 혼자 요금은 지역 요금표.
 5. 서비스: 현재 운영 코드(마감 확정 + 확정 분담금)를 C12와 같은 방식으로 10일씩.
 """
@@ -31,8 +32,7 @@ CACHE = HERE / '.cache' / 'c13' / 'metro'
 REPORTS = HERE / 'reports'
 DAYS = 10
 LEVELS = (35, 70, 140)
-MAX_GRIDS = 400
-COVERAGE = .8
+MAX_GRIDS = 800
 MAX_KM = 60
 SEED = c10.SEED
 
@@ -127,38 +127,51 @@ def destination_points(flows_by_code, hub, client, crosswalk, regions_cache={}):
         if geod.inv(hub['lon'], hub['lat'], p['lon'], p['lat'])[2] / 1000 > MAX_KM:
             continue
         points.append(dict(p, region_code=rc, solo_km=None, solo_seconds=None))
-    # 격자 승차 비율 기준으로 미리 상위 후보만 남겨 허브 경로 조회를 줄인다
-    totals = Counter()
+    # 격자 무게 = 시군구 귀가 흐름 비율 × 그 시군구 안 TIMS 승차 비율
+    flows_total = sum(merged.values()); totals = Counter()
     for p in points:
         totals[p['region_code']] += p['trips']
     for p in points:
-        p['pre'] = merged[p['region_code']] * p['trips'] / totals[p['region_code']]
-    points.sort(key=lambda p: -p['pre'])
-    total_pre = sum(p['pre'] for p in points); acc = 0; cand = []
+        p['weight'] = merged[p['region_code']] / flows_total * p['trips'] / totals[p['region_code']]
+    return represent(points, hub, client, flows, merged)
+
+
+def represent(points, hub, client, flows, merged, max_grids=None):
+    """격자를 MAX_GRIDS곳으로 줄이되 시군구별 흐름은 그대로 둔다.
+    1) 흐름이 있는 시군구마다 승차가 가장 많은 격자 하나, 2) 남은 자리는 무게 순, 3) 고르지 않은 격자의 무게는 같은 시군구의
+    가장 가까운 고른 격자로 옮긴다. 상위 격자만 남기고 다시 나누면 먼 시군구의 흐름이 빠져 이동이 짧게 잡힌다(11/20 이전 2층)."""
+    max_grids = max_grids or MAX_GRIDS
+    by_region = defaultdict(list)
     for p in points:
-        cand.append(p); acc += p['pre']
-        if acc >= .95 * total_pre or len(cand) >= 3 * MAX_GRIDS:
+        by_region[p['region_code']].append(p)
+    regions = sorted(by_region, key=lambda r: -sum(p['weight'] for p in by_region[r]))[:max_grids]
+    chosen = {max(by_region[r], key=lambda p: (p['trips'], -p['id']))['id'] for r in regions}
+    for p in sorted(points, key=lambda p: -p['weight']):
+        if len(chosen) >= max_grids:
             break
-    for i in range(0, len(cand), 50):
-        part = cand[i:i + 50]
+        if p['region_code'] in regions:
+            chosen.add(p['id'])
+    sel = [dict(p) for p in points if p['id'] in chosen]
+    for i in range(0, len(sel), 50):
+        part = sel[i:i + 50]
         rows, _ = om.table_rows(client, [dict(hub, id=0)], part)
         for p, r in zip(part, rows):
             p.update(solo_km=r['km'], solo_seconds=r['seconds'])
-    cand = [p for p in cand if p['solo_km'] is not None and 0.3 < p['solo_km'] <= MAX_KM]
-    # 원래 시군구 총 TIMS 승차로 나눠 표현 비율을 정직하게 남긴다
-    flows_total = sum(merged.values())
-    for p in cand:
-        p['weight'] = merged[p['region_code']] / flows_total * p['trips'] / totals[p['region_code']]
-    cand.sort(key=lambda p: -p['weight'])
-    total_w = sum(p['weight'] for p in cand); acc = 0; sel = []
-    for p in cand:
-        if acc >= COVERAGE * total_w or len(sel) >= MAX_GRIDS:
-            break
-        sel.append(p); acc += p['weight']
-    represented = acc
+    sel = [p for p in sel if p['solo_km'] is not None and 0.3 < p['solo_km'] <= MAX_KM]
+    kept = defaultdict(list)
+    for p in sel:
+        kept[p['region_code']].append(p)
+    for p in sel:
+        p['weight'] = 0.
+    for p in points:
+        near = kept.get(p['region_code'])
+        if near:
+            min(near, key=lambda q: (q['lat'] - p['lat']) ** 2 + ((q['lon'] - p['lon']) * math.cos(math.radians(p['lat']))) ** 2)['weight'] += p['weight']
+    represented = sum(p['weight'] for p in sel)
     for p in sel:
         p['probability'] = p['weight'] / represented
-    return sel, dict(represented_flow_share=represented, grids=len(sel), destination_regions=len(merged),
+    sel.sort(key=lambda p: -p['weight'])
+    return sel, dict(represented_flow_share=represented, grids=len(sel), destination_regions=len(merged), represented_regions=len(kept),
                      unresolved_flow_share=1 - sum(merged.values()) / sum(flows.values()) if flows else None)
 
 
@@ -274,7 +287,7 @@ def main():
         r = dict(campus=c['name'], branch=c['branch'], region=c['region'], enrolled=c['enrolled'], lon=c['lon'], lat=c['lat'],
                  origin=info, observed_level=observed, student_excess_per_day=c.get('student_excess_per_day'),
                  semester_taxi_per_day=c['semester_per_day'], coverage=data['coverage'],
-                 mean_solo_km=statistics.mean(p['solo_km'] for p in data['points']),
+                 mean_solo_km=sum(p['probability'] * p['solo_km'] for p in data['points']),
                  home_flow_per_day=sum(dest[info['origin']].values()) / len(agg['days']),
                  results=res, seconds=time.time() - t0)
         res_path.write_text(json.dumps(r, ensure_ascii=False), encoding='utf-8')
