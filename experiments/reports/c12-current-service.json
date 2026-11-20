@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-20T11:58:06.771074+00:00",
+  "generated_at": "2026-11-20T14:49:12.995183+00:00",
   "bias": 0.0657,
   "margin": 0.01,
   "levels": [
@@ -7,90 +7,90 @@
       "requests": 15,
       "matching": {
         "match_rate": {
-          "mean": 0.17333333333333334,
-          "ci95_low": 0.12444444444444444,
-          "ci95_high": 0.22666666666666668,
+          "mean": 0.09333333333333334,
+          "ci95_low": 0.057777777777777775,
+          "ci95_high": 0.13333333333333333,
           "valid_days": 30
         },
         "mean_wait": {
-          "mean": 12.366792929292929,
-          "ci95_low": 10.950850694444446,
-          "ci95_high": 13.68706123737374,
-          "valid_days": 22
+          "mean": 11.446111111111113,
+          "ci95_low": 9.826666666666668,
+          "ci95_high": 12.932229166666666,
+          "valid_days": 15
         },
         "mean_delay": {
-          "mean": 2.647885101010101,
-          "ci95_low": 2.117383996212121,
-          "ci95_high": 3.2638699494949495,
-          "valid_days": 22
+          "mean": 2.640277777777778,
+          "ci95_low": 2.0574861111111113,
+          "ci95_high": 3.2883402777777775,
+          "valid_days": 15
         },
         "mean_group_size": {
           "mean": 2.0,
-          "ci95_low": 1.9999999999999996,
+          "ci95_low": 1.9999999999999998,
           "ci95_high": 2.0,
-          "valid_days": 22
+          "valid_days": 15
         }
       },
-      "production_parity_groups": 39,
+      "production_parity_groups": 21,
       "budget_warnings": 0,
       "money": {
         "0.5": {
           "saving": {
-            "mean": 0.21426868794990375,
-            "ci95_low": 0.17686059471230264,
-            "ci95_high": 0.24872584211085152,
-            "valid_days": 22
+            "mean": 0.21621374471672514,
+            "ci95_low": 0.17942215174744466,
+            "ci95_high": 0.2519878238503315,
+            "valid_days": 15
           },
           "saving_krw": {
-            "mean": 6155.543560606061,
-            "ci95_low": 4572.818465909091,
-            "ci95_high": 7961.332481060606,
-            "valid_days": 22
+            "mean": 5941.883333333333,
+            "ci95_low": 4222.29375,
+            "ci95_high": 7846.952083333334,
+            "valid_days": 15
           },
           "harmed_vs_solo_meter": {
-            "mean": 0.045454545454545456,
+            "mean": 0.0,
             "ci95_low": 0.0,
-            "ci95_high": 0.13636363636363635,
-            "valid_days": 22
+            "ci95_high": 0.0,
+            "valid_days": 15
           },
           "harmed_vs_quote": {
             "mean": 0.0,
             "ci95_low": 0.0,
             "ci95_high": 0.0,
-            "valid_days": 22
+            "valid_days": 15
           },
           "extra": {
             "mean": 0.0,
             "ci95_low": 0.0,
             "ci95_high": 0.0,
-            "valid_days": 22
+            "valid_days": 15
           },
           "refund": {
             "mean": 0.0,
             "ci95_low": 0.0,
             "ci95_high": 0.0,
-            "valid_days": 22
+            "valid_days": 15
           },
           "conservation": {
             "mean": 0.0,
             "ci95_low": 0.0,
             "ci95_high": 0.0,
-            "valid_days": 22
+            "valid_days": 15
           },
           "exception_rate": {
             "mean": 0.0,
             "ci95_low": 0.0,
             "ci95_high": 0.0,
-            "valid_days": 22
+            "valid_days": 15
           },
           "reserve": {
-            "end_mean": 128257.668,
-            "end_p5": 84506.3,
-            "end_p1": 69629.59,
-            "probability_ever_negative": 0.4615,
-            "seed95": 4136,
-            "seed99": 6855,
-            "probability_never_negative_seed95": 0.95,
+            "end_mean": 58033.7075,
+            "end_p5": 29164.6,
+            "end_p1": 18905.03,
+            "probability_ever_negative": 0.5195,
+            "seed95": 5068,
+            "seed99": 7602,
+            "probability_never_negative_seed95": 0.9525,
             "probability_never_negative_seed99": 0.99
           },
           "extra_total": 0,
@@ -99,61 +99,61 @@
         },
         "1.0": {
           "saving": {
-            "mean": 0.20726374988750065,
-            "ci95_low": 0.1537517688787639,
-            "ci95_high": 0.2526162166912323,
-            "valid_days": 22
+            "mean": 0.20874742109997388,
+            "ci95_low": 0.16426199747882092,
+            "ci95_high": 0.2487794204322201,
+            "valid_days": 15
           },
           "saving_krw": {
-            "mean": 6385.606060606061,
-            "ci95_low": 4422.05146780303,
-            "ci95_high": 8621.320123106061,
-            "valid_days": 22
+            "mean": 6096.333333333333,
+            "ci95_low": 3939.9275000000002,
+            "ci95_high": 8538.735,
+            "valid_days": 15
           },
           "harmed_vs_solo_meter": {
-            "mean": 0.10227272727272728,
-            "ci95_low": 0.022727272727272728,
-            "ci95_high": 0.21590909090909088,
-            "valid_days": 22
+            "mean": 0.06666666666666667,
+            "ci95_low": 0.0,
+            "ci95_high": 0.16666666666666669,
+            "valid_days": 15
           },
           "harmed_vs_quote": {
             "mean": 0.0,
             "ci95_low": 0.0,
             "ci95_high": 0.0,
-            "valid_days": 22
+            "valid_days": 15
           },
           "extra": {
             "mean": 0.0,
             "ci95_low": 0.0,
             "ci95_high": 0.0,
-            "valid_days": 22
+            "valid_days": 15
           },
           "refund": {
             "mean": 0.0,
             "ci95_low": 0.0,
             "ci95_high": 0.0,
-            "valid_days": 22
+            "valid_days": 15
           },
           "conservation": {
             "mean": 0.0,
             "ci95_low": 0.0,
             "ci95_high": 0.0,
-            "valid_days": 22
+            "valid_days": 15
           },
           "exception_rate": {
             "mean": 0.0,
             "ci95_low": 0.0,
             "ci95_high": 0.0,
-            "valid_days": 22
+            "valid_days": 15
           },
           "reserve": {
-            "end_mean": 219302.863,
-            "end_p5": 134225.25,
-            "end_p1": 104107.21,
-            "probability_ever_negative": 0.5005,
-            "seed95": 11142,
-            "seed99": 17461,
-            "probability_never_negative_seed95": 0.95,
+            "end_mean": 95418.628,
+            "end_p5": 40018.35,
+            "end_p1": 20886.96,
+            "probability_ever_negative": 0.5665,
+            "seed95": 13429,
+            "seed99": 21001,
+            "probability_never_negative_seed95": 0.951,
             "probability_never_negative_seed99": 0.99
           },
           "extra_total": 0,
@@ -162,60 +162,60 @@
         },
         "1.5": {
           "saving": {
-            "mean": 0.19063320157969155,
-            "ci95_low": 0.11283493230021736,
-            "ci95_high": 0.2530635707809712,
-            "valid_days": 22
+            "mean": 0.19478377319197412,
+            "ci95_low": 0.136384573292208,
+            "ci95_high": 0.245925364036878,
+            "valid_days": 15
           },
           "saving_krw": {
-            "mean": 6615.515151515152,
-            "ci95_low": 4211.569696969697,
-            "ci95_high": 9358.794270833334,
-            "valid_days": 22
+            "mean": 6250.683333333333,
+            "ci95_low": 3523.404166666667,
+            "ci95_high": 9394.64625,
+            "valid_days": 15
           },
           "harmed_vs_solo_meter": {
-            "mean": 0.11931818181818182,
-            "ci95_low": 0.03409090909090909,
-            "ci95_high": 0.22727272727272727,
-            "valid_days": 22
+            "mean": 0.1,
+            "ci95_low": 0.016666666666666666,
+            "ci95_high": 0.2,
+            "valid_days": 15
           },
           "harmed_vs_quote": {
             "mean": 0.0,
             "ci95_low": 0.0,
             "ci95_high": 0.0,
-            "valid_days": 22
+            "valid_days": 15
           },
           "extra": {
             "mean": 0.0,
             "ci95_low": 0.0,
             "ci95_high": 0.0,
-            "valid_days": 22
+            "valid_days": 15
           },
           "refund": {
             "mean": 0.0,
             "ci95_low": 0.0,
             "ci95_high": 0.0,
-            "valid_days": 22
+            "valid_days": 15
           },
           "conservation": {
             "mean": 0.0,
             "ci95_low": 0.0,
             "ci95_high": 0.0,
-            "valid_days": 22
+            "valid_days": 15
           },
           "exception_rate": {
             "mean": 0.0,
             "ci95_low": 0.0,
             "ci95_high": 0.0,
-            "valid_days": 22
+            "valid_days": 15
           },
           "reserve": {
-            "end_mean": 310350.6485,
-            "end_p5": 183290.0,
-            "end_p1": 140597.75,
-            "probability_ever_negative": 0.5105,
-            "seed95": 18026,
-            "seed99": 29942,
+            "end_mean": 132806.278,
+            "end_p5": 50571.95,
+            "end_p1": 20961.0,
+            "probability_ever_negative": 0.5865,
+            "seed95": 21609,
+            "seed99": 35403,
             "probability_never_negative_seed95": 0.95,
             "probability_never_negative_seed99": 0.99
           },
@@ -225,60 +225,60 @@
         },
         "2.0": {
           "saving": {
-            "mean": 0.1599483553467082,
-            "ci95_low": 0.046974012326259126,
-            "ci95_high": 0.24795979486070635,
-            "valid_days": 22
+            "mean": 0.1723904336595147,
+            "ci95_low": 0.09285279186467829,
+            "ci95_high": 0.24131443399540647,
+            "valid_days": 15
           },
           "saving_krw": {
-            "mean": 6845.560606060607,
-            "ci95_low": 3954.5208333333335,
-            "ci95_high": 10164.57727272727,
-            "valid_days": 22
+            "mean": 6405.066666666667,
+            "ci95_low": 3043.217916666666,
+            "ci95_high": 10316.897499999997,
+            "valid_days": 15
           },
           "harmed_vs_solo_meter": {
-            "mean": 0.16477272727272727,
-            "ci95_low": 0.07386363636363638,
-            "ci95_high": 0.2727272727272727,
-            "valid_days": 22
+            "mean": 0.15,
+            "ci95_low": 0.05,
+            "ci95_high": 0.25,
+            "valid_days": 15
           },
           "harmed_vs_quote": {
             "mean": 0.0,
             "ci95_low": 0.0,
             "ci95_high": 0.0,
-            "valid_days": 22
+            "valid_days": 15
           },
           "extra": {
             "mean": 0.0,
             "ci95_low": 0.0,
             "ci95_high": 0.0,
-            "valid_days": 22
+            "valid_days": 15
           },
           "refund": {
             "mean": 0.0,
             "ci95_low": 0.0,
             "ci95_high": 0.0,
-            "valid_days": 22
+            "valid_days": 15
           },
           "conservation": {
             "mean": 0.0,
             "ci95_low": 0.0,
             "ci95_high": 0.0,
-            "valid_days": 22
+            "valid_days": 15
           },
           "exception_rate": {
             "mean": 0.0,
             "ci95_low": 0.0,
             "ci95_high": 0.0,
-            "valid_days": 22
+            "valid_days": 15
           },
           "reserve": {
-            "end_mean": 401398.4515,
-            "end_p5": 233486.65,
-            "end_p1": 177304.84,
-            "probability_ever_negative": 0.5235,
-            "seed95": 25165,
-            "seed99": 41166,
+            "end_mean": 170193.828,
+            "end_p5": 60329.75,
+            "end_p1": 20983.780000000002,
+            "probability_ever_negative": 0.5955,
+            "seed95": 30340,
+            "seed99": 50662,
             "probability_never_negative_seed95": 0.95,
             "probability_never_negative_seed99": 0.99
           },
@@ -292,50 +292,50 @@
       "requests": 35,
       "matching": {
         "match_rate": {
-          "mean": 0.3714285714285715,
-          "ci95_low": 0.3333333333333333,
-          "ci95_high": 0.4114285714285714,
+          "mean": 0.2342857142857143,
+          "ci95_low": 0.19619047619047617,
+          "ci95_high": 0.2723809523809524,
           "valid_days": 30
         },
         "mean_wait": {
-          "mean": 11.744857943391033,
-          "ci95_low": 11.27056374512493,
-          "ci95_high": 12.222063886336068,
+          "mean": 11.96323611111111,
+          "ci95_low": 11.355330585618086,
+          "ci95_high": 12.54311598274411,
           "valid_days": 30
         },
         "mean_delay": {
-          "mean": 2.804118644518155,
-          "ci95_low": 2.5365551548045726,
-          "ci95_high": 3.078796670333343,
+          "mean": 2.6370732623857625,
+          "ci95_low": 2.2536722282347283,
+          "ci95_high": 3.0321597485269356,
           "valid_days": 30
         },
         "mean_group_size": {
-          "mean": 2.1035185185185186,
-          "ci95_low": 2.069074074074074,
-          "ci95_high": 2.137777777777778,
+          "mean": 2.0422222222222226,
+          "ci95_low": 2.011111111111111,
+          "ci95_high": 2.08,
           "valid_days": 30
         }
       },
-      "production_parity_groups": 185,
+      "production_parity_groups": 120,
       "budget_warnings": 0,
       "money": {
         "0.5": {
           "saving": {
-            "mean": 0.23223819276692048,
-            "ci95_low": 0.21526359794514735,
-            "ci95_high": 0.24912150058569302,
+            "mean": 0.22418634983127075,
+            "ci95_low": 0.20160687017160306,
+            "ci95_high": 0.2479400855101288,
             "valid_days": 30
           },
           "saving_krw": {
-            "mean": 5481.4459866304705,
-            "ci95_low": 4908.860132763886,
-            "ci95_high": 6095.957204823499,
+            "mean": 5142.579612193364,
+            "ci95_low": 4346.0838586760465,
+            "ci95_high": 6043.422122474747,
             "valid_days": 30
           },
           "harmed_vs_solo_meter": {
-            "mean": 0.015635997988939165,
-            "ci95_low": 0.0,
-            "ci95_high": 0.039819004524886875,
+            "mean": 0.01121933621933622,
+            "ci95_low": 0.0023809523809523807,
+            "ci95_high": 0.022691197691197693,
             "valid_days": 30
           },
           "harmed_vs_quote": {
@@ -363,18 +363,18 @@
             "valid_days": 30
           },
           "exception_rate": {
-            "mean": 0.0,
+            "mean": 0.005555555555555555,
             "ci95_low": 0.0,
-            "ci95_high": 0.0,
+            "ci95_high": 0.016666666666666666,
             "valid_days": 30
           },
           "reserve": {
-            "end_mean": 244180.957,
-            "end_p5": 157488.25,
-            "end_p1": 128913.72,
-            "probability_ever_negative": 0.6685,
-            "seed95": 13042,
-            "seed99": 19944,
+            "end_mean": 134776.153,
+            "end_p5": 74220.55,
+            "end_p1": 56007.89,
+            "probability_ever_negative": 0.6625,
+            "seed95": 11308,
+            "seed99": 16808,
             "probability_never_negative_seed95": 0.95,
             "probability_never_negative_seed99": 0.99
           },
@@ -384,21 +384,21 @@
         },
         "1.0": {
           "saving": {
-            "mean": 0.21886750087474532,
-            "ci95_low": 0.19865275305233965,
-            "ci95_high": 0.23887119136661042,
+            "mean": 0.21024739664502254,
+            "ci95_low": 0.1841457636612616,
+            "ci95_high": 0.2369061176229196,
             "valid_days": 30
           },
           "saving_krw": {
-            "mean": 5415.373138737624,
-            "ci95_low": 4734.86411951046,
-            "ci95_high": 6146.131209050277,
+            "mean": 5104.235952380954,
+            "ci95_low": 4226.308186507937,
+            "ci95_high": 6063.617023448773,
             "valid_days": 30
           },
           "harmed_vs_solo_meter": {
-            "mean": 0.08839189405365876,
-            "ci95_low": 0.06221428462604934,
-            "ci95_high": 0.11688004764842998,
+            "mean": 0.09885281385281385,
+            "ci95_low": 0.06440800865800865,
+            "ci95_high": 0.1404112554112554,
             "valid_days": 30
           },
           "harmed_vs_quote": {
@@ -426,18 +426,18 @@
             "valid_days": 30
           },
           "exception_rate": {
-            "mean": 0.0,
+            "mean": 0.005555555555555555,
             "ci95_low": 0.0,
-            "ci95_high": 0.0,
+            "ci95_high": 0.016666666666666666,
             "valid_days": 30
           },
           "reserve": {
-            "end_mean": 319888.737,
-            "end_p5": 146991.5,
-            "end_p1": 90031.90000000001,
-            "probability_ever_negative": 0.7955,
-            "seed95": 43255,
-            "seed99": 62845,
+            "end_mean": 164942.508,
+            "end_p5": 48625.35,
+            "end_p1": 8921.960000000003,
+            "probability_ever_negative": 0.796,
+            "seed95": 38517,
+            "seed99": 60119,
             "probability_never_negative_seed95": 0.95,
             "probability_never_negative_seed99": 0.99
           },
@@ -447,21 +447,21 @@
         },
         "1.5": {
           "saving": {
-            "mean": 0.19614122988023755,
-            "ci95_low": 0.17143977631674875,
-            "ci95_high": 0.22067357404184884,
+            "mean": 0.18802439272548382,
+            "ci95_low": 0.15674439911132954,
+            "ci95_high": 0.2189998086997377,
             "valid_days": 30
           },
           "saving_krw": {
-            "mean": 5349.302846785568,
-            "ci95_low": 4524.12784523347,
-            "ci95_high": 6241.917329887499,
+            "mean": 5065.906253607504,
+            "ci95_low": 4071.221678661617,
+            "ci95_high": 6127.599520517677,
             "valid_days": 30
           },
           "harmed_vs_solo_meter": {
-            "mean": 0.16320436643966055,
-            "ci95_low": 0.12850080366256836,
-            "ci95_high": 0.20075636455048218,
+            "mean": 0.14895202020202017,
+            "ci95_low": 0.10246383477633478,
+            "ci95_high": 0.2001880862193362,
             "valid_days": 30
           },
           "harmed_vs_quote": {
@@ -489,18 +489,18 @@
             "valid_days": 30
           },
           "exception_rate": {
-            "mean": 0.018055555555555554,
-            "ci95_low": 0.0,
-            "ci95_high": 0.04027777777777777,
+            "mean": 0.03888888888888888,
+            "ci95_low": 0.005555555555555555,
+            "ci95_high": 0.08333333333333333,
             "valid_days": 30
           },
           "reserve": {
-            "end_mean": 501868.0815,
-            "end_p5": 254800.35,
-            "end_p1": 172646.90000000002,
-            "probability_ever_negative": 0.7745,
-            "seed95": 56448,
-            "seed99": 87270,
+            "end_mean": 288237.3295,
+            "end_p5": 131611.45,
+            "end_p1": 83803.93000000001,
+            "probability_ever_negative": 0.754,
+            "seed95": 38492,
+            "seed99": 56984,
             "probability_never_negative_seed95": 0.95,
             "probability_never_negative_seed99": 0.99
           },
@@ -510,21 +510,21 @@
         },
         "2.0": {
           "saving": {
-            "mean": 0.158830321678708,
-            "ci95_low": 0.12662542206877211,
-            "ci95_high": 0.19050489375693244,
+            "mean": 0.15341565211782968,
+            "ci95_low": 0.11519664512970025,
+            "ci95_high": 0.19112335484813117,
             "valid_days": 30
           },
           "saving_krw": {
-            "mean": 5283.211800228639,
-            "ci95_low": 4283.962882816326,
-            "ci95_high": 6351.676153257894,
+            "mean": 5027.556908369409,
+            "ci95_low": 3902.768610930736,
+            "ci95_high": 6191.481990800864,
             "valid_days": 30
           },
           "harmed_vs_solo_meter": {
-            "mean": 0.2072553971083383,
-            "ci95_low": 0.16775428255023841,
-            "ci95_high": 0.24516548831070892,
+            "mean": 0.20097402597402594,
+            "ci95_low": 0.15200829725829726,
+            "ci95_high": 0.2514614898989899,
             "valid_days": 30
           },
           "harmed_vs_quote": {
@@ -552,18 +552,18 @@
             "valid_days": 30
           },
           "exception_rate": {
-            "mean": 0.03194444444444444,
-            "ci95_low": 0.009722222222222222,
-            "ci95_high": 0.05833333333333333,
+            "mean": 0.04444444444444444,
+            "ci95_low": 0.008333333333333333,
+            "ci95_high": 0.09166666666666667,
             "valid_days": 30
           },
           "reserve": {
-            "end_mean": 731523.458,
-            "end_p5": 407472.95,
-            "end_p1": 288011.32,
-            "probability_ever_negative": 0.7555,
-            "seed95": 67235,
-            "seed99": 106317,
+            "end_mean": 376801.187,
+            "end_p5": 163648.2,
+            "end_p1": 102234.23000000001,
+            "probability_ever_negative": 0.7565,
+            "seed95": 57063,
+            "seed99": 82317,
             "probability_never_negative_seed95": 0.95,
             "probability_never_negative_seed99": 0.99
           },
@@ -577,50 +577,50 @@
       "requests": 70,
       "matching": {
         "match_rate": {
-          "mean": 0.49523809523809526,
-          "ci95_low": 0.4747619047619047,
-          "ci95_high": 0.5166666666666667,
+          "mean": 0.35714285714285715,
+          "ci95_low": 0.3338095238095238,
+          "ci95_high": 0.3819047619047619,
           "valid_days": 30
         },
         "mean_wait": {
-          "mean": 11.170739714995763,
-          "ci95_low": 10.876696589433182,
-          "ci95_high": 11.447358706260362,
+          "mean": 11.897336520382844,
+          "ci95_low": 11.557258433452851,
+          "ci95_high": 12.236755792834703,
           "valid_days": 30
         },
         "mean_delay": {
-          "mean": 3.1158598976468244,
-          "ci95_low": 2.917913166398673,
-          "ci95_high": 3.3066428502636893,
+          "mean": 2.6957545963080043,
+          "ci95_low": 2.4896615154072,
+          "ci95_high": 2.909730763392231,
           "valid_days": 30
         },
         "mean_group_size": {
-          "mean": 2.292166110033757,
-          "ci95_low": 2.2565035328233862,
-          "ci95_high": 2.329996989394048,
+          "mean": 2.175587884337885,
+          "ci95_low": 2.1352123304935806,
+          "ci95_high": 2.2158739316239315,
           "valid_days": 30
         }
       },
-      "production_parity_groups": 454,
+      "production_parity_groups": 346,
       "budget_warnings": 0,
       "money": {
         "0.5": {
           "saving": {
-            "mean": 0.27457370969826195,
-            "ci95_low": 0.2628414422968374,
-            "ci95_high": 0.28678736148415196,
+            "mean": 0.25343196430619735,
+            "ci95_low": 0.24316565304688073,
+            "ci95_high": 0.26396037104894216,
             "valid_days": 30
           },
           "saving_krw": {
-            "mean": 6520.446899240896,
-            "ci95_low": 6129.855070486449,
-            "ci95_high": 6901.531757056532,
+            "mean": 5902.297065271594,
+            "ci95_low": 5485.780631676873,
+            "ci95_high": 6342.615185223332,
             "valid_days": 30
           },
           "harmed_vs_solo_meter": {
-            "mean": 0.006472645002056766,
-            "ci95_low": 0.0018648018648018648,
-            "ci95_high": 0.011786013414689886,
+            "mean": 0.0055943421139499575,
+            "ci95_low": 0.00101010101010101,
+            "ci95_high": 0.011476695055126428,
             "valid_days": 30
           },
           "harmed_vs_quote": {
@@ -648,18 +648,18 @@
             "valid_days": 30
           },
           "exception_rate": {
-            "mean": 0.0,
+            "mean": 0.0030303030303030303,
             "ci95_low": 0.0,
-            "ci95_high": 0.0,
+            "ci95_high": 0.009090909090909092,
             "valid_days": 30
           },
           "reserve": {
-            "end_mean": 502588.937,
-            "end_p5": 372702.5,
-            "end_p1": 319177.87,
-            "probability_ever_negative": 0.901,
-            "seed95": 21541,
-            "seed99": 27642,
+            "end_mean": 224043.4475,
+            "end_p5": 82047.4,
+            "end_p1": 31313.910000000003,
+            "probability_ever_negative": 0.8585,
+            "seed95": 40051,
+            "seed99": 60569,
             "probability_never_negative_seed95": 0.95,
             "probability_never_negative_seed99": 0.99
           },
@@ -669,21 +669,21 @@
         },
         "1.0": {
           "saving": {
-            "mean": 0.26595665055887796,
-            "ci95_low": 0.25319085951901515,
-            "ci95_high": 0.2795322760252403,
+            "mean": 0.24581523762692511,
+            "ci95_low": 0.23485381508588288,
+            "ci95_high": 0.2569076245727738,
             "valid_days": 30
           },
           "saving_krw": {
-            "mean": 6492.1455468070635,
-            "ci95_low": 6075.580672278293,
-            "ci95_high": 6890.904793650077,
+            "mean": 5910.365990078618,
+            "ci95_low": 5467.1268013604795,
+            "ci95_high": 6365.1368257126105,
             "valid_days": 30
           },
           "harmed_vs_solo_meter": {
-            "mean": 0.042812333742687114,
-            "ci95_low": 0.031031167901204824,
-            "ci95_high": 0.05444336316373099,
+            "mean": 0.04681024989411499,
+            "ci95_low": 0.03577340555505995,
+            "ci95_high": 0.058339583902385764,
             "valid_days": 30
           },
           "harmed_vs_quote": {
@@ -711,18 +711,18 @@
             "valid_days": 30
           },
           "exception_rate": {
-            "mean": 0.002564102564102564,
+            "mean": 0.0030303030303030303,
             "ci95_low": 0.0,
-            "ci95_high": 0.007692307692307693,
+            "ci95_high": 0.009090909090909092,
             "valid_days": 30
           },
           "reserve": {
-            "end_mean": 623898.7255,
-            "end_p5": 390985.2,
-            "end_p1": 300290.98,
-            "probability_ever_negative": 0.9675,
-            "seed95": 38609,
-            "seed99": 54973,
+            "end_mean": 138904.2395,
+            "end_p5": -142697.05,
+            "end_p1": -245959.76,
+            "probability_ever_negative": 0.958,
+            "seed95": 219607,
+            "seed99": 304646,
             "probability_never_negative_seed95": 0.95,
             "probability_never_negative_seed99": 0.99
           },
@@ -732,21 +732,21 @@
         },
         "1.5": {
           "saving": {
-            "mean": 0.2501949268928829,
-            "ci95_low": 0.23543819454479892,
-            "ci95_high": 0.2661749684444795,
+            "mean": 0.2312355792508091,
+            "ci95_low": 0.21828456601218554,
+            "ci95_high": 0.24452319720291696,
             "valid_days": 30
           },
           "saving_krw": {
-            "mean": 6463.886577554668,
-            "ci95_low": 5990.613511183581,
-            "ci95_high": 6909.937921400636,
+            "mean": 5918.482429012006,
+            "ci95_low": 5409.496369039198,
+            "ci95_high": 6421.828011231391,
             "valid_days": 30
           },
           "harmed_vs_solo_meter": {
-            "mean": 0.10119566376995204,
-            "ci95_low": 0.08614206522072879,
-            "ci95_high": 0.11604130299274401,
+            "mean": 0.10765188334014024,
+            "ci95_low": 0.08796704447692216,
+            "ci95_high": 0.12666461190056094,
             "valid_days": 30
           },
           "harmed_vs_quote": {
@@ -774,18 +774,18 @@
             "valid_days": 30
           },
           "exception_rate": {
-            "mean": 0.0067471091000502765,
-            "ci95_low": 0.0,
-            "ci95_high": 0.01443941679235797,
+            "mean": 0.016465386465386467,
+            "ci95_low": 0.005128205128205128,
+            "ci95_high": 0.029203259703259696,
             "valid_days": 30
           },
           "reserve": {
-            "end_mean": 802670.709,
-            "end_p5": 470432.55,
-            "end_p1": 338503.63,
-            "probability_ever_negative": 0.977,
-            "seed95": 67125,
-            "seed99": 100357,
+            "end_mean": 341097.511,
+            "end_p5": -25903.6,
+            "end_p1": -158690.81999999998,
+            "probability_ever_negative": 0.9315,
+            "seed95": 185941,
+            "seed99": 269399,
             "probability_never_negative_seed95": 0.95,
             "probability_never_negative_seed99": 0.99
           },
@@ -795,21 +795,21 @@
         },
         "2.0": {
           "saving": {
-            "mean": 0.22345101465925232,
-            "ci95_low": 0.20495918067419613,
-            "ci95_high": 0.24332020074924782,
+            "mean": 0.2063047031610889,
+            "ci95_low": 0.18883663670681483,
+            "ci95_high": 0.22385550190385192,
             "valid_days": 30
           },
           "saving_krw": {
-            "mean": 6435.5716130456885,
-            "ci95_low": 5885.06411920573,
-            "ci95_high": 6959.258815724254,
+            "mean": 5926.546708140193,
+            "ci95_low": 5326.402243718192,
+            "ci95_high": 6499.890958224267,
             "valid_days": 30
           },
           "harmed_vs_solo_meter": {
-            "mean": 0.14969064459312148,
-            "ci95_low": 0.13116876850424936,
-            "ci95_high": 0.16747988387114643,
+            "mean": 0.15809364041449567,
+            "ci95_low": 0.13093433124950946,
+            "ci95_high": 0.18785910863955993,
             "valid_days": 30
           },
           "harmed_vs_quote": {
@@ -837,18 +837,18 @@
             "valid_days": 30
           },
           "exception_rate": {
-            "mean": 0.027750484809308338,
-            "ci95_low": 0.010929505135387487,
-            "ci95_high": 0.04825330388565682,
+            "mean": 0.03557507307507308,
+            "ci95_low": 0.01880657536907537,
+            "ci95_high": 0.05405457967957967,
             "valid_days": 30
           },
           "reserve": {
-            "end_mean": 1395542.0565,
-            "end_p5": 1004641.25,
-            "end_p1": 830857.1,
-            "probability_ever_negative": 0.971,
-            "seed95": 49568,
-            "seed99": 63465,
+            "end_mean": 635240.3665,
+            "end_p5": 169997.45,
+            "end_p1": -36575.44999999999,
+            "probability_ever_negative": 0.9025,
+            "seed95": 158176,
+            "seed99": 237853,
             "probability_never_negative_seed95": 0.95,
             "probability_never_negative_seed99": 0.99
           },
@@ -862,50 +862,50 @@
       "requests": 100,
       "matching": {
         "match_rate": {
-          "mean": 0.5963333333333333,
-          "ci95_low": 0.5736666666666667,
-          "ci95_high": 0.6186666666666668,
+          "mean": 0.44766666666666666,
+          "ci95_low": 0.4223333333333333,
+          "ci95_high": 0.473,
           "valid_days": 30
         },
         "mean_wait": {
-          "mean": 10.771909687808366,
-          "ci95_low": 10.546758519077414,
-          "ci95_high": 11.000591377222788,
+          "mean": 11.697866059943083,
+          "ci95_low": 11.452727567393815,
+          "ci95_high": 11.941022750200858,
           "valid_days": 30
         },
         "mean_delay": {
-          "mean": 3.296149800889242,
-          "ci95_low": 3.127852756967596,
-          "ci95_high": 3.458701525385147,
+          "mean": 2.825387892359146,
+          "ci95_low": 2.6671676780535467,
+          "ci95_high": 2.985091909581324,
           "valid_days": 30
         },
         "mean_group_size": {
-          "mean": 2.3412948124192097,
-          "ci95_low": 2.2972292265322674,
-          "ci95_high": 2.385520169902229,
+          "mean": 2.213691631001027,
+          "ci95_low": 2.178136863173719,
+          "ci95_high": 2.2496378494861187,
           "valid_days": 30
         }
       },
-      "production_parity_groups": 767,
+      "production_parity_groups": 607,
       "budget_warnings": 0,
       "money": {
         "0.5": {
           "saving": {
-            "mean": 0.2875501357175045,
-            "ci95_low": 0.2779389772575381,
-            "ci95_high": 0.2967869724991429,
+            "mean": 0.26537336558405705,
+            "ci95_low": 0.2562028424848449,
+            "ci95_high": 0.27472095718070655,
             "valid_days": 30
           },
           "saving_krw": {
-            "mean": 7222.623662812455,
-            "ci95_low": 6859.75437658101,
-            "ci95_high": 7607.652249167653,
+            "mean": 6482.004791796493,
+            "ci95_low": 6074.361801922953,
+            "ci95_high": 6907.904611486722,
             "valid_days": 30
           },
           "harmed_vs_solo_meter": {
-            "mean": 0.0072961757118582314,
-            "ci95_low": 0.0035472994257489854,
-            "ci95_high": 0.011475506946164659,
+            "mean": 0.008360710098342373,
+            "ci95_low": 0.004192221699571061,
+            "ci95_high": 0.012947154010338066,
             "valid_days": 30
           },
           "harmed_vs_quote": {
@@ -933,20 +933,20 @@
             "valid_days": 30
           },
           "exception_rate": {
-            "mean": 0.0,
+            "mean": 0.0015151515151515152,
             "ci95_low": 0.0,
-            "ci95_high": 0.0,
+            "ci95_high": 0.004545454545454546,
             "valid_days": 30
           },
           "reserve": {
-            "end_mean": 1018050.4075,
-            "end_p5": 829628.75,
-            "end_p1": 751296.44,
-            "probability_ever_negative": 0.879,
-            "seed95": 14218,
-            "seed99": 16643,
-            "probability_never_negative_seed95": 0.951,
-            "probability_never_negative_seed99": 0.991
+            "end_mean": 599305.5395,
+            "end_p5": 415551.35,
+            "end_p1": 335610.86,
+            "probability_ever_negative": 0.7625,
+            "seed95": 26374,
+            "seed99": 40707,
+            "probability_never_negative_seed95": 0.95,
+            "probability_never_negative_seed99": 0.99
           },
           "extra_total": 0,
           "refund_total": 0,
@@ -954,21 +954,21 @@
         },
         "1.0": {
           "saving": {
-            "mean": 0.2787257482165513,
-            "ci95_low": 0.26798151555842536,
-            "ci95_high": 0.2887867901952684,
+            "mean": 0.2561904251485799,
+            "ci95_low": 0.2461591953098591,
+            "ci95_high": 0.2665151438509356,
             "valid_days": 30
           },
           "saving_krw": {
-            "mean": 7171.62807528332,
-            "ci95_low": 6777.914021560459,
-            "ci95_high": 7579.73108138627,
+            "mean": 6453.810879406805,
+            "ci95_low": 6019.019081660414,
+            "ci95_high": 6910.195677822939,
             "valid_days": 30
           },
           "harmed_vs_solo_meter": {
-            "mean": 0.04743657582110937,
-            "ci95_low": 0.03837374595113499,
-            "ci95_high": 0.05739831380429107,
+            "mean": 0.04923035461153311,
+            "ci95_low": 0.04098047690486583,
+            "ci95_high": 0.05760864088205145,
             "valid_days": 30
           },
           "harmed_vs_quote": {
@@ -996,18 +996,18 @@
             "valid_days": 30
           },
           "exception_rate": {
-            "mean": 0.0054928096594763255,
-            "ci95_low": 0.0012345679012345679,
-            "ci95_high": 0.010985619318952651,
+            "mean": 0.003367003367003367,
+            "ci95_low": 0.0,
+            "ci95_high": 0.008585858585858586,
             "valid_days": 30
           },
           "reserve": {
-            "end_mean": 1469749.2375,
-            "end_p5": 1113767.3,
-            "end_p1": 972752.77,
-            "probability_ever_negative": 0.9655,
-            "seed95": 36189,
-            "seed99": 46928,
+            "end_mean": 677978.2435,
+            "end_p5": 329456.2,
+            "end_p1": 183708.5,
+            "probability_ever_negative": 0.847,
+            "seed95": 90619,
+            "seed99": 143762,
             "probability_never_negative_seed95": 0.95,
             "probability_never_negative_seed99": 0.99
           },
@@ -1017,21 +1017,21 @@
         },
         "1.5": {
           "saving": {
-            "mean": 0.26217679878524985,
-            "ci95_low": 0.24943007638261522,
-            "ci95_high": 0.27399965790194997,
+            "mean": 0.23909795154348024,
+            "ci95_low": 0.2269167891428944,
+            "ci95_high": 0.2514606601643984,
             "valid_days": 30
           },
           "saving_krw": {
-            "mean": 7120.652910911563,
-            "ci95_low": 6678.661999521808,
-            "ci95_high": 7573.831289975942,
+            "mean": 6425.646418284784,
+            "ci95_low": 5933.643169120791,
+            "ci95_high": 6925.663192388549,
             "valid_days": 30
           },
           "harmed_vs_solo_meter": {
-            "mean": 0.09576771227092842,
-            "ci95_low": 0.08417220976224231,
-            "ci95_high": 0.10847380638444311,
+            "mean": 0.1048574207234587,
+            "ci95_low": 0.09169145649448826,
+            "ci95_high": 0.11795789574164847,
             "valid_days": 30
           },
           "harmed_vs_quote": {
@@ -1059,18 +1059,18 @@
             "valid_days": 30
           },
           "exception_rate": {
-            "mean": 0.011647620798158433,
-            "ci95_low": 0.0050329046700014445,
-            "ci95_high": 0.019138800486649947,
+            "mean": 0.013816738816738816,
+            "ci95_low": 0.005218855218855218,
+            "ci95_high": 0.023593374218374215,
             "valid_days": 30
           },
           "reserve": {
-            "end_mean": 2088982.6315,
-            "end_p5": 1524760.45,
-            "end_p1": 1275967.45,
-            "probability_ever_negative": 0.9665,
-            "seed95": 61947,
-            "seed99": 83747,
+            "end_mean": 1082306.244,
+            "end_p5": 513667.45,
+            "end_p1": 282725.61000000004,
+            "probability_ever_negative": 0.841,
+            "seed95": 137274,
+            "seed99": 231483,
             "probability_never_negative_seed95": 0.95,
             "probability_never_negative_seed99": 0.99
           },
@@ -1080,21 +1080,21 @@
         },
         "2.0": {
           "saving": {
-            "mean": 0.2331589940337164,
-            "ci95_low": 0.2167915498140228,
-            "ci95_high": 0.24872679008316567,
+            "mean": 0.20908482507121706,
+            "ci95_low": 0.1928729931329886,
+            "ci95_high": 0.22563913499675714,
             "valid_days": 30
           },
           "saving_krw": {
-            "mean": 7069.6545284039075,
-            "ci95_low": 6567.270163025779,
-            "ci95_high": 7583.046838163735,
+            "mean": 6397.453075137732,
+            "ci95_low": 5846.386488926884,
+            "ci95_high": 6970.451376689061,
             "valid_days": 30
           },
           "harmed_vs_solo_meter": {
-            "mean": 0.14193323932502297,
-            "ci95_low": 0.1282298091441037,
-            "ci95_high": 0.15587951791967306,
+            "mean": 0.1571070507382652,
+            "ci95_low": 0.13605324682620082,
+            "ci95_high": 0.17849669411617086,
             "valid_days": 30
           },
           "harmed_vs_quote": {
@@ -1122,18 +1122,18 @@
             "valid_days": 30
           },
           "exception_rate": {
-            "mean": 0.028734821173827477,
-            "ci95_low": 0.016101366042360666,
-            "ci95_high": 0.04252330551371616,
+            "mean": 0.031386314930937353,
+            "ci95_low": 0.016003717297195557,
+            "ci95_high": 0.0486094190790987,
             "valid_days": 30
           },
           "reserve": {
-            "end_mean": 3205462.678,
-            "end_p5": 2431620.7,
-            "end_p1": 2107207.31,
-            "probability_ever_negative": 0.9635,
-            "seed95": 61976,
-            "seed99": 87445,
+            "end_mean": 1742454.4465,
+            "end_p5": 1065672.45,
+            "end_p1": 779629.62,
+            "probability_ever_negative": 0.7785,
+            "seed95": 122495,
+            "seed99": 180282,
             "probability_never_negative_seed95": 0.95,
             "probability_never_negative_seed99": 0.99
           },
@@ -1147,50 +1147,50 @@
       "requests": 200,
       "matching": {
         "match_rate": {
-          "mean": 0.7279999999999999,
-          "ci95_low": 0.7166666666666666,
-          "ci95_high": 0.7394999999999999,
+          "mean": 0.5998333333333333,
+          "ci95_low": 0.5848333333333333,
+          "ci95_high": 0.6146666666666667,
           "valid_days": 30
         },
         "mean_wait": {
-          "mean": 9.71265808207017,
-          "ci95_low": 9.517188527828019,
-          "ci95_high": 9.92020345569818,
+          "mean": 10.741878416343214,
+          "ci95_low": 10.581961045049024,
+          "ci95_high": 10.913757395251539,
           "valid_days": 30
         },
         "mean_delay": {
-          "mean": 3.65045652023614,
-          "ci95_low": 3.5396575227856193,
-          "ci95_high": 3.759672990988666,
+          "mean": 3.2038248137741854,
+          "ci95_low": 3.1188599672835142,
+          "ci95_high": 3.2878166020486166,
           "valid_days": 30
         },
         "mean_group_size": {
-          "mean": 2.5308251375235105,
-          "ci95_low": 2.4965596725268058,
-          "ci95_high": 2.5662117689304584,
+          "mean": 2.3576920203553184,
+          "ci95_low": 2.3297755870118615,
+          "ci95_high": 2.3857273751605668,
           "valid_days": 30
         }
       },
-      "production_parity_groups": 1728,
+      "production_parity_groups": 1528,
       "budget_warnings": 0,
       "money": {
         "0.5": {
           "saving": {
-            "mean": 0.3213747749796915,
-            "ci95_low": 0.31582634978710206,
-            "ci95_high": 0.32709840912435356,
+            "mean": 0.29333086712936896,
+            "ci95_low": 0.2853250248334665,
+            "ci95_high": 0.30109981943824626,
             "valid_days": 30
           },
           "saving_krw": {
-            "mean": 8260.458709478193,
-            "ci95_low": 7952.419030131809,
-            "ci95_high": 8606.953458119604,
+            "mean": 7445.747871137964,
+            "ci95_low": 7101.055329512224,
+            "ci95_high": 7849.186206010577,
             "valid_days": 30
           },
           "harmed_vs_solo_meter": {
-            "mean": 0.003932812381875136,
-            "ci95_low": 0.002557195546584838,
-            "ci95_high": 0.005301518642428334,
+            "mean": 0.004875262328896515,
+            "ci95_low": 0.002928815538328179,
+            "ci95_high": 0.007043613053784737,
             "valid_days": 30
           },
           "harmed_vs_quote": {
@@ -1224,14 +1224,14 @@
             "valid_days": 30
           },
           "reserve": {
-            "end_mean": 2737654.833,
-            "end_p5": 2471490.55,
-            "end_p1": 2367289.09,
-            "probability_ever_negative": 0.78,
-            "seed95": 13087,
-            "seed99": 19106,
-            "probability_never_negative_seed95": 0.97,
-            "probability_never_negative_seed99": 1.0
+            "end_mean": 1909666.6155,
+            "end_p5": 1606195.95,
+            "end_p1": 1489429.32,
+            "probability_ever_negative": 0.7965,
+            "seed95": 17906,
+            "seed99": 29404,
+            "probability_never_negative_seed95": 0.951,
+            "probability_never_negative_seed99": 0.99
           },
           "extra_total": 0,
           "refund_total": 0,
@@ -1239,21 +1239,21 @@
         },
         "1.0": {
           "saving": {
-            "mean": 0.31355369955098733,
-            "ci95_low": 0.30693267380536693,
-            "ci95_high": 0.32033843813478174,
+            "mean": 0.28391391068837735,
+            "ci95_low": 0.2749993481764889,
+            "ci95_high": 0.2926525137991962,
             "valid_days": 30
           },
           "saving_krw": {
-            "mean": 8377.292917320307,
-            "ci95_low": 7957.326154509365,
-            "ci95_high": 8924.316026306766,
+            "mean": 7553.533788718249,
+            "ci95_low": 7074.106153022576,
+            "ci95_high": 8181.286915364226,
             "valid_days": 30
           },
           "harmed_vs_solo_meter": {
-            "mean": 0.031519878965062746,
-            "ci95_low": 0.02575426930721912,
-            "ci95_high": 0.03743121466611701,
+            "mean": 0.04659788936965554,
+            "ci95_low": 0.03918293134566167,
+            "ci95_high": 0.05435082283635256,
             "valid_days": 30
           },
           "harmed_vs_quote": {
@@ -1281,20 +1281,20 @@
             "valid_days": 30
           },
           "exception_rate": {
-            "mean": 0.0,
-            "ci95_low": 0.0,
-            "ci95_high": 0.0,
+            "mean": 0.00270690094219506,
+            "ci95_low": 0.0006060606060606061,
+            "ci95_high": 0.005461336049571343,
             "valid_days": 30
           },
           "reserve": {
-            "end_mean": 3713150.859,
-            "end_p5": 3182617.35,
-            "end_p1": 2976584.64,
-            "probability_ever_negative": 0.7805,
-            "seed95": 33317,
-            "seed99": 52364,
-            "probability_never_negative_seed95": 0.9565,
-            "probability_never_negative_seed99": 0.9965
+            "end_mean": 2506674.684,
+            "end_p5": 1895673.0,
+            "end_p1": 1656344.51,
+            "probability_ever_negative": 0.859,
+            "seed95": 65054,
+            "seed99": 101653,
+            "probability_never_negative_seed95": 0.951,
+            "probability_never_negative_seed99": 0.9905
           },
           "extra_total": 0,
           "refund_total": 0,
@@ -1302,21 +1302,21 @@
         },
         "1.5": {
           "saving": {
-            "mean": 0.298224817550101,
-            "ci95_low": 0.2900807111280165,
-            "ci95_high": 0.3065336564152639,
+            "mean": 0.2662373267999813,
+            "ci95_low": 0.25570327434355533,
+            "ci95_high": 0.27661447227522307,
             "valid_days": 30
           },
           "saving_krw": {
-            "mean": 8494.136446093316,
-            "ci95_low": 7951.811703977593,
-            "ci95_high": 9257.403023124345,
+            "mean": 7661.335628228062,
+            "ci95_low": 7040.3306393848325,
+            "ci95_high": 8537.012139773924,
             "valid_days": 30
           },
           "harmed_vs_solo_meter": {
-            "mean": 0.07390954982894617,
-            "ci95_low": 0.0660434332250753,
-            "ci95_high": 0.08178431288542609,
+            "mean": 0.09500613794578659,
+            "ci95_low": 0.0837232372078152,
+            "ci95_high": 0.10661771871029807,
             "valid_days": 30
           },
           "harmed_vs_quote": {
@@ -1344,20 +1344,20 @@
             "valid_days": 30
           },
           "exception_rate": {
-            "mean": 0.016909414819395,
-            "ci95_low": 0.01156485463325437,
-            "ci95_high": 0.02264278450229777,
+            "mean": 0.018348025534527874,
+            "ci95_low": 0.011198609419580455,
+            "ci95_high": 0.02601022916344586,
             "valid_days": 30
           },
           "reserve": {
-            "end_mean": 6096309.01,
-            "end_p5": 5308950.2,
-            "end_p1": 5000842.48,
-            "probability_ever_negative": 0.7775,
-            "seed95": 53546,
-            "seed99": 61676,
-            "probability_never_negative_seed95": 0.9645,
-            "probability_never_negative_seed99": 0.9945
+            "end_mean": 4102807.957,
+            "end_p5": 3288353.3,
+            "end_p1": 2929150.94,
+            "probability_ever_negative": 0.909,
+            "seed95": 61393,
+            "seed99": 90581,
+            "probability_never_negative_seed95": 0.95,
+            "probability_never_negative_seed99": 0.99
           },
           "extra_total": 0,
           "refund_total": 0,
@@ -1365,21 +1365,21 @@
         },
         "2.0": {
           "saving": {
-            "mean": -1.2913650102097576,
-            "ci95_low": -4.41714037858365,
-            "ci95_high": 0.27803613232151336,
+            "mean": -1.8641547728697099,
+            "ci95_low": -6.063342684876382,
+            "ci95_high": 0.24473523956405216,
             "valid_days": 30
           },
           "saving_krw": {
-            "mean": 8611.20235040822,
-            "ci95_low": 7940.340277220995,
-            "ci95_high": 9592.887274553314,
+            "mean": 7769.408172237742,
+            "ci95_low": 6995.642034080325,
+            "ci95_high": 8892.652680313833,
             "valid_days": 30
           },
           "harmed_vs_solo_meter": {
-            "mean": 0.11929030063828841,
-            "ci95_low": 0.10839257127743214,
-            "ci95_high": 0.1302602820936863,
+            "mean": 0.14570331160125993,
+            "ci95_low": 0.13218610300457176,
+            "ci95_high": 0.1598387584346313,
             "valid_days": 30
           },
           "harmed_vs_quote": {
@@ -1407,20 +1407,20 @@
             "valid_days": 30
           },
           "exception_rate": {
-            "mean": 0.03338118549412494,
-            "ci95_low": 0.025811620829146932,
-            "ci95_high": 0.0406044798995893,
+            "mean": 0.034167001698772105,
+            "ci95_low": 0.024250506289438475,
+            "ci95_high": 0.044517776619606396,
             "valid_days": 30
           },
           "reserve": {
-            "end_mean": 8996732.191,
-            "end_p5": 7865957.85,
-            "end_p1": 7528043.25,
-            "probability_ever_negative": 0.7055,
-            "seed95": 66068,
-            "seed99": 73774,
-            "probability_never_negative_seed95": 0.9545,
-            "probability_never_negative_seed99": 0.9935
+            "end_mean": 5982118.1215,
+            "end_p5": 4961106.3,
+            "end_p1": 4485278.73,
+            "probability_ever_negative": 0.8715,
+            "seed95": 70224,
+            "seed99": 76290,
+            "probability_never_negative_seed95": 0.9505,
+            "probability_never_negative_seed99": 0.99
           },
           "extra_total": 0,
           "refund_total": 0,
@@ -1432,50 +1432,50 @@
       "requests": 400,
       "matching": {
         "match_rate": {
-          "mean": 0.83025,
-          "ci95_low": 0.8245000000000001,
-          "ci95_high": 0.8358333333333333,
+          "mean": 0.7288333333333331,
+          "ci95_low": 0.7215,
+          "ci95_high": 0.7361666666666665,
           "valid_days": 30
         },
         "mean_wait": {
-          "mean": 8.20663239334085,
-          "ci95_low": 8.093268427940915,
-          "ci95_high": 8.321398034030455,
+          "mean": 9.552035191251543,
+          "ci95_low": 9.431949514394317,
+          "ci95_high": 9.664584952809461,
           "valid_days": 30
         },
         "mean_delay": {
-          "mean": 3.94881551469838,
-          "ci95_low": 3.8744012212115977,
-          "ci95_high": 4.0272715993167925,
+          "mean": 3.5977330451637552,
+          "ci95_low": 3.531470271726821,
+          "ci95_high": 3.6649471265239426,
           "valid_days": 30
         },
         "mean_group_size": {
-          "mean": 2.7142293151313948,
-          "ci95_low": 2.6923137935316372,
-          "ci95_high": 2.7368833123158396,
+          "mean": 2.5049354314536227,
+          "ci95_low": 2.4832804173618137,
+          "ci95_high": 2.526987969169541,
           "valid_days": 30
         }
       },
-      "production_parity_groups": 3673,
+      "production_parity_groups": 3494,
       "budget_warnings": 0,
       "money": {
         "0.5": {
           "saving": {
-            "mean": 0.3540947199144993,
-            "ci95_low": 0.34968455380886787,
-            "ci95_high": 0.3585060576033887,
+            "mean": 0.32079932087209045,
+            "ci95_low": 0.3152981591408731,
+            "ci95_high": 0.3262726507124957,
             "valid_days": 30
           },
           "saving_krw": {
-            "mean": 9140.437234062325,
-            "ci95_low": 8968.348897665213,
-            "ci95_high": 9306.461059620127,
+            "mean": 8163.502806988562,
+            "ci95_low": 7969.596110902171,
+            "ci95_high": 8356.62372336966,
             "valid_days": 30
           },
           "harmed_vs_solo_meter": {
-            "mean": 0.002811262140330004,
-            "ci95_low": 0.0016986249957360589,
-            "ci95_high": 0.00403783476762907,
+            "mean": 0.004454715854697435,
+            "ci95_low": 0.0028839225119428927,
+            "ci95_high": 0.006253718754255529,
             "valid_days": 30
           },
           "harmed_vs_quote": {
@@ -1503,20 +1503,20 @@
             "valid_days": 30
           },
           "exception_rate": {
-            "mean": 0.00026041666666666666,
+            "mean": 0.0,
             "ci95_low": 0.0,
-            "ci95_high": 0.00078125,
+            "ci95_high": 0.0,
             "valid_days": 30
           },
           "reserve": {
-            "end_mean": 4198743.6865,
-            "end_p5": 3735087.45,
-            "end_p1": 3556269.97,
-            "probability_ever_negative": 0.796,
-            "seed95": 20860,
-            "seed99": 24200,
-            "probability_never_negative_seed95": 0.9605,
-            "probability_never_negative_seed99": 0.9955
+            "end_mean": 4195228.2295,
+            "end_p5": 3781160.75,
+            "end_p1": 3634363.66,
+            "probability_ever_negative": 0.8265,
+            "seed95": 22916,
+            "seed99": 45323,
+            "probability_never_negative_seed95": 0.963,
+            "probability_never_negative_seed99": 0.994
           },
           "extra_total": 0,
           "refund_total": 0,
@@ -1524,21 +1524,21 @@
         },
         "1.0": {
           "saving": {
-            "mean": 0.3465620570377187,
-            "ci95_low": 0.3418642362237525,
-            "ci95_high": 0.35129077889988947,
+            "mean": 0.31281211562497996,
+            "ci95_low": 0.3067847196878621,
+            "ci95_high": 0.3188769144226276,
             "valid_days": 30
           },
           "saving_krw": {
-            "mean": 9200.536620640147,
-            "ci95_low": 8989.444323649826,
-            "ci95_high": 9442.864206929511,
+            "mean": 8220.775855530506,
+            "ci95_low": 7982.164570376683,
+            "ci95_high": 8486.418106364796,
             "valid_days": 30
           },
           "harmed_vs_solo_meter": {
-            "mean": 0.02877377975820926,
-            "ci95_low": 0.02512690516204053,
-            "ci95_high": 0.03238835224240909,
+            "mean": 0.03557587132671898,
+            "ci95_low": 0.030933487727974576,
+            "ci95_high": 0.04013084995962599,
             "valid_days": 30
           },
           "harmed_vs_quote": {
@@ -1566,20 +1566,20 @@
             "valid_days": 30
           },
           "exception_rate": {
-            "mean": 0.0033135550020169852,
-            "ci95_low": 0.0014073180500727128,
-            "ci95_high": 0.005463129802477417,
+            "mean": 0.001483014969857075,
+            "ci95_low": 0.0002976190476190476,
+            "ci95_high": 0.0032374009347693553,
             "valid_days": 30
           },
           "reserve": {
-            "end_mean": 5085213.3815,
-            "end_p5": 4180587.45,
-            "end_p1": 3811954.25,
-            "probability_ever_negative": 0.833,
-            "seed95": 70096,
-            "seed99": 114059,
-            "probability_never_negative_seed95": 0.95,
-            "probability_never_negative_seed99": 0.991
+            "end_mean": 5125363.93,
+            "end_p5": 4309093.8,
+            "end_p1": 4018532.61,
+            "probability_ever_negative": 0.9155,
+            "seed95": 94564,
+            "seed99": 134042,
+            "probability_never_negative_seed95": 0.9505,
+            "probability_never_negative_seed99": 0.99
           },
           "extra_total": 0,
           "refund_total": 0,
@@ -1587,21 +1587,21 @@
         },
         "1.5": {
           "saving": {
-            "mean": 0.332272026975171,
-            "ci95_low": 0.3268842335536172,
-            "ci95_high": 0.33774426106599814,
+            "mean": 0.2976731144927412,
+            "ci95_low": 0.2905404399615978,
+            "ci95_high": 0.3047019170807026,
             "valid_days": 30
           },
           "saving_krw": {
-            "mean": 9260.634607777723,
-            "ci95_low": 8995.192113511854,
-            "ci95_high": 9598.94174547656,
+            "mean": 8278.052177526735,
+            "ci95_low": 7978.363388842821,
+            "ci95_high": 8650.928399735005,
             "valid_days": 30
           },
           "harmed_vs_solo_meter": {
-            "mean": 0.06379919409078712,
-            "ci95_low": 0.05873529716213335,
-            "ci95_high": 0.06854353311964029,
+            "mean": 0.07694163367907186,
+            "ci95_low": 0.07009011260510363,
+            "ci95_high": 0.08353933821254328,
             "valid_days": 30
           },
           "harmed_vs_quote": {
@@ -1629,20 +1629,20 @@
             "valid_days": 30
           },
           "exception_rate": {
-            "mean": 0.016437113669274264,
-            "ci95_low": 0.012683189311930953,
-            "ci95_high": 0.020414169637750015,
+            "mean": 0.013008391268817946,
+            "ci95_low": 0.008756944704393844,
+            "ci95_high": 0.017356988619355425,
             "valid_days": 30
           },
           "reserve": {
-            "end_mean": 8311265.8125,
-            "end_p5": 6997104.6,
-            "end_p1": 6469977.43,
-            "probability_ever_negative": 0.8305,
-            "seed95": 86347,
-            "seed99": 112579,
-            "probability_never_negative_seed95": 0.967,
-            "probability_never_negative_seed99": 0.9905
+            "end_mean": 7952042.336,
+            "end_p5": 6707816.35,
+            "end_p1": 6242874.08,
+            "probability_ever_negative": 0.9015,
+            "seed95": 133166,
+            "seed99": 190846,
+            "probability_never_negative_seed95": 0.951,
+            "probability_never_negative_seed99": 0.99
           },
           "extra_total": 0,
           "refund_total": 0,
@@ -1650,21 +1650,21 @@
         },
         "2.0": {
           "saving": {
-            "mean": -0.23876376230247676,
-            "ci95_low": -1.3331117188205668,
-            "ci95_high": 0.3121933487456484,
+            "mean": -0.5703999606966348,
+            "ci95_low": -2.256951580693626,
+            "ci95_high": 0.27798122238064155,
             "valid_days": 30
           },
           "saving_krw": {
-            "mean": 9320.849948576444,
-            "ci95_low": 8991.934371283762,
-            "ci95_high": 9766.346730763486,
+            "mean": 8335.464690351264,
+            "ci95_low": 7971.022209621196,
+            "ci95_high": 8826.479252653058,
             "valid_days": 30
           },
           "harmed_vs_solo_meter": {
-            "mean": 0.10764391569229463,
-            "ci95_low": 0.10269075319424052,
-            "ci95_high": 0.11280894939724773,
+            "mean": 0.12230339925013205,
+            "ci95_low": 0.11442187790494124,
+            "ci95_high": 0.13012053272576327,
             "valid_days": 30
           },
           "harmed_vs_quote": {
@@ -1692,20 +1692,20 @@
             "valid_days": 30
           },
           "exception_rate": {
-            "mean": 0.033888726056735076,
-            "ci95_low": 0.028220591734518314,
-            "ci95_high": 0.03952080656514592,
+            "mean": 0.030234647389834158,
+            "ci95_low": 0.025863116816143814,
+            "ci95_high": 0.0348103696418556,
             "valid_days": 30
           },
           "reserve": {
-            "end_mean": 13083304.72,
-            "end_p5": 11433233.15,
-            "end_p1": 10847878.57,
-            "probability_ever_negative": 0.7985,
-            "seed95": 72558,
-            "seed99": 82056,
-            "probability_never_negative_seed95": 0.986,
-            "probability_never_negative_seed99": 0.9905
+            "end_mean": 12508276.3675,
+            "end_p5": 11066756.7,
+            "end_p1": 10578079.76,
+            "probability_ever_negative": 0.866,
+            "seed95": 155529,
+            "seed99": 209991,
+            "probability_never_negative_seed95": 0.9605,
+            "probability_never_negative_seed99": 0.995
           },
           "extra_total": 0,
           "refund_total": 0,
@@ -1748,18 +1748,18 @@
     "meaning": "TIMS 2025 영업건수(승차 기준)의 정문 반경 약 1.5km 격자 9칸 합. 학생만이 아닌 모든 택시 이용이며, 앱 요청 수로 바꾸는 비율은 가정하지 않는다."
   },
   "provenance": {
-    "git_head": "c2c4a0a9dca2b76f73d9579734e2fc5dacf2a748",
+    "git_head": "a1c8fb07b1356be5c24f1d638988170474523734",
     "production_dirty": false
   },
   "attribution": "출처: 서울특별시·KT, 서울시 통신데이터(생활이동), 한국교통안전공단 택시운행정보(TIMS) 2025, OpenStreetMap 기여자",
   "artifacts": {
     "experiments/.cache/c12/case-meta.json": "804b4eb2efc131974bcdba38bc187ebf8c839deac161109e2ee5089a6a60fcf0",
-    "experiments/.cache/c12/cases.tsv": "18732742025782da610b4999b1acde5b8292497a137deca9ebf202a2ba9b08f2",
-    "experiments/.cache/c12/days.csv": "797e6570d3c0e3a5acada62acb09e267224338dcd0065a93e97fa0cf3368194a",
-    "experiments/.cache/c12/finance-input.tsv": "b83dd3fc5ed6f29d9ffcb4176206abda5a4aee0bafba622ee78926771bd8f26a",
-    "experiments/.cache/c12/fixed.csv": "17d64c830006523259bbf0b3c40e5ca7a1bc04270e2fcf3ea8f8fea9d7d8a35a",
-    "experiments/.cache/c12/groups.tsv": "e5c4eabb8880c606ca619f36a3738385bf7c14026a6dba9a974907767665e06b",
-    "experiments/.cache/c12/provenance.json": "08fac408f6662b2e2d486eaf679b6518a4838071dda6c4e3aa7437aad4cc92f9",
+    "experiments/.cache/c12/cases.tsv": "d7bde7a69f1987906988d4b1fc16dfac1940808da1d0ec2c7c06696c122dcdb5",
+    "experiments/.cache/c12/days.csv": "35551734d66a7c3ff3e21becf52c06f6b54f4c5dbab83bfc1cf50496b293322e",
+    "experiments/.cache/c12/finance-input.tsv": "d5f23132d14fec6185fe4c5659f8dec0bbfaa01ac0dc78814bd68f5a12934709",
+    "experiments/.cache/c12/fixed.csv": "17e51ebecbdb94927ba298ffdb5bd100e0840f7ee1d33dfe8cdb259bdbfce2c3",
+    "experiments/.cache/c12/groups.tsv": "107bd8561adcf869cef9f9ddc1ce7fbe6f3c20bcfceb09a3c4f4f6f54f737f79",
+    "experiments/.cache/c12/provenance.json": "bae99dadd39646c06745f4146cb9b235c40ed45a54c78ba0aad74edcc6fdeee4",
     "experiments/.cache/c12/semester-paths.json": "120f9a0f36056760411db03606e2f5e440b5c8324422d96dc10aa6cf3baed4e2"
   }
 }

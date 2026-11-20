@@ -47,6 +47,7 @@ class Scenario:
     axis: str = '기본'
     error_scale: float = 1.
     exclude_intra_pocheon: bool = False
+    male_share: float | None = None  # None이면 옛 실험처럼 성별 열을 쓰지 않는다(모두 남성). 값이 있으면 요청마다 성별을 뽑는다.
 
 
 def scenarios():
@@ -176,6 +177,11 @@ def generate_day(points, hours, seed, count):
     return rows
 
 
+def sex(day_seed, request_id, male_share):
+    """요청 하나의 성별. 다른 추첨(지점·시각·즉시 여부)과 따로 뽑아, 성별을 넣어도 나머지 요청은 옛 실험과 똑같다."""
+    return 'M' if random.Random(f'{day_seed}:{request_id}:sex').random() < male_share else 'F'
+
+
 def write_cases(target, ss, days, seed, points, hours, header, errors):
     case_meta = {}
     with target.open('w', encoding='utf-8', newline='\n') as f:
@@ -195,7 +201,8 @@ def write_cases(target, ss, days, seed, points, hours, header, errors):
                     f.write('\t'.join(map(str, ['R', r['id'], p['id'], p['lat'], p['lon'], p['km'],
                         p['seconds'], p['fare'], r['arrival'], r['arrival']+1200,
                         int(r['instant_draw'] < sc.instant), int(r['paid_draw'] >= sc.unpaid),
-                        int(r['noshow_draw'] < sc.noshow), e]))+'\n')
+                        int(r['noshow_draw'] < sc.noshow), e]
+                        + ([sex(day_seed, r['id'], sc.male_share)] if sc.male_share is not None else [])))+'\n')
                 f.write('END\n')
                 case_meta[cid] = dict(scenario=sc.name, day=day, seed=day_seed)
     return case_meta

@@ -132,6 +132,20 @@ def schools(rows, year='2026'):
     return sorted(agg.values(), key=lambda a: -a['enrolled'])
 
 
+def male_shares(path=None, year='2026'):
+    """캠퍼스별 재학생 남성 비율(대학알리미 2026, 정원 내+외). 운영은 같은 성별끼리만 묶으므로 모의실험 요청의 성별을 이 비율로 뽑는다.
+    택시를 부르는 학생의 성비는 다를 수 있어 대진대는 민감도(sex_sensitivity.py)로 따로 본다."""
+    rows = read_table(path or CACHE / 'enrollment.raw')
+    count = defaultdict(lambda: [0, 0])
+    for r in rows:
+        if r['공시연도'] != year or r['학교종류'] not in KEEP_TYPES or r['학교상태'] not in ('기존', '신설'):
+            continue
+        c = count[(r['학교명'], r['본분교명'])]
+        c[0] += int(r['재학생_남_정원내'] or 0) + int(r['재학생_남_정원외'] or 0)
+        c[1] += int(r['재학생_여_정원내'] or 0) + int(r['재학생_여_정원외'] or 0)
+    return {k: m / (m + f) for k, (m, f) in count.items() if m + f > 0}
+
+
 def query(s):
     def camp(m):
         t = m.group(1)

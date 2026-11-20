@@ -15,7 +15,10 @@ import java.util.*;
 /** C7 scheduling/measurement adapter; selection, verification, allocation and prepay are production calls. */
 public final class DetailedSimulation {
     static final Instant BASE = Instant.parse("2026-11-17T03:00:00Z"); // noon KST, aligned 5-min slot
-    record Flags(boolean instant, boolean paid, boolean absent, double soloError) {}
+    /** gender: 요청자 성별. 운영 엔진은 같은 성별끼리만 묶는다(PoolKey). 옛 입력(열 14 없음)은 모두 남성으로 읽어 C7~C11 결과가 그대로다. */
+    record Flags(boolean instant, boolean paid, boolean absent, double soloError, Gender gender) {
+        Flags(boolean instant, boolean paid, boolean absent, double soloError) { this(instant, paid, absent, soloError, Gender.MALE); }
+    }
     record Config(int delay, double saving, long seed, boolean empirical, double errorScale, Map<Long, Flags> flags) {}
     record CachedRound(RoundResult result, Map<List<MatchRequest>, RouteGroupVerifier.VerifiedRoutes> routes,
                        double elapsed, int[] checks) {}
@@ -28,7 +31,7 @@ public final class DetailedSimulation {
                 d.instantMatchMinutes(), d.instantPrepMinutes(), d.instantDispatchMinutes());
     }
     static MatchRequest request(ExperimentRunner.Case c, ExperimentRunner.Input r, Config cfg, MatchingSettings s) {
-        return new MatchRequest(r.id(), r.id(), Direction.FROM_HUB, 1, c.hub, Gender.MALE,
+        return new MatchRequest(r.id(), r.id(), Direction.FROM_HUB, 1, c.hub, cfg.flags().get(r.id()).gender(),
                 BASE.plusSeconds((long)r.arrival() + s.leadMinutes()*60L),
                 BASE.plusSeconds(r.deadline() + s.leadMinutes()*60L), null, null,
                 r.own(), r.km(), r.seconds()).requested(BASE.plusSeconds((long)r.arrival()), cfg.flags().get(r.id()).instant());
@@ -197,7 +200,8 @@ public final class DetailedSimulation {
             String[] p=line.split("\t");
             if(p[0].equals("CASE")) {current=new Config(Integer.parseInt(p[18]),Double.parseDouble(p[19]),Long.parseLong(p[20]),
                     p[21].equals("1"),Double.parseDouble(p[22]),new HashMap<>());configs.put(p[2],current);}
-            if(p[0].equals("R"))current.flags().put(Long.parseLong(p[1]),new Flags(p[10].equals("1"),p[11].equals("1"),p[12].equals("1"),Double.parseDouble(p[13])));
+            if(p[0].equals("R"))current.flags().put(Long.parseLong(p[1]),new Flags(p[10].equals("1"),p[11].equals("1"),p[12].equals("1"),Double.parseDouble(p[13]),
+                    p.length>14&&p[14].equals("F")?Gender.FEMALE:Gender.MALE));
         }return configs;
     }
     public static void main(String[] args)throws Exception {
