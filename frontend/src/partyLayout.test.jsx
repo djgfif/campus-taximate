@@ -23,17 +23,27 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks())
 
 describe('일행 화면 구성', () => {
-  it('진행 단계에서 지금 단계를 표시하고, 선결제 전에는 도착 버튼을 고정하지 않는다', () => {
+  it('선결제 전에는 할 일 카드에 선결제만 두고, 진행 단계와 아끼는 돈은 일행 정보 창에 있다', () => {
     const view = render(<PartyScreen party={base} now={now} myId={1} run={vi.fn()} />)
-    const steps = screen.getByRole('list', { name: '진행 단계' })
-    expect(within(steps).getByText('선결제').getAttribute('aria-current')).toBe('step')
     const next = screen.getByRole('region', { name: '지금 할 일' })
     expect(within(next).getByText('선결제를 마쳐 주세요')).toBeTruthy()
-    expect(view.container.querySelectorAll('.foot button')).toHaveLength(0)
-    // 혼자 탈 때와 비교한 아끼는 돈은 '자세히' 창 맨 위에 있다(8,300 - 3,334).
+    expect(view.container.querySelectorAll('.task-foot button')).toHaveLength(0)
+    expect(screen.queryByRole('list', { name: '진행 단계' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '일행 정보 열기' }))
+    const steps = screen.getByRole('list', { name: '진행 단계' })
+    expect(within(steps).getByText('선결제').getAttribute('aria-current')).toBe('step')
+    // 혼자 탈 때와 비교한 아끼는 돈(8,300 - 3,334)
     const saving = screen.getByRole('region', { name: '아끼는 돈' })
     expect(within(saving).getByText('4,966원')).toBeTruthy()
+  })
+
+  it('방 머리는 두 줄: 모이는 곳과 시각, 인원과 상태와 내 몫(혼자 요금은 취소선)', () => {
+    const view = render(<PartyScreen party={{ ...base, status: 'READY' }} now={now} myId={1} run={vi.fn()} />)
+    const head = view.container.querySelector('.room-head')
+    expect(within(head).getByRole('heading', { name: /^정문 앞, / })).toBeTruthy()
+    expect(within(head).getByText(/^2명, /)).toBeTruthy()
+    expect(within(head).getByText('3,334원')).toBeTruthy()
+    expect(head.querySelector('s').textContent).toBe('8,300원')
   })
 
   it('내 선결제가 승인되면 다른 일행이 결제 중이어도 제목을 바꾼다', async () => {
@@ -48,17 +58,16 @@ describe('일행 화면 구성', () => {
   it('결제를 마치면 만날 곳과 시간을 보여 주고 도착 버튼 하나만 고정한다', () => {
     const view = render(<PartyScreen party={{ ...base, status: 'READY' }} now={now} myId={1} run={vi.fn()} />)
     expect(within(screen.getByRole('region', { name: '지금 할 일' })).getByText(/정문 앞 \(학교 정문\)에서 만나요/)).toBeTruthy()
-    const foot = view.container.querySelectorAll('.foot button')
+    const foot = view.container.querySelectorAll('.task-foot button')
     expect(foot).toHaveLength(1)
     expect(foot[0].textContent).toBe('도착했어요')
   })
 
-  it('휴대폰 일행 화면은 채팅방이다: 위 고정 카드, 그 아래 채팅, 자세히는 따로 연다', () => {
+  it('휴대폰 일행 화면은 채팅방이다: 채팅 아래 입력창 바로 위에 할 일 카드, 자세히는 따로 연다', () => {
     const view = render(<PartyScreen party={{ ...base, status: 'READY' }} now={now} myId={1} run={vi.fn()} />)
     expect(screen.queryAllByRole('tab')).toHaveLength(0)
-    const pinned = screen.getByRole('region', { name: '지금 상태' })
-    expect(within(pinned).getByRole('region', { name: '지금 할 일' })).toBeTruthy()
-    expect(view.container.querySelector('.room .party-chat.full')).toBeTruthy()
+    const task = view.container.querySelector('.room .party-chat.full .chat-task')
+    expect(within(task).getByRole('region', { name: '지금 할 일' })).toBeTruthy()
     expect(screen.queryByText('규칙 자세히')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '일행 정보 열기' }))
     const details = screen.getByRole('dialog', { name: '일행 정보' })
@@ -68,31 +77,28 @@ describe('일행 화면 구성', () => {
     expect(screen.queryByRole('dialog', { name: '일행 정보' })).toBeNull()
   })
 
-  it('고정 카드는 접고 펼 수 있다', () => {
-    render(<PartyScreen party={{ ...base, status: 'READY' }} now={now} myId={1} run={vi.fn()} />)
-    fireEvent.click(screen.getByRole('button', { name: '접기' }))
-    expect(screen.queryByRole('region', { name: '지금 할 일' })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: '펼치기' }))
-    expect(screen.getByRole('region', { name: '지금 할 일' })).toBeTruthy()
-  })
-
   it('채팅 + 메뉴에서 사진 보내기와 일행 정보를 연다', () => {
     render(<PartyScreen party={{ ...base, status: 'READY' }} now={now} myId={1} run={vi.fn()} />)
     return screen.findByRole('button', { name: '더 보기' }).then((more) => {
       fireEvent.click(more)
       const menu = screen.getByRole('menu', { name: '일행 도구' })
       expect(within(menu).getByRole('menuitem', { name: /사진 보내기/ })).toBeTruthy()
-      fireEvent.click(within(menu).getByRole('menuitem', { name: '일행 정보·규칙' }))
+      fireEvent.click(within(menu).getByRole('menuitem', { name: '일행 정보와 규칙' }))
       expect(screen.getByRole('dialog', { name: '일행 정보' })).toBeTruthy()
     })
   })
 
-  it('넓은 화면에서는 채팅을 오른쪽 열에 늘 열어 두고 일행 정보도 왼쪽에 바로 보인다', () => {
+  it('넓은 화면에서는 같은 채팅방이 왼쪽 판에 들어가고 오른쪽은 지도 자리다', () => {
     window.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} })
-    render(<PartyScreen party={{ ...base, status: 'READY' }} now={now} myId={1} run={vi.fn()} />)
-    expect(screen.queryByRole('button', { name: '일행 정보 열기' })).toBeNull()
-    expect(screen.getByRole('complementary', { name: '일행 채팅' }).querySelector('.party-chat.full')).toBeTruthy()
-    expect(screen.getByText('규칙 자세히')).toBeTruthy()
+    vi.spyOn(api, 'partyRoutes').mockReturnValue(new Promise(() => {}))
+    const view = render(<PartyScreen party={{ ...base, status: 'READY' }} now={now} myId={1} run={vi.fn()} />)
+    expect(view.container.querySelector('.screen .pane .room .party-chat.full')).toBeTruthy()
+    expect(view.container.querySelector('.screen > aside.aside')).toBeTruthy()
+    expect(view.container.querySelector('.chat-col')).toBeNull()
+    // 세 칸이 아니라 두 칸: 일행 정보는 (i)로 연다
+    expect(screen.queryByText('규칙 자세히')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '일행 정보 열기' }))
+    expect(within(screen.getByRole('dialog', { name: '일행 정보' })).getByText('규칙 자세히')).toBeTruthy()
   })
 
   it('모이는 곳 이름은 머리·지금 할 일·일행 정보에서 똑같다', () => {

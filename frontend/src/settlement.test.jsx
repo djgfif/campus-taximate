@@ -23,8 +23,9 @@ describe('새 정산 화면', () => {
       { orderId: 'a1', purpose: 'ADDITIONAL', amount: 892, approvedAmount: 0, refundedAmount: 0, status: 'REQUIRED', deadlineAt: '2026-11-12T00:00:00Z', simulated: true },
     ]
     render(<SettlementScreen party={{ ...party, payer: true, status: 'SETTLED', settlement: { ...party.settlement, finalizedAt: now, payments, mockPayoutAmount: 8800 } }} myId={3} now={now} config={{ demo: true }} />)
-    expect(screen.getByRole('heading', { name: '정산 확정' })).toBeTruthy()
+    expect(screen.getByText(/명, 정산 확정$/)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '일행 정보 열기' }))
+    expect(screen.getByRole('heading', { name: '정산 확정' })).toBeTruthy()
     expect(within(screen.getByRole('region', { name: '선결제 기록' })).getByText('480원')).toBeTruthy()
     expect(screen.getByText('환불은 카드 반영까지 3~4영업일 정도 걸려요.')).toBeTruthy()
     expect(screen.getByRole('heading', { name: '추가 결제 892원' })).toBeTruthy()
@@ -54,7 +55,7 @@ describe('새 정산 화면', () => {
 
   it('관리자 검토 중에는 금액 수정 버튼을 제공하지 않는다', () => {
     render(<SettlementScreen party={{ ...party, status: 'REVIEW_PENDING' }} myId={3} now={now} onCorrect={() => {}} />)
-    expect(screen.getByRole('heading', { name: '관리자 검토 중' })).toBeTruthy()
+    expect(screen.getByText(/명, 관리자 검토 중$/)).toBeTruthy()
     expect(screen.getByText('요금 이의가 있어 관리자 검토 중이에요. 환불과 추가 결제, 받을 돈의 정산을 보류해요.')).toBeTruthy()
     expect(screen.queryByRole('button', { name: '금액 고치기' })).toBeNull()
   })
@@ -129,7 +130,7 @@ describe('이용 내역의 결제 기록', () => {
     expect(screen.getByText(/선결제는 조사 중 보류돼요/)).toBeTruthy()
     expect(screen.queryByRole('button', { name: '일행 채팅 보기' })).toBeNull()
     expect(screen.queryByText(/결제 상세를 읽지 못했어요/)).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: '내 탑승 확인·소명' }))
+    fireEvent.click(screen.getByRole('button', { name: '탑승 확인' }))
     expect(navigate).toHaveBeenCalledOnce()
   })
 
@@ -140,7 +141,7 @@ describe('이용 내역의 결제 기록', () => {
     render(<History onBack={() => {}} />)
     await screen.findByText('앱 정산 기록상 받을 돈(실제 송금 없음) 8,800원')
     expect(detail).toHaveBeenCalledWith(11)
-    const records = screen.getByRole('region', { name: '결제·환불 기록' })
+    const records = screen.getByRole('region', { name: '결제와 환불 기록' })
     expect(within(records).getByText('480원')).toBeTruthy()
     expect(within(records).getByText('실제 송금 없음')).toBeTruthy()
     expect(screen.getByText('정산 완료')).toBeTruthy()

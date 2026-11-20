@@ -4,7 +4,7 @@ import { api } from './api.js'
 import { SettledFeedback } from './MemberSafety.jsx'
 import { BoardSection } from './Board.jsx'
 import MapView from './MapView.jsx'
-import { formatTime, partyLabel, routeLabel, savedTotal, won } from './format.js'
+import { formatTime, partyLabel, remaining, routeLabel } from './format.js'
 import { Say, Screen, TopBar, useWide } from './ui.jsx'
 
 /** 최근 요청을 방향과 지점별로 하나씩 남긴다. */
@@ -24,14 +24,27 @@ function defaultDirection(now) {
   return hour < 14 ? 'TO_SCHOOL' : 'FROM_HUB'
 }
 
-/** 진행 중 띠의 제목. 일행 상태가 아니라 '내가 지금 할 일' 기준으로 쓴다. */
-function liveTitle(party) {
-  if (party.settlement || party.canSettle) return '정산 진행 중'
-  if (party.status === 'PREPAYING') {
-    if (!party.payer && !party.myPrepaid) return '선결제가 필요해요'
-    return '일행이 결제하는 중이에요'
+/** 홈 맨 위 할 일 줄의 제목. 일행 상태가 아니라 '내가 지금 할 일'을 사람 말로 쓴다. */
+function liveTitle(party, myId) {
+  if (party.settlement || party.canSettle) return party.canSettle ? '실제 택시비를 입력해 주세요' : '정산하고 있어요'
+  if (party.status === 'PAYER_PENDING') {
+    if (party.successorId !== myId) return '새 결제자를 정하고 있어요'
+    return party.payerNickname ? `결제자 ${party.payerNickname}님이 아직 안 왔어요` : '결제자가 아직 안 왔어요'
   }
+  if (party.status === 'PREPAYING') {
+    if (!party.payer && !party.myPrepaid) return '선결제를 해 주세요'
+    return '다른 사람들이 결제하는 중이에요'
+  }
+  if (party.status === 'READY') return party.payer && party.canCall ? '이제 택시를 불러 주세요' : '승차 지점에 모이는 중이에요'
+  if (party.status === 'RIDE_UNCONFIRMED' || party.canConfirmRide) return '택시에 탔는지 알려 주세요'
   return partyLabel(party.status)
+}
+
+/** 답할 마감이 있으면 남은 시간을 붙인다. */
+function liveDue(party, now) {
+  const due = party.status === 'PAYER_PENDING' ? party.successionDeadlineAt
+    : party.status === 'PREPAYING' && !party.payer && !party.myPrepaid ? party.prepayDeadlineAt : null
+  return due ? `답할 시간 ${remaining(due, now)} 남음` : ''
 }
 
 /** 학교와 모집 중인 일행의 모이는 곳을 한 지도에. */
@@ -46,7 +59,7 @@ function HomeMap({ school, board, direction }) {
   return <MapView points={points} edge={56} fallback={fallback} />
 }
 
-export default function Home({ state, myId, config, onStart, onReopen, onHistory, onChanged, tabBar }) {
+export default function Home({ state, myId, config, onStart, onReopen, onChanged, tabBar }) {
   const [history, setHistory] = useState([])
   const [school, setSchool] = useState(null)
   const [board, setBoard] = useState(null)
@@ -58,7 +71,6 @@ export default function Home({ state, myId, config, onStart, onReopen, onHistory
   }, [])
   const toSchool = direction === 'TO_SCHOOL'
   const recent = recentRoutes(history).filter((item) => item.direction === direction).slice(0, 3)
-  const saved = savedTotal(history)
   const blocked = state.restricted
   const map = <HomeMap school={school} board={board} direction={direction} />
 
@@ -67,20 +79,21 @@ export default function Home({ state, myId, config, onStart, onReopen, onHistory
       {!wide && <div className="home-map">{map}<TopBar floating /></div>}
       <div className="home-sheet">
         {state.parties.length > 0 && (
-          <ul className="live-rides" aria-label="진행 중">
-            {state.parties.map((party) => (
-              <li key={party.id}>
-                <button type="button" className={party.status === 'PREPAYING' && !party.payer && !party.myPrepaid ? 'live-ride owe' : 'live-ride'} onClick={() => onReopen(party.id)}>
-                  <span className="lr-dot" aria-hidden="true" />
+          <ul className="live-rides" aria-label="내 일행">
+            {state.parties.map((party) => {
+              const due = liveDue(party, state.now)
+              return <li key={party.id}>
+                <button type="button" className="live-ride" onClick={() => onReopen(party.id)}>
                   <span className="lr-main">
-                    <b>{liveTitle(party)}
+                    <small>내 일행{party.departureAt ? `, ${formatTime(party.departureAt)} 출발` : ''}</small>
+                    <b>{liveTitle(party, myId)}
                       {party.unreadChat > 0 && <span className="unread-badge" aria-label={`안 읽은 메시지 ${party.unreadChat}개`}>{party.unreadChat > 99 ? '99+' : party.unreadChat}</span>}</b>
-                    <small>{party.departureAt ? `${formatTime(party.departureAt)} 출발, ` : ''}{routeLabel({ direction: party.direction, anchorName: party.anchorName, pointName: party.meetingPoint })}</small>
+                    <small>{due || routeLabel({ direction: party.direction, anchorName: party.anchorName, pointName: party.meetingPoint })}</small>
                   </span>
                   <ChevronRight size={20} aria-hidden="true" />
                 </button>
               </li>
-            ))}
+            })}
           </ul>
         )}
 
@@ -116,11 +129,6 @@ export default function Home({ state, myId, config, onStart, onReopen, onHistory
         <BoardSection now={state.now} config={config} onJoined={onChanged} disabled={blocked} onLoaded={setBoard} direction={direction}
           onSwitch={() => setDirection(toSchool ? 'FROM_HUB' : 'TO_SCHOOL')} />
 
-        {!wide && saved > 0 && (
-          <button type="button" className="text-row" onClick={onHistory}>
-            지금까지 아낀 돈<span className="text-row-value">{won(saved)}</span><ChevronRight size={18} aria-hidden="true" />
-          </button>
-        )}
       </div>
       {tabBar}
     </Screen>

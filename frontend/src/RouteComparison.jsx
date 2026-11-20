@@ -5,8 +5,7 @@ import { api } from './api.js'
 import { formatTime, isPaymentParty, won } from './format.js'
 import { Paper, Rows, Say, SidePlain } from './ui.jsx'
 
-const CARD_WIDTH = 232
-const LEGEND = '검은 실선은 같이 가는 경로, 파란 점선은 혼자 가는 경로입니다.'
+const LEGEND = '노란 실선은 같이 가는 길, 회색 점선은 혼자 가는 길이에요.'
 
 /** 같이 가는 경로와 혼자 가는 경로를 함께 받는다. 일행이 바뀌면 다시 읽는다. */
 function useRoutes(party) {
@@ -30,9 +29,10 @@ function useRoutes(party) {
   return { routes, failed }
 }
 
+// 같이 가는 길은 굵은 노란 실선, 혼자 가는 길은 그 위에 가는 회색 점선. 겹치는 구간에서도 둘 다 보인다.
 const toLines = (routes) => [
-  { path: routes.shared, style: 'solid', color: '#161a23' },
-  { path: routes.solo, style: 'shortdash', color: '#1f6feb' },
+  { path: routes.shared, style: 'solid', color: '#f5b800', weight: 7 },
+  { path: routes.solo, style: 'shortdash', color: '#474d56', weight: 3 },
 ]
 
 /** 학교나 거점, 내 지점, 경로 끝의 일행 지점을 표시한다. 좌표는 경로에 있는 값만 쓴다. */
@@ -102,12 +102,12 @@ export function PartyMiniMap({ party, mine }) {
   return (
     <figure className="mini-map">
       <MapView lines={lines} points={points} edge={28} fallback={<SketchMap lines={lines} points={points} label="같이 가는 경로 약도" />} />
-      <figcaption><span><i className="both" aria-hidden="true" />같이 가는 길</span><span><i className="alone" aria-hidden="true" />혼자 갈 때</span></figcaption>
+      <figcaption><span><i className="both" aria-hidden="true" />같이 가는 길</span><span><i className="alone" aria-hidden="true" />혼자 가는 길</span></figcaption>
     </figure>
   )
 }
 
-/** 넓은 화면의 오른쪽 패널. 지도를 못 그리면 같은 값을 표로 보여 준다. */
+/** 넓은 화면의 오른쪽 지도. 금액은 왼쪽 방 머리가 보여 주므로 지도 위에는 범례만 둔다. 지도를 못 그리면 같은 값을 표로 보여 준다. */
 export function RouteSide({ party, mine }) {
   const { routes, failed } = useRoutes(party)
   if (failed) {
@@ -120,21 +120,14 @@ export function RouteSide({ party, mine }) {
       </SidePlain>
     )
   }
-  const f = figures(mine)
   return (
     <>
-      {routes && <MapView lines={toLines(routes)} points={stopsOf(party, mine, routes)} right={CARD_WIDTH}
+      {routes && <MapView lines={toLines(routes)} points={stopsOf(party, mine, routes)}
         fallback={<div className="side-sketch"><SketchMap lines={toLines(routes)} points={stopsOf(party, mine, routes)} label="같이 가는 경로 약도" /></div>} />}
-      <div className="map-legend">
-        <span><i className="both" aria-hidden="true" />같이 가는 경로</span>
-        <span><i className="alone" aria-hidden="true" />혼자 가는 경로</span>
-      </div>
-      <div className="figures">
-        <div><small>혼자 타면</small><b>{won(mine.soloFare)}</b></div>
-        <div><small>같이 타면</small><b>{won(mine.expectedShare)}</b></div>
-        <div><small>아끼는 돈</small><b className="save">{won(f.saved)}</b></div>
-        <div><small>{isPaymentParty(party) ? '차량 이동 시간 차이' : '늘어나는 시간'}</small><b>{f.delay}분</b><small>{isPaymentParty(party) ? '걷는 시간 제외' : '기준 15분 이내'}</small></div>
-      </div>
+      <p className="map-legend">
+        <span><i className="both" aria-hidden="true" />같이 가는 길</span>
+        <span><i className="alone" aria-hidden="true" />혼자 가는 길</span>
+      </p>
     </>
   )
 }

@@ -52,7 +52,7 @@ export function BoardSection({ now, config, onJoined, disabled, onLoaded, direct
                 <b>{card.meetingPoint}</b>
                 <small>{card.direction === 'TO_SCHOOL' ? '학교로' : `${card.anchorName}에서 출발`}{card.people.length > 0 && `, ${card.people.map((p) => p.profile || p.nickname).join(', ')}`}</small>
               </span>
-              <span className="gr-seats"><b>{card.seats}자리</b><small>{card.riders}명 탑승</small></span>
+              <span className="gr-seats"><b>{card.riders}명 모임</b><small>{card.seats}자리 남음</small></span>
             </button>
           </li>
         ))}

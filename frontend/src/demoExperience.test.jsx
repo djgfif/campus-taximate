@@ -6,49 +6,70 @@ import AuthScreen from './AuthScreen.jsx'
 import DemoAccounts from './DemoAccounts.jsx'
 import { api } from './api.js'
 
-const progress = { now: '2026-11-12T00:00:00Z', stage: '선결제 대기', next: '선결제 기한', role: '나는 일행원 (선결제 대상)', investigations: [] }
+const progress = { now: '2026-11-12T00:00:00Z', partyId: null, stage: '요청 전', next: '탑승 요청 만들기', role: null, investigations: [] }
+const prepaying = { id: 7, status: 'PREPAYING', payer: false }
 beforeEach(() => {
   window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} })
   vi.spyOn(api, 'demoStatus').mockResolvedValue(progress)
 })
 afterEach(() => { cleanup(); vi.restoreAllMocks() })
 const run = async (action) => action()
-async function panel() {
-  render(<DemoBar now={progress.now} run={run} />)
+async function panel(parties = [], status = progress) {
+  api.demoStatus.mockResolvedValue(status)
+  render(<DemoBar now={progress.now} run={run} parties={parties} />)
   fireEvent.click(screen.getByRole('button', { name: '시연', exact: true }))
-  await screen.findByText('현재 단계: 선결제 대기')
+  await screen.findByText(/^장면 \d \/ 7/)
 }
 
 describe('시연 패널', () => {
-  it('역할을 선택해 일행을 만들고 내 역할과 다음 단계를 보여 준다', async () => {
-    const match = vi.spyOn(api, 'demoMatch').mockResolvedValue({ message: '나는 일행원이에요' })
-    const next = vi.spyOn(api, 'demoNext').mockResolvedValue({ ...progress, stage: '출발 준비', next: '택시 호출 시각' })
+  it('일행이 없으면 첫 장면에서 역할을 골라 일행을 만든다. 서버 상태 이름은 보이지 않는다', async () => {
+    const match = vi.spyOn(api, 'demoMatch').mockResolvedValue({ message: '시연 일행을 만들었어요' })
     await panel()
-    fireEvent.click(screen.getByRole('button', { name: '내가 결제자 아님(선결제 체험)' }))
+    expect(screen.getByText(/^장면 1 \/ 7/)).toBeTruthy()
+    expect(screen.getByRole('heading', { name: '길 올리고 일행 찾기' })).toBeTruthy()
+    expect(screen.queryByText(/현재 단계/)).toBeNull()
+    expect(screen.queryByRole('button', { name: '다음 장면 보기' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '선결제하는 일행' }))
     fireEvent.click(screen.getByRole('button', { name: '일행 만들기' }))
     await waitFor(() => expect(match).toHaveBeenCalledWith('PASSENGER'))
-    await screen.findByText('나는 일행원이에요')
-    expect(screen.getByText('나는 일행원 (선결제 대상)')).toBeTruthy()
-    api.demoStatus.mockResolvedValue({ ...progress, stage: '출발 준비', next: '택시 호출 시각' })
-    fireEvent.click(screen.getByRole('button', { name: '다음 단계로' }))
+    await screen.findByText('시연 일행을 만들었어요')
+  })
+  it('일행이 있으면 지금 장면과 눌러 볼 곳을 알려 주고 다음 장면으로 넘긴다', async () => {
+    const next = vi.spyOn(api, 'demoNext').mockResolvedValue({ ...progress, partyId: 7, stage: '출발 준비' })
+    await panel([prepaying], { ...progress, partyId: 7, stage: '선결제 대기' })
+    expect(screen.getByText(/^장면 2 \/ 7/)).toBeTruthy()
+    expect(screen.getByText('일행방 아래 카드에서 선결제를 해 보세요.')).toBeTruthy()
+    const scenes = screen.getByRole('list', { name: '장면 순서' })
+    expect(within(scenes).getByText('2 일행 확정, 선결제').closest('li').getAttribute('aria-current')).toBe('step')
+    expect(screen.queryByRole('button', { name: '일행 만들기' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '다음 장면 보기' }))
     await waitFor(() => expect(next).toHaveBeenCalledOnce())
-    await screen.findByText('다음 단계: 택시 호출 시각')
+  })
+  it('결제자가 안 온 장면은 이어받기 버튼을 눌러 보라고 한다', async () => {
+    await panel([{ id: 7, status: 'PAYER_PENDING', payer: false }], { ...progress, partyId: 7 })
+    expect(screen.getByRole('heading', { name: '결제자가 오지 않았어요' })).toBeTruthy()
+    expect(screen.getByText(/제가 결제할게요/)).toBeTruthy()
   })
   it.each([
-    ['즉시 매칭', 'INSTANT'], ['노쇼 발생', 'NO_SHOW'], ['나중 일행 합류', 'JOIN'], ['요금 이의', 'FARE_OBJECTION'],
-    ['결제자 노쇼·승계 요청', 'PAYER_NO_SHOW'], ['내가 결제자 승계', 'MY_SUCCESSION'], ['운행 미확인 (T+5분)', 'RIDE_UNCONFIRMED'],
-  ])('%s 시나리오를 한 번 요청한다', async (label, id) => {
+    ['바로 출발 일행', 'INSTANT'], ['한 명이 안 왔을 때', 'NO_SHOW'], ['나중에 한 명이 더 탈 때', 'JOIN'], ['요금에 이의를 낼 때', 'FARE_OBJECTION'],
+    ['결제자가 안 왔을 때', 'PAYER_NO_SHOW'], ['내가 결제를 이어받을 때', 'MY_SUCCESSION'], ['탔는지 답이 없을 때', 'RIDE_UNCONFIRMED'],
+  ])('다른 장면 "%s"를 한 번 요청한다', async (label, id) => {
     const scenario = vi.spyOn(api, 'demoScenario').mockResolvedValue(progress)
     await panel()
-    fireEvent.click(within(screen.getByRole('region', { name: '시나리오' })).getByRole('button', { name: label, exact: true }))
+    fireEvent.click(screen.getByRole('button', { name: label, exact: true }))
     await waitFor(() => expect(scenario).toHaveBeenCalledWith(id, 'PAYER'))
     expect(scenario).toHaveBeenCalledOnce()
   })
   it('노쇼 판정 결과를 내부 번호 대신 닉네임으로 표시한다', async () => {
-    api.demoStatus.mockResolvedValue({ ...progress, investigations: [{ memberId: 4, nickname: '지민', status: 'CONFIRMED', deadlineAt: progress.now }] })
-    await panel()
-    expect(screen.getByText(/지민: 노쇼 확정/)).toBeTruthy()
+    await panel([], { ...progress, investigations: [{ memberId: 4, nickname: '지민', status: 'CONFIRMED', deadlineAt: progress.now }] })
+    expect(screen.getByText(/지민님: 노쇼로 확정/)).toBeTruthy()
     expect(screen.queryByText(/회원 4/)).toBeNull()
+  })
+  it('계정 바꾸기는 시연 창 안에 있다', async () => {
+    render(<DemoBar now={progress.now} run={run} accounts={<DemoAccounts onLogin={vi.fn()} />} />)
+    fireEvent.click(screen.getByRole('button', { name: '시연', exact: true }))
+    expect(await screen.findByText('계정 바꾸기')).toBeTruthy()
+    expect(screen.getByRole('region', { name: '시연 계정 빠른 전환' })).toBeTruthy()
   })
 })
 describe('시연 계정', () => {

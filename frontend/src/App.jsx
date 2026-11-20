@@ -17,24 +17,30 @@ import PaymentResult from './PaymentScreens.jsx'
 import { AdminScreen, BoardingCasesScreen } from './ReviewScreens.jsx'
 import { isPaymentParty } from './format.js'
 import { NoShow, Unmatched, Waiting } from './RequestStatus.jsx'
-import { Avatar, Brand, Btn, Confirm, Item, LoadingScreen, Say, Screen, Sheet, TabBar, Toaster, toast, useWide } from './ui.jsx'
-import { formatTime, partyLabel, routeLabel } from './format.js'
+import { Avatar, Brand, Btn, Confirm, Empty, Item, LoadingScreen, Say, Screen, Sheet, TabBar, Toaster, toast, useWide } from './ui.jsx'
+import { formatTime, partyLabel, routeLabel, savedTotal, won } from './format.js'
 import { ChevronRight, User } from 'lucide-react'
 import { disablePush, enablePush, pushGranted, pushSupported } from './push.js'
 
 const POLL_MS = 5000
 const LIVE_POLL_MS = 30000
 
-/** 넓은 화면의 상단. 휴대폰에서는 화면마다 있는 상단 바를 쓴다. */
-function Nav({ tab, onTab, onMenu, admin }) {
+/** 넓은 화면의 위쪽 메뉴 한 줄. 휴대폰 아래 탭바와 같은 일을 한다. demo는 시연 단추 자리다. */
+function Nav({ tab, onTab, onMenu, admin, name, unread = 0, demo = null }) {
+  const item = (id, label) => <button type="button" className={tab === id ? 'on' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => onTab(id)}>{label}
+    {id === 'rides' && unread > 0 && <span className="unread-badge" aria-label={`안 읽은 메시지 ${unread}개`}>{unread > 99 ? '99+' : unread}</span>}</button>
   return (
     <header className="nav">
       <Brand />
-      <button type="button" className={tab === 'home' ? 'on' : ''} onClick={() => onTab('home')}>이용하기</button>
-      <button type="button" className={tab === 'history' ? 'on' : ''} onClick={() => onTab('history')}>이용 내역</button>
-      {admin && <button type="button" className={tab === 'admin' ? 'on' : ''} onClick={() => onTab('admin')}>관리자</button>}
+      <nav className="nav-links" aria-label="주요 메뉴">
+        {item('home', '일행 찾기')}
+        {item('rides', '내 일행')}
+        {item('history', '이용 내역')}
+        {admin && item('admin', '관리자')}
+      </nav>
       <span className="gap" />
-      <button type="button" className="icon-btn" aria-label="내 정보" onClick={onMenu}><User size={22} /></button>
+      {demo}
+      <button type="button" className="nav-me" aria-label="내 정보" onClick={onMenu}><User size={18} aria-hidden="true" />{name}</button>
     </header>
   )
 }
@@ -51,6 +57,8 @@ export default function App() {
   const [menu, setMenu] = useState(false)
   const [leaving, setLeaving] = useState(false)
   const [editingProfile, setEditingProfile] = useState(false)
+  // 내 정보의 "같이 타서 덜 낸 돈". 정산이 끝난 내역에서만 계산하고, 탭을 옮길 때마다 새로 읽는다.
+  const [saved, setSaved] = useState(0)
 
   const session = useRef(0)
   const latestRead = useRef(0)
@@ -140,10 +148,19 @@ export default function App() {
     [refresh],
   )
 
+  useEffect(() => {
+    if (!me || me.needsProfile || me.needsPassword) return undefined
+    let closed = false
+    api.history().then((items) => !closed && setSaved(savedTotal(items))).catch(() => !closed && setSaved(0))
+    return () => { closed = true }
+  }, [me, tab, menu])
+
   const openMenu = useCallback(() => setMenu(true), [])
   // 휴대폰 탭바: 내 정보는 탭 화면, 넓은 화면은 오른쪽 위 팝업이다.
   const unread = (state?.parties || []).reduce((sum, p) => sum + (p.unreadChat || 0), 0)
-  const tabBar = <TabBar current={tab} onTab={setTab} unread={unread} />
+  // 일행방(/parties/…)은 홈 흐름 안에 있지만 메뉴에서는 '내 일행'으로 켠다.
+  const navTab = location.pathname.startsWith('/parties/') ? 'rides' : tab
+  const tabBar = <TabBar current={navTab} onTab={setTab} unread={unread} />
   const [pushOn, setPushOn] = useState(false)
 
   // 이미 허용한 기기는 다시 묻지 않고 등록을 맞춘다. 시연 서버는 실행마다 키가 바뀐다.
@@ -171,17 +188,20 @@ export default function App() {
   /** 내 정보 목록. 넓은 화면은 팝업, 휴대폰은 '내 정보' 탭 화면에서 같은 목록을 쓴다. close는 항목을 누른 뒤 팝업을 닫는다. */
   const meMenu = (close) => <>
     <div className="me-head"><Avatar name={me.nickname} size={44} /><div><b>{me.nickname}</b><small>{me.email}</small></div></div>
+    {saved > 0 && <div className="rows me-saved"><div><span className="k">같이 타서 덜 낸 돈</span><span className="v">{won(saved)}</span></div></div>}
     <div className="list">
-      <Item title="내 프로필" detail="학과·학번을 같이 타는 사람에게 보여 줘요" onClick={() => { close(); setEditingProfile(true) }} />
-      <Item title="이용 내역" onClick={() => { close(); setTab('history') }} />
-      <Item title="내 탑승 확인·소명" detail="탑승 조사와 소명 기한을 확인해요" onClick={() => { close(); setTab('boarding-cases') }} />
-      {me.admin && <Item title="관리자" detail="노쇼·요금 검토, 신고·제한과 승차 지점 관리" onClick={() => { close(); setTab('admin') }} />}
+      <Item title="프로필" detail="학과와 학번을 같이 타는 사람에게 보여 줘요" onClick={() => { close(); setEditingProfile(true) }} />
+      <Item title="탑승 확인" detail="안 왔다고 기록된 일이 있으면 여기서 설명해요" onClick={() => { close(); setTab('boarding-cases') }} />
+      {me.admin && <Item title="관리자" detail="노쇼와 요금 검토, 신고와 제한, 승차 지점 관리" onClick={() => { close(); setTab('admin') }} />}
       {pushSupported() && <Item title={pushOn ? '알림 끄기' : '알림 받기'} detail="앱을 닫아도 확정과 승차 안내를 받아요" onClick={togglePush} />}
-      <Item title="로그아웃" onClick={() => signOut(api.logout)} />
-      <Item title="모든 기기에서 로그아웃" danger onClick={() => setLeaving(true)} />
     </div>
-    {config?.demo && <DemoAccounts onLogin={async () => { session.current += 1; setState(null); setResetting(false); close(); navigate('/'); setMe(await api.me()) }} />}
+    <div className="me-out">
+      <button type="button" onClick={() => signOut(api.logout)}>로그아웃</button>
+      <button type="button" onClick={() => setLeaving(true)}>모든 기기에서 로그아웃</button>
+    </div>
   </>
+  const demoAccounts = config?.demo ? <DemoAccounts onLogin={async () => { session.current += 1; setState(null); setResetting(false); setMenu(false); navigate('/'); setMe(await api.me()) }} /> : null
+  const demo = config?.demo && me ? <DemoBar now={state?.now} run={run} parties={state?.parties || []} accounts={demoAccounts} inline={wide} /> : null
 
   return (
     <main className="app">
@@ -200,12 +220,12 @@ export default function App() {
       {me && !me.needsPassword && !resetting && me.needsProfile && <ProfileScreen onDone={() => api.me().then(setMe)} />}
       {me && !me.needsPassword && !resetting && !me.needsProfile && (
         <>
-          {wide && <Nav tab={tab} onTab={setTab} onMenu={openMenu} admin={me.admin} />}
+          {wide && <Nav tab={navTab} onTab={setTab} onMenu={openMenu} admin={me.admin} name={me.nickname} unread={unread} demo={demo} />}
           {offline && <Say tone="stop-tone">연결이 끊겼습니다. 다시 연결하는 중입니다.</Say>}
           {config?.simulatedRoute && <p className="demo-strip" role="note">시연 모드: 금액과 시간은 예시예요</p>}
           {paymentReturn && <PaymentResult key={me.id + location.search} search={location.search} myId={me.id} onUpdated={refresh}
             onReturn={(id) => navigate(id ? `/parties/${id}` : '/', { replace: true })} />}
-          {!paymentReturn && tab === 'history' && <History admin={me.admin} onBack={() => setTab('home')} onBoardingCases={() => setTab('boarding-cases')} />}
+          {!paymentReturn && tab === 'history' && <History admin={me.admin} onHome={() => setTab('home')} onBoardingCases={() => setTab('boarding-cases')} />}
           {!paymentReturn && tab === 'rides' && <Rides state={state} onOpen={(id) => navigate('/parties/' + id)} onHome={() => setTab('home')} tabBar={tabBar} />}
           {!paymentReturn && tab === 'me' && <Screen><header className="bar"><h1 className="bar-title">내 정보</h1></header><div className="pad me-page">{meMenu(() => {})}</div>{tabBar}</Screen>}
           {!paymentReturn && tab === 'history' && tabBar}
@@ -215,7 +235,7 @@ export default function App() {
           {!paymentReturn && tab === 'home' && state && (
             <Flow state={state} config={config} myId={me.id} run={run} refresh={refresh} onMenu={openMenu} onPush={togglePush} pushOn={pushOn} onHistory={() => setTab('history')} tabBar={tabBar} />
           )}
-          {config?.demo && <DemoBar now={state?.now} run={run} />}
+          {!wide && demo}
           {menu && (
             <Sheet title={me.nickname} className="pop menu" onClose={() => setMenu(false)}>
               {meMenu(() => setMenu(false))}
@@ -298,11 +318,7 @@ function Rides({ state, onOpen, onHome, tabBar }) {
       <header className="bar"><h1 className="bar-title">내 일행</h1></header>
       <div className="pad">
         {parties.length === 0 && !state.settledParty && (
-          <div className="empty">
-            <b>진행 중인 일행이 없어요</b>
-            <p>홈에서 가는 길을 올리면 같은 방향 학생과 이어 드려요.</p>
-            <Btn className="line" onClick={onHome}>일행 찾으러 가기</Btn>
-          </div>
+          <Empty title="같이 타는 일행이 아직 없어요" action="길 올리기" onAction={onHome}>가는 길을 올리면 같은 방향 학생과 이어 드려요.</Empty>
         )}
         <ul className="ride-list">
           {parties.map((party) => (

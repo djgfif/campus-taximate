@@ -24,13 +24,13 @@ const home = (parties) => render(<Home state={{ now, parties, restricted: false 
 describe('진행 중 띠는 내 할 일 기준으로 말한다', () => {
   it('아직 내지 않았으면 선결제가 필요하다고 한다', async () => {
     home([party()])
-    expect(await screen.findByText('선결제가 필요해요')).toBeTruthy()
+    expect(await screen.findByText('선결제를 해 주세요')).toBeTruthy()
   })
 
   it('나는 냈고 다른 사람을 기다리면 기다린다고 한다', async () => {
     home([party({ myPrepaid: true })])
-    expect(await screen.findByText('일행이 결제하는 중이에요')).toBeTruthy()
-    expect(screen.queryByText('선결제가 필요해요')).toBeNull()
+    expect(await screen.findByText('다른 사람들이 결제하는 중이에요')).toBeTruthy()
+    expect(screen.queryByText('선결제를 해 주세요')).toBeNull()
   })
 })
 

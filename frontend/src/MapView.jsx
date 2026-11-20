@@ -30,11 +30,11 @@ export default function MapView({ points = [], lines = [], edge = 48, right = 0,
         const paths = lines.map((line) => line.path.map((p) => new maps.LatLng(p.lat, p.lon)))
         paths.flat().forEach((p) => bounds.extend(p))
         // 흰 테두리를 먼저 깔아 지도의 도로색 위에서도 선이 분리되어 보이게 한다.
-        paths.forEach((path) => drawn.push(new maps.Polyline({
-          map, path, strokeWeight: LINE_WEIGHT + CASING, strokeColor: '#ffffff', strokeOpacity: 1,
+        paths.forEach((path, i) => drawn.push(new maps.Polyline({
+          map, path, strokeWeight: (lines[i].weight || LINE_WEIGHT) + CASING, strokeColor: '#ffffff', strokeOpacity: 1,
         })))
         lines.forEach((line, i) => drawn.push(new maps.Polyline({
-          map, path: paths[i], strokeWeight: LINE_WEIGHT, strokeColor: line.color, strokeStyle: line.style, strokeOpacity: 1,
+          map, path: paths[i], strokeWeight: line.weight || LINE_WEIGHT, strokeColor: line.color, strokeStyle: line.style, strokeOpacity: 1,
         })))
         for (const point of points) {
           const position = new maps.LatLng(point.lat, point.lon)

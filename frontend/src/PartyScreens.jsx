@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, ChevronLeft, Copy, MoreHorizontal, X } from 'lucide-react'
+import { Check, ChevronLeft, Copy, Info, X } from 'lucide-react'
 import RouteComparison, { figures, PartyMiniMap, RouteSide } from './RouteComparison.jsx'
 import { api } from './api.js'
 import { MemberActions } from './MemberSafety.jsx'
@@ -10,7 +10,7 @@ import KakaoTaxi from './KakaoTaxi.jsx'
 import BoardingCodePanel from './BoardingCodePanel.jsx'
 import { BoardingPanel } from './ReviewScreens.jsx'
 import { formatTime, formatDateTime, isPaymentParty, knownPartyStatus, meetPlace, partyLabel, remaining, won } from './format.js'
-import { Avatar, BackBar, Btn, Confirm, FairnessNote, FareCompare, Item, Meter, Rail, Rows, Say, Screen, Sheet, TopBar, toast, useWide } from './ui.jsx'
+import { Avatar, BackBar, Btn, Confirm, FairnessNote, FareCompare, Item, Meter, Rail, Rows, Say, Screen, Sheet, toast, useWide } from './ui.jsx'
 
 // 일행 채팅은 PartyChat.jsx로 옮겼다. 다른 화면은 지금처럼 이 파일에서 가져온다.
 export { PartyChat }
@@ -101,67 +101,57 @@ function RoomSheet({ title, onClose, children }) {
   )
 }
 
-const roomTitle = (party) => `${party.direction === 'TO_SCHOOL' ? '등교' : '하교'}${party.departureAt ? ' · ' + formatTime(party.departureAt) + ' 출발' : ''}`
+/** 방 머리 첫 줄: 모이는 곳과 시각. 거점 이름까지 붙인 전체 이름은 일행 정보 창에 있다. */
+const roomTitle = (party, at) => [party.meetingPoint || party.anchorName, at ? formatTime(at) : ''].filter(Boolean).join(', ')
 
 /**
  * 모든 일행 화면의 뼈대. 일행은 채팅방이다.
- * 휴대폰: 위쪽 고정 카드(지금 상태 + 할 일 버튼)를 두고 그 아래를 채팅으로 채운다.
- *   입력창 옆 + 메뉴에 결제자 도구·일행 정보를 모으고, 진행 단계 아래 내용과 일행 정보는 '자세히' 창으로 연다.
- * 넓은 화면: 왼쪽에 지금 할 일과 일행 정보, 가운데 지도, 오른쪽에 채팅을 늘 열어 둔다.
- * action은 지금 할 일(고정 카드), progress는 그 아래 내용, info는 일행 정보, tools는 + 메뉴의 추가 항목이다.
+ * 머리는 두 줄(모이는 곳과 시각 / 인원과 상태, 내 몫)만 두고, 나머지는 채팅에 양보한다.
+ * 지금 답해야 하는 일(action, foot)은 입력창 바로 위 카드로 붙여 채팅을 가리지 않는다.
+ * 진행 단계, 같이 타는 사람, 규칙(header, progress, info)은 (i)로 여는 일행 정보 창에 모은다.
+ * 넓은 화면은 같은 방을 왼쪽 판에 두고 오른쪽을 지도(aside)로 채운다.
+ * summary는 둘째 줄 상태 문구(없으면 일행 상태 이름), time은 첫째 줄 시각(없으면 출발 시각)이다.
  */
-export function PartyShell({ party, now, onMenu, onHome, header, action, progress, info, foot, aside, tools = [], firstTab = '진행' }) {
+export function PartyShell({ party, now, onHome, header, action, progress, info, foot, aside, tools = [], summary, time }) {
   const wide = useWide()
   const [details, setDetails] = useState(false)
-  const [folded, setFolded] = useState(false)
   const openDetails = useCallback(() => setDetails(true), [])
   const closeDetails = useCallback(() => setDetails(false), [])
-  const menu = [...tools, { label: '일행 정보·규칙', onClick: openDetails }]
-  const chat = (
-    <section className="chat-pane" aria-label="채팅 창">
-      <PartyChat key={party.id} partyId={party.id} now={now} status={party.status} active full tools={wide ? tools : menu} />
-    </section>
-  )
-  const more = <>
-    {progress && <section className="party-panel" aria-label={firstTab}>{progress}</section>}
-    <section className="party-panel party-info" aria-label="일행 정보">
-      <h2 className="section-title">일행 정보</h2>
-      {info}
-      <BoardingPanel party={party} now={now} />
-    </section>
-  </>
-  if (wide) {
-    return <Screen aside={aside} chat={chat} foot={foot}>
-      <TopBar onMenu={onMenu} onHome={onHome} />
-      {header}
-      {action && <section className="block party-top" aria-label="지금 상태">{action}</section>}
-      {more}
-    </Screen>
-  }
-  return (
+  const menu = [...tools, { label: '일행 정보와 규칙', onClick: openDetails }]
+  const people = (party.members || []).filter((m) => !m.noShow).length
+  const settled = Boolean(party.settlement)
+  const task = action || foot
+    ? <div className="task-card">{action}{foot && <div className="task-foot">{foot}</div>}</div>
+    : null
+  const room = (
     <div className="room">
-      <header className="bar back room-bar">
-        <div className="bar-left">
+      <header className="room-head">
+        <div className="room-line">
           <button type="button" className="icon-btn" aria-label="홈으로" onClick={onHome}><ChevronLeft size={26} /></button>
-          <span className="bar-title">{roomTitle(party)}</span>
+          <h1 className="room-title">{roomTitle(party, time ?? party.departureAt)}</h1>
+          <button type="button" className="icon-btn" aria-label="일행 정보 열기" onClick={openDetails}><Info size={22} /></button>
         </div>
-        <button type="button" className="icon-btn" aria-label="일행 정보 열기" onClick={openDetails}><MoreHorizontal size={22} /></button>
+        <p className="room-sub">
+          <span>{people}명, {summary || partyLabel(party.status)}</span>
+          {party.myShare != null && <span className="room-share">{settled ? '내 몫' : '내 몫 예상'} <b>{won(party.myShare)}</b>
+            {party.mySoloFare > party.myShare && <s aria-label={`혼자 타면 ${won(party.mySoloFare)}`}>{won(party.mySoloFare)}</s>}</span>}
+        </p>
       </header>
-      <section className={folded ? 'pinned folded' : 'pinned'} aria-label="지금 상태">
-        {header}
-        {!folded && <div className="pinned-body">
-          {action}
-          {foot && <div className="foot">{foot}</div>}
-          <button type="button" className="pinned-more" onClick={openDetails}>아끼는 돈·같이 타는 사람·규칙 보기</button>
-        </div>}
-        <button type="button" className="pinned-fold" aria-expanded={!folded} onClick={() => setFolded((v) => !v)}>
-          {folded ? '펼치기' : '접기'}
-        </button>
+      <section className="chat-pane" aria-label="채팅 창">
+        <PartyChat key={party.id} partyId={party.id} now={now} status={party.status} active full tools={menu} task={task} />
       </section>
-      {chat}
-      {details && <RoomSheet title="일행 정보" onClose={closeDetails}>{more}</RoomSheet>}
+      {details && <RoomSheet title="일행 정보" onClose={closeDetails}>
+        {header}
+        {progress && <section className="party-panel" aria-label="진행">{progress}</section>}
+        <section className="party-panel party-info" aria-label="일행 정보">
+          <h2 className="section-title">일행 정보</h2>
+          {info}
+          <BoardingPanel party={party} now={now} />
+        </section>
+      </RoomSheet>}
     </div>
   )
+  return wide ? <Screen aside={aside}>{room}</Screen> : room
 }
 
 const shareRows = (party) => [
@@ -180,6 +170,7 @@ function HomeParty({ party, now, myId, run, onDetail, onHome, onMenu }) {
     : mine?.arrived && !leaving ? <Arrived /> : null
   return <>
     <PartyShell party={party} now={now} onMenu={onMenu} onHome={onHome} foot={primary}
+      summary={leaving ? '이동 중' : `출발까지 ${remaining(party.departureAt, now)}`}
       aside={mine ? <RouteSide party={party} mine={mine} /> : null}
       tools={party.payer ? [{ label: '기사님께 보여 주기', onClick: () => setDriver(true) }] : []}
       header={<Meter compact label="출발까지" value={remaining(party.departureAt, now)}
@@ -239,6 +230,7 @@ function SchoolPayer({ party, now, myId, run, onDetail, onHome, onMenu }) {
   stops.push({ key: 'school', pin: '학', name: `${party.anchorName} 도착`, detail: '함께 내림', time: formatTime(party.arrivalAt), end: true })
   return <>
     <PartyShell party={party} now={now} onMenu={onMenu} onHome={onHome} foot={primary}
+      time={party.myBoardAt} summary={boarded ? '태우러 가는 중' : '내가 결제자'}
       aside={mine ? <RouteSide party={party} mine={mine} /> : null}
       header={<Meter compact label="내 승차 시각" value={formatTime(party.myBoardAt)} detail={meetPlace(party)} tag="내가 결제자" />}
       tools={[{ label: '기사님께 보여 주기', onClick: () => setDriver(true) }]}
@@ -274,6 +266,7 @@ function SchoolRider({ party, now, run, onDetail, onHome, onMenu }) {
     : mine.arrived && party.canCancel ? <Arrived /> : null
   return <>
     <PartyShell party={party} now={now} onMenu={onMenu} onHome={onHome} foot={primary}
+      time={party.myBoardAt} summary={boarded ? `택시 오는 중, ${remaining(party.myBoardAt, now)}` : `승차까지 ${remaining(party.myBoardAt, now)}`}
       aside={<RouteSide party={party} mine={mine} />}
       header={<Meter compact label={boarded ? '택시 도착까지' : '내 승차 시각까지'} value={remaining(party.myBoardAt, now)}
         detail={`${formatTime(party.myBoardAt)} 탑승, ${meetPlace(party)}`} tag={roleTag(party)} />}
@@ -342,8 +335,8 @@ export function PartyDetail({ party, myId, now, onBack }) {
   )
 }
 
-/** 서버가 허용한 본인 답만 전송한다. 두 버튼의 중복 누름도 함께 막는다. */
-export function RideConfirmationCard({ party, onUpdated }) {
+/** 서버가 허용한 본인 답만 전송한다. 두 버튼의 중복 누름도 함께 막는다. bare면 제목 없이 버튼만(할 일 카드 안에서 제목이 겹치지 않게). */
+export function RideConfirmationCard({ party, onUpdated, bare = false }) {
   const [saved,setSaved]=useState(null)
   const [busy,setBusy]=useState(false)
   const [error,setError]=useState('')
@@ -358,7 +351,7 @@ export function RideConfirmationCard({ party, onUpdated }) {
   }
   if(!party.canConfirmRide && answer==null && party.status!=='RIDE_UNCONFIRMED') return null
   return <section className="payment-card" aria-label="운행 확인">
-    <h2>{answer!=null?'내 운행 답변':'운행 확인 중'}</h2><p>일행과 택시에 탔나요? 첫 답변은 바꿀 수 없어요.</p>
+    {!bare && <><h2>{answer!=null?'내 운행 답변':'운행 확인 중'}</h2><p>일행과 택시에 탔나요? 첫 답변은 바꿀 수 없어요.</p></>}
     {answer!=null ? <Say>내 답변: {answer?'탔어요':'못 탔어요'}</Say>
       : party.canConfirmRide ? <div className="btns"><Btn disabled={busy} onClick={()=>submit(true)}>탔어요</Btn><Btn className="line" disabled={busy} onClick={()=>submit(false)}>못 탔어요</Btn></div>
         : <p>운행 확인 결과를 기다리고 있어요.</p>}
@@ -417,18 +410,18 @@ function NextAction({ party, now, myId, mine, config, run, onUpdated, onDriver }
     tone = 'calm'
   } else if (party.status === 'PAYER_PENDING') {
     const me = party.successorId === myId
-    title = me ? '결제자를 이어받을까요?' : '새 결제자를 정하고 있어요'
+    title = me ? (party.payerNickname ? `결제자 ${party.payerNickname}님이 안 왔어요` : '결제자가 안 왔어요') : '새 결제자를 정하고 있어요'
     detail = me
-      ? `${formatTime(party.successionDeadlineAt)}까지 답해 주세요. 이어받으면 내 선결제는 정산 때 전액 돌려받아요.`
+      ? `대신 결제하면 미리 낸 돈은 정산 때 모두 돌려받아요. ${formatTime(party.successionDeadlineAt)}까지 답해 주세요.`
       : '원래 결제자가 오지 않아 다음 사람에게 묻고 있어요.'
     if (me) extra = <div className="btns">
-      <Btn onClick={() => run(() => api.payerSuccession(party.id, true), '결제자를 이어받았어요')}>결제자 이어받기</Btn>
-      <Btn className="line" onClick={() => run(() => api.payerSuccession(party.id, false), '승계를 거절했어요')}>승계 거절</Btn>
+      <Btn onClick={() => run(() => api.payerSuccession(party.id, true), '이제 내가 결제자예요')}>제가 결제할게요</Btn>
+      <Btn className="line" onClick={() => run(() => api.payerSuccession(party.id, false), '어렵다고 알렸어요')}>어려워요</Btn>
     </div>
   } else if (party.status === 'RIDE_UNCONFIRMED' || party.canConfirmRide) {
     title = '택시에 탔나요?'
-    detail = '운행 시작 표시가 없어 확인하고 있어요. 미운행이 확인될 때만 환불해요.'
-    extra = <RideConfirmationCard party={party} onUpdated={onUpdated} />
+    detail = '운행 시작 표시가 없어 확인하고 있어요. 첫 답변은 바꿀 수 없고, 안 탄 게 확인될 때만 환불해요.'
+    extra = <RideConfirmationCard party={party} onUpdated={onUpdated} bare />
   } else if (party.status === 'PREPAYING' && !party.payer) {
     const paid = prepay?.status === 'APPROVED'
     title = paid ? '선결제를 마쳤어요' : prepay?.status === 'PROCESSING' ? '결제를 확인하고 있어요' : '선결제를 마쳐 주세요'
@@ -526,7 +519,6 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
       header={<Meter compact label={!knownPartyStatus(party.status) ? partyLabel(party.status) : party.instant ? '출발(예상)' : '출발'} value={formatTime(party.departureAt)} detail={meetPlace(party)} tag={roleTag(party)} />}
       tools={party.payer ? [{ label: '기사님께 보여 주기', onClick: () => setDriver(true) }] : []}
       action={<>
-          <PartyStepper party={party} />
           <NextAction party={party} now={now} myId={myId} mine={mine} config={config} run={run} onUpdated={onUpdated} onDriver={() => setDriver(true)} />
           {['READY', 'RIDE_UNCONFIRMED', 'AWAITING_FARE'].includes(party.status) && <BoardingCodePanel party={party} now={now} onUpdated={onUpdated} />}
           {party.canLeaveAfterChange && <Say tone="stop-tone" title="일행이 바뀌었어요">현재 내 몫은 {won(party.myShare)}이에요. 원하지 않으면 {party.changeExitFree ? '호출 전까지 무료로' : ''} 빠질 수 있어요.
@@ -536,9 +528,9 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
       </>}
       progress={<>
         <div className="block">
-          {/* 서비스의 핵심 숫자. 정보 탭 두 단계 아래에만 있던 것을 진행 탭 첫 화면에도 보인다. */}
-          {/* 넓은 화면은 오른쪽 지도 패널이 요금 비교와 경로를 크게 보여 주므로 왼쪽에서 되풀이하지 않는다. */}
-          {!wide && party.mySoloFare > party.myShare && <FareCompare solo={party.mySoloFare} share={party.myShare} />}
+          <PartyStepper party={party} />
+          {/* 넓은 화면은 오른쪽 지도가 경로를 크게 보여 주므로 작은 지도는 휴대폰에만 둔다. */}
+          {party.mySoloFare > party.myShare && <FareCompare solo={party.mySoloFare} share={party.myShare} />}
           {mine && party.mySoloFare > 0 && <FairnessNote delay={figures(mine).delay} solo={party.mySoloFare} share={party.myShare}
             rules={config?.rules} walkExcluded={isPaymentParty(party)} />}
           {!wide && mine && <PartyMiniMap party={party} mine={mine} />}

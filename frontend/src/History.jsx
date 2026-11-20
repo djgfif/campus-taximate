@@ -4,9 +4,8 @@ import { PartyChat } from './PartyScreens.jsx'
 import { FinancialDetails } from './SettleScreens.jsx'
 import { PaymentRecord } from './PaymentCard.jsx'
 import { HistoryMemberActions } from './MemberSafety.jsx'
-import { RequestMap } from './RequestStatus.jsx'
 import { HISTORY_LABEL, formatDateTime, routeLabel, savedTotal, won } from './format.js'
-import { BackBar, Bone, Btn, Paper, Rows, Screen, SideEmpty, SidePlain, useWide } from './ui.jsx'
+import { Bone, Btn, Empty, Rows, Screen } from './ui.jsx'
 
 function HistoryChat({ partyId }) {
   const [open, setOpen] = useState(false)
@@ -40,41 +39,31 @@ function Row({ item, selected, onSelect }) {
   )
 }
 
-/** 넓은 화면의 오른쪽. 경로 선은 저장하지 않으므로 지점만 표시한다. */
 function BoardingCaseLink({ item, onBoardingCases }) {
   if (!item.stage?.startsWith('BOARDING_')) return null
   return <div className="case-link">
     {item.stage === 'BOARDING_UNCONFIRMED' && <p className="note">번호 미입력만으로 노쇼를 확정하지 않아요. 24시간 안에 당시 상황을 소명할 수 있어요.</p>}
-    <Btn className="small line" onClick={onBoardingCases || (() => window.location.assign('/boarding-cases'))}>내 탑승 확인·소명</Btn>
+    <Btn className="small line" onClick={onBoardingCases || (() => window.location.assign('/boarding-cases'))}>탑승 확인</Btn>
   </div>
 }
 
-function Detail({ item, onBoardingCases }) {
-  const [label] = HISTORY_LABEL[item.stage] || ['상태 확인 중']
+/** 고른 이용 내역의 금액. 위에서 아래로 실제 택시비, 내가 낸 돈, 혼자 탔다면 순서로 읽는다. 정산 전이면 예상이라고 밝힌다. */
+function Detail({ item }) {
   return (
-    <SidePlain>
-      <div className="mini"><RequestMap item={item} edge={28} /></div>
-      <Paper title={routeLabel(item)}>
-        <Rows items={[
-          item.partyPaid != null && ['실제 결제 금액', won(item.partyPaid)],
-          item.paid != null && ['내가 낸 돈', won(item.paid), 'big'],
-          item.paid != null && ['혼자 탈 때보다', `${won(Math.max(0, item.soloFare - item.paid))} 절약`, 'save'],
-          item.paid == null && ['혼자 타면', `약 ${won(item.soloFare)}`],
-          item.partySize != null && ['일행', `${item.partySize}명`],
-          ['상태', label],
-        ]} />
-      </Paper>
-      <BoardingCaseLink item={item} onBoardingCases={onBoardingCases} />
-      <HistoryFinance item={item} />
-    </SidePlain>
+    <Rows items={[
+      item.partyPaid != null && ['실제 택시비', won(item.partyPaid)],
+      item.paid != null && ['내가 낸 돈', won(item.paid), 'big'],
+      item.paid != null ? ['혼자 탔다면', won(item.soloFare)] : ['혼자 타면(예상)', `약 ${won(item.soloFare)}`],
+      item.partySize != null && ['일행', `${item.partySize}명`],
+    ]} />
   )
 }
 
-export default function History({ onBack, admin = false, onBoardingCases }) {
+/** 이용 내역. 휴대폰과 넓은 화면 모두 지도 없이 한 칸으로, 고른 줄 아래에 금액과 결제 기록을 펼친다. */
+export default function History({ onHome, admin = false, onBoardingCases }) {
   const [items, setItems] = useState(null)
   const [selectedId, setSelectedId] = useState(null)
   const [accuracy, setAccuracy] = useState(null)
-  const wide = useWide()
   useEffect(() => {
     api.history().then(setItems).catch(() => setItems([]))
     if (admin) api.fareAccuracy().then(setAccuracy).catch(() => setAccuracy(null))
@@ -82,19 +71,13 @@ export default function History({ onBack, admin = false, onBoardingCases }) {
   const saved = savedTotal(items || [])
   const selected = items?.find((item) => item.id === selectedId) || items?.[0]
   return (
-    <Screen aside={selected ? <Detail item={selected} onBoardingCases={onBoardingCases} /> : <SideEmpty title="이용 내역이 여기에 쌓입니다">요청을 고르면 금액과 지점을 보여 드려요.</SideEmpty>}>
-      <BackBar onBack={onBack} title="이용 내역" />
+    <Screen>
+      <header className="bar"><h1 className="bar-title">이용 내역</h1></header>
       {!items && <div className="pad"><Bone height={60} /><Bone height={60} /><Bone height={60} /></div>}
-      {items?.length === 0 && (
-        <div className="pad">
-          <h1 className="head">아직 이용 내역이 없어요</h1>
-          <p className="sub">첫 요청을 만들면 여기에 쌓입니다.</p>
-          <Btn onClick={onBack}>요청하러 가기</Btn>
-        </div>
-      )}
+      {items?.length === 0 && <div className="pad"><Empty title="아직 탄 기록이 없어요" action="길 올리기" onAction={onHome}>같이 타면 덜 낸 돈이 여기 쌓여요.</Empty></div>}
       {items?.length > 0 && (
         <div className="block">
-          {saved > 0 && <p className="sub">지금까지 {won(saved)} 아꼈어요</p>}
+          {saved > 0 && <div className="rows"><div><span className="k">같이 타서 덜 낸 돈</span><span className="v">{won(saved)}</span></div></div>}
           {admin && accuracy?.settled > 0 && (
             <section aria-label="관리자 요금 통계"><h2 className="block-title">관리자 요금 통계</h2><p className="note">전체 정산 {accuracy.settled}건 중 {accuracy.within}건이 예상 요금의 15% 이내였어요.</p></section>
           )}
@@ -103,8 +86,12 @@ export default function History({ onBack, admin = false, onBoardingCases }) {
               <React.Fragment key={item.id}>
                 <Row item={item} selected={item.id === selected?.id}
                   onSelect={() => setSelectedId(item.id)} />
-                {!wide && item.id === selected?.id && <><BoardingCaseLink item={item} onBoardingCases={onBoardingCases} /><HistoryFinance item={item} /></>}
-                {item.partyId && (item.partyIds || [item.partyId]).map((id) => <React.Fragment key={id}><HistoryChat partyId={id} /><HistoryMemberActions partyId={id} /></React.Fragment>)}
+                {item.id === selected?.id && <div className="history-open">
+                  <Detail item={item} />
+                  <BoardingCaseLink item={item} onBoardingCases={onBoardingCases} />
+                  <HistoryFinance item={item} />
+                  {item.partyId && (item.partyIds || [item.partyId]).map((id) => <React.Fragment key={id}><HistoryChat partyId={id} /><HistoryMemberActions partyId={id} /></React.Fragment>)}
+                </div>}
               </React.Fragment>
             ))}
           </div>
@@ -131,8 +118,8 @@ function HistoryFinance({ item }) {
   }, [id, item.id, own, available, key, reload])
   if (!available) return <p className="note">이 요청에서 조회할 수 있는 결제 상세가 없어요.</p>
   const current = result.key === key ? result : {}
-  return <section className="history-finance" aria-label="결제·환불 기록">
-    <h3>결제·환불 기록</h3>
+  return <section className="history-finance" aria-label="결제와 환불 기록">
+    <h3>결제와 환불 기록</h3>
     {own && item.stage?.startsWith('BOARDING_') && <p className="note">선결제는 조사 중 보류돼요. 노쇼가 아니면 전액, 노쇼면 보전 부담금을 뺀 나머지를 돌려받아요.</p>}
     {current.party ? <FinancialDetails party={current.party} />
       : current.orders ? <>

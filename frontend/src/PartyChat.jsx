@@ -1,11 +1,10 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { ImagePlus, Plus, RotateCw, Send, X } from 'lucide-react'
+import { ImagePlus, Plus, RotateCw, Send, Shirt, X } from 'lucide-react'
 import { api } from './api.js'
 import { ReportSheet } from './MemberSafety.jsx'
 import { formatTime } from './format.js'
-import { Avatar, Btn } from './ui.jsx'
+import { Avatar } from './ui.jsx'
 
-const CHAT_PHRASES = ['어디쯤이세요?', '저 5분 정도 늦어요 ㅠㅠ', '도착했어요!', '저는 ', '택시 잡았어요', '탑승하면 결제자 화면의 코드를 입력해 주세요', '탑승 확인했어요']
 export const CHAT_RETENTION = '정산이 끝나거나 출발 후 24시간이 지나면 쓰기가 닫혀요. 그때부터 7일 뒤 메시지와 사진을 지워요.'
 const GROUP_GAP_MS = 5 * 60 * 1000
 const NEAR_BOTTOM_PX = 48
@@ -36,8 +35,11 @@ function mergeById(current, incoming) {
  * 보낸 메시지는 바로 보이게 하고(보내는 중/실패 다시 보내기), 맨 아래를 보고 있으면 읽음을 알린다.
  * 이용 내역처럼 now가 없으면 5초마다 읽는다.
  */
-/** tools: 입력창 옆 + 메뉴에 사진 보내기와 함께 넣을 항목 [{ label, onClick }]. 비어 있으면 사진 단추만 둔다. */
-export function PartyChat({ partyId, now, status, active = true, full = false, tools = [] }) {
+/**
+ * tools: 입력창 옆 + 메뉴에 사진 보내기와 함께 넣을 항목 [{ label, onClick }]. 비어 있으면 사진 단추만 둔다.
+ * task: 지금 내가 답해야 하는 일. 메시지 아래, 입력창 바로 위에 붙어 스크롤해도 사라지지 않는다.
+ */
+export function PartyChat({ partyId, now, status, active = true, full = false, tools = [], task = null }) {
   const [toolsOpen, setToolsOpen] = useState(false)
   const [items, setItems] = useState([])
   const [pending, setPending] = useState([])
@@ -244,16 +246,14 @@ export function PartyChat({ partyId, now, status, active = true, full = false, t
       : <p className="bubble">{message.text}</p>
     rendered.push(
       <li key={message.id} className={`${message.mine ? 'mine' : 'theirs'}${head ? ' chat-head' : ''}${message.pending ? ' chat-pending' : ''}`}>
-        {head && !message.mine && <Avatar name={message.nickname} size={34} />}
-        {head && !message.mine && <b className="chat-name">{message.nickname}</b>}
+        {/* 신고는 메시지마다 붙이지 않고, 보낸 사람 이름이나 얼굴을 누르면 연다 */}
+        {head && !message.mine && <button type="button" className="chat-who" aria-label={`${message.nickname}님 신고하기`} onClick={() => report(message)}>
+          <Avatar name={message.nickname} size={34} /><b className="chat-name">{message.nickname}</b>
+        </button>}
         <div className="chat-line">
           {message.mine && info}
           {bubble}
           {!message.mine && info}
-          {!message.mine && !message.pending && (
-            <button type="button" className="chat-report" aria-label={`${message.nickname}님 메시지 신고`}
-              onClick={() => report(message)}>신고</button>
-          )}
         </div>
         {message.pending && message.state === 'failed' && (
           <div className="chat-retry">
@@ -279,35 +279,24 @@ export function PartyChat({ partyId, now, status, active = true, full = false, t
           {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- 스크롤되는 목록이라 키보드로 포커스해 읽을 수 있어야 한다 */}
           <ol ref={list} className="chat-messages" tabIndex={0} onScroll={onScroll}
             aria-label="최근 일행 메시지" aria-live="polite" aria-relevant="additions">
-            {rows.length === 0 && <li className="chat-empty">아직 조용하네요. 먼저 인사해 볼까요?</li>}
             {rendered}
           </ol>
           {unseen && <button type="button" className="chat-new" onClick={toBottom}>새 메시지 ↓</button>}
         </div>
       )}
+      {task && <div className="chat-task">{task}</div>}
       {closed && !denied && <p className="note" role="status">일행 채팅은 읽기만 가능해요.</p>}
       {!denied && meta && !closed && (
         <form className="chat-form" onSubmit={(event) => { event.preventDefault(); sendText(text) }}>
-          <div className="chat-phrases" role="group" aria-label="자주 쓰는 문구">
-            {CHAT_PHRASES.map((phrase) => <Btn key={phrase} className="small line" onClick={() => {
-              if (phrase === '저는 ') {
-                setText(phrase)
-                input.current?.focus()
-              } else sendText(phrase, false)
-            }}>{phrase === '저는 ' ? '내 옷차림 알리기' : phrase}</Btn>)}
-          </div>
           <div className="chat-compose">
-            {tools.length > 0 ? <>
-              <button type="button" className={toolsOpen ? 'chat-attach on' : 'chat-attach'} aria-label="더 보기" aria-expanded={toolsOpen} onClick={() => setToolsOpen((v) => !v)}>
-                <Plus size={22} aria-hidden="true" />
-              </button>
-              {toolsOpen && <ul className="chat-tools" role="menu" aria-label="일행 도구">
-                <li><button type="button" role="menuitem" onClick={() => { setToolsOpen(false); fileInput.current?.click() }}><ImagePlus size={18} aria-hidden="true" />사진 보내기</button></li>
-                {tools.map((tool) => <li key={tool.label}><button type="button" role="menuitem" onClick={() => { setToolsOpen(false); tool.onClick() }}>{tool.label}</button></li>)}
-              </ul>}
-            </> : <button type="button" className="chat-attach" aria-label="사진 보내기" onClick={() => fileInput.current?.click()}>
-              <ImagePlus size={20} aria-hidden="true" />
-            </button>}
+            <button type="button" className={toolsOpen ? 'chat-attach on' : 'chat-attach'} aria-label="더 보기" aria-expanded={toolsOpen} onClick={() => setToolsOpen((v) => !v)}>
+              <Plus size={22} aria-hidden="true" />
+            </button>
+            {toolsOpen && <ul className="chat-tools" role="menu" aria-label="일행 도구">
+              <li><button type="button" role="menuitem" onClick={() => { setToolsOpen(false); fileInput.current?.click() }}><ImagePlus size={18} aria-hidden="true" />사진 보내기</button></li>
+              <li><button type="button" role="menuitem" onClick={() => { setToolsOpen(false); setText('저는 '); input.current?.focus() }}><Shirt size={18} aria-hidden="true" />내 옷차림 알리기</button></li>
+              {tools.map((tool) => <li key={tool.label}><button type="button" role="menuitem" onClick={() => { setToolsOpen(false); tool.onClick() }}>{tool.label}</button></li>)}
+            </ul>}
             <input ref={fileInput} type="file" accept={IMAGE_TYPES.join(',')} hidden aria-hidden="true" tabIndex={-1}
               onChange={(e) => { sendImage(e.target.files?.[0]); e.target.value = '' }} />
             <textarea ref={input} rows={1} maxLength={200} value={text}

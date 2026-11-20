@@ -64,8 +64,9 @@ export const won = (value) => `${Number(value).toLocaleString()}원`
 
 export const PARTY_LABEL = {
   CONFIRMED: '일행 확정', SETTLING: '이전 정산 기록', COMPLETED: '완료', UNSETTLED: '정산 미입력', CANCELED: '취소',
-  RIDE_UNCONFIRMED: '운행 확인 중', PREPAYING: '선결제 대기', READY: '호출 대기', AWAITING_FARE: '금액 입력 대기', OBJECTION_WINDOW: '이의 기간',
-  REVIEW_PENDING: '관리자 검토 중', SETTLED: '정산 확정', DISSOLVED: '해산', NOT_OPERATED: '운행 미성사', FARE_MISSING: '정산 미입력',
+  RIDE_UNCONFIRMED: '탔는지 확인하는 중', PREPAYING: '선결제하는 중', READY: '모이는 중', PAYER_PENDING: '결제자 정하는 중',
+  AWAITING_FARE: '요금 입력 기다리는 중', OBJECTION_WINDOW: '요금 확인 기간',
+  REVIEW_PENDING: '관리자 검토 중', SETTLED: '정산 확정', DISSOLVED: '해산', NOT_OPERATED: '운행 안 됨', FARE_MISSING: '정산 미입력',
 }
 export const partyLabel = (status) => PARTY_LABEL[status] || '일행 상태 확인 중'
 export const knownPartyStatus = (status) => PARTY_LABEL[status] != null

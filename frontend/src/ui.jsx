@@ -15,18 +15,19 @@ export function useWide() {
   return wide
 }
 
-/** 위는 내용, 아래는 지금 할 행동을 고정한다. aside는 넓은 화면의 오른쪽 패널이다. */
-export function Screen({ children, foot, aside, chat }) {
+/**
+ * 위는 내용, 아래는 지금 할 행동을 고정한다.
+ * 넓은 화면: aside가 있으면 왼쪽 판(400px) + 오른쪽 지도, 없으면 지도 없이 가운데 한 칸이다.
+ */
+export function Screen({ children, foot, aside }) {
   const wide = useWide()
-  const kind = aside === undefined ? 'screen solo' : chat ? 'screen with-chat' : 'screen'
   return (
-    <div className={kind}>
+    <div className={aside === undefined ? 'screen solo' : 'screen'}>
       <div className="pane">
         <div className="body">{children}</div>
         {foot && <div className="foot">{foot}</div>}
       </div>
       {wide && aside !== undefined && <aside className="aside">{aside}</aside>}
-      {wide && chat && <aside className="chat-col" aria-label="일행 채팅"><h2 className="chat-col-title">일행 채팅</h2>{chat}</aside>}
     </div>
   )
 }
@@ -41,6 +42,15 @@ export function Paper({ title, children }) {
       {children}
     </section>
   )
+}
+
+/** 비어 있는 화면은 모두 같은 모양: 제목 한 줄, 설명 한 줄, 노란 버튼 하나. */
+export function Empty({ title, children, action, onAction }) {
+  return <div className="empty">
+    <b>{title}</b>
+    {children && <p>{children}</p>}
+    {action && <Btn onClick={onAction}>{action}</Btn>}
+  </div>
 }
 
 export function SideEmpty({ title, children }) {

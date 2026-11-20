@@ -39,9 +39,9 @@ describe('학생 안내', () => {
   const party = { id: 1, status: 'PREPAYING', departureAt: '2026-11-12T01:00:00Z', prepayDeadlineAt: '2026-11-12T00:40:00Z', canArrive: true, canCancel: true, payer: true, myRequestId: 1, members: [{ requestId: 1, memberId: 1, nickname: '나', rideOrder: 1 }], myShare: 1000 }
   it('고정 영역에는 주요 버튼 하나만 있고 보조 동작은 본문에 있다', () => {
     const view = render(<PartyScreen party={party} now={now} myId={1} run={vi.fn()} onHome={vi.fn()} />)
-    expect(view.container.querySelectorAll('.foot button')).toHaveLength(1)
-    // 홈은 위쪽 뒤로 버튼, 취소는 일행 정보 맨 아래(휴대폰은 '자세히' 창)
-    expect(within(view.container.querySelector('.bar')).getByRole('button', { name: '홈으로' })).toBeTruthy()
+    expect(view.container.querySelectorAll('.task-foot button')).toHaveLength(1)
+    // 홈은 방 머리의 뒤로 버튼, 취소는 일행 정보 창 맨 아래
+    expect(within(view.container.querySelector('.room-head')).getByRole('button', { name: '홈으로' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '일행 정보 열기' }))
     const secondary = screen.getByRole('region', { name: '일행 보조 메뉴', hidden: true })
     expect(within(secondary).getByRole('button', { name: '내 탑승 취소', hidden: true })).toBeTruthy()
@@ -64,7 +64,8 @@ describe('학생 안내', () => {
   it('승계 당사자는 수락과 거절을 답할 수 있다', async () => {
     const accept = vi.spyOn(api, 'payerSuccession').mockResolvedValue()
     render(<PartyScreen party={{ ...party, status: 'PAYER_PENDING', successorId: 1, successionDeadlineAt: now }} now={now} myId={1} run={async (fn) => fn()} />)
-    fireEvent.click(screen.getByRole('button', { name: '결제자 이어받기' }))
+    expect(screen.getByText(/결제자.*안 왔어요/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '제가 결제할게요' }))
     await waitFor(() => expect(accept).toHaveBeenCalledWith(1, true))
   })
   it('선결제 전에는 0원 승인 대신 아직 결제 전을 안내한다', () => {
@@ -85,7 +86,7 @@ describe('학생 안내', () => {
     vi.spyOn(api, 'history').mockResolvedValue([])
     const stats = vi.spyOn(api, 'fareAccuracy').mockResolvedValue({ settled: 1, within: 0 })
     render(<History />)
-    await screen.findByText('아직 이용 내역이 없어요')
+    await screen.findByText('아직 탄 기록이 없어요')
     expect(stats).not.toHaveBeenCalled()
   })
   it('관리자 이력은 통계를 조회한다', async () => {

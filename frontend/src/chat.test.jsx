@@ -56,7 +56,8 @@ describe('카톡 수준 일행 채팅', () => {
     let finish
     const upload = vi.spyOn(api, 'sendPartyImage').mockImplementation(() => new Promise((resolve) => { finish = resolve }))
     const { container } = render(<PartyChat partyId={7} now={NOW} status="PREPAYING" />)
-    await screen.findByRole('button', { name: '사진 보내기' })
+    fireEvent.click(await screen.findByRole('button', { name: '더 보기' }))
+    expect(screen.getByRole('menuitem', { name: '사진 보내기' })).toBeTruthy()
     const file = container.querySelector('input[type=file]')
     fireEvent.change(file, { target: { files: [new File(['x'], 'a.gif', { type: 'image/gif' })] } })
     expect(upload).not.toHaveBeenCalled()

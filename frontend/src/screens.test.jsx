@@ -126,7 +126,7 @@ describe('신고와 매칭 설정', () => {
 
 
 describe('일행 채팅', () => {
-  it('메시지와 문구 버튼, 신고 시트, 읽기 전용 상태를 보여 준다', async () => {
+  it('메시지, + 메뉴의 옷차림 알리기, 이름을 눌러 여는 신고 시트, 읽기 전용 상태를 보여 준다', async () => {
     const initial = { closed: false, closesAt: '2026-11-10T00:00:00Z', messages: [
       { id: 1, memberId: 2, nickname: '일행', text: '기다리고 있어요', createdAt: '2026-11-08T00:00:00Z', mine: false },
       { id: 2, memberId: 1, nickname: '내별명', text: '곧 가요', createdAt: '2026-11-08T00:01:00Z', mine: true },
@@ -139,22 +139,21 @@ describe('일행 채팅', () => {
     expect(screen.getByRole('region', { name: '일행 채팅' })).toBeTruthy()
     await screen.findByText('기다리고 있어요')
     expect(screen.queryByText('나 (내별명)')).toBeNull() // 내 말풍선에는 카톡처럼 이름을 붙이지 않는다
-    expect(screen.getAllByRole('button', { name: /메시지 신고/ })).toHaveLength(1)
+    // 신고는 남의 메시지 보낸 사람 이름에만 있다. 정해진 문구 단추 줄은 없다.
+    expect(screen.getAllByRole('button', { name: /신고하기$/ })).toHaveLength(1)
+    expect(screen.queryByRole('group', { name: '자주 쓰는 문구' })).toBeNull()
+    expect(screen.queryByText('어디쯤이세요?')).toBeNull()
     const input = screen.getByRole('textbox', { name: '일행에게 보낼 메시지' })
     expect(input.maxLength).toBe(200)
-    for (const phrase of ['어디쯤이세요?', '도착했어요!', '택시 잡았어요']) {
-      fireEvent.click(screen.getByRole('button', { name: phrase, exact: true }))
-      await waitFor(() => expect(send).toHaveBeenLastCalledWith(11, phrase, expect.any(String)))
-      await waitFor(() => expect(screen.getByRole('button', { name: phrase, exact: true }).disabled).toBe(false))
-    }
-    fireEvent.click(screen.getByRole('button', { name: '내 옷차림 알리기', exact: true }))
+    fireEvent.click(screen.getByRole('button', { name: '더 보기' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '내 옷차림 알리기' }))
     expect(input.value).toBe('저는 ')
     expect(document.activeElement).toBe(input)
     fireEvent.change(input, { target: { value: '저는 파란 외투 입었어요' } })
     fireEvent.click(screen.getByRole('button', { name: '메시지 보내기' }))
     await waitFor(() => expect(send).toHaveBeenCalledWith(11, '저는 파란 외투 입었어요', expect.any(String)))
     await waitFor(() => expect(input.value).toBe(''))
-    fireEvent.click(screen.getByRole('button', { name: '일행님 메시지 신고' }))
+    fireEvent.click(screen.getByRole('button', { name: '일행님 신고하기' }))
     await screen.findByRole('dialog', { name: '일행님 신고·다시 매칭 안 함' })
     expect(screen.getByRole('button', { name: '다시 매칭 안 함 해제' })).toBeTruthy()
     fireEvent.keyDown(window, { key: 'Escape' })
