@@ -1,12 +1,15 @@
 import React from 'react'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from './api.js'
 import { BoardSection } from './Board.jsx'
 import Home from './Home.jsx'
 import PaymentCard from './PaymentCard.jsx'
 import { FairnessNote } from './ui.jsx'
-import { DriverView } from './PartyScreens.jsx'
+import { DriverView, PartyScreen } from './PartyScreens.jsx'
+import { PayerInput, SettlementScreen } from './SettleScreens.jsx'
+import { AdminScreen } from './ReviewScreens.jsx'
+import { DemoPresenter } from './DemoBar.jsx'
 import MapPicker from './MapPicker.jsx'
 
 // 처음 쓰는 학생·교수 관점 후기에서 나온 문제를 고친 동작.
@@ -101,5 +104,84 @@ describe('다이얼로그 접근성', () => {
     expect(document.activeElement).toBe(screen.getByRole('dialog', { name: '출발지 고르기' }))
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(closeMap).toHaveBeenCalledOnce()
+  })
+})
+
+describe('실사용 점검 후 개선', () => {
+  it('홈 진행 중 일행은 승차 대기 위치가 아니라 내 목적지를 경로로 보여 준다', async () => {
+    home([party({
+      status: 'READY',
+      anchorName: '학교 정문',
+      meetingPoint: '정문 앞 버스 정류장',
+      myRequestId: 10,
+      members: [{ requestId: 10, memberId: 1, nickname: '하은', pointName: '역전 버스 정류장', rideOrder: 1 }],
+    })])
+    expect(await screen.findByText('학교 정문에서 역전 버스 정류장')).toBeTruthy()
+    expect(screen.queryByText('학교 정문에서 정문 앞 버스 정류장')).toBeNull()
+  })
+
+  it('탑승 번호 마감 전 AWAITING_FARE에서는 결제자에게 5분 대기 이유를 알려 준다', () => {
+    vi.spyOn(api, 'partyMessages').mockResolvedValue({ closed: false, messages: [] })
+    vi.spyOn(api, 'partyMembers').mockResolvedValue([])
+    vi.spyOn(api, 'boardingCode').mockResolvedValue({ code: '123456', expiresAt: '2026-11-12T00:05:00Z', entered: [], remainingSeconds: 300 })
+    render(<PartyScreen party={party({
+      status: 'AWAITING_FARE',
+      payer: true,
+      payerId: 1,
+      canSettle: false,
+      myRequestId: 10,
+      prepayDeadlineAt: '2026-11-12T00:00:00Z',
+      members: [{ requestId: 10, memberId: 1, nickname: '하은', pointName: '역전', rideOrder: 1 }],
+    })} now={now} myId={1} />)
+    expect(screen.getByText('탑승 확인이 끝나면 금액을 입력해요')).toBeTruthy()
+  })
+
+  it('요금 이의 창에 취소 버튼이 있고, 넓은 화면 정산은 오른쪽에 정산 요약을 보여 준다', () => {
+    window.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} })
+    vi.spyOn(api, 'partyMessages').mockResolvedValue({ closed: false, messages: [] })
+    const settledParty = party({
+      status: 'OBJECTION_WINDOW',
+      payerId: 2,
+      myRequestId: 10,
+      expectedTotal: 16800,
+      prepayDeadlineAt: '2026-11-11T23:40:00Z',
+      members: [{ requestId: 10, memberId: 1, nickname: '가', pointName: '역전', rideOrder: 1 }, { requestId: 11, memberId: 2, nickname: '나', pointName: '터미널', rideOrder: 2 }],
+      settlement: { paidAmount: 16800, objectionDeadlineAt: '2026-11-13T00:00:00Z', finalizedAt: null, shares: [{ memberId: 1, amount: 6800 }, { memberId: 2, amount: 10000, payer: true }], payments: [], receiptAvailable: true },
+    })
+    render(<SettlementScreen party={settledParty} myId={1} now={now} config={{ demo: true }} />)
+    expect(screen.getByRole('heading', { name: '정산 요약' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '요금 이의', exact: true }))
+    const dialog = screen.getByRole('dialog', { name: '요금 이의' })
+    fireEvent.click(within(dialog).getByRole('button', { name: '취소' }))
+    expect(screen.queryByRole('dialog', { name: '요금 이의' })).toBeNull()
+  })
+
+  it('실제 금액 입력에서 일행 탑승 확인을 눌렀을 때 대상이 없으면 빈 안내를 보여 준다', async () => {
+    vi.spyOn(api, 'partyBoardingCases').mockResolvedValue([])
+    vi.spyOn(api, 'compensation').mockResolvedValue([])
+    render(<PayerInput party={party({
+      status: 'AWAITING_FARE',
+      payer: true,
+      payerId: 1,
+      myRequestId: 10,
+      expectedTotal: 15000,
+      prepayDeadlineAt: '2026-11-11T23:40:00Z',
+      members: [{ requestId: 10, memberId: 1, nickname: '하은', pointName: '역전', rideOrder: 1 }],
+    })} now={now} />)
+    fireEvent.click(screen.getByRole('button', { name: '일행 탑승 확인' }))
+    expect(await screen.findByText('확인이 필요한 일행이나 보전 내역이 없어요.')).toBeTruthy()
+  })
+
+  it('관리자 화면은 모의 운영 장부 경계를 안내하고 발표자 창은 관객 창 열기 버튼을 제공한다', async () => {
+    vi.spyOn(api, 'adminNoShows').mockResolvedValue([])
+    const view = render(<AdminScreen allowed onBack={vi.fn()} />)
+    expect(await screen.findByText(/모의 운영 장부예요/)).toBeTruthy()
+    view.unmount()
+
+    vi.spyOn(api, 'demoStatus').mockResolvedValue({ now, partyId: null, investigations: [] })
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
+    render(<DemoPresenter now={now} run={vi.fn()} parties={[]} />)
+    fireEvent.click(screen.getByRole('button', { name: '관객 창 열기' }))
+    expect(openSpy).toHaveBeenCalledWith('/', 'taximate-audience')
   })
 })

@@ -48,6 +48,12 @@ export const savedTotal = (items) => items.filter((item) => item.stage === 'SETT
 export const routeLabel = (item) =>
   item.direction === 'TO_SCHOOL' ? `${item.pointName}에서 ${item.anchorName}` : `${item.anchorName}에서 ${item.pointName}`
 
+/** 일행 카드·목록용 경로 이름. 내 출발지/목적지가 있으면 승차 대기 위치 대신 실제 지점을 보여 준다. */
+export function partyRouteLabel(party) {
+  const mine = party.members?.find((m) => m.requestId === party.myRequestId)
+  return routeLabel({ direction: party.direction, anchorName: party.anchorName, pointName: mine?.pointName || party.meetingPoint })
+}
+
 export function formatDateTime(value) {
   if (value == null || !Number.isFinite(new Date(value).getTime())) return '시각 확인 중'
   return new Date(value).toLocaleString('ko-KR', {

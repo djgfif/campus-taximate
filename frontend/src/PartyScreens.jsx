@@ -186,9 +186,15 @@ function NextAction({ party, now, myId, mine, config, run, onUpdated, onDriver }
       detail = `${left(goBy)}. 도착하면 "도착했어요"를 눌러 주세요.`
     }
   } else if (party.status === 'AWAITING_FARE') {
-    title = party.payer ? '실제 금액을 입력해 주세요' : '결제자의 금액 입력을 기다려요'
-    detail = party.payer ? '영수증 사진과 함께 올리면 내 몫을 뺀 나머지를 돌려드려요.' : '입력되면 24시간 동안 요금 이의를 낼 수 있어요.'
-    if (!party.payer) tone = 'calm'
+    if (party.payer && !party.canSettle) {
+      title = '탑승 확인이 끝나면 금액을 입력해요'
+      detail = '동승자의 탑승 번호 입력 시간(5분)이 끝나면 실제 금액과 영수증 입력 화면이 열려요.'
+      tone = 'calm'
+    } else {
+      title = party.payer ? '실제 금액을 입력해 주세요' : '결제자의 금액 입력을 기다려요'
+      detail = party.payer ? '영수증 사진과 함께 올리면 내 몫을 뺀 나머지를 돌려드려요.' : '입력되면 24시간 동안 요금 이의를 낼 수 있어요.'
+      if (!party.payer) tone = 'calm'
+    }
   } else if (['DISSOLVED', 'NOT_OPERATED', 'FARE_MISSING'].includes(party.status)) {
     title = party.status === 'DISSOLVED' ? '일행이 해산됐어요' : '운행이 성사되지 않았어요'
     detail = party.reviewReason === 'ROUTE_VERIFICATION_EXPIRED'

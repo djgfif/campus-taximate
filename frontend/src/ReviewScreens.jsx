@@ -82,7 +82,7 @@ export function BoardingCasesScreen({ now, onBack }) {
   </div></Screen>
 }
 
-export function PartyBoardingPanel({ party, now }) {
+export function PartyBoardingPanel({ party, now, showEmpty = false }) {
   const load = useCallback(() => Promise.all([api.partyBoardingCases(party.id), api.compensation(party.id)]), [party.id])
   const remote = useRemote(load)
   const reload = remote.reload
@@ -105,12 +105,14 @@ export function PartyBoardingPanel({ party, now }) {
     catch (e) { setError(e.message) }
   }
   const others = candidates.filter((c) => c.memberId !== mine)
-  // 확인할 사람도 보전 내역도 없으면 자리를 차지하지 않는다.
-  if (!remote.loading && !remote.error && others.length === 0 && entries.length === 0 && !pending && !error) return null
+  // 확인할 사람도 보전 내역도 없으면 기본은 숨기되, 직접 눌러 열었을 때는 안내를 보여 준다.
+  const empty = !remote.loading && !remote.error && others.length === 0 && entries.length === 0 && !pending && !error
+  if (empty && !showEmpty) return null
   return <section className="block review-stack" aria-label="일행 탑승 확인">
     <h2 className="block-title">일행 탑승 확인</h2>
     <p className="note">직접 본 것만 표시해 주세요. 한 번 표시하면 바꿀 수 없어요.</p>
     <RemoteState remote={remote} />
+    {empty && <p className="note">확인이 필요한 일행이나 보전 내역이 없어요.</p>}
     {others.map((item) => {
       const c = item.investigation
       const name = item.nickname || party.members?.find((m) => m.memberId === item.memberId)?.nickname || `회원 #${item.memberId}`
@@ -319,13 +321,14 @@ function AdminList({ tab }) {
 export function AdminScreen({ allowed, onBack }) {
   const [tab, setTab] = useState('no-shows')
   if (!allowed) return <Screen><BackBar title="관리자" onBack={onBack} /><div className="pad"><Say tone="stop-tone">관리자만 이용할 수 있어요.</Say></div></Screen>
-  return <Screen><BackBar title="관리자" onBack={onBack} /><div className="pad review-stack">
+  return <Screen><BackBar title="관리자" onBack={onBack} /><div className="pad review-stack admin-page">
     <h1 className="head">관리자</h1><p className="sub">자료를 확인하고 처리 근거를 남겨 주세요.</p>
+    <Say>모의 운영 장부예요. 실제 계좌 송금·지급대행은 연동되지 않으며, 모든 처리 근거는 감사 기록에 남아요.</Say>
     <nav className="review-nav" aria-label="관리 업무">{ADMIN_TABS.map(([id, label]) => <button type="button" key={id} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}>{label}</button>)}</nav>
     <AdminList key={tab} tab={tab} />
   </div></Screen>
 }
 
-export function BoardingPanel({ party, now }) {
-  return isPaymentParty(party) ? <PartyBoardingPanel key={party.id} party={party} now={now} /> : null
+export function BoardingPanel({ party, now, showEmpty = false }) {
+  return isPaymentParty(party) ? <PartyBoardingPanel key={party.id} party={party} now={now} showEmpty={showEmpty} /> : null
 }
