@@ -24,6 +24,16 @@ function defaultDirection(now) {
   return hour < 14 ? 'TO_SCHOOL' : 'FROM_HUB'
 }
 
+/** 진행 중 띠의 제목. 일행 상태가 아니라 '내가 지금 할 일' 기준으로 쓴다. */
+function liveTitle(party) {
+  if (party.settlement || party.canSettle) return '정산 진행 중'
+  if (party.status === 'PREPAYING') {
+    if (!party.payer && !party.myPrepaid) return '선결제가 필요해요'
+    return '일행이 결제하는 중이에요'
+  }
+  return partyLabel(party.status)
+}
+
 /** 학교와 모집 중인 일행의 모이는 곳을 한 지도에. */
 function HomeMap({ school, board, direction }) {
   if (!school) return <div className="map-canvas" aria-hidden="true" />
@@ -60,10 +70,10 @@ export default function Home({ state, myId, config, onStart, onReopen, onHistory
           <ul className="live-rides" aria-label="진행 중">
             {state.parties.map((party) => (
               <li key={party.id}>
-                <button type="button" className="live-ride" onClick={() => onReopen(party.id)}>
+                <button type="button" className={party.status === 'PREPAYING' && !party.payer && !party.myPrepaid ? 'live-ride owe' : 'live-ride'} onClick={() => onReopen(party.id)}>
                   <span className="lr-dot" aria-hidden="true" />
                   <span className="lr-main">
-                    <b>{party.settlement || party.canSettle ? '정산 진행 중' : partyLabel(party.status)}
+                    <b>{liveTitle(party)}
                       {party.unreadChat > 0 && <span className="unread-badge" aria-label={`안 읽은 메시지 ${party.unreadChat}개`}>{party.unreadChat > 99 ? '99+' : party.unreadChat}</span>}</b>
                     <small>{party.departureAt ? `${formatTime(party.departureAt)} 출발, ` : ''}{routeLabel({ direction: party.direction, anchorName: party.anchorName, pointName: party.meetingPoint })}</small>
                   </span>
@@ -103,7 +113,8 @@ export default function Home({ state, myId, config, onStart, onReopen, onHistory
         {state.settledParty && <button type="button" className="text-row" onClick={() => onReopen(state.settledParty.id)}>최근 정산 내역 보기<ChevronRight size={18} aria-hidden="true" /></button>}
         {state.settledParty && <SettledFeedback key={`feedback-${state.settledParty.id}`} party={state.settledParty} myId={myId} />}
 
-        <BoardSection now={state.now} config={config} onJoined={onChanged} disabled={blocked} onLoaded={setBoard} direction={direction} />
+        <BoardSection now={state.now} config={config} onJoined={onChanged} disabled={blocked} onLoaded={setBoard} direction={direction}
+          onSwitch={() => setDirection(toSchool ? 'FROM_HUB' : 'TO_SCHOOL')} />
 
         {!wide && (
           <button type="button" className="text-row" onClick={onHistory}>

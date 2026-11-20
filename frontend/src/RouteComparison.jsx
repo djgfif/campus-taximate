@@ -51,7 +51,7 @@ function stopsOf(party, mine, routes) {
   return stops
 }
 
-function figures(mine) {
+export function figures(mine) {
   const solo = Math.ceil(mine.soloSeconds / 60)
   const shared = Math.ceil(mine.sharedSeconds / 60)
   return {

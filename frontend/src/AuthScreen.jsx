@@ -30,6 +30,7 @@ export default function AuthScreen({ config, onLogin }) {
   const [password, setPassword] = useState('')
   const [code, setCode] = useState('')
   const [info, setInfo] = useState('')
+  const [purpose, setPurpose] = useState('join')
 
   const signIn = async () => {
     try {
@@ -46,7 +47,7 @@ export default function AuthScreen({ config, onLogin }) {
       setStep('code')
       if (result?.demoCode) {
         setCode(result.demoCode)
-        setInfo('시연 계정이라 코드를 자동으로 넣었습니다.')
+        setInfo('시연 서버는 메일을 보내지 않아 코드를 바로 넣었어요.')
       } else {
         setInfo('학교 메일로 받은 6자리 코드를 입력해 주세요. 10분 동안 유효합니다.')
       }
@@ -77,7 +78,10 @@ export default function AuthScreen({ config, onLogin }) {
       <Screen foot={(
         <>
           <Btn disabled={!email.includes('@') || password.length < 8} onClick={signIn}>로그인</Btn>
-          <Btn className="quiet" onClick={() => setStep('email')}>처음이거나 비밀번호를 잊었어요</Btn>
+          <div className="auth-links">
+            <button type="button" onClick={() => { setPurpose('join'); setStep('email') }}>처음이에요, 가입할게요</button>
+            <button type="button" onClick={() => { setPurpose('reset'); setStep('email') }}>비밀번호를 잊었어요</button>
+          </div>
         </>
       )}>
         <AuthHero title={<>같은 방향 학생과<br />택시비를 나눠요</>} lead={copy.lead} />
@@ -106,9 +110,9 @@ export default function AuthScreen({ config, onLogin }) {
         <Btn className="quiet" onClick={back}>로그인으로 돌아가기</Btn>
       </>
     )}>
-      <AuthHero title={coding ? <>메일로 받은 코드를<br />입력해 주세요</> : <>학교 메일로<br />인증해요</>} />
+      <AuthHero title={coding ? <>인증 코드를<br />확인해 주세요</> : purpose === 'reset' ? <>비밀번호를<br />다시 정해요</> : <>학교 메일로<br />가입해요</>} />
       <div className="pad auth-form">
-        <p className="sub">{coding ? email : '가입하거나 비밀번호를 다시 정할 때 한 번 인증합니다.'}</p>
+        <p className="sub">{coding ? email : purpose === 'reset' ? '학교 메일로 받은 코드로 본인인지 확인해요.' : '학교 메일로 받은 코드로 이 학교 학생인지 확인해요.'}</p>
         {coding ? (
           <>
             <label className="field code">인증 코드

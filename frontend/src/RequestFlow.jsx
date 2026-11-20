@@ -141,6 +141,7 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
       <p className="foot-sum" aria-live="polite">{preview.data
         ? <>혼자 타면 <b>{'약 ' + won(preview.data.soloFare) + ', ' + preview.data.soloMinutes + '분'}</b>, 결과는 {formatTime(preview.data.resultBy)}까지</>
         : ready ? '요금 계산 중…' : '어디서 어디로 가는지 먼저 골라 주세요'}</p>
+      <p className="foot-rule">늦어져도 {config?.rules?.maxDelayMinutes ?? 15}분 이내, 혼자보다 {Math.round((config?.rules?.minSavingRate ?? 0.1) * 100)}% 이상 쌀 때만 일행이 돼요.</p>
       <Btn disabled={!preview.data || !ready} onClick={submit}>일행 찾기</Btn>
     </>}>
     <BackBar onBack={onClose} title={schoolDestination ? '등교' : '하교'} />

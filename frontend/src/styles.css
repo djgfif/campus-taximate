@@ -845,3 +845,29 @@ a.btn { text-decoration: none; }
 /* 넓은 화면에서 지도 대신 약도가 나올 때도 오른쪽을 꽉 채운다 */
 .aside > .side-sketch { position: absolute; inset: 0; padding: 72px 240px 32px 32px; background: #eceee9; }
 .aside > .side-sketch .sketch-map { width: 100%; height: 100%; }
+
+/* 로그인 아래: 가입과 비밀번호 찾기를 나란히 */
+.auth-links { display: flex; justify-content: center; gap: 4px; }
+.auth-links button { min-height: 44px; padding: 0 10px; font-size: 14px; font-weight: 500; color: var(--road); }
+.auth-links button + button::before { content: ''; display: inline-block; width: 1px; height: 12px; margin-right: 14px; vertical-align: -1px; background: var(--line); }
+@media (hover: hover) and (pointer: fine) { .auth-links button:hover { color: var(--ink); } }
+/* 내가 낼 돈이 남았을 때는 진행 중 띠의 점을 깜빡여 먼저 보이게 한다 */
+.live-ride.owe .lr-dot { animation: live 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .live-ride.owe .lr-dot { animation: none; } }
+/* 선결제: 남은 시간은 굵게, 10분 안쪽이면 빨갛게. 결제를 마치면 한 줄 */
+.payment-card .due .left { font-weight: 700; color: var(--ink); }
+.payment-card .due .left.urgent { color: var(--stop); }
+.payment-card .due.paid { font-weight: 700; color: var(--save); }
+.board-other { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 48px; margin-top: 4px; padding: 0 14px; border-radius: 12px; background: var(--mist); text-align: left; font-size: 14px; font-weight: 600; color: var(--ink-2); }
+.board-other span { font-weight: 700; color: var(--ink); }
+
+/* 이 일행이 정해진 이유: 내 숫자와 기준을 나란히 */
+.fairness { display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 14px; background: var(--mist); }
+.fairness h2 { font-size: 15px; font-weight: 700; }
+.fair-rows { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.fair-rows > div { display: flex; flex-direction: column; gap: 1px; padding: 12px; border-radius: 10px; background: var(--paper); }
+.fair-rows span { font-size: 12px; color: var(--road); }
+.fair-rows b { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.fair-rows small { font-size: 12px; color: var(--save); font-weight: 600; }
+.fairness p { font-size: 13px; line-height: 1.55; color: var(--ink-2); }
+.foot-rule { margin: 0 0 6px; font-size: 12px; color: var(--road); text-align: center; }

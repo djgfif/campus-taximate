@@ -81,6 +81,7 @@ public class ApiController {
     private final RideRequestService rideRequests;
     private final PartyService parties;
     private final com.campustaximate.server.common.InstantMatchingConfiguration instantSettings;
+    private final com.campustaximate.matching.MatchingSettings matchingSettings;
     private final SettlementService settlements;
     private final DemoService demo;
     private final WaitingInsightService insights;
@@ -198,6 +199,8 @@ public class ApiController {
         var schoolList = schools.findAll().stream().sorted(java.util.Comparator.comparing(School::getId))
                 .map(s -> Map.of("name", s.getName(), "emailDomain", s.getEmailDomain())).toList();
         return Map.of("demo", demo.enabled(), "simulatedRoute", routes.simulated(), "now", clock.now(), "schools", schoolList,
+                // 화면이 공정 기준(늘어나는 시간 상한, 최소 절약 비율)을 엔진과 같은 값으로 보여 준다.
+                "rules", Map.of("maxDelayMinutes", matchingSettings.maxDelayMinutes(), "minSavingRate", matchingSettings.minSavingRate()),
                 "mailEnabled", mail.enabled(), "sampleDropoffs", dropoffs.getDropoffs(),"instantMatching",Map.of(
                     "matchMinutes",instantSettings.getInstantMatchMinutes(),"prepMinutes",instantSettings.getInstantPrepMinutes(),
                     "dispatchMinutes",instantSettings.getInstantDispatchMinutes(),"maxWalkSeconds",instantSettings.getInstantMaxWalkSeconds()));
@@ -206,7 +209,9 @@ public class ApiController {
     @PostMapping("/auth/code")
     public Map<String, String> requestCode(@Valid @RequestBody CodeBody body) {
         String code = auth.requestCode(body.email());
-        boolean showCode = demo.enabled() && DataSeeder.isSeededDemo(body.email().trim().toLowerCase(Locale.ROOT));
+        // 시연 서버는 시연 계정에, 그리고 메일을 보낼 수 없을 때는 새로 가입하는 학생에게도 코드를 화면으로 준다.
+        // 메일이 설정된 서버에서는 새 학생의 코드는 메일로만 간다.
+        boolean showCode = demo.enabled() && (DataSeeder.isSeededDemo(body.email().trim().toLowerCase(Locale.ROOT)) || !mail.enabled());
         return showCode ? Map.of("demoCode", code) : Map.of();
     }
 

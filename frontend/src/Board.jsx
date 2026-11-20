@@ -11,7 +11,7 @@ const hourLabel = (iso) => `${formatTime(iso)}대`
  * 홈의 "지금 모집 중". 같은 방향으로 이미 모인 일행과, 시간대별로 기다리는 사람 수를 보여 준다.
  * 일행 카드를 누르면 내릴 곳만 고르고 바로 합류를 신청한다(나머지는 기존 일행 조건을 따른다).
  */
-export function BoardSection({ now, config, onJoined, disabled, onLoaded, direction }) {
+export function BoardSection({ now, config, onJoined, disabled, onLoaded, direction, onSwitch }) {
   const [board, setBoard] = useState(null)
   const [error, setError] = useState('')
   const [joining, setJoining] = useState(null)
@@ -25,6 +25,9 @@ export function BoardSection({ now, config, onJoined, disabled, onLoaded, direct
   const same = (item) => !direction || item.direction === direction
   const parties = (board?.parties || []).filter(same)
   const waiting = (board?.waiting || []).filter(same)
+  // 고른 방향은 비었는데 반대 방향에 모집 중인 일행이 있으면 알려 준다.
+  const otherCount = direction ? (board?.parties || []).filter((item) => item.direction !== direction).length : 0
+  const otherName = direction === 'TO_SCHOOL' ? '하교' : '등교'
   const clock = (iso) => {
     const [half, time] = formatTime(iso).split(' ')
     return time ? <><small>{half}</small>{time}</> : half
@@ -35,6 +38,9 @@ export function BoardSection({ now, config, onJoined, disabled, onLoaded, direct
       {!board && <p className="note" role="status">불러오는 중…</p>}
       {board && parties.length === 0 && (
         <p className="board-empty">아직 모인 일행이 없어요. 먼저 가는 길을 올리면 같은 방향 학생과 이어 드려요.</p>
+      )}
+      {board && parties.length === 0 && otherCount > 0 && onSwitch && (
+        <button type="button" className="board-other" onClick={onSwitch}>{otherName} 일행 {otherCount}개가 모집 중이에요<span aria-hidden="true">보기</span></button>
       )}
       <ul className="board-list">
         {parties.map((card) => (

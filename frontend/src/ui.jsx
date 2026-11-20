@@ -100,6 +100,24 @@ export function FareCompare({ solo, share }) {
   </section>
 }
 
+/**
+ * 이 일행이 정해진 이유. 매칭의 두 기준(늘어나는 시간, 내 몫의 비율)을 내 숫자와 나란히 보이고,
+ * 실제 요금을 어떻게 나누는지 한 줄로 말한다. 기준 값은 서버 설정(config.rules)을 따른다.
+ */
+export function FairnessNote({ delay, solo, share, rules, walkExcluded = false }) {
+  const maxDelay = rules?.maxDelayMinutes ?? 15
+  const maxShare = Math.round((1 - (rules?.minSavingRate ?? 0.1)) * 100)
+  const pct = solo > 0 ? Math.round((share / solo) * 100) : 100
+  return <section className="fairness" aria-label="이 일행이 정해진 이유">
+    <h2>이 일행이 정해진 이유</h2>
+    <div className="fair-rows">
+      <div><span>{walkExcluded ? '차로 늘어나는 시간' : '늘어나는 시간'}</span><b>{delay}분</b><small>{maxDelay}분 이내만 묶어요</small></div>
+      <div><span>혼자 탈 때 대비 내 몫</span><b>{pct}%</b><small>{maxShare}% 이하만 묶어요</small></div>
+    </div>
+    <p>내릴 때 나온 실제 요금은 각자 혼자 탈 때 요금의 비율대로 나눠요. 멀리 가는 사람이 더 내요.</p>
+  </section>
+}
+
 export const Money = ({ value }) => <>{Number(value).toLocaleString()}<small>원</small></>
 
 export function Meter({ label, value, detail, tag, children, compact = false }) {

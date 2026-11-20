@@ -343,9 +343,9 @@ class FlowTest {
         postJson("/api/auth/code", "{\"email\":\"a@gmail.com\"}", session).andExpect(status().isBadRequest());
         String response = postJson("/api/auth/code", "{\"email\":\"" + email + "\"}", session)
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-        assertThat(response).doesNotContain("demoCode");
-
+        // 테스트 서버는 메일 호스트가 없어 시연 서버처럼 코드를 화면으로도 준다. 메일로 만든 코드와 같아야 한다.
         String code = mailedCode(email);
+        assertThat(read(response).get("demoCode").asText()).isEqualTo(code);
         postJson("/api/auth/login", "{\"email\":\"" + email + "\",\"code\":\"" + code + "\"}", session)
                 .andExpect(status().isOk());
         assertThat(read(mvc.perform(get("/api/me").session(session)).andReturn().getResponse().getContentAsString())

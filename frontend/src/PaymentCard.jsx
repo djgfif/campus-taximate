@@ -45,13 +45,19 @@ export default function PaymentCard({ partyId, purpose = 'PREPAY', myId, now, co
   }
   // 간단히(지금 할 일 카드 안): 아직 아무것도 결제하지 않은 주문은 금액·기한 한 줄과 버튼만 보인다.
   const plain = compact && order && order.status === 'REQUIRED' && !(order.approvedAmount > 0)
+  // 지금 할 일 카드 안에서 결제를 마친 뒤에는 기한·주문 내역을 접고 '승인 완료' 한 줄만 남긴다. 환불이 생기면 내역을 다시 편다.
+  const settled = compact && order && order.status === 'APPROVED' && !(order.refundRequestedAmount > 0) && !(order.refundedAmount > 0)
+  const minutesLeft = order && now ? (new Date(order.deadlineAt) - new Date(now)) / 60000 : null
+  const urgent = minutesLeft != null && minutesLeft > 0 && minutesLeft <= 10
   return <section className={compact ? 'payment-card compact' : 'payment-card'} aria-label={extra ? '추가 결제' : '선결제'}>
     <h2>{extra ? '추가 결제' : '선결제'}{order ? ' ' + won(order.amount) : ''}</h2>
     {!extra && !compact && <p>처음 안내된 내 몫에 여유 15%를 더해 미리 결제해요.</p>}
     {!order && !error && <p role="status">주문을 확인하고 있어요.</p>}
     {order && <>
-      <p className="due">기한 {formatDateTime(order.deadlineAt)}{compact && now && !late ? ` (${remaining(order.deadlineAt, now)} 남음)` : ''}</p>
-      {!plain && <PaymentRecord order={order} />}
+      {settled ? <p className="due paid">승인 완료</p> : <>
+        <p className="due">기한 {formatDateTime(order.deadlineAt)}{compact && now && !late && payable && <b className={urgent ? 'left urgent' : 'left'}> {remaining(order.deadlineAt, now)} 남음</b>}</p>
+        {!plain && <PaymentRecord order={order} />}
+      </>}
       {/* 승인 완료는 위 결제 기록의 '결제 상태' 줄에 이미 나오므로 다시 띄우지 않는다. */}
       {order.status === 'APPROVED' ? null
         : order.status === 'PROCESSING' ? <Say>결제 확인 중이에요. 다시 결제하지 말고 결과를 기다려 주세요.</Say>

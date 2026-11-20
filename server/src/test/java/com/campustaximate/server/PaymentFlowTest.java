@@ -207,6 +207,13 @@ class PaymentFlowTest {
         assertThatThrownBy(()->payments.confirm(ids.get(0),o.getOrderId(),"key",o.getAmount()+1)).isInstanceOf(ApiException.class);
         verify(gateway,never()).confirm(anyString(),anyString(),anyLong(),anyString());
     }
+    /** 일행 상태는 모두 낼 때까지 PREPAYING이라, 홈이 '내가 냈는지'를 따로 알 수 있어야 한다. */
+    @Test void partyViewTellsWhetherIPrepaid() {
+        assertThat(partyService.view(ids.get(0),partyId).myPrepaid()).isFalse();
+        approve(0);
+        assertThat(partyService.view(ids.get(0),partyId).myPrepaid()).isTrue();
+        assertThat(partyService.view(ids.get(1),partyId).myPrepaid()).isFalse();
+    }
     @Test void sameOrderConfirmationCallsGatewayOnce() {
         approve(0); approve(0); verify(gateway,times(1)).confirm(anyString(),anyString(),eq(3680L),anyString());
     }

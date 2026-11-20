@@ -76,7 +76,8 @@ public class PartyService {
                             List<MemberView> members, SettlementView settlement, Instant prepayDeadlineAt, Instant freeCancelUntil, Instant startedAt,
                             long groupVersion, String reviewReason, boolean adminReviewRequired,
                             Boolean myRideAnswer, boolean canConfirmRide, boolean canLeaveAfterChange, boolean changeExitFree,
-                            Long myConfirmedShare, boolean myConfirmedMigrated, List<ChangeView> changes, boolean instant, Instant calledAt, boolean callReady, boolean canCall, List<String> notReadyReasons, Long successorId, Instant successionDeadlineAt, String successionStatus, long unreadChat) {
+                            Long myConfirmedShare, boolean myConfirmedMigrated, List<ChangeView> changes, boolean instant, Instant calledAt, boolean callReady, boolean canCall, List<String> notReadyReasons, Long successorId, Instant successionDeadlineAt, String successionStatus, long unreadChat,
+                            /** 내 선결제가 승인됐는지. 일행 상태는 모두 낼 때까지 PREPAYING이라 따로 준다. */ boolean myPrepaid) {
     }
 
     public record ChangeView(long version,String reason,Instant changedAt) { }
@@ -248,7 +249,9 @@ public class PartyService {
                 partyChanges.findByPartyIdOrderByGroupVersion(party.getId()).stream().map(c->new ChangeView(c.getGroupVersion(),c.getReason(),c.getChangedAt())).toList(),
                 party.isInstant(),party.getCalledAt(),ready.callReady(),ready.canCall(),ready.notReadyReasons(),party.getSuccessorId(),party.getSuccessionDeadlineAt(),party.getSuccessionStatus(),
                 chatMessages.countUnread(party.getId(), memberId, chatReads.findByPartyIdAndMemberId(party.getId(), memberId)
-                        .map(com.campustaximate.server.domain.PartyChatRead::getLastReadId).orElse(0L)));
+                        .map(com.campustaximate.server.domain.PartyChatRead::getLastReadId).orElse(0L)),
+                paymentOrders.findByPartyIdAndMemberIdAndPurpose(party.getId(), memberId, com.campustaximate.server.domain.PaymentPurpose.PREPAY)
+                        .map(o -> o.getStatus() == com.campustaximate.server.domain.PaymentStatus.APPROVED).orElse(false));
     }
 
     private SettlementView toView(Settlement settlement, Party party, boolean payer, long memberId) {
