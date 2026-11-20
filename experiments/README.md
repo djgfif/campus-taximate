@@ -153,3 +153,24 @@ C7의 동일한 90개 수요일(50/100/150명, 각 30일)에서 문 앞 하차, 
 Kakao REST 키는 기존 .env에서 읽고 출력하지 않는다. OSRM car 서버는 http://127.0.0.1:5000 에 있어야 한다. 보행은 대권거리×1.3, 4.5km/h의 가정이며 1.2km를 넘으면 같은 C7 요금모형의 라스트마일 택시를 이용한다. 허브는 수요가중 네트워크 p-median 국소해로 선정하며, 기본 K는 K20 목적함수의 1.25배 이내인 가장 작은 K다. 수용 판단은 예상 견적 기준이고, 사후 harmed는 C7과 같은 TIMS 잔차를 적용한 별도 결과다. 실제 승객 수용은 검증하지 않았다.
 
 [한국어 결과·허브 이름/좌표/배정 수요](reports/c9-dropoff-designs.md), [모든 95% CI·A 대비 대응 차이·해시](reports/c9-dropoff-designs.json). 검색 응답·응답 해시·K별 배정·양방향 OSRM 표는 .cache/hubs, 승객별 정산·일별 결과·생산 소스 해시·실행/테스트 로그는 .cache/c9에 있다. 생산 matching-engine/ 및 server/ 파일은 변경하지 않는다.
+
+## C10: 수요 규모와 선결제 규칙
+
+```powershell
+.\experiments\.cache\venv\python.exe experiments\scale_and_prepay.py
+```
+
+하루 25~1,000건 수요 곡선과, 같은 일행·실제 청구액에서 선결제 100~150%·편향 보정·소액 면제를 비교한다. 결과는 [reports/c10-scale-and-prepay.md](reports/c10-scale-and-prepay.md).
+
+## C11: 확정 분담금·정산 적립금과 확정 시점 정책
+
+```powershell
+.\experiments\.cache\venv\python.exe experiments\fixed_share_and_timing.py --reuse-hindsight
+```
+
+- 확정 분담금: 확정 때 각자 몫을 견적×(1+b+m)로 고정한다(b = C10 분할 평균 견적 오차, m = 여유분). 추가 결제·환불이 없고, 결제자에게는 (미터 − 결제자 몫)을 돌려주며 차액은 적립금이 메운다. 한 학기 80일 × 2,000경로로 적립금 궤적과 95%·99% 초기 기금을 구한다.
+- 절약 기준은 혼자 탈 때 기대 요금(견적×(1+b))과 비교하므로 b는 기준을 바꾸지 않고 m만 바꾼다.
+- 확정 시점: 운영 매칭(조기 확정 10분), 마감까지 대기, 조기 확정 0~20분, 예측 기반을 같은 수요로 비교하고 하루 정확해 상한 대비 회복분을 계산한다.
+- `--reuse-hindsight`는 이미 정확해를 구한 `.cache/c11/hindsight.json`을 다시 쓴다. 빼면 300건/일 정확해(HiGHS)를 새로 푼다.
+
+결과는 [reports/c11-fixed-share-and-timing.md](reports/c11-fixed-share-and-timing.md).
