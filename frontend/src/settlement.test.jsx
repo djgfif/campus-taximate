@@ -74,7 +74,7 @@ describe('새 정산 화면', () => {
     const received = vi.spyOn(api, 'received')
     render(<LegacySettlement party={{ id: 12, status: 'COMPLETED', settlement: { paidAmount: 10000, bankName: '은행', accountNumber: '123456789', transfers: [{ senderNickname: '가', amount: 3000, status: 'RECEIVED' }] } }} />)
     expect(screen.getByText('이전 송금 방식의 기록은 읽기만 할 수 있어요.')).toBeTruthy()
-    expect(screen.getByText('3,000원 · 받음')).toBeTruthy()
+    expect(screen.getByText('3,000원, 받음')).toBeTruthy()
     expect(screen.queryByText('123456789')).toBeNull()
     expect(screen.queryByRole('button', { name: /^(보냄|받음)$/ })).toBeNull()
     expect(sent).not.toHaveBeenCalled(); expect(received).not.toHaveBeenCalled()
@@ -103,10 +103,10 @@ describe('일행 상태', () => {
 
 describe('이용 내역의 결제 기록', () => {
   it.each([
-    ['BOARDING_UNCONFIRMED', '탑승 미확인 · 소명 기간'],
-    ['BOARDING_REVIEW', '탑승 미확인 · 관리자 검토 중'],
-    ['BOARDING_NO_SHOW', '탑승 조사 · 노쇼 확정'],
-    ['BOARDING_EXONERATED', '탑승 조사 · 노쇼 아님'],
+    ['BOARDING_UNCONFIRMED', '탑승 미확인, 소명 기간'],
+    ['BOARDING_REVIEW', '탑승 미확인, 관리자 검토 중'],
+    ['BOARDING_NO_SHOW', '노쇼 확정'],
+    ['BOARDING_EXONERATED', '탑승 조사 결과 노쇼 아님'],
   ])('제외자의 %s 상태와 본인 기록, 소명 안내를 표시한다', async (stage, label) => {
     vi.spyOn(api, 'history').mockResolvedValue([{ id: 102, stage, endReason: 'BOARDING_UNCONFIRMED', direction: 'FROM_HUB', anchorName: '정문', pointName: '시청', windowStart: now, partyId: null, partyIds: [11], soloFare: 10500 }])
     const own = vi.spyOn(api, 'ownPaymentHistory').mockResolvedValue([

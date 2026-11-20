@@ -17,7 +17,7 @@ import PaymentResult from './PaymentScreens.jsx'
 import { AdminScreen, BoardingCasesScreen } from './ReviewScreens.jsx'
 import { isPaymentParty } from './format.js'
 import { NoShow, Unmatched, Waiting } from './RequestStatus.jsx'
-import { Brand, Btn, Confirm, Item, LoadingScreen, Say, Sheet, Toaster, toast, useWide } from './ui.jsx'
+import { Avatar, Brand, Btn, Confirm, Item, LoadingScreen, Say, Sheet, Toaster, toast, useWide } from './ui.jsx'
 import { User } from 'lucide-react'
 import { disablePush, enablePush, pushGranted, pushSupported } from './push.js'
 
@@ -183,7 +183,7 @@ export default function App() {
         <>
           {wide && <Nav tab={tab} onTab={setTab} onMenu={openMenu} admin={me.admin} />}
           {offline && <Say tone="stop-tone">연결이 끊겼습니다. 다시 연결하는 중입니다.</Say>}
-          {config?.simulatedRoute && <p className="demo-strip" role="note">시연 모드 · 금액과 시간은 예시예요</p>}
+          {config?.simulatedRoute && <p className="demo-strip" role="note">시연 모드: 금액과 시간은 예시예요</p>}
           {paymentReturn && <PaymentResult key={me.id + location.search} search={location.search} myId={me.id} onUpdated={refresh}
             onReturn={(id) => navigate(id ? `/parties/${id}` : '/', { replace: true })} />}
           {!paymentReturn && tab === 'history' && <History admin={me.admin} onBack={() => setTab('home')} onBoardingCases={() => setTab('boarding-cases')} />}
@@ -195,9 +195,8 @@ export default function App() {
           )}
           {config?.demo && <DemoBar now={state?.now} run={run} />}
           {menu && (
-            <Sheet title={me.nickname} className="pop" onClose={() => setMenu(false)}>
-              <p className="sub">{me.email}</p>
-              {config?.demo && <DemoAccounts onLogin={async () => { session.current += 1; setState(null); setResetting(false); setMenu(false); navigate('/'); setMe(await api.me()) }} />}
+            <Sheet title={me.nickname} className="pop menu" onClose={() => setMenu(false)}>
+              <div className="me-head"><Avatar name={me.nickname} size={44} /><div><b>{me.nickname}</b><small>{me.email}</small></div></div>
               <div className="list">
                 <Item title="내 프로필" detail="학과·학번을 같이 타는 사람에게 보여 줘요" onClick={() => { setMenu(false); setEditingProfile(true) }} />
                 <Item title="이용 내역" onClick={() => { setMenu(false); setTab('history') }} />
@@ -207,6 +206,7 @@ export default function App() {
                 <Item title="로그아웃" onClick={() => signOut(api.logout)} />
                 <Item title="모든 기기에서 로그아웃" danger onClick={() => setLeaving(true)} />
               </div>
+              {config?.demo && <DemoAccounts onLogin={async () => { session.current += 1; setState(null); setResetting(false); setMenu(false); navigate('/'); setMe(await api.me()) }} />}
             </Sheet>
           )}
           {editingProfile && <ProfileSheet onClose={() => setEditingProfile(false)} />}

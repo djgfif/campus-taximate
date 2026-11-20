@@ -113,7 +113,7 @@ export function SettlementScreen({ party, myId, now, config, onUpdated, onMenu, 
     catch (e) { setError(e.message) }
   }
   return <>
-    <PartyShell party={party} now={now} onMenu={onMenu} onHome={onHome} dark={false} firstTab="정산"
+    <PartyShell party={party} now={now} onMenu={onMenu} onHome={onHome} firstTab="정산"
       header={<div className="pad party-head"><h1 className="head">{partyLabel(party.status)}</h1></div>}
       progress={<div className="pad">
         {settlement?.warning && <Say tone="stop-tone">실제 금액이 예상과 {Math.abs(settlement.differencePercent)}% 달라요. 영수증을 확인해 주세요.</Say>}
@@ -146,7 +146,7 @@ export function LegacySettlement({ party, onHome, onMenu }) {
     <div className="pad"><h1 className="head">이전 정산 기록</h1><p>이전 송금 방식의 기록은 읽기만 할 수 있어요.</p>
       {settlement && <><Rows items={[
         ['실제 결제 금액', won(settlement.paidAmount)],
-        ...((settlement.transfers || []).map((t) => [t.senderNickname, won(t.amount) + ' · ' + (TRANSFER_LABEL[t.status] || '상태 확인 중')])),
+        ...((settlement.transfers || []).map((t) => [t.senderNickname, won(t.amount) + ', ' + (TRANSFER_LABEL[t.status] || '상태 확인 중')])),
       ]} /><ReceiptPaper party={party} /></>}
     </div></Screen>
 }

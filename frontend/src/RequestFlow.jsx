@@ -28,7 +28,7 @@ export function usePreview(body) {
   return result.key === key ? result : {}
 }
 
-export function PlaceField({ label, value, center, onChange, samples = [] }) {
+export function PlaceField({ label, value, center, onChange, samples = [], placeholder = '건물이나 정류장 이름' }) {
   const [open, setOpen] = useState(false)
   const [results, setResults] = useState([])
   const centerLat = center?.lat
@@ -47,7 +47,7 @@ export function PlaceField({ label, value, center, onChange, samples = [] }) {
     onChange({ name: place.name, point: { lat: place.lat, lon: place.lon } }); setOpen(false); setResults([]); setNote('')
   }
   return <section className="place-field" aria-label={label}>
-    <label className="field">{label}<span className="place-input"><input value={value.name} maxLength={100} placeholder="건물이나 정류장 이름"
+    <label className="field"><span className="field-label">{label}</span><span className="place-input"><input value={value.name} maxLength={100} placeholder={placeholder}
       onChange={(e) => onChange({ name: e.target.value, point: null })} />{value.point && <Check className="place-ok" size={18} aria-label="위치 선택됨" />}</span></label>
     {results.length > 0 && <ul className="places">{results.map((place) => <li key={place.id}><button type="button" onClick={() => choose(place)}>{place.name}</button></li>)}</ul>}
     {note && <p className="note" role="status">{note}</p>}
@@ -139,26 +139,28 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
     ...(destination.point ? [{ ...destination.point, label: '도', tone: 'end' }] : [])]} /> : undefined}
     foot={<>
       <p className="foot-sum" aria-live="polite">{preview.data
-        ? <>혼자 타면 <b>{'약 ' + won(preview.data.soloFare) + ', ' + preview.data.soloMinutes + '분'}</b> · 결과 {formatTime(preview.data.resultBy)}까지</>
+        ? <>혼자 타면 <b>{'약 ' + won(preview.data.soloFare) + ', ' + preview.data.soloMinutes + '분'}</b>, 결과는 {formatTime(preview.data.resultBy)}까지</>
         : ready ? '요금 계산 중…' : '어디서 어디로 가는지 먼저 골라 주세요'}</p>
       <Btn disabled={!preview.data || !ready} onClick={submit}>일행 찾기</Btn>
     </>}>
-    <BackBar onBack={onClose} title="탑승 요청" />
+    <BackBar onBack={onClose} title={schoolDestination ? '등교' : '하교'} />
     <div className="pad request-form">
       <Chips label="요청 방식" value={mode} onChange={setMode} options={[{ value: 'RESERVATION', label: '예약' }, { value: 'INSTANT', label: '즉시' }]} />
       {instant && <p className="note mode-note">{matchMinutes}분 동안 같이 탈 사람을 찾아요. 걸어서 {Math.floor(maxWalk / 60)}분 안 지점만 고를 수 있어요.</p>}
 
       <section className="form-step" aria-labelledby="step-where">
-        <h2 id="step-where"><span>1</span>어디서 어디로</h2>
-        <PlaceField label="출발지" value={origin} center={center} onChange={changeOrigin} samples={config?.demo ? hubs : []} />
-        <PlaceField label="도착지" value={destination} center={origin.point || center} onChange={setDestination} samples={config?.demo ? config.sampleDropoffs || [] : []} />
+        <h2 id="step-where" className="sr-only">어디서 어디로</h2>
+        <div className="route-box">
+          <PlaceField label="출발지" placeholder="출발지 검색" value={origin} center={center} onChange={changeOrigin} samples={config?.demo ? hubs : []} />
+          <PlaceField label="도착지" placeholder="도착지 검색" value={destination} center={origin.point || center} onChange={setDestination} samples={config?.demo ? config.sampleDropoffs || [] : []} />
+        </div>
         {!wide && origin.point && <div className="mini-map">
           <MapView points={tripPoints} edge={28} fallback={<SketchMap points={tripPoints} lines={tripLine} label="출발지와 도착지 약도" />} />
         </div>}
       </section>
 
       <section className="form-step" aria-labelledby="step-meet">
-        <h2 id="step-meet"><span>2</span>어디서 모일까요 <small>최대 3곳</small></h2>
+        <h2 id="step-meet">어디서 모일까요<small>최대 3곳</small></h2>
         <fieldset className="boarding-points"><legend className="sr-only">승차 지점 (1~3곳)</legend>
           {!origin.point ? <p className="note">출발지를 먼저 골라 주세요.</p> : points.key !== originKey ? <p role="status">근처 지점을 찾고 있어요.</p>
             : points.error ? <p role="alert">{points.error}</p> : nearby.length === 0 ? <Say>근처에 승차 지점이 없어요</Say>
@@ -168,7 +170,7 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
       </section>
 
       {!instant && <details className="form-step when">
-        <summary><h2 id="step-when"><span>3</span>언제</h2><b>{timeSummary}</b><em>바꾸기</em></summary>
+        <summary><h2 id="step-when">언제</h2><b>{timeSummary}</b><em>바꾸기</em></summary>
         <Chips label="시간 기준" value={basis} onChange={setBasis} options={[{ value: 'DEPART', label: '출발 기준' }, { value: 'ARRIVE', label: '도착 기준' }]} />
         {basis === 'DEPART' ? <>
           <RequestTimePicker label="출발 가능 시작" options={options} value={chosenStart} now={now} onChange={setStart} />

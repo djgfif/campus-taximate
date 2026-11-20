@@ -86,7 +86,7 @@ const inTest = () => typeof navigator !== 'undefined' && /jsdom/i.test(navigator
  * 탭을 바꾸면 탭이 화면 위에 오도록 올린다. 채팅은 탭 아래 남은 화면을 모두 쓰는 대화방으로 열고,
  * 하단 고정 버튼은 채팅 탭에서는 숨긴다.
  */
-export function PartyShell({ party, now, onUpdated, onMenu, onHome, header, progress, info, foot, aside, dark = true, firstTab = '진행' }) {
+export function PartyShell({ party, now, onUpdated, onMenu, onHome, header, progress, info, foot, aside, firstTab = '진행' }) {
   const [tab, setTab] = useState('progress')
   const tabs = useRef(null)
   const choose = (next) => {
@@ -98,7 +98,7 @@ export function PartyShell({ party, now, onUpdated, onMenu, onHome, header, prog
   }
   const unread = party.unreadChat || 0
   return <Screen aside={aside} foot={tab === 'chat' ? null : foot}>
-    <TopBar dark={dark} onMenu={onMenu} onHome={onHome} />
+    <TopBar onMenu={onMenu} onHome={onHome} />
     {header}
     <div ref={tabs} className="party-tabs" role="tablist" aria-label="일행 화면">
       {TABS.map(([id, label]) => <button key={id} type="button" role="tab" id={`tab-${id}`} aria-controls={`panel-${id}`}
@@ -134,7 +134,7 @@ function HomeParty({ party, now, myId, run, onDetail, onHome, onMenu }) {
     <PartyShell party={party} now={now} onMenu={onMenu} onHome={onHome} foot={primary}
       aside={mine ? <RouteSide party={party} mine={mine} /> : null}
       header={<Meter compact label="출발까지" value={remaining(party.departureAt, now)}
-        detail={`${formatTime(party.departureAt)} · ${meetPlace(party)}`} tag={roleTag(party)} />}
+        detail={`${formatTime(party.departureAt)} 출발, ${meetPlace(party)}`} tag={roleTag(party)} />}
       progress={<div className="block">
         {leaving ? (
           <Say title="이동 중이에요">
@@ -226,7 +226,7 @@ function SchoolRider({ party, now, run, onDetail, onHome, onMenu }) {
     <PartyShell party={party} now={now} onMenu={onMenu} onHome={onHome} foot={primary}
       aside={<RouteSide party={party} mine={mine} />}
       header={<Meter compact label={boarded ? '택시 도착까지' : '내 승차 시각까지'} value={remaining(party.myBoardAt, now)}
-        detail={`${formatTime(party.myBoardAt)} · ${meetPlace(party)}`} tag={roleTag(party)} />}
+        detail={`${formatTime(party.myBoardAt)} 탑승, ${meetPlace(party)}`} tag={roleTag(party)} />}
       progress={<div className="block">
         {missed ? (
           <Say tone="stop-tone" title="승차 시간이 지났어요">도착 표시가 없어 이번 일행에서 빠지고 노쇼로 기록됩니다.</Say>
@@ -420,7 +420,7 @@ function NextAction({ party, now, myId, mine, config, run, onUpdated, onDriver }
       tone = 'calm'
     } else {
       title = `${formatTime(goBy)}까지 ${place}에서 만나요`
-      detail = `${left(goBy)} · 도착하면 "도착했어요"를 눌러 주세요.`
+      detail = `${left(goBy)}. 도착하면 "도착했어요"를 눌러 주세요.`
     }
   } else if (party.status === 'AWAITING_FARE') {
     title = party.payer ? '실제 금액을 입력해 주세요' : '결제자의 금액 입력을 기다려요'
@@ -471,6 +471,7 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
   const personOf = (memberId) => people.find((p) => p.memberId === memberId)
   return <>
     <PartyShell party={party} now={now} onUpdated={onUpdated} onMenu={onMenu} onHome={onHome} foot={primary}
+      aside={mine ? <RouteSide party={party} mine={mine} /> : null}
       header={<Meter compact label={!knownPartyStatus(party.status) ? partyLabel(party.status) : party.instant ? '출발(예상)' : '출발'} value={formatTime(party.departureAt)} detail={meetPlace(party)} tag={roleTag(party)} />}
       progress={<>
         <div className="block party-top">
@@ -494,7 +495,7 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
             avatar: <Avatar name={m.nickname} />,
             name: m.memberId === myId ? m.nickname + ' (나)' : m.nickname,
             badge: m.memberId === party.payerId ? '택시 부름' : '',
-            detail: [m.pointName, m.expectedShare != null ? won(m.expectedShare) : ''].filter(Boolean).join(' · '),
+            detail: [m.pointName, m.expectedShare != null ? won(m.expectedShare) : ''].filter(Boolean).join(', '),
             sub: m.memberId === myId ? '' : trustLine(personOf(m.memberId)),
             me: m.memberId === myId,
             state: waiting ? (m.noShow ? '불참' : m.arrived ? '도착' : m.nearby ? '2분 안' : '오는 중') : '',

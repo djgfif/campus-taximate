@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react'
-import { House, School } from 'lucide-react'
+import { ChevronRight, Clock, MapPin } from 'lucide-react'
 import { api } from './api.js'
 import { SettledFeedback } from './MemberSafety.jsx'
 import { BoardSection } from './Board.jsx'
 import MapView from './MapView.jsx'
 import { formatTime, partyLabel, routeLabel, savedTotal, won } from './format.js'
-import { Item, Paper, Say, Screen, SideEmpty, SidePlain, TopBar, useWide } from './ui.jsx'
+import { Say, Screen, TopBar, useWide } from './ui.jsx'
 
 /** 최근 요청을 방향과 지점별로 하나씩 남긴다. */
 function recentRoutes(history) {
@@ -15,97 +15,102 @@ function recentRoutes(history) {
     if (seen.has(key)) return false
     seen.add(key)
     return true
-  }).slice(0, 3)
+  })
+}
+
+/** 서울 시각 오후 2시 전에는 등교, 그 뒤에는 하교를 먼저 보여 준다. */
+function defaultDirection(now) {
+  const hour = Number(new Date(now || Date.now()).toLocaleString('en-US', { hour: 'numeric', hour12: false, timeZone: 'Asia/Seoul' }))
+  return hour < 14 ? 'TO_SCHOOL' : 'FROM_HUB'
+}
+
+/** 학교와 모집 중인 일행의 모이는 곳을 한 지도에. */
+function HomeMap({ school, board, direction }) {
+  if (!school) return <div className="map-canvas" aria-hidden="true" />
+  // 지도를 못 불러와도 빈 회색 판이 아니라 학교 위치만은 보이게 한다.
+  const fallback = <div className="map-canvas map-fallback" aria-hidden="true"><span className="mf-pin"><i />{school.name}</span></div>
+  const points = [{ lat: school.lat, lon: school.lon, label: '학', tone: 'end' }]
+  for (const card of (board?.parties || []).filter((c) => c.direction === direction)) {
+    if (card.anchorLat && card.anchorLon) points.push({ lat: card.anchorLat, lon: card.anchorLon, label: formatTime(card.departureAt).replace(/^오[전후] /, ''), tone: 'time' })
+  }
+  return <MapView points={points} edge={56} fallback={fallback} />
 }
 
 export default function Home({ state, myId, config, onStart, onReopen, onHistory, onMenu, onChanged }) {
   const [history, setHistory] = useState([])
-  const wide = useWide()
   const [school, setSchool] = useState(null)
+  const [board, setBoard] = useState(null)
+  const [direction, setDirection] = useState(() => defaultDirection(state.now))
+  const wide = useWide()
   useEffect(() => {
     api.history().then(setHistory).catch(() => setHistory([]))
+    api.school().then(setSchool).catch(() => setSchool(null))
   }, [])
-  useEffect(() => {
-    if (wide) api.school().then(setSchool).catch(() => setSchool(null))
-  }, [wide])
-  const recent = recentRoutes(history)
+  const toSchool = direction === 'TO_SCHOOL'
+  const recent = recentRoutes(history).filter((item) => item.direction === direction).slice(0, 3)
   const saved = savedTotal(history)
-  const routes = recent.map((item) => (
-    <Item key={item.id} title={routeLabel(item)}
-      detail={`지난번 ${formatTime(item.arriveBy || item.windowStart)}`}
-      onClick={() => onStart({ direction: item.direction, initial: item })} />
-  ))
   const blocked = state.restricted
-  const empty = <SideEmpty title="첫 요청을 만들어 보세요">이용한 경로와 아낀 금액이 여기에 쌓입니다.</SideEmpty>
-  const aside = recent.length === 0
-    ? (school ? <>
-      <MapView points={[{ lat: school.lat, lon: school.lon, label: '학', tone: 'end' }]} fallback={empty} />
-      <div className="floater"><div className="addr"><b>첫 요청을 만들어 보세요</b><small>{school.name}을 오가는 같은 방향 학생과 이어 드려요. 이용한 경로와 아낀 금액은 여기에 쌓여요.</small></div></div>
-    </> : empty)
-    : (
-      <SidePlain>
-        {saved > 0 && <Paper><span className="k">지금까지 아낀 금액</span><strong className="saved">{won(saved)}</strong></Paper>}
-        {!blocked && <Paper title="최근 경로"><div className="list">{routes}</div></Paper>}
-      </SidePlain>
-    )
+  const map = <HomeMap school={school} board={board} direction={direction} />
+
   return (
-    <Screen aside={aside}>
-      <TopBar onMenu={onMenu} />
-      <div className="home-head">
-        <h1 className="head">어디로 가세요?</h1>
-        <p className="sub">같은 방향 학생과 택시비를 나눠요</p>
-      </div>
-      {(blocked || state.parties.length > 0) && (
-        <div className="pad">
-          {state.restriction && <Say tone="stop-tone" title="신고 누적으로 이용이 제한됐어요">{state.restriction.message}</Say>}
-          {(state.transferRestricted || (blocked && !state.restriction)) && <Say tone="stop-tone" title="미납 내역이 있어요">결제 또는 이전 미정산 내역을 확인해 주세요. 해결하면 새 요청을 할 수 있어요.</Say>}
-          <div className="list ongoing">
+    <Screen aside={map}>
+      {!wide && <div className="home-map">{map}<TopBar onMenu={onMenu} floating /></div>}
+      <div className="home-sheet">
+        {state.parties.length > 0 && (
+          <ul className="live-rides" aria-label="진행 중">
             {state.parties.map((party) => (
-              <Item key={party.id} title={<>{party.settlement || party.canSettle ? '진행 중인 정산' : '진행 중인 일행'}
-                {party.unreadChat > 0 && <span className="unread-badge" aria-label={`안 읽은 메시지 ${party.unreadChat}개`}>{party.unreadChat > 99 ? '99+' : party.unreadChat}</span>}</>}
-                detail={`${party.departureAt ? formatTime(party.departureAt) + ' 출발 · ' : ''}${partyLabel(party.status)} · ${routeLabel({ direction: party.direction, anchorName: party.anchorName, pointName: party.meetingPoint })}`}
-                onClick={() => onReopen(party.id)} />
+              <li key={party.id}>
+                <button type="button" className="live-ride" onClick={() => onReopen(party.id)}>
+                  <span className="lr-dot" aria-hidden="true" />
+                  <span className="lr-main">
+                    <b>{party.settlement || party.canSettle ? '정산 진행 중' : partyLabel(party.status)}
+                      {party.unreadChat > 0 && <span className="unread-badge" aria-label={`안 읽은 메시지 ${party.unreadChat}개`}>{party.unreadChat > 99 ? '99+' : party.unreadChat}</span>}</b>
+                    <small>{party.departureAt ? `${formatTime(party.departureAt)} 출발, ` : ''}{routeLabel({ direction: party.direction, anchorName: party.anchorName, pointName: party.meetingPoint })}</small>
+                  </span>
+                  <ChevronRight size={20} aria-hidden="true" />
+                </button>
+              </li>
             ))}
-          </div>
+          </ul>
+        )}
+
+        {state.restriction && <Say tone="stop-tone" title="신고 누적으로 이용이 제한됐어요">{state.restriction.message}</Say>}
+        {(state.transferRestricted || (blocked && !state.restriction)) && <Say tone="stop-tone" title="미납 내역이 있어요">결제 또는 이전 미정산 내역을 확인해 주세요. 해결하면 새 요청을 할 수 있어요.</Say>}
+
+        <div className="seg" role="tablist" aria-label="방향">
+          <button type="button" role="tab" aria-selected={toSchool} className={toSchool ? 'on' : ''} onClick={() => setDirection('TO_SCHOOL')}>등교</button>
+          <button type="button" role="tab" aria-selected={!toSchool} className={toSchool ? '' : 'on'} onClick={() => setDirection('FROM_HUB')}>하교</button>
         </div>
-      )}
-      {state.settledParty && <div className="block"><Item title="최근 정산 내역 보기" onClick={() => onReopen(state.settledParty.id)} /></div>}
-      {state.settledParty && <SettledFeedback key={`feedback-${state.settledParty.id}`} party={state.settledParty} myId={myId} />}
-      <div className="ways">
-        <button type="button" className="way" disabled={blocked} onClick={() => onStart({ direction: 'TO_SCHOOL' })}>
-          <span className="way-icon" aria-hidden="true"><School size={24} /></span>
-          <span><b>등교</b><span className="trip">집 앞 → 학교</span></span>
+
+        <button type="button" className="where" disabled={blocked} onClick={() => onStart({ direction })}>
+          <MapPin size={20} aria-hidden="true" />
+          <span>{toSchool ? '어디서 출발하세요?' : '어디로 가세요?'}</span>
         </button>
-        <button type="button" className="way" disabled={blocked} onClick={() => onStart({ direction: 'FROM_HUB' })}>
-          <span className="way-icon" aria-hidden="true"><House size={24} /></span>
-          <span><b>하교</b><span className="trip">학교 → 집 앞</span></span>
-        </button>
+
+        {!blocked && recent.length > 0 && (
+          <ul className="recent" aria-label="최근 경로">
+            {recent.map((item) => (
+              <li key={item.id}>
+                <button type="button" onClick={() => onStart({ direction: item.direction, initial: item })}>
+                  <Clock size={18} aria-hidden="true" />
+                  <span><b>{item.pointName}</b><small>{toSchool ? `${item.anchorName}까지` : `${item.anchorName}에서`}</small></span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {state.settledParty && <button type="button" className="text-row" onClick={() => onReopen(state.settledParty.id)}>최근 정산 내역 보기<ChevronRight size={18} aria-hidden="true" /></button>}
+        {state.settledParty && <SettledFeedback key={`feedback-${state.settledParty.id}`} party={state.settledParty} myId={myId} />}
+
+        <BoardSection now={state.now} config={config} onJoined={onChanged} disabled={blocked} onLoaded={setBoard} direction={direction} />
+
+        {!wide && (
+          <button type="button" className="text-row" onClick={onHistory}>
+            이용 내역{saved > 0 && <span className="text-row-value">{won(saved)} 아꼈어요</span>}<ChevronRight size={18} aria-hidden="true" />
+          </button>
+        )}
       </div>
-      <BoardSection now={state.now} config={config} onJoined={onChanged} disabled={blocked} />
-      {recent.length === 0 && state.parties.length === 0 && !blocked && (
-        <section className="how" aria-label="이용 방법">
-          <h2 className="block-title">처음이라면</h2>
-          <ol>
-            <li><b>가는 길을 올리면</b><span>같은 방향 학생을 찾아 줘요</span></li>
-            <li><b>일행이 모이면 미리 결제</b><span>택시비를 떼일 걱정이 없어요</span></li>
-            <li><b>같이 타고 내리면 끝</b><span>타고 나서 남는 돈은 돌려받아요</span></li>
-          </ol>
-        </section>
-      )}
-      {!wide && (
-        <>
-          <div className="band" />
-          <div className="block">
-            {!blocked && recent.length > 0 && (
-              <>
-                <h2 className="block-title">최근 경로</h2>
-                <div className="list">{routes}</div>
-              </>
-            )}
-            <div className="list"><Item title="이용 내역" onClick={onHistory} /></div>
-          </div>
-        </>
-      )}
     </Screen>
   )
 }

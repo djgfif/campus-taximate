@@ -50,7 +50,7 @@ export default function PaymentCard({ partyId, purpose = 'PREPAY', myId, now, co
     {!extra && !compact && <p>처음 안내된 내 몫에 여유 15%를 더해 미리 결제해요.</p>}
     {!order && !error && <p role="status">주문을 확인하고 있어요.</p>}
     {order && <>
-      <p className="due">기한 {formatDateTime(order.deadlineAt)}{compact && now && !late ? ` · ${remaining(order.deadlineAt, now)} 남음` : ''}</p>
+      <p className="due">기한 {formatDateTime(order.deadlineAt)}{compact && now && !late ? ` (${remaining(order.deadlineAt, now)} 남음)` : ''}</p>
       {!plain && <PaymentRecord order={order} />}
       {/* 승인 완료는 위 결제 기록의 '결제 상태' 줄에 이미 나오므로 다시 띄우지 않는다. */}
       {order.status === 'APPROVED' ? null

@@ -13,7 +13,7 @@ export default function DemoAccounts({ onLogin }) {
     finally { setBusy(false) }
   }
   return <section className="demo-login" aria-label="시연 계정 빠른 전환">
-    <h2>시연 계정으로 바로 들어가기</h2>
+    <h2>시연 계정</h2>
     <div className="demo-accounts">{accounts.map((account) => <button type="button" key={account} aria-label={account} disabled={busy} onClick={() => login(account)}>{account.replace('demo-', '')}</button>)}</div>
   </section>
 }

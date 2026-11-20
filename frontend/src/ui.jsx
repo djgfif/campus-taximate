@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { AlertTriangle, CarTaxiFront, Check, ChevronLeft, ChevronRight, Info, User } from 'lucide-react'
+import { AlertTriangle, Check, ChevronLeft, ChevronRight, Info, User } from 'lucide-react'
 
 const WIDE = '(min-width: 1024px)'
 
@@ -45,13 +45,25 @@ export function SideEmpty({ title, children }) {
   return <div className="side-empty"><div><b>{title}</b><p>{children}</p></div></div>
 }
 
-export function Brand() {
-  return <span className="brand"><i aria-hidden="true"><CarTaxiFront size={16} strokeWidth={2.4} /></i>택시메이트</span>
+/** 두 사람이 한 차에: 노란 차창 안에 나란히 앉은 두 사람. */
+export function Mark({ size = 24 }) {
+  return (
+    <svg className="mark" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <rect width="24" height="24" rx="7" fill="var(--amber)" />
+      <circle cx="8.5" cy="10" r="2.6" fill="var(--ink)" />
+      <circle cx="15.5" cy="10" r="2.6" fill="var(--ink)" />
+      <path d="M4.5 18.5c0-2.4 1.8-4 4-4s4 1.6 4 4M11.5 18.5c0-2.4 1.8-4 4-4s4 1.6 4 4" fill="var(--ink)" />
+    </svg>
+  )
 }
 
-export function TopBar({ dark, onMenu, onHome }) {
+export function Brand() {
+  return <span className="brand"><Mark />택시메이트</span>
+}
+
+export function TopBar({ onMenu, onHome, floating }) {
   return (
-    <header className={dark ? 'bar dark' : 'bar'}>
+    <header className={floating ? 'bar floating' : 'bar'}>
       {onHome ? <div className="bar-left">
         <button type="button" className="icon-btn home-btn" aria-label="홈으로" onClick={onHome}><ChevronLeft size={26} /></button>
         <Brand />

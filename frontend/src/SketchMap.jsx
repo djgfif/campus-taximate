@@ -25,12 +25,6 @@ export default function SketchMap({ points = [], lines = [], label = '약도' })
   const at = (p) => [ox + (p.lon - minLon) * k * scale, H - (oy + (p.lat - minLat) * scale)]
   return (
     <svg className="sketch-map" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={label}>
-      <defs>
-        <pattern id="sketch-grid" width="20" height="20" patternUnits="userSpaceOnUse">
-          <path d="M 20 0 L 0 0 0 20" fill="none" stroke="currentColor" strokeOpacity="0.06" />
-        </pattern>
-      </defs>
-      <rect width={W} height={H} fill="url(#sketch-grid)" />
       {lines.map((line, i) => (
         <polyline key={i} points={line.path.map((p) => at(p).join(',')).join(' ')} fill="none"
           stroke={line.color} strokeWidth={line.style === 'solid' ? 4 : 2.5} strokeDasharray={line.style === 'solid' ? undefined : '6 6'}

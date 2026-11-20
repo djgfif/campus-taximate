@@ -46,7 +46,7 @@ describe('일행 화면 구성', () => {
 
   it('결제를 마치면 만날 곳과 시간을 보여 주고 도착 버튼 하나만 고정한다', () => {
     const view = render(<PartyScreen party={{ ...base, status: 'READY' }} now={now} myId={1} run={vi.fn()} />)
-    expect(within(screen.getByRole('region', { name: '지금 할 일' })).getByText(/학교 정문 · 정문 앞에서 만나요/)).toBeTruthy()
+    expect(within(screen.getByRole('region', { name: '지금 할 일' })).getByText(/정문 앞 \(학교 정문\)에서 만나요/)).toBeTruthy()
     const foot = view.container.querySelectorAll('.foot button')
     expect(foot).toHaveLength(1)
     expect(foot[0].textContent).toBe('도착했어요')
@@ -76,7 +76,7 @@ describe('일행 화면 구성', () => {
   it('모이는 곳 이름은 머리·지금 할 일·정보 탭에서 똑같다', () => {
     render(<PartyScreen party={{ ...base, status: 'READY' }} now={now} myId={1} run={vi.fn()} />)
     fireEvent.click(screen.getByRole('tab', { name: '정보' }))
-    expect(screen.getAllByText('학교 정문 · 정문 앞', { exact: true }).length).toBeGreaterThanOrEqual(2)
+    expect(screen.getAllByText('정문 앞 (학교 정문)', { exact: true }).length).toBeGreaterThanOrEqual(2)
     expect(screen.queryByText('학교 정문', { exact: true })).toBeNull()
   })
 

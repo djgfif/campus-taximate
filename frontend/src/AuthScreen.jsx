@@ -1,15 +1,14 @@
 import React, { useState } from 'react'
 import DemoAccounts from './DemoAccounts.jsx'
-import { CarTaxiFront } from 'lucide-react'
 import { api } from './api.js'
-import { Btn, Say, Screen, toast } from './ui.jsx'
+import { Brand, Btn, Say, Screen, toast } from './ui.jsx'
 
-/** 첫 화면: 흰 바탕에 택시 표시, 큰 제목, 이 서비스가 하는 일 한 줄. */
-function AuthHero({ title }) {
+/** 첫 화면: 로고, 이 서비스가 하는 일, 지금 할 일. */
+function AuthHero({ title, lead }) {
   return <section className="auth-hero">
-    <span className="auth-mark" aria-hidden="true"><CarTaxiFront size={30} strokeWidth={2.2} /></span>
-    <h1 className="head">{title}</h1>
-    <p>같은 방향 학생과 타고, 혼자 탈 때 요금 비율로 나눠요</p>
+    <Brand />
+    <h1 className="auth-title">{title}</h1>
+    {lead && <p>{lead}</p>}
   </section>
 }
 
@@ -70,7 +69,7 @@ export default function AuthScreen({ config, onLogin }) {
           <Btn className="quiet" onClick={() => setStep('email')}>처음이거나 비밀번호를 잊었어요</Btn>
         </>
       )}>
-        <AuthHero title={<>학교 메일로<br />로그인해요</>} />
+        <AuthHero title={<>같은 방향 학생과<br />택시비를 나눠요</>} lead="대진대 학교 메일로 로그인하세요." />
         <div className="pad auth-form">
           {emailField}
           <label className="field">비밀번호

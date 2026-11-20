@@ -33,13 +33,13 @@ async function chooseDestination() {
 describe('장소 입력', () => {
   it('하교 요청은 출발지를 학교로 채워 둔다', async () => {
     render(<HomeRequest {...props} />)
-    await waitFor(() => expect(screen.getAllByPlaceholderText('건물이나 정류장 이름')[0].value).toBe('학교'))
-    expect(screen.getAllByPlaceholderText('건물이나 정류장 이름')[1].value).toBe('')
+    await waitFor(() => expect(screen.getByRole('textbox', { name: /^출발지/ }).value).toBe('학교'))
+    expect(screen.getByRole('textbox', { name: /^도착지/ }).value).toBe('')
   })
 
   it('검색 결과가 없거나 검색을 쓸 수 없으면 이유를 알려 준다', async () => {
     render(<RequestForm {...props} />)
-    const input = (await screen.findAllByPlaceholderText('건물이나 정류장 이름'))[0]
+    const input = await screen.findByRole('textbox', { name: /^출발지/ })
     searchPlaces.mockResolvedValueOnce([])
     fireEvent.change(input, { target: { value: '없는곳' } })
     expect(await screen.findByText('검색 결과가 없어요. 다른 이름으로 찾거나 지도에서 골라 주세요.')).toBeTruthy()

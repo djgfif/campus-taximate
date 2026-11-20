@@ -1,8 +1,8 @@
 export const HISTORY_LABEL = {
-  BOARDING_UNCONFIRMED: ['탑승 미확인 · 소명 기간', 'warn'],
-  BOARDING_REVIEW: ['탑승 미확인 · 관리자 검토 중', 'warn'],
-  BOARDING_NO_SHOW: ['탑승 조사 · 노쇼 확정', 'bad'],
-  BOARDING_EXONERATED: ['탑승 조사 · 노쇼 아님', 'ok'],
+  BOARDING_UNCONFIRMED: ['탑승 미확인, 소명 기간', 'warn'],
+  BOARDING_REVIEW: ['탑승 미확인, 관리자 검토 중', 'warn'],
+  BOARDING_NO_SHOW: ['노쇼 확정', 'bad'],
+  BOARDING_EXONERATED: ['탑승 조사 결과 노쇼 아님', 'ok'],
   RIDE_UNCONFIRMED: ['운행 확인 중', 'warn'],
   PREPAYING: ['선결제 대기', 'warn'], READY: ['호출 대기', 'warn'],
   AWAITING_FARE: ['금액 입력 대기', 'warn'], OBJECTION_WINDOW: ['이의 기간', 'warn'],
@@ -83,10 +83,10 @@ export function requestTimeOptions(now, minimumMinutes = 25) {
   return Array.from({ length: Math.max(0, Math.ceil((limit - first) / 300000)) }, (_, i) => new Date(first + i * 300000).toISOString())
 }
 
-/** 모이는 곳 이름 하나. 하교 거점은 "거점 · 정확한 자리", 등교는 내 승차 지점이다. 화면마다 이것만 쓴다. */
+/** 모이는 곳 이름 하나. 하교 거점은 "정확한 자리 (거점)", 등교는 내 승차 지점이다. 화면마다 이것만 쓴다. */
 export function meetPlace(party) {
   if (!party) return ''
   const { anchorName: anchor, meetingPoint: spot, direction } = party
-  if (direction === 'FROM_HUB' && anchor && spot && anchor !== spot) return `${anchor} · ${spot}`
+  if (direction === 'FROM_HUB' && anchor && spot && anchor !== spot) return `${spot} (${anchor})`
   return spot || anchor || ''
 }

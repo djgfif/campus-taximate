@@ -11,24 +11,27 @@ const hourLabel = (iso) => `${formatTime(iso)}대`
  * 홈의 "지금 모집 중". 같은 방향으로 이미 모인 일행과, 시간대별로 기다리는 사람 수를 보여 준다.
  * 일행 카드를 누르면 내릴 곳만 고르고 바로 합류를 신청한다(나머지는 기존 일행 조건을 따른다).
  */
-export function BoardSection({ now, config, onJoined, disabled }) {
+export function BoardSection({ now, config, onJoined, disabled, onLoaded, direction }) {
   const [board, setBoard] = useState(null)
   const [error, setError] = useState('')
   const [joining, setJoining] = useState(null)
   useEffect(() => {
     let closed = false
-    api.board().then((next) => { if (!closed) { setBoard(next); setError('') } }).catch((e) => !closed && setError(e.message))
+    api.board().then((next) => { if (!closed) { setBoard(next); setError(''); onLoaded?.(next) } }).catch((e) => !closed && setError(e.message))
     return () => { closed = true }
   }, [now])
   if (error) return null
-  const parties = board?.parties || []
-  const waiting = board?.waiting || []
+  // 홈에서 고른 방향의 일행만 보인다. 방향을 넘기지 않으면 전부 보인다.
+  const same = (item) => !direction || item.direction === direction
+  const parties = (board?.parties || []).filter(same)
+  const waiting = (board?.waiting || []).filter(same)
+  const clock = (iso) => {
+    const [half, time] = formatTime(iso).split(' ')
+    return time ? <><small>{half}</small>{time}</> : half
+  }
   return (
     <section className="board" aria-label="지금 모집 중">
-      <div className="board-head">
-        <h2 className="block-title">지금 모집 중</h2>
-        {board && <span className="live" aria-hidden="true">실시간</span>}
-      </div>
+      <h2 className="section-title">지금 모집 중{board && <span className="live" aria-hidden="true" />}</h2>
       {!board && <p className="note" role="status">불러오는 중…</p>}
       {board && parties.length === 0 && (
         <p className="board-empty">아직 모인 일행이 없어요. 먼저 가는 길을 올리면 같은 방향 학생과 이어 드려요.</p>
@@ -36,27 +39,21 @@ export function BoardSection({ now, config, onJoined, disabled }) {
       <ul className="board-list">
         {parties.map((card) => (
           <li key={card.id}>
-            <button type="button" className="board-card" disabled={disabled} onClick={() => setJoining(card)}
+            <button type="button" className="group-row" disabled={disabled} onClick={() => setJoining(card)}
               aria-label={`${formatTime(card.departureAt)} ${card.anchorName}에서 출발, ${card.riders}명, 자리 ${card.seats}개`}>
-              <span className="bc-top">
-                <b className="bc-time">{formatTime(card.departureAt)}<small>출발</small></b>
-                <span className="bc-seats" aria-hidden="true">
-                  {Array.from({ length: card.riders + card.seats }, (_, i) => <i key={i} className={i < card.riders ? 'on' : ''} />)}
-                  <small>{card.riders}/{card.riders + card.seats}명</small>
-                </span>
+              <span className="gr-time">{clock(card.departureAt)}</span>
+              <span className="gr-main">
+                <b>{card.meetingPoint}</b>
+                <small>{card.direction === 'TO_SCHOOL' ? '학교로' : `${card.anchorName}에서 출발`}{card.people.length > 0 && `, ${card.people.map((p) => p.profile || p.nickname).join(', ')}`}</small>
               </span>
-              <span className="bc-route"><i aria-hidden="true" />{card.anchorName} · {card.meetingPoint}</span>
-              <span className="faces">
-                {card.people.map((p, i) => <Avatar key={i} name={p.nickname} size={24} />)}
-                <small>{card.people.map((p) => p.profile || p.nickname).join(', ')}</small>
-              </span>
+              <span className="gr-seats"><b>{card.seats}자리</b><small>{card.riders}명 탑승</small></span>
             </button>
           </li>
         ))}
       </ul>
       {waiting.length > 0 && (
         <p className="board-waiting">
-          {waiting.map((w) => `${hourLabel(w.hour)} ${w.direction === 'TO_SCHOOL' ? '등교' : '하교'} ${w.count}명`).join(' · ')} 기다리는 중
+          {waiting.map((w) => `${hourLabel(w.hour)} ${w.direction === 'TO_SCHOOL' ? '등교' : '하교'} ${w.count}명`).join(', ')} 기다리는 중
         </p>
       )}
       {joining && <JoinSheet card={joining} config={config} onClose={() => setJoining(null)} onJoined={onJoined} />}

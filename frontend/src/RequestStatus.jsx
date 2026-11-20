@@ -3,7 +3,7 @@ import MapView from './MapView.jsx'
 import { api } from './api.js'
 import { pushUndecided } from './push.js'
 import { formatDateTime, formatTime, routeLabel, won } from './format.js'
-import { Btn, Confirm, Meter, Rail, Rows, Say, Screen, TopBar } from './ui.jsx'
+import { Btn, Confirm, Rail, Rows, Say, Screen, TopBar } from './ui.jsx'
 
 const timeRow = (latest) => (latest.mode==='INSTANT' ? ['출발 준비','지금 출발, 확정 뒤 예상 출발 안내'] : latest.arriveBy && !latest.windowStart
   ? ['도착 희망', formatDateTime(latest.arriveBy)]
@@ -46,10 +46,12 @@ export function Waiting({ latest, config, now, run, onMenu, onPush }) {
   const current = Number.isFinite(anchor.stamp) ? anchor.stamp + performance.now() - anchor.readAt : null
   return (
     <Screen aside={<RequestMap item={latest} />} foot={<Btn className="line" onClick={() => setAsking(true)}>요청 취소</Btn>}>
-      <TopBar dark onMenu={onMenu} />
-      <Meter label="결과는 늦어도" value={formatTime(latest.resultBy)} detail="그 전에 일행이 정해지면 바로 알려 드려요">
+      <TopBar onMenu={onMenu} />
+      <section className="searching">
         <div className="road" aria-hidden="true"><i /></div>
-      </Meter>
+        <h1 className="head">같이 탈 학생을 찾고 있어요</h1>
+        <p className="sub">늦어도 {formatTime(latest.resultBy)}까지 결과를 알려 드려요.</p>
+      </section>
       <div className="block">
         {latest.mode==='INSTANT'&&<Say>{config?.instantMatching?.matchMinutes??5}분 동안 같이 탈 사람을 찾아요. 확정되면 예상 출발 시각을 알려 드려요.</Say>}
         {config?.demo && <p className="note">시연 시각 {formatDateTime(current)}</p>}
@@ -68,7 +70,7 @@ export function Waiting({ latest, config, now, run, onMenu, onPush }) {
           { key: 'me', pin: '도', name: latest.pointName, me: true },
         ]} />
         <Rows items={[timeRow(latest), ['혼자 타면', `약 ${won(latest.soloFare)}`]]} />
-        <p className="note">{config?.mailEnabled ? '화면을 닫아도 됩니다. 일행이 정해지면 메일로 알려 드려요.' : '결과는 이 화면에 표시됩니다.'}</p>
+        {config?.mailEnabled && <p className="note">화면을 닫아도 됩니다. 일행이 정해지면 메일로 알려 드려요.</p>}
       </div>
       {asking && (
         <Confirm title="요청을 취소할까요?" action="요청 취소" onClose={() => setAsking(false)}
