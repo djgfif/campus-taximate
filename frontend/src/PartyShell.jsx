@@ -93,6 +93,15 @@ const roomTitle = (party, at) => [party.meetingPoint || party.anchorName, at ? f
  * 넓은 화면은 같은 방을 왼쪽 판에 두고 오른쪽을 지도(aside)로 채운다.
  * summary는 둘째 줄 상태 문구(없으면 일행 상태 이름), time은 첫째 줄 시각(없으면 출발 시각)이다.
  */
+/**
+ * 지금 할 일이 바뀌었는지 가리는 열쇠. 상태가 그대로여도 서버가 새 행동을 열어 주면(예: 호출 가능, 도착 가능,
+ * 탑승 확인 질문, 결제자 승계) 할 일 카드 내용이 바뀐다. 접어 둔 카드는 이 값이 바뀔 때 다시 펼친다.
+ * 남은 시간처럼 매초 바뀌는 값은 넣지 않는다(넣으면 접어도 바로 다시 펼쳐진다).
+ */
+export const taskKeyOf = (party) => [party.status, party.canCall, party.callReady, party.calledAt, party.canArrive, party.canBoard,
+  party.canConfirmRide, party.canSettle, party.canLeaveAfterChange, party.departureBlockReason, party.successorId,
+  party.adminReviewRequired, party.reviewReason].map((v) => (v == null ? '' : String(v))).join('|')
+
 export function PartyShell({ party, now, onHome, header, action, progress, info, foot, aside, tools = [], summary, time }) {
   const wide = useWide()
   const [details, setDetails] = useState(false)
@@ -109,6 +118,7 @@ export function PartyShell({ party, now, onHome, header, action, progress, info,
   const task = action || foot
     ? <div className="task-card">{action}{foot && <div className="task-foot">{foot}</div>}</div>
     : null
+  const taskKey = taskKeyOf(party)
   const room = (
     <div className="room">
       <header className="room-head">
@@ -124,7 +134,7 @@ export function PartyShell({ party, now, onHome, header, action, progress, info,
         </p>
       </header>
       <section className="chat-pane" aria-label="채팅 창">
-        <PartyChat key={party.id} partyId={party.id} now={now} status={party.status} active full tools={menu} task={task} />
+        <PartyChat key={party.id} partyId={party.id} now={now} status={party.status} active full tools={menu} task={task} taskKey={taskKey} />
       </section>
       {details && <RoomSheet title="일행 정보" onClose={closeDetails}>
         {header}

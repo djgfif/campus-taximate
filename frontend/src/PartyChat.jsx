@@ -39,7 +39,7 @@ function mergeById(current, incoming) {
  * tools: 입력창 옆 + 메뉴에 사진 보내기와 함께 넣을 항목 [{ label, onClick }]. 비어 있으면 사진 단추만 둔다.
  * task: 지금 내가 답해야 하는 일. 메시지 아래, 입력창 바로 위에 붙어 스크롤해도 사라지지 않는다.
  */
-export function PartyChat({ partyId, now, status, active = true, full = false, tools = [], task = null }) {
+export function PartyChat({ partyId, now, status, active = true, full = false, tools = [], task = null, taskKey }) {
   const [toolsOpen, setToolsOpen] = useState(false)
   const [taskFolded, setTaskFolded] = useState(false)
   const [items, setItems] = useState([])
@@ -80,8 +80,9 @@ export function PartyChat({ partyId, now, status, active = true, full = false, t
     }
   }, [partyId, deny])
 
-  // 일행 상태가 바뀌면 새 할 일을 놓치지 않게 접어 둔 카드를 자동으로 펼친다.
-  useEffect(() => { setTaskFolded(false) }, [partyId, status])
+  // 할 일이 바뀌면(상태 변화뿐 아니라 호출 가능처럼 상태는 그대로인 변화도) 놓치지 않게 접어 둔 카드를 자동으로 펼친다.
+  // taskKey를 주지 않는 화면은 예전처럼 상태로만 판단한다.
+  useEffect(() => { setTaskFolded(false) }, [partyId, taskKey ?? status])
 
   // 상태 갱신·채팅 신호·이용 내역 주기 읽기
   useEffect(() => {
