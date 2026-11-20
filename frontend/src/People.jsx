@@ -24,7 +24,7 @@ export function trustLine(person) {
   parts.push(person.rides > 0 ? `${person.rides}번 탔어요` : '처음 타요')
   if (person.rides > 0 && person.noShowFree) parts.push('노쇼 없음')
   if (person.praises > 0) parts.push(`칭찬 ${person.praises}`)
-  return parts.join(' · ')
+  return parts.join(', ')
 }
 
 /** 운행이 끝난 뒤 같이 탄 사람에게 칭찬을 남긴다. 나쁜 평가는 없고, 문제는 신고로 처리한다. */

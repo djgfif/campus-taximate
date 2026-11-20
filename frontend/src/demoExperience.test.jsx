@@ -1,7 +1,8 @@
 import React from 'react'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import DemoBar from './DemoBar.jsx'
+import { MemoryRouter } from 'react-router-dom'
+import DemoBar, { DemoPresenter } from './DemoBar.jsx'
 import AuthScreen from './AuthScreen.jsx'
 import DemoAccounts from './DemoAccounts.jsx'
 import { api } from './api.js'
@@ -16,7 +17,7 @@ afterEach(() => { cleanup(); vi.restoreAllMocks() })
 const run = async (action) => action()
 async function panel(parties = [], status = progress) {
   api.demoStatus.mockResolvedValue(status)
-  render(<DemoBar now={progress.now} run={run} parties={parties} />)
+  render(<MemoryRouter><DemoBar now={progress.now} run={run} parties={parties} /></MemoryRouter>)
   fireEvent.click(screen.getByRole('button', { name: '시연', exact: true }))
   await screen.findByText(/^장면 \d \/ 7/)
 }
@@ -32,7 +33,9 @@ describe('시연 패널', () => {
     fireEvent.click(screen.getByRole('button', { name: '선결제하는 일행' }))
     fireEvent.click(screen.getByRole('button', { name: '일행 만들기' }))
     await waitFor(() => expect(match).toHaveBeenCalledWith('PASSENGER'))
-    await screen.findByText('시연 일행을 만들었어요')
+    // 장면이 바뀌면 시연 창은 닫히고 화면 위에 장면 자막이 뜬다
+    expect((await screen.findByRole('status')).textContent).toMatch(/^장면 \d \/ 7/)
+    expect(screen.queryByRole('dialog', { name: '시연' })).toBeNull()
   })
   it('일행이 있으면 지금 장면과 눌러 볼 곳을 알려 주고 다음 장면으로 넘긴다', async () => {
     const next = vi.spyOn(api, 'demoNext').mockResolvedValue({ ...progress, partyId: 7, stage: '출발 준비' })
@@ -66,10 +69,27 @@ describe('시연 패널', () => {
     expect(screen.queryByText(/회원 4/)).toBeNull()
   })
   it('계정 바꾸기는 시연 창 안에 있다', async () => {
-    render(<DemoBar now={progress.now} run={run} accounts={<DemoAccounts onLogin={vi.fn()} />} />)
+    render(<MemoryRouter><DemoBar now={progress.now} run={run} accounts={<DemoAccounts onLogin={vi.fn()} />} /></MemoryRouter>)
     fireEvent.click(screen.getByRole('button', { name: '시연', exact: true }))
     expect(await screen.findByText('계정 바꾸기')).toBeTruthy()
     expect(screen.getByRole('region', { name: '시연 계정 빠른 전환' })).toBeTruthy()
+  })
+})
+describe('발표자 창', () => {
+  it('발표자 창에서 장면을 바꾸면 관객 창에 장면을 보낸다', async () => {
+    const sent = []
+    const original = globalThis.BroadcastChannel
+    globalThis.BroadcastChannel = class { postMessage(m) { sent.push(m) } close() {} }
+    try {
+      vi.spyOn(api, 'demoNext').mockResolvedValue({ ...progress, partyId: 7 })
+      api.demoStatus.mockResolvedValue({ ...progress, partyId: 7 })
+      vi.spyOn(api, 'party').mockResolvedValue({ id: 7, status: 'READY', payer: false })
+      render(<DemoPresenter now={progress.now} run={run} parties={[{ id: 7, status: 'PREPAYING', payer: false }]} />)
+      fireEvent.click(await screen.findByRole('button', { name: '다음 장면 보기' }))
+      await waitFor(() => expect(sent).toHaveLength(1))
+      expect(sent[0]).toEqual({ type: 'scene', info: { id: 7, scene: 2, title: '승차 지점에 모여요' } })
+      expect(await screen.findByText('방금 보낸 장면: 3 승차 지점에 모여요')).toBeTruthy()
+    } finally { globalThis.BroadcastChannel = original }
   })
 })
 describe('시연 계정', () => {
@@ -77,15 +97,17 @@ describe('시연 계정', () => {
     render(<AuthScreen config={{ demo: false }} onLogin={vi.fn()} />)
     expect(screen.queryByRole('region', { name: '시연 계정 빠른 전환' })).toBeNull()
   })
-  it('시연 로그인에는 9개 계정을 제공한다', () => {
+  it('시연 로그인에는 9개 계정을 이름으로 제공하고, 한 줄로 접어 둔다', () => {
     render(<AuthScreen config={{ demo: true }} onLogin={vi.fn()} />)
+    expect(screen.getByText('시연 계정으로 들어가기')).toBeTruthy()
+    expect(screen.queryByText('f1')).toBeNull()
     expect(within(screen.getByRole('region', { name: '시연 계정 빠른 전환' })).getAllByRole('button')).toHaveLength(9)
   })
   it('관리자로 전환하면 세션 갱신 콜백을 실행한다', async () => {
     const login = vi.spyOn(api, 'demoLogin').mockResolvedValue()
     const done = vi.fn()
     render(<DemoAccounts onLogin={done} />)
-    fireEvent.click(screen.getByRole('button', { name: 'demo-admin' }))
+    fireEvent.click(screen.getByRole('button', { name: '관리자' }))
     await waitFor(() => expect(done).toHaveBeenCalledOnce())
     expect(login).toHaveBeenCalledWith('demo-admin')
   })

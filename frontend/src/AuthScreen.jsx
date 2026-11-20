@@ -79,8 +79,8 @@ export default function AuthScreen({ config, onLogin }) {
         <>
           <Btn disabled={!email.includes('@') || password.length < 8} onClick={signIn}>로그인</Btn>
           <div className="auth-links">
-            <button type="button" onClick={() => { setPurpose('join'); setStep('email') }}>처음이에요, 가입할게요</button>
-            <button type="button" onClick={() => { setPurpose('reset'); setStep('email') }}>비밀번호를 잊었어요</button>
+            <button type="button" onClick={() => { setPurpose('join'); setStep('email') }}>회원가입</button>
+            <button type="button" onClick={() => { setPurpose('reset'); setStep('email') }}>비밀번호 찾기</button>
           </div>
         </>
       )}>
@@ -91,7 +91,8 @@ export default function AuthScreen({ config, onLogin }) {
             <input type="password" value={password} autoComplete="current-password"
               onChange={(e) => setPassword(e.target.value)} />
           </label>
-          {config?.demo && <DemoAccounts onLogin={() => onLogin(false)} />}
+          {/* 시연 계정은 로그인 화면에 늘어놓지 않고 한 줄로 접어 둔다 */}
+          {config?.demo && <details className="demo-entry"><summary>시연 계정으로 들어가기</summary><DemoAccounts onLogin={() => onLogin(false)} /></details>}
         </div>
       </Screen>
     )

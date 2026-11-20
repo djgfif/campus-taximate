@@ -47,17 +47,26 @@ function BoardingCaseLink({ item, onBoardingCases }) {
   </div>
 }
 
-/** 고른 이용 내역의 금액. 위에서 아래로 실제 택시비, 내가 낸 돈, 혼자 탔다면 순서로 읽는다. 정산 전이면 예상이라고 밝힌다. */
+/**
+ * 고른 이용 내역의 거래 명세. 위에서 아래로 실제 택시비 → 내가 낸 돈 → 혼자 탔다면 → 덜 낸 돈.
+ * 정산 전이면 확정된 금액이 없다고 밝히고 예상 금액만 보인다. 결제와 환불 줄은 아래 결제 기록에 있다.
+ */
 function Detail({ item }) {
+  const settled = item.paid != null
   return (
     <Rows items={[
-      item.partyPaid != null && ['실제 택시비', won(item.partyPaid)],
-      item.paid != null && ['내가 낸 돈', won(item.paid), 'big'],
-      item.paid != null ? ['혼자 탔다면', won(item.soloFare)] : ['혼자 타면(예상)', `약 ${won(item.soloFare)}`],
       item.partySize != null && ['일행', `${item.partySize}명`],
+      settled && item.partyPaid != null && ['실제 택시비', won(item.partyPaid)],
+      settled && ['내가 낸 돈', won(item.paid), 'big'],
+      settled ? ['혼자 탔다면', won(item.soloFare)] : ['혼자 타면(예상)', `약 ${won(item.soloFare)}`],
+      settled && item.soloFare > item.paid && ['같이 타서 덜 낸 돈', won(item.soloFare - item.paid)],
+      !settled && ['내가 낸 돈', '정산 전'],
     ]} />
   )
 }
+
+/** 아직 끝나지 않은 이용(선결제 전, 모이는 중 등)과 끝난 이용을 나눈다. */
+const ongoing = (item) => (HISTORY_LABEL[item.stage] || [])[1] === 'warn'
 
 /** 이용 내역. 휴대폰과 넓은 화면 모두 지도 없이 한 칸으로, 고른 줄 아래에 금액과 결제 기록을 펼친다. */
 export default function History({ onHome, admin = false, onBoardingCases }) {
@@ -81,8 +90,10 @@ export default function History({ onHome, admin = false, onBoardingCases }) {
           {admin && accuracy?.settled > 0 && (
             <section aria-label="관리자 요금 통계"><h2 className="block-title">관리자 요금 통계</h2><p className="note">전체 정산 {accuracy.settled}건 중 {accuracy.within}건이 예상 요금의 15% 이내였어요.</p></section>
           )}
+          {[['진행 중', items.filter(ongoing)], ['지난 이용', items.filter((item) => !ongoing(item))]].filter(([, list]) => list.length > 0).map(([heading, list]) => <section key={heading} aria-label={heading}>
+          <h2 className="block-title history-group">{heading}</h2>
           <div className="list">
-            {items.map((item) => (
+            {list.map((item) => (
               <React.Fragment key={item.id}>
                 <Row item={item} selected={item.id === selected?.id}
                   onSelect={() => setSelectedId(item.id)} />
@@ -95,6 +106,7 @@ export default function History({ onHome, admin = false, onBoardingCases }) {
               </React.Fragment>
             ))}
           </div>
+          </section>)}
         </div>
       )}
     </Screen>
@@ -133,6 +145,6 @@ function HistoryFinance({ item }) {
       </>
       : current.error ? <p role="status">결제 상세를 읽지 못했어요. {current.error}</p> : <p role="status">결제 기록을 읽고 있어요.</p>}
     {current.party?.canConfirmRide && <a href={'/parties/' + id}>일행 화면에서 운행 답변하기</a>}
-    <Btn className="small quiet" onClick={() => setReload((n) => n + 1)}>결제 기록 다시 확인</Btn>
+    {(current.error || current.party || current.orders?.length > 0) && <Btn className="small quiet" onClick={() => setReload((n) => n + 1)}>결제 기록 다시 확인</Btn>}
   </section>
 }

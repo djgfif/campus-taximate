@@ -10,7 +10,7 @@ const now = '2026-11-12T09:00:00Z'
 const card = {
   id: 9, direction: 'FROM_HUB', anchorName: '학교 정문', meetingPoint: '정문 앞 버스 정류장', anchorLat: 37.875, anchorLon: 127.155,
   departureAt: '2026-11-12T10:00:00Z', joinUntil: '2026-11-12T09:50:00Z', riders: 2, seats: 2, instant: false,
-  people: [{ nickname: '준호', profile: '컴퓨터공학과 · 22학번' }, { nickname: '민재', profile: '' }],
+  people: [{ nickname: '준호', profile: '컴퓨터공학과 22학번' }, { nickname: '민재', profile: '' }],
 }
 
 beforeEach(() => {
@@ -26,7 +26,7 @@ describe('지금 모집 중', () => {
     const config = { demo: true, sampleDropoffs: [{ name: '시장 입구', lat: 37.833, lon: 127.146 }] }
     render(<BoardSection now={now} config={config} onJoined={joined} />)
     const button = await screen.findByRole('button', { name: /학교 정문에서 출발, 2명, 자리 2개/ })
-    expect(within(button).getByText(/컴퓨터공학과 · 22학번/)).toBeTruthy()
+    expect(within(button).getByText(/컴퓨터공학과 22학번/)).toBeTruthy()
     expect(screen.getByText(/하교 3명/)).toBeTruthy()
     fireEvent.click(button)
     const submit = screen.getByRole('button', { name: '합류 신청' })
@@ -46,14 +46,14 @@ describe('지금 모집 중', () => {
 
 describe('같이 타는 사람', () => {
   it('신뢰 한 줄은 공개한 학과·학번, 탄 횟수, 노쇼 없음, 칭찬을 담는다', () => {
-    expect(trustLine({ profile: '경영학과 · 23학번', rides: 5, noShowFree: true, praises: 3 })).toBe('경영학과 · 23학번 · 5번 탔어요 · 노쇼 없음 · 칭찬 3')
+    expect(trustLine({ profile: '경영학과 23학번', rides: 5, noShowFree: true, praises: 3 })).toBe('경영학과 23학번, 5번 탔어요, 노쇼 없음, 칭찬 3')
     expect(trustLine({ profile: '', rides: 0, noShowFree: true, praises: 0 })).toBe('처음 타요')
   })
 
   it('같이 탄 사람에게 칭찬을 골라 남긴다', async () => {
     const people = [
       { memberId: 1, nickname: '도윤', profile: '', rides: 1, noShowFree: true, praises: 0, topTags: [], myTags: [], me: true },
-      { memberId: 2, nickname: '준호', profile: '컴퓨터공학과 · 22학번', rides: 4, noShowFree: true, praises: 1, topTags: [], myTags: [], me: false },
+      { memberId: 2, nickname: '준호', profile: '컴퓨터공학과 22학번', rides: 4, noShowFree: true, praises: 1, topTags: [], myTags: [], me: false },
     ]
     vi.spyOn(api, 'partyPeople').mockResolvedValue(people)
     const praise = vi.spyOn(api, 'praise').mockResolvedValue([people[0], { ...people[1], praises: 3, myTags: ['KIND', 'ON_TIME'] }])
