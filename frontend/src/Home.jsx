@@ -44,7 +44,8 @@ function liveTitle(party, myId) {
 function liveDue(party, now) {
   const due = party.status === 'PAYER_PENDING' ? party.successionDeadlineAt
     : party.status === 'PREPAYING' && !party.payer && !party.myPrepaid ? party.prepayDeadlineAt : null
-  return due ? `답할 시간 ${remaining(due, now)} 남음` : ''
+  if (!due) return ''
+  return party.status === 'PAYER_PENDING' ? `답할 마감까지 ${remaining(due, now)}` : `선결제 마감까지 ${remaining(due, now)}`
 }
 
 /** 학교와 모집 중인 일행의 모이는 곳을 한 지도에. */

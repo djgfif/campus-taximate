@@ -151,8 +151,8 @@ export function FairnessNote({ delay, solo, share, rules, walkExcluded = false }
   return <section className="fairness" aria-label="이 일행이 정해진 이유">
     <h2>이 일행이 정해진 이유</h2>
     <div className="fair-rows">
-      <div><span>{walkExcluded ? '차로 늘어나는 시간' : '늘어나는 시간'}</span><b>{delay}분</b><small>{maxDelay}분 이내만 묶어요</small></div>
-      <div><span>혼자 탈 때 대비 내 몫</span><b>{pct}%</b><small>{maxShare}% 이하만 묶어요</small></div>
+      <div><span>같이 가서 늘어나는 시간</span><b>{delay}분</b><small>{maxDelay}분 이내만 묶어요{walkExcluded ? ', 걷는 시간 제외' : ''}</small></div>
+      <div><span>혼자 요금 중 내가 내는 몫</span><b>{pct}%</b><small>{maxShare}% 이하일 때만 묶어요</small></div>
     </div>
     <p>내릴 때 나온 실제 요금은 각자 혼자 탈 때 요금의 비율대로 나눠요. 멀리 가는 사람이 더 내요.</p>
   </section>
@@ -226,7 +226,8 @@ export function Rail({ items }) {
   )
 }
 
-const AVATAR_TONES = ['#ffe3a3', '#cfe8ff', '#d7f2df', '#ffd9d2', '#e6dcff', '#f3e1c7']
+// 알록달록한 파스텔 대신 무채색 두 단계만 쓴다. 사람마다 색이 달라 보일 필요는 없다.
+const AVATAR_TONES = ['#eceef1', '#e4e6ea']
 
 /** 사람을 사람처럼: 이름 첫 글자를 담은 동그란 프로필. 같은 이름은 늘 같은 색이다. */
 export function Avatar({ name = '', size = 32 }) {

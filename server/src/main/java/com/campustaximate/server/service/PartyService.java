@@ -55,7 +55,8 @@ public class PartyService {
     public record MemberView(long requestId, long memberId, String nickname, String memo, int rideOrder,
                              String pointName, long expectedShare, boolean arrived, boolean noShow,
                              long soloFare, int soloSeconds, int sharedSeconds, Instant boardAt,
-                             Instant arriveDeadline, Long confirmedShare, Long confirmedPrepay, boolean migratedUnknown, boolean boardingUnconfirmed, boolean nearby) {
+                             Instant arriveDeadline, Long confirmedShare, Long confirmedPrepay, boolean migratedUnknown, boolean boardingUnconfirmed, boolean nearby,
+                             /** 이 사람의 선결제가 승인됐는지. 일행방 머리의 '선결제 n/m명 완료'에 쓴다. 결제자는 선결제가 없다. */ boolean prepaid) {
     }
 
     public record TransferView(long id, long senderId, String senderNickname, long amount, TransferStatus status) {
@@ -219,7 +220,9 @@ public class PartyService {
                         termList.stream().filter(t->t.getRequestId().equals(r.getId())).map(com.campustaximate.server.domain.PartyMemberTerm::getConfirmedShare).findFirst().orElse(null),
                         termList.stream().filter(t->t.getRequestId().equals(r.getId())).map(com.campustaximate.server.domain.PartyMemberTerm::getConfirmedPrepay).findFirst().orElse(null),
                         termList.stream().anyMatch(t->t.getRequestId().equals(r.getId())&&t.isMigratedUnknown()),
-                        termList.stream().anyMatch(t->t.getRequestId().equals(r.getId())&&t.getBoardingUnconfirmedAt()!=null),r.getNearbyAt()!=null))
+                        termList.stream().anyMatch(t->t.getRequestId().equals(r.getId())&&t.getBoardingUnconfirmedAt()!=null),r.getNearbyAt()!=null,
+                        paymentOrders.findByPartyIdAndMemberIdAndPurpose(party.getId(), r.getMember().getId(), com.campustaximate.server.domain.PaymentPurpose.PREPAY)
+                                .map(o -> o.getStatus() == com.campustaximate.server.domain.PaymentStatus.APPROVED).orElse(false)))
                 .toList();
         Instant myStart = mine.getBoardAt() != null ? mine.getBoardAt() : party.getDepartureAt();
         Instant payerBoardAt = riders.stream()

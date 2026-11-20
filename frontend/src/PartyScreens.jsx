@@ -118,7 +118,12 @@ export function PartyShell({ party, now, onHome, header, action, progress, info,
   const openDetails = useCallback(() => setDetails(true), [])
   const closeDetails = useCallback(() => setDetails(false), [])
   const menu = [...tools, { label: '일행 정보와 규칙', onClick: openDetails }]
-  const people = (party.members || []).filter((m) => !m.noShow).length
+  const present = (party.members || []).filter((m) => !m.noShow)
+  const people = present.length
+  // 선결제 중에는 누가 냈는지가 가장 궁금하다. 결제자는 선결제가 없으니 세지 않는다. 서버가 값을 주지 않으면 상태 이름을 쓴다.
+  const payers = present.filter((m) => m.memberId !== party.payerId)
+  const prepayLine = party.status === 'PREPAYING' && payers.length > 0 && payers.every((m) => typeof m.prepaid === 'boolean')
+    ? `선결제 ${payers.filter((m) => m.prepaid).length}/${payers.length}명 완료` : null
   const settled = Boolean(party.settlement)
   const task = action || foot
     ? <div className="task-card">{action}{foot && <div className="task-foot">{foot}</div>}</div>
@@ -132,7 +137,7 @@ export function PartyShell({ party, now, onHome, header, action, progress, info,
           <button type="button" className="icon-btn" aria-label="일행 정보 열기" onClick={openDetails}><Info size={22} /></button>
         </div>
         <p className="room-sub">
-          <span>{people}명, {summary || partyLabel(party.status)}</span>
+          <span>{people}명, {prepayLine || summary || partyLabel(party.status)}</span>
           {party.myShare != null && <span className="room-share">{settled ? '내 몫' : '내 몫 예상'} <b>{won(party.myShare)}</b>
             {party.mySoloFare > party.myShare && <s aria-label={`혼자 타면 ${won(party.mySoloFare)}`}>{won(party.mySoloFare)}</s>}</span>}
         </p>
@@ -527,13 +532,9 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
             onClick={() => run(() => api.prepareParty(party.id, 'NEARBY'), '2분 안 도착으로 표시했어요')}>{mine?.nearby ? '2분 안 도착 표시 완료' : '2분 안 도착'}</Btn>}
       </>}
       progress={<>
+        {/* 일행 정보 창 순서: 지금 어디쯤 → 누구와 어디서 내리나 → 얼마 내나 → 왜 이 일행인가 → 지도 */}
         <div className="block">
           <PartyStepper party={party} />
-          {/* 넓은 화면은 오른쪽 지도가 경로를 크게 보여 주므로 작은 지도는 휴대폰에만 둔다. */}
-          {party.mySoloFare > party.myShare && <FareCompare solo={party.mySoloFare} share={party.myShare} />}
-          {mine && party.mySoloFare > 0 && <FairnessNote delay={figures(mine).delay} solo={party.mySoloFare} share={party.myShare}
-            rules={config?.rules} walkExcluded={isPaymentParty(party)} />}
-          {!wide && mine && <PartyMiniMap party={party} mine={mine} />}
           <h2 className="block-title">같이 타는 사람 <small>내리는 순서</small></h2>
           <Rail items={order.map((m) => ({
             key: m.requestId,
@@ -544,10 +545,19 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
             detail: [m.pointName, m.expectedShare != null ? won(m.expectedShare) : ''].filter(Boolean).join(', '),
             sub: m.memberId === myId ? '' : trustLine(personOf(m.memberId)),
             me: m.memberId === myId,
-            state: waiting ? (m.noShow ? '불참' : m.arrived ? '도착' : m.nearby ? '2분 안' : '오는 중') : '',
-            ok: m.arrived,
+            state: party.status === 'PREPAYING' && m.memberId !== party.payerId && typeof m.prepaid === 'boolean'
+              ? (m.prepaid ? '결제 완료' : '결제 전')
+              : waiting ? (m.noShow ? '불참' : m.arrived ? '도착' : m.nearby ? '2분 안' : '오는 중') : '',
+            ok: party.status === 'PREPAYING' ? m.prepaid === true : m.arrived,
           }))} />
           {party.payer && <div className="list"><Item title="기사님께 보여 줄 화면" onClick={() => setDriver(true)} /></div>}
+        </div>
+        <div className="block">
+          {party.mySoloFare > party.myShare && <FareCompare solo={party.mySoloFare} share={party.myShare} />}
+          {mine && party.mySoloFare > 0 && <FairnessNote delay={figures(mine).delay} solo={party.mySoloFare} share={party.myShare}
+            rules={config?.rules} walkExcluded={isPaymentParty(party)} />}
+          {/* 넓은 화면은 오른쪽 지도가 경로를 크게 보여 주므로 작은 지도는 휴대폰에만 둔다. */}
+          {!wide && mine && <PartyMiniMap party={party} mine={mine} />}
         </div>
       </>}
       info={<div className="block">

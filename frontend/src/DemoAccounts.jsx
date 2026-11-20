@@ -2,7 +2,13 @@ import React, { useState } from 'react'
 import { api } from './api.js'
 import { toast } from './ui.jsx'
 
-const accounts = ['demo-f1', 'demo-f2', 'demo-f3', 'demo-f4', 'demo-m1', 'demo-m2', 'demo-m3', 'demo-m4', 'demo-admin']
+/** 시연 계정. 서버 시드(DataSeeder)와 같은 이름이다. 화면에는 계정 번호 대신 사람 이름을 보인다. */
+export const DEMO_ACCOUNTS = [
+  ['demo-m4', '현우'], ['demo-m1', '준호'], ['demo-m2', '도윤'], ['demo-m3', '민재'],
+  ['demo-f1', '하은'], ['demo-f2', '서연'], ['demo-f3', '지민'], ['demo-f4', '유나'],
+  ['demo-admin', '관리자'],
+]
+
 export default function DemoAccounts({ onLogin }) {
   const [busy, setBusy] = useState(false)
   const login = async (account) => {
@@ -13,7 +19,6 @@ export default function DemoAccounts({ onLogin }) {
     finally { setBusy(false) }
   }
   return <section className="demo-login" aria-label="시연 계정 빠른 전환">
-    <h2>시연 계정</h2>
-    <div className="demo-accounts">{accounts.map((account) => <button type="button" key={account} aria-label={account} disabled={busy} onClick={() => login(account)}>{account.replace('demo-', '')}</button>)}</div>
+    <div className="demo-accounts">{DEMO_ACCOUNTS.map(([account, name]) => <button type="button" key={account} disabled={busy} onClick={() => login(account)}>{name}</button>)}</div>
   </section>
 }

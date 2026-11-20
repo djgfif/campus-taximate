@@ -51,7 +51,7 @@ describe('이 일행이 정해진 이유', () => {
     expect(screen.getByText('4분')).toBeTruthy()
     expect(screen.getByText('15분 이내만 묶어요')).toBeTruthy()
     expect(screen.getByText('60%')).toBeTruthy()
-    expect(screen.getByText('90% 이하만 묶어요')).toBeTruthy()
+    expect(screen.getByText('90% 이하일 때만 묶어요')).toBeTruthy()
   })
 })
 

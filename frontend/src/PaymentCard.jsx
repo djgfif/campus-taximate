@@ -70,7 +70,7 @@ export default function PaymentCard({ partyId, purpose = 'PREPAY', myId, now, co
       {payable && (order.simulated ? <>
         {/* 지금 할 일 카드 안에서는 맨 위 시연 띠가 이미 알려 주므로 반복하지 않는다. */}
         {!compact && <p className="note">시연용 모의 결제예요. 실제 돈은 나가지 않아요.</p>}
-        {config?.demo && <Btn onClick={() => pay(true)}>시연 결제하기</Btn>}
+        {config?.demo && <Btn onClick={() => pay(true)}>{order ? `${won(order.amount)} 결제하기` : '결제하기'}<small className="btn-note">모의</small></Btn>}
       </> : clientKey ? <Btn onClick={() => pay(false)}>카드로 결제하기</Btn>
         : <Say>카드 결제를 준비하지 못했어요. 잠시 뒤 다시 확인해 주세요.</Say>)}
     </>}
