@@ -103,3 +103,36 @@ exclude_intra_pocheon 민감도는 포천 목적지 확률을 0으로 하고 나
 - [실행 명령·해시·한계·절대 경로 인계서](reports/osrm-step1-handoff.md)
 
 목적지·경로·시간·단독요금 변경이 동시에 반영된 비교다. 차이를 어느 한 변경의 인과효과로 해석하지 않는다. sample은 기존 파일에 다시 실행하지 않고 query로 재개한다. 새 자료/표본은 별도 --output 경로와 detailed.py --routing-cache를 사용한다. API 키는 저장소 .env의 KAKAO_REST_KEY에서 읽으며 보고서에 기록하지 않는다.
+
+## C8: exact optimality benchmark
+
+Run after the completed 30-day C7 pipeline, using the same public-data cache:
+
+```powershell
+./experiments/.cache/venv/python.exe experiments/calibration_refinement.py
+# If status is ACCEPTED, rerun detailed.py --days 30 --verify-c6 first.
+./experiments/.cache/venv/python.exe experiments/optimality_gap.py
+./experiments/.cache/venv/python.exe -m pytest experiments/tests -q --basetemp=experiments/.cache/t8
+```
+
+Use a fresh, short basetemp path on Windows. C8 extracts the base, n50_d15 and
+participation150 requests byte-for-byte from C7. It recompiles unchanged
+production sources in its own cache, exhaustively enumerates groups through
+production verifiers and solves set packing with unlimited exact subset DP.
+No new solver dependency is required. A separate Java replay verifies every
+actually selected group.
+
+The calibration compares global, distance-band and nonnegative affine correction
+with train-only OD five-fold cross-validation, then applies a frozen held-out
+acceptance rule: overall improvement and no band worse by over 2 percentage
+points. The 2026-11-20 decision kept the existing model, so C7 was not regenerated.
+
+Results: [gap report](reports/c8-optimality-gap.md),
+[JSON](reports/c8-optimality-gap.json),
+[calibration selection](reports/c8-calibration-selection.json).
+Daily metrics, selected groups, source hashes, per-solve times and logs are under
+experiments/.cache/c8. Use --reuse-export to recompute exact policies from a
+hash-verified Java export. Production-state round regret is separate from
+independent-policy day gaps, which include subsequent queue feedback. Hindsight
+relaxes round confirmation while retaining common departure windows; its matched
+rider count is an upper bound within this simulated model.
