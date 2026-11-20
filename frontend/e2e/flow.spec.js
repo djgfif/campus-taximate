@@ -14,7 +14,16 @@ async function login(page, id, { activeParty = false } = {}) {
   await page.getByLabel('비밀번호').fill('demo1234')
   await page.getByRole('button', { name: '로그인', exact: true }).click()
   if (activeParty) await expect(page.getByRole('tab', { name: '진행', exact: true })).toBeVisible({ timeout: 15000 })
-  else await expect(page.getByRole('heading', { name: '어디로 가세요?' })).toBeVisible({ timeout: 15000 })
+  else await expect(homeDirections(page)).toBeVisible({ timeout: 15000 })
+}
+
+/** 홈의 등교·하교 전환. 홈이 떠 있는지 이것으로 확인한다. */
+const homeDirections = (page) => page.getByRole('tablist', { name: '방향' })
+
+/** 홈에서 하교를 고르고 목적지 입력으로 들어간다. */
+async function startHomeRequest(page) {
+  await homeDirections(page).getByRole('tab', { name: '하교', exact: true }).click()
+  await page.getByRole('button', { name: '어디로 가세요?', exact: true }).click()
 }
 
 async function demo(page, action) {
@@ -70,14 +79,14 @@ async function evidence(page, project, name, info) {
 
 test('승차 지점 요청부터 이의 기간과 정산 완료까지 화면으로 끝낸다', async ({ page }, info) => {
   await login(page, ACCOUNTS[info.project.name][0])
-  await page.getByRole('button', { name: /^하교/ }).click()
+  await startHomeRequest(page)
   await expect(page).toHaveURL(/\/request\/home$/)
   await page.getByLabel('시연 출발지').selectOption({ index: 1 })
   await page.getByLabel('시연 도착지').selectOption({ label: '역전 버스 정류장' })
   await page.getByRole('checkbox').first().check()
   await expect(page.getByText(/^약 [\d,]+원, \d+분$/)).toBeVisible()
   await page.getByRole('button', { name: '일행 찾기' }).click()
-  await expect(page.getByText('결과는 늦어도')).toBeVisible()
+  await expect(page.getByRole('heading', { name: '같이 탈 학생을 찾고 있어요' })).toBeVisible()
 
   await demo(page, '일행 만들기')
   await expect(page.getByText('내가 결제자')).toBeVisible()
@@ -137,12 +146,12 @@ test('서로 다른 사용자 화면에서 번호 공개·탑승 인증·명시�
   }
   // 첫 로그인 화면의 정상적인 /me 401은 제외하고 인증된 사용자 흐름부터 기록한다.
   watch(page, '결제자')
-  await page.getByRole('button', { name: /^하교/ }).click()
+  await startHomeRequest(page)
   await page.getByLabel('시연 출발지').selectOption({ index: 1 })
   await page.getByLabel('시연 도착지').selectOption({ label: '역전 버스 정류장' })
   await page.getByRole('checkbox').first().check()
   await page.getByRole('button', { name: '일행 찾기' }).click()
-  await expect(page.getByText('결과는 늦어도')).toBeVisible()
+  await expect(page.getByRole('heading', { name: '같이 탈 학생을 찾고 있어요' })).toBeVisible()
   await demo(page, '일행 만들기')
   await expect(page.getByText('내가 결제자')).toBeVisible()
   // 선결제·샘플 도착만 시연 도구로 준비한다. 실제 검증 대상 동작은 각 사용자 UI에서 수행한다.
@@ -244,13 +253,13 @@ test('서로 다른 사용자 화면에서 번호 공개·탑승 인증·명시�
 
 test('주소로 이동하고 뒤로 가기가 앱 안에서 동작한다', async ({ page }, info) => {
   await page.goto('/history')
-  await expect(page.getByRole('heading', { name: /학교 메일로/ })).toBeVisible()
+  await expect(page.getByLabel('학교 메일')).toBeVisible()
 
   await login(page, ACCOUNTS[info.project.name][1])
-  await page.getByRole('button', { name: /^하교/ }).click()
+  await startHomeRequest(page)
   await expect(page).toHaveURL(/\/request\/home$/)
   await page.goBack()
-  await expect(page.getByRole('heading', { name: '어디로 가세요?' })).toBeVisible()
+  await expect(homeDirections(page)).toBeVisible()
   await page.goto('/history')
   await expect(page.getByText('아직 이용 내역이 없어요')).toBeVisible()
 })
