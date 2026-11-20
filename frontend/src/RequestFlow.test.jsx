@@ -18,6 +18,7 @@ beforeEach(() => {
   vi.spyOn(api, 'nearbyPoints').mockResolvedValue(nearby)
   vi.spyOn(api, 'previewRequest').mockResolvedValue({ soloFare: 16800, soloMinutes: 30, resultBy: '2026-11-11T00:05:00Z' })
   vi.spyOn(api, 'createRequest').mockResolvedValue({ id: 1 })
+  vi.spyOn(api, 'board').mockResolvedValue({ parties: [], waiting: [] })
   props.run.mockClear(); props.onClose.mockClear()
 })
 afterEach(() => { cleanup(); vi.restoreAllMocks() })
@@ -140,5 +141,31 @@ describe('새 탑승 요청', () => {
     expect(screen.queryByLabelText('늦어도 도착 시각')).toBeNull()
     await waitFor(()=>expect(api.previewRequest).toHaveBeenLastCalledWith(expect.objectContaining({mode:'INSTANT',timeBasis:'DEPART'})))
     expect(api.previewRequest.mock.calls.at(-1)[0]).not.toHaveProperty('arriveBy')
+  })
+})
+
+describe('미리 올리기 안내 (모의실험 C9)', () => {
+  it('출발이 40분 안이면 미리 올리라고 알리고, 1시간 뒤로 바꾸면 안내가 사라진다', async () => {
+    render(<HomeRequest {...props} />)
+    expect(await screen.findByText(/출발까지 25분이라 같이 탈 사람을 찾을 시간이 짧아요/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '1시간 뒤' }))
+    expect(screen.queryByText(/찾을 시간이 짧아요/)).toBeNull()
+  })
+
+  it('즉시 요청에는 미리 올리기 안내를 띄우지 않는다', async () => {
+    render(<HomeRequest {...props} />)
+    await screen.findByText(/찾을 시간이 짧아요/)
+    fireEvent.click(screen.getByRole('button', { name: '즉시', exact: true }))
+    expect(screen.queryByText(/찾을 시간이 짧아요/)).toBeNull()
+  })
+
+  it('같은 방향으로 기다리는 사람이 있는 시간대에 인원을 보인다(반대 방향은 세지 않는다)', async () => {
+    api.board.mockResolvedValue({ parties: [], waiting: [
+      { direction: 'FROM_HUB', anchorName: '정문', hour: '2026-11-11T00:00:00Z', count: 2 },
+      { direction: 'TO_SCHOOL', anchorName: '정문', hour: '2026-11-11T00:00:00Z', count: 5 },
+    ] })
+    render(<HomeRequest {...props} />)
+    expect(await screen.findByText('9시대에 하교하는 학생 2명이 기다리고 있어요.')).toBeTruthy()
+    expect(screen.getByRole('option', { name: '9시 · 2명 대기' })).toBeTruthy()
   })
 })

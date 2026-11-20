@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { api } from './api.js'
 import MapPicker, { searchPlaces } from './MapPicker.jsx'
 import MapView from './MapView.jsx'
-import RequestTimePicker from './RequestTimePicker.jsx'
+import RequestTimePicker, { seoulHourKey } from './RequestTimePicker.jsx'
 import { Check, MapPin } from 'lucide-react'
 import { formatTime, requestTimeOptions, won } from './format.js'
 import { BackBar, Btn, Chips, Say, Screen, useWide } from './ui.jsx'
@@ -77,6 +77,19 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
   const [points, setPoints] = useState({ key: '', data: [] })
   const [selection, setSelection] = useState({ key: '', ids: [] })
   const [error, setError] = useState('')
+  const [waiting, setWaiting] = useState({})
+  const direction = schoolDestination ? 'TO_SCHOOL' : 'FROM_HUB'
+  // 시간대별로 같은 방향에서 이미 기다리는 사람 수(게시판과 같은 집계). 못 읽으면 표시만 생략한다.
+  useEffect(() => {
+    let closed = false
+    api.board().then((board) => {
+      if (closed) return
+      const counts = {}
+      for (const w of board?.waiting || []) if (w.direction === direction) counts[seoulHourKey(w.hour)] = (counts[seoulHourKey(w.hour)] || 0) + w.count
+      setWaiting(counts)
+    }).catch(() => {})
+    return () => { closed = true }
+  }, [direction])
   useEffect(() => {
     let closed = false
     api.hubs().then((data) => !closed && setHubs(data)).catch(() => !closed && setError('승차 지점 정보를 읽지 못했어요. 다시 열어 주세요.'))
@@ -114,6 +127,10 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
   const chosenArrival = arrivals.includes(arrival) ? arrival : arrivals[Math.min(30, arrivals.length - 1)]
   const maxWindow = chosenStart ? Math.min(60, (new Date(options.at(-1)) - new Date(chosenStart)) / 60000) : 0
   const chosenLength = Math.min(endLength, maxWindow)
+  // 모의실험(C9): 같은 출발 시각이라도 15분 일찍 요청하면 매칭률이 올랐다. 최소 준비 25분 + 15분 = 40분 미만이면 알려 준다.
+  const leadMinutes = chosenStart ? Math.round((new Date(chosenStart) - new Date(now)) / 60000) : null
+  const shortLead = !instant && basis === 'DEPART' && leadMinutes !== null && leadMinutes < 40
+  const waitingLabel = schoolDestination ? '등교하는 학생' : '하교하는 학생'
   const ready = origin.point && origin.name.trim() && destination.point && destination.name.trim() && selected.length > 0 && (instant || chosenStart && chosenArrival)
   const body = ready ? {
     direction: 'FROM_HUB', mode, timeBasis: effectiveBasis, origin: { ...origin.point, name: origin.name }, pointIds: selected,
@@ -174,14 +191,14 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
         <summary><h2 id="step-when">언제</h2><b>{timeSummary}</b><em>바꾸기</em></summary>
         <Chips label="시간 기준" value={basis} onChange={setBasis} options={[{ value: 'DEPART', label: '출발 기준' }, { value: 'ARRIVE', label: '도착 기준' }]} />
         {basis === 'DEPART' ? <>
-          <RequestTimePicker label="출발 가능 시작" options={options} value={chosenStart} now={now} onChange={setStart} />
-          <label className="field">출발 가능 범위<select value={chosenLength} onChange={(e) => setEndLength(Number(e.target.value))}>{Array.from({ length: 13 }, (_, i) => i * 5).filter((m) => m <= maxWindow).map((m) => <option key={m} value={m}>{m}분</option>)}</select></label>
+          <RequestTimePicker label="출발 가능 시작" options={options} value={chosenStart} now={now} onChange={setStart} waiting={waiting} waitingLabel={waitingLabel} />          <label className="field">출발 가능 범위<select value={chosenLength} onChange={(e) => setEndLength(Number(e.target.value))}>{Array.from({ length: 13 }, (_, i) => i * 5).filter((m) => m <= maxWindow).map((m) => <option key={m} value={m}>{m}분</option>)}</select></label>
           {chosenStart && <p className="range">{formatTime(chosenStart)} ~ {formatTime(new Date(chosenStart).getTime() + chosenLength * 60000)} 사이에 출발</p>}
         </> : <>
-          <RequestTimePicker label="늦어도 도착 시각" options={arrivals} value={chosenArrival} now={now} onChange={setArrival} />
+          <RequestTimePicker label="늦어도 도착 시각" options={arrivals} value={chosenArrival} now={now} onChange={setArrival} waiting={waiting} waitingLabel={waitingLabel} />
           <Chips label="일찍 도착 허용" value={early} onChange={setEarly} options={[0, 5, 10, 15].map((m) => ({ value: m, label: m + '분' }))} />
         </>}
       </details>}
+      {shortLead && <p className="note lead-note">출발까지 {leadMinutes}분이라 같이 탈 사람을 찾을 시간이 짧아요. 40분 넘게 여유를 두고 올리면 일행이 생기기 쉬워요.</p>}
 
       <details className="memo">
         <summary>일행에게 남길 메모 (선택)</summary>
