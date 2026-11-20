@@ -191,3 +191,11 @@ C5~C11은 커밋 `2c7aeaf`의 서비스 코드(조기 확정 10분, 선결제 11
 ```
 
 현재 체크아웃의 운영 코드(마감 확정 S42, 확정 분담금 S43)를 해시 고정 없이 그대로 컴파일해, 하루 15·35·70·100·200·400건 × 30일을 처리한다. 견적 보정과 여유분은 `server/src/main/resources/application.yml`의 `app.fare` 기본값을 읽는다. 요청 수는 시나리오이며, 학교 앞 실제 택시 이용량(TIMS 2025, 정문 반경 약 1.5km 격자 9칸: 학기 하루 약 36건, 방학 약 16건)을 관측 구간으로 함께 적는다. 오차는 1·1.5·2배로 키워 적립금 초기 기금을 구한다. 결과는 [reports/c12-current-service.md](reports/c12-current-service.md). C5~C11은 결정 근거 실험으로 커밋 2c7aeaf 기준 그대로 둔다.
+
+## C13 1층: 전국 대학 캠퍼스 주변 택시 이용량
+
+```powershell
+.\experiments\.cache\venv\python.exe experiments\campus_survey.py
+```
+
+대학알리미 재적 학생 현황 2026(공공데이터포털 15164558)으로 4년제 대학 목록과 재학생 수를 만들고, 카카오 로컬 검색으로 캠퍼스 좌표를 붙인 뒤 TIMS 2025 택시 승차를 캠퍼스 반경 약 1.5km에서 센다. 도심 캠퍼스는 역·상권 승차가 섞이므로 같은 시군구 전체의 학기/방학 변화를 빼서 "학기에만 늘어난 승차"를 학생(학사일정) 효과로 본다. 결과는 [reports/c13-campus-survey.md](reports/c13-campus-survey.md).
