@@ -61,7 +61,8 @@ describe('운행 확인과 변경 이탈',()=>{
     expect(screen.getByText('예상 출발')).toBeTruthy()
     expect(screen.getByText(/확정 즉시 승차 지점으로 출발해 주세요/)).toBeTruthy()
     expect(screen.queryByText(/선결제 기한은 확정 뒤 3분/)).toBeNull()
-    expect(screen.getByRole('button',{name:'택시 불렀어요'}).disabled).toBe(true)
+    // 아직 부를 수 없으면 호출 버튼을 그리지 않고 이유를 한 문장으로 보여 준다
+    expect(screen.queryByRole('button',{name:'택시 불렀어요'})).toBeNull()
     expect(screen.getByText('아직 표시하지 않은 일행이 있어요.')).toBeTruthy()
     fireEvent.click(screen.getByRole('button',{name:'2분 안 도착',exact:true}))
     await waitFor(()=>expect(prepare).toHaveBeenCalledWith(11,'NEARBY'))

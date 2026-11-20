@@ -4,7 +4,7 @@ import MapPicker, { searchPlaces } from './MapPicker.jsx'
 import MapView from './MapView.jsx'
 import RequestTimePicker, { seoulHourKey } from './RequestTimePicker.jsx'
 import { Check, MapPin } from 'lucide-react'
-import { formatTime, requestTimeOptions, won } from './format.js'
+import { formatTime, requestTimeOptions, shareCap, won } from './format.js'
 import { BackBar, Btn, Chips, Say, Screen, useWide } from './ui.jsx'
 import SketchMap from './SketchMap.jsx'
 
@@ -46,6 +46,8 @@ export function PlaceField({ label, value, center, onChange, samples = [], place
   const choose = (place) => {
     onChange({ name: place.name, point: { lat: place.lat, lon: place.lon } }); setOpen(false); setResults([]); setNote('')
   }
+  const same = (p) => value.point && p.name === value.name && Math.abs(p.lat - value.point.lat) < 1e-6 && Math.abs(p.lon - value.point.lon) < 1e-6
+  const picked = samples.findIndex(same)
   return <section className="place-field" aria-label={label}>
     <label className="field"><span className="field-label">{label}</span><span className="place-input"><input value={value.name} maxLength={100} placeholder={placeholder}
       onChange={(e) => onChange({ name: e.target.value, point: null })} />{value.point && <Check className="place-ok" size={18} aria-label="위치 선택됨" />}</span></label>
@@ -53,7 +55,10 @@ export function PlaceField({ label, value, center, onChange, samples = [], place
     {note && <p className="note" role="status">{note}</p>}
     <div className="place-actions">
       <Btn className="small line" disabled={!center} onClick={() => setOpen(true)}><MapPin size={16} aria-hidden="true" />지도에서<span className="sr-only"> {label} 고르기</span></Btn>
-      {samples.length > 0 && <label className="field sample"><span className="sr-only">시연 {label}</span><select aria-label={'시연 ' + label} value="" onChange={(e) => choose(samples[Number(e.target.value)])}>
+      {/* 고른 시연 지점이 선택 칸에도 보이게 지금 값과 같은 지점을 선택 상태로 둔다. 직접 검색하거나 지도에서 고르면 비운다. */}
+      {samples.length > 0 && <label className="field sample"><span className="sr-only">시연 {label}</span><select aria-label={'시연 ' + label}
+        value={picked < 0 ? '' : String(picked)}
+        onChange={(e) => choose(samples[Number(e.target.value)])}>
         <option value="" disabled>시연 지점</option>{samples.map((p, i) => <option key={p.id || p.name} value={i}>{p.name}</option>)}
       </select></label>}
     </div>
@@ -130,6 +135,11 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
   // 모의실험(C9): 같은 출발 시각이라도 15분 일찍 요청하면 매칭률이 올랐다. 최소 준비 25분 + 15분 = 40분 미만이면 알려 준다.
   const leadMinutes = chosenStart ? Math.round((new Date(chosenStart) - new Date(now)) / 60000) : null
   const shortLead = !instant && basis === 'DEPART' && leadMinutes !== null && leadMinutes < 40
+  // 모의실험(C13, 수도권 79곳): 출발 가능 범위를 넓힐수록 모든 학교에서 매칭률이 올랐다(하루 35건 중앙값 10분 31%, 20분 54%, 30분 67%).
+  // 더 넓힐 수 있는데 30분보다 좁게 고르면 알려 준다.
+  const narrowWindow = !instant && basis === 'DEPART' && chosenStart && chosenLength < 30 && maxWindow >= 30
+  const minSaving = config?.rules?.minSavingRate ?? 0.1
+  const maxDelay = config?.rules?.maxDelayMinutes ?? 15
   const waitingLabel = schoolDestination ? '등교하는 학생' : '하교하는 학생'
   const ready = origin.point && origin.name.trim() && destination.point && destination.name.trim() && selected.length > 0 && (instant || chosenStart && chosenArrival)
   const body = ready ? {
@@ -155,10 +165,13 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
   return <Screen aside={origin.point ? <MapView points={[{ ...origin.point, label: '출', tone: 'me' },
     ...(destination.point ? [{ ...destination.point, label: '도', tone: 'end' }] : [])]} /> : undefined}
     foot={<>
+      {/* 요청 전에 정확한 몫은 알 수 없다(누구와 묶일지 모름). 대신 매칭 규칙이 보장하는 상한을 보여 준다. */}
       <p className="foot-sum" aria-live="polite">{preview.data
-        ? <>혼자 타면 <b>{'약 ' + won(preview.data.soloFare) + ', ' + preview.data.soloMinutes + '분'}</b>, 결과는 {formatTime(preview.data.resultBy)}까지</>
+        ? <>혼자 <s>{won(preview.data.soloFare)}</s> → 같이 타면 <b>{won(shareCap(preview.data.soloFare, minSaving))} 이하</b></>
         : ready ? '요금 계산 중…' : '어디서 어디로 가는지 먼저 골라 주세요'}</p>
-      <p className="foot-rule">늦어져도 {config?.rules?.maxDelayMinutes ?? 15}분 이내, 혼자보다 {Math.round((config?.rules?.minSavingRate ?? 0.1) * 100)}% 이상 쌀 때만 일행이 돼요.</p>
+      <p className="foot-rule">{preview.data
+        ? `${Math.round(minSaving * 100)}% 이상 싸고 ${maxDelay}분 넘게 늦어지지 않을 때만 일행이 돼요. 결과는 ${formatTime(preview.data.resultBy)}까지 알려 드려요.`
+        : `늦어져도 ${maxDelay}분 이내, 혼자보다 ${Math.round(minSaving * 100)}% 이상 쌀 때만 일행이 돼요.`}</p>
       <Btn disabled={!preview.data || !ready} onClick={submit}>일행 찾기</Btn>
     </>}>
     <BackBar onBack={onClose} title={schoolDestination ? '등교' : '하교'} />
@@ -198,7 +211,12 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
           <Chips label="일찍 도착 허용" value={early} onChange={setEarly} options={[0, 5, 10, 15].map((m) => ({ value: m, label: m + '분' }))} />
         </>}
       </details>}
-      {shortLead && <p className="note lead-note">출발까지 {leadMinutes}분이라 같이 탈 사람을 찾을 시간이 짧아요. 40분 넘게 여유를 두고 올리면 일행이 생기기 쉬워요.</p>}
+      {/* 같은 이유(같이 탈 사람이 적다)의 안내는 한 문장으로 묶는다. */}
+      {(shortLead || narrowWindow) && <p className="note lead-note">{shortLead && narrowWindow
+        ? `출발까지 ${leadMinutes}분, 출발 가능 범위 ${chosenLength}분이라 같이 탈 학생을 찾기 어려워요. 40분 넘게 여유를 두고 범위를 30분 넘게 잡으면 일행이 생기기 쉬워요.`
+        : shortLead
+          ? `출발까지 ${leadMinutes}분이라 같이 탈 사람을 찾을 시간이 짧아요. 40분 넘게 여유를 두고 올리면 일행이 생기기 쉬워요.`
+          : `출발 가능 범위가 ${chosenLength}분이라 같이 탈 학생을 찾기 어려워요. 30분 넘게 두면 일행이 생기기 쉬워요.`}</p>}
 
       <details className="memo">
         <summary>일행에게 남길 메모 (선택)</summary>

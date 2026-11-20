@@ -37,7 +37,7 @@ export function Situation({ insight, now }) {
   }
 }
 
-export function Waiting({ latest, config, now, run, onMenu, onPush }) {
+export function Waiting({ latest, config, now, run, onMenu, onPush, tabBar }) {
   const [asking, setAsking] = useState(false)
   const toSchool = latest.direction === 'TO_SCHOOL'
   const anchor = useMemo(() => ({ stamp: new Date(now).getTime(), readAt: performance.now() }), [now])
@@ -45,7 +45,7 @@ export function Waiting({ latest, config, now, run, onMenu, onPush }) {
   useEffect(() => { const timer = setInterval(() => tick((n) => n + 1), 1000); return () => clearInterval(timer) }, [])
   const current = Number.isFinite(anchor.stamp) ? anchor.stamp + performance.now() - anchor.readAt : null
   return (
-    <Screen aside={<RequestMap item={latest} />} foot={<Btn className="line" onClick={() => setAsking(true)}>요청 취소</Btn>}>
+    <Screen aside={<RequestMap item={latest} />} tabBar={tabBar} foot={<Btn className="line" onClick={() => setAsking(true)}>요청 취소</Btn>}>
       <TopBar onMenu={onMenu} />
       <section className="searching">
         <div className="road" aria-hidden="true"><i /></div>

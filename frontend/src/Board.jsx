@@ -97,7 +97,7 @@ function JoinSheet({ card, config, onClose, onJoined }) {
 }
 
 /** 합류를 신청했고 선결제를 기다리는 동안의 화면. 결제가 승인되면 일행 화면으로 바뀐다. */
-export function Joining({ latest, config, now, myId, run, onUpdated, onMenu }) {
+export function Joining({ latest, config, now, myId, run, onUpdated, onMenu, tabBar }) {
   const [join, setJoin] = useState(null)
   const [asking, setAsking] = useState(false)
   useEffect(() => {
@@ -106,7 +106,7 @@ export function Joining({ latest, config, now, myId, run, onUpdated, onMenu }) {
     return () => { closed = true }
   }, [latest.id, now])
   return (
-    <Screen foot={<Btn className="line" onClick={() => setAsking(true)}>합류 취소</Btn>}>
+    <Screen tabBar={tabBar} foot={<Btn className="line" onClick={() => setAsking(true)}>합류 취소</Btn>}>
       <TopBar onMenu={onMenu} />
       <div className="pad">
         <h1 className="head">선결제하면<br />일행에 들어가요</h1>

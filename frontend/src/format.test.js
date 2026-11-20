@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { remaining, routeLabel, savedTotal, partyLabel, requestTimeOptions } from './format.js'
+import { remaining, routeLabel, savedTotal, partyLabel, requestTimeOptions, shareCap } from './format.js'
+
+describe('shareCap', () => {
+  it('혼자 요금에서 최소 절약률을 뺀 값을 100원 단위로 올린다', () => {
+    expect(shareCap(13854, 0.1)).toBe(12500)
+    expect(shareCap(10000, 0.1)).toBe(9100)
+  })
+  it('몫 반올림 몇 원이 더해져도 넘지 않는다', () => {
+    for (const solo of [4800, 7777, 13854, 31234]) expect(shareCap(solo, 0.1)).toBeGreaterThanOrEqual(solo * 0.9 + 3)
+  })
+})
 
 describe('remaining', () => {
   const now = '2026-11-09T00:00:00Z'
