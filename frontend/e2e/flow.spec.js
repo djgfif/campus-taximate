@@ -141,7 +141,9 @@ test('승차 지점 요청부터 이의 기간과 정산 완료까지 화면으�
   const amount = page.getByLabel('실제 결제 금액')
   for (let i = 0; i < 30 && !(await amount.isVisible()); i++) await demo(page, '5분 뒤')
   await expect(amount).toBeVisible()
-  await amount.fill('20000')
+  // 예상 합계보다 조금 더 나온 현실적인 요금. 1.5배를 넘으면 관리자 검토로 가므로(S43) 그 안에서 고른다.
+  const riding = await currentParty(page)
+  await amount.fill(String(riding.expectedTotal + 700))
   await page.getByLabel('영수증 사진').setInputFiles({ name: 'r.png', mimeType: 'image/png', buffer: PNG })
   await expect(page.getByLabel('은행', { exact: true })).toHaveCount(0)
   await expect(page.getByLabel('받을 계좌', { exact: true })).toHaveCount(0)
