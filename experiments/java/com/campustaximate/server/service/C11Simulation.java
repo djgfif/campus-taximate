@@ -59,21 +59,38 @@ public final class C11Simulation {
         public Map<String,RoadLeg> legs(GeoPoint o,Map<String,GeoPoint> d){return model.legs(o,d);}
         public boolean simulated(){return true;}
     }
+    /** 출발 편: 출발 가능 구간을 [편 시각, 편 시각 + 5분]으로 좁힌다. 요청 시각은 그대로라 모집·마감 규칙은 운영과 같다. */
+    static MatchRequest slotted(ExperimentRunner.Case c,ExperimentRunner.Input r,MatchingSettings s,int slotMinutes){
+        long earliest=(long)r.arrival()+s.leadMinutes()*60L, step=slotMinutes*60L, t=((earliest+step-1)/step)*step;
+        return window(c,r,t,t+300);
+    }
+    static MatchRequest flexible(ExperimentRunner.Case c,ExperimentRunner.Input r,MatchingSettings s,int flexMinutes){
+        long earliest=(long)r.arrival()+s.leadMinutes()*60L;return window(c,r,earliest,earliest+flexMinutes*60L);
+    }
+    static MatchRequest window(ExperimentRunner.Case c,ExperimentRunner.Input r,long from,long to){
+        return new MatchRequest(r.id(),r.id(),Direction.FROM_HUB,1,c.hub,Gender.MALE,BASE.plusSeconds(from),BASE.plusSeconds(to),null,null,
+            r.own(),r.km(),r.seconds()).requested(BASE.plusSeconds((long)r.arrival()),false);
+    }
     static String join(Collection<?> x){return String.join(";",x.stream().map(Object::toString).toList());}
     static void day(ExperimentRunner.Case c,DetailedSimulation.Config cfg,Map<ExperimentRunner.Pair,RoadLeg> matrix,
                     double[] errors,String policy,PrintWriter out,PrintWriter days) {
-        boolean current=policy.equals("CURRENT");
+        // SLOTnn: 지금 서비스 그대로 + 예약 요청의 출발을 nn분 간격 '출발 편'(정오 기준) 중 원래 가장 이른 출발 이후 첫 편으로 고정
+        // FLEXnn: 같은 서비스에서 예약 요청의 출발 가능 폭만 20분 → nn분(편과 같은 '늦게 출발해도 됨'을 시간 고정 없이 쓰는 비교군)
+        int slotMinutes=policy.startsWith("SLOT")?Integer.parseInt(policy.substring(4)):0;
+        int flexMinutes=policy.startsWith("FLEX")?Integer.parseInt(policy.substring(4)):0;
+        boolean current=policy.equals("CURRENT")||slotMinutes>0||flexMinutes>0;
         boolean markup=policy.startsWith("MARKUP")||current;double margin=current?currentMargin:markup?Double.parseDouble(policy.substring(6)):0;
         int early=current?MatchingSettings.everyMinute().earlyConfirmMinutes():policy.startsWith("EARLY")?Integer.parseInt(policy.substring(5)):
             policy.equals("WAIT-TO-DEADLINE")||policy.equals("FORECAST-AWARE")?0:10;
         var s=settings(early);var plan=TripPlan.of(Direction.FROM_HUB,s);
-        var all=c.requests.stream().map(r->DetailedSimulation.request(c,r,cfg,s)).toList();
+        var all=c.requests.stream().map(r->cfg.flags().get(r.id()).instant()?DetailedSimulation.request(c,r,cfg,s)
+            :slotMinutes>0?slotted(c,r,s,slotMinutes):flexMinutes>0?flexible(c,r,s,flexMinutes):DetailedSimulation.request(c,r,cfg,s)).toList();
         var model=new ExperimentRunner.Model(c,matrix);var routes=new MarkedRoute(model,margin,markup);
         Map<Long,Long> fares=new HashMap<>();c.requests.forEach(r->fares.put(r.id(),r.fare()));
         Map<Long,Long> shown=new HashMap<>();fares.forEach((id,f)->shown.put(id,markup?markedSolo(f):f));
         Set<Long> finished=new HashSet<>();Map<RouteGroupVerifier.RejectionKey,Instant> rejected=new HashMap<>();
         LegProvider legs=(a,b)->Optional.of(model.between(a.own(),b.own()));int groups=0,matched=0,expired=0,rounds=0,warnings=0,parity=0;
-        int end=c.requests.stream().mapToInt(ExperimentRunner.Input::deadline).max().orElse(0)+1200;
+        int end=c.requests.stream().mapToInt(ExperimentRunner.Input::deadline).max().orElse(0)+1200+Math.max(slotMinutes,flexMinutes)*60;
         for(int second=0;second<=end && finished.size()<all.size();second+=60){
             Instant slot=BASE.plusSeconds(second);var waiting=all.stream().filter(r->!finished.contains(r.id())&&!r.requestedAt().isAfter(slot)).toList();
             if(waiting.isEmpty())continue;
