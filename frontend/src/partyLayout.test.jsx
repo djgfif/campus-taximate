@@ -121,4 +121,26 @@ describe('일행 화면 구성', () => {
     expect(screen.getByText('일행이 바뀌었어요')).toBeTruthy()
     expect(screen.getByRole('button', { name: '변경돼서 빠지기' })).toBeTruthy()
   })
+
+  it('채팅 공간을 넓히기 위해 할 일 카드를 접었다 펼칠 수 있고 상태가 바뀌면 자동으로 펼친다', () => {
+    const view = render(<PartyScreen party={base} now={now} myId={1} run={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: '할 일 접기' }))
+    expect(screen.queryByRole('region', { name: '지금 할 일' })).toBeNull()
+    expect(screen.getByRole('button', { name: '지금 할 일 펼치기' })).toBeTruthy()
+    view.rerender(<PartyScreen party={{ ...base, status: 'READY' }} now={now} myId={1} run={vi.fn()} />)
+    expect(screen.getByRole('region', { name: '지금 할 일' })).toBeTruthy()
+  })
+
+  it('상태는 그대로여도 새 행동이 열리면(택시 호출 가능) 접어 둔 카드를 다시 펼치고, 시계만 흐르면 접힌 채 둔다', () => {
+    const waitingPayer = { ...base, status: 'READY', payer: true, payerId: 1, canCall: false, notReadyReasons: ['예약 일행은 출발 10분 전부터 호출할 수 있어요.'] }
+    const view = render(<PartyScreen party={waitingPayer} now={now} myId={1} run={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: '할 일 접기' }))
+    // 남은 시간만 바뀌는 갱신으로는 다시 펼치지 않는다
+    view.rerender(<PartyScreen party={waitingPayer} now="2026-11-12T09:01:00Z" myId={1} run={vi.fn()} />)
+    expect(screen.queryByRole('region', { name: '지금 할 일' })).toBeNull()
+    // 상태는 READY 그대로, 호출이 가능해지면 다시 펼쳐 호출 버튼을 보여 준다
+    view.rerender(<PartyScreen party={{ ...waitingPayer, canCall: true }} now="2026-11-12T09:02:00Z" myId={1} run={vi.fn()} />)
+    expect(screen.getByRole('region', { name: '지금 할 일' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '택시 불렀어요' })).toBeTruthy()
+  })
 })

@@ -6,6 +6,17 @@ const HAS_KEY = Boolean(import.meta.env.VITE_KAKAO_JS_KEY)
 const LINE_WEIGHT = 6
 const CASING = 4
 
+/** 오버레이 마커를 HTML 문자열 조합 대신 DOM 노드로 만들어 XSS 가능성을 차단한다. */
+export function buildMarkerElement(point) {
+  const pin = document.createElement('span')
+  pin.className = 'mk-pin'
+  const badge = document.createElement('span')
+  badge.className = point.tone ? `mk ${point.tone}` : 'mk'
+  badge.textContent = point.label == null ? '' : String(point.label)
+  pin.appendChild(badge)
+  return pin
+}
+
 /** 지점과 경로만 보여 주는 지도. 패널 크기가 바뀌면 전체가 보이도록 다시 맞춘다. right는 지도를 가리는 카드의 폭이다. */
 export default function MapView({ points = [], lines = [], edge = 48, right = 0, onFail, fallback = null }) {
   const box = useRef(null)
@@ -40,7 +51,7 @@ export default function MapView({ points = [], lines = [], edge = 48, right = 0,
           const position = new maps.LatLng(point.lat, point.lon)
           bounds.extend(position)
           // 핀 끝이 지점을 가리키도록 아래쪽을 좌표에 맞춘다. 원이 지점 위를 덮으면 지도의 장소 이름이 가려진다.
-          drawn.push(new maps.CustomOverlay({ map, position, yAnchor: 1, content: `<span class="mk-pin"><span class="mk ${point.tone || ''}">${point.label}</span></span>` }))
+          drawn.push(new maps.CustomOverlay({ map, position, yAnchor: 1, content: buildMarkerElement(point) }))
         }
         // 지점 하나만 있으면 범위 맞추기가 건물 단위까지 확대하므로 동네가 보이는 높이로 둔다.
         const single = points.length === 1 && lines.length === 0

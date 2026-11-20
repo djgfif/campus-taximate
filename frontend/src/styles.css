@@ -34,7 +34,7 @@
   --stop-soft: #fdecea;
   --alone: #2f6fde;
   --off: #f2f4f6;
-  --off-ink: #b0b8c1;
+  --off-ink: #7b838e;
   --scrim: rgba(26, 28, 32, 0.48);
   --lift: 0 1px 2px rgba(26, 28, 32, 0.06), 0 4px 14px rgba(26, 28, 32, 0.1);
   --float: 0 0 0 1px var(--line), 0 8px 24px rgba(26, 28, 32, 0.08);
@@ -125,7 +125,7 @@ summary::-webkit-details-marker { display: none; }
 
 /* 휴대폰 아래 탭바 */
 .tabbar { position: sticky; bottom: 0; z-index: 8; margin-top: auto; display: grid; grid-template-columns: repeat(4, 1fr); padding: 6px 4px calc(6px + var(--safe-b)); border-top: 1px solid var(--line); background: var(--paper); }
-.tabbar button { display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 48px; font-size: 11px; font-weight: 600; color: var(--faint); }
+.tabbar button { display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 48px; font-size: 11px; font-weight: 600; color: var(--road); }
 .tabbar button.on { color: var(--ink); }
 .tab-icon { position: relative; display: grid; place-items: center; height: 26px; }
 .tab-icon .unread-badge { position: absolute; top: -4px; left: 14px; margin: 0; }
@@ -627,8 +627,10 @@ button.item:active { opacity: 0.6; }
 .room-share b { font-size: 15px; font-weight: 700; color: var(--ink); }
 .room-share s { margin-left: 6px; color: var(--faint); }
 .app:has(.room) .demo-fab { top: calc(10px + var(--safe-t)); right: max(56px, calc(50% - var(--phone) / 2 + 56px)); }
-/* 입력창 바로 위의 할 일 카드. 길면 카드 안에서 스크롤한다 */
-.chat-task { flex: none; max-height: 46dvh; overflow-y: auto; overscroll-behavior: contain; padding: 8px var(--gutter) 0; background: var(--mist); }
+/* 입력창 바로 위의 할 일 카드. 길면 카드 안에서 스크롤하고, 채팅 공간을 넓히고 싶으면 접을 수 있다 */
+.chat-task { flex: none; max-height: 46dvh; overflow-y: auto; overscroll-behavior: contain; padding: 6px var(--gutter) 4px; background: var(--mist); }
+.chat-task-toggle { width: 100%; display: flex; align-items: center; justify-content: center; gap: 4px; min-height: 28px; padding: 2px 8px; border-radius: var(--r-s); font-size: 12px; font-weight: 600; color: var(--road); }
+.chat-task.folded .chat-task-toggle { min-height: 36px; background: var(--paper); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--ink-2); }
 .task-card { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: var(--r-l); background: var(--paper); box-shadow: inset 0 0 0 1px var(--line-strong); }
 .task-card .next-action { padding: 0; box-shadow: none; }
 .task-card .next-action h2 { font-size: 16px; }
@@ -752,15 +754,17 @@ button.item:active { opacity: 0.6; }
   .btn.danger:hover:not(:disabled) { background: var(--stop-press); }
   .btn.line:hover:not(:disabled), .btn.quiet:hover:not(:disabled), .icon-btn:hover { background: var(--mist); }
   .chip:not(.on):hover, .seg button:not(.on):hover { color: var(--ink-2); }
-  button.item:not(.sel):hover { background: var(--mist); }
+  button.item:not(.sel):hover { width: calc(100% + 16px); margin-inline: -8px; padding-inline: 8px; border-radius: var(--r-s); background: var(--mist); }
   button.item:hover > svg { color: var(--ink); }
-  .group-row:hover:not(:disabled), .recent button:hover { background: var(--mist); }
+  .group-row:hover:not(:disabled), .recent button:hover { width: calc(100% + 16px); margin-inline: -8px; padding-inline: 10px; border-radius: var(--r-s); background: var(--mist); }
   .live-ride:hover { background: var(--mist); }
   .where:hover:not(:disabled) { background: var(--mist-2); }
   .text-row:hover { color: var(--ink-2); }
   .demo-login button:hover:not(:disabled) { background: var(--mist); }
   .auth-links button:hover { color: var(--ink); }
-  .chat-tools button:hover, .ride-row:hover { background: var(--mist); }
+  .chat-tools button:hover { background: var(--mist); }
+  .ride-row:hover { width: calc(100% + 16px); margin-inline: -8px; padding-inline: 8px; border-radius: var(--r-s); background: var(--mist); }
+  .chat-task-toggle:hover { color: var(--ink); }
   .tabbar button:not(.on):hover { color: var(--ink-2); }
 }
 

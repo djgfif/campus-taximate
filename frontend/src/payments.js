@@ -38,7 +38,7 @@ export async function startPayment(order, myId, partyId, clientKey) {
   const TossPayments = await loadToss()
   return TossPayments(clientKey).payment({ customerKey: 'taximate_member_' + myId }).requestPayment({
     method: 'CARD', amount: { currency: 'KRW', value: order.amount }, orderId: order.orderId,
-    orderName: order.purpose === 'ADDITIONAL' ? '택시메이트 추가 결제' : '택시메이트 선결제',
+    orderName: order.purpose === 'ADDITIONAL' ? '택시메이트 분담금 결제' : '택시메이트 선결제',
     successUrl: success.href, failUrl: failure.href,
   })
 }

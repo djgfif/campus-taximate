@@ -75,7 +75,9 @@ public class BoardService {
             Map<Long, java.util.Set<Long>> avoids = safety.avoidMap(ids);
             if (ids.stream().anyMatch(id -> avoids.getOrDefault(id, java.util.Set.of()).stream().anyMatch(ids::contains))) continue;
             List<Person> people = riders.stream().map(r -> new Person(r.getMember().getNickname(), profiles.publicLine(r.getMember()))).toList();
-            cards.add(new PartyCard(party.getId(), party.getDirection(), party.getHub().getName(), party.getHub().getMeetingPoint(),
+            Direction cardDirection = riders.stream().allMatch(r -> displayDirection(r) == Direction.TO_SCHOOL)
+                    ? Direction.TO_SCHOOL : party.getDirection();
+            cards.add(new PartyCard(party.getId(), cardDirection, party.getHub().getName(), party.getHub().getMeetingPoint(),
                     party.getHub().getLat(), party.getHub().getLon(),
                     party.getDepartureAt(), cutoff(party), riders.size(), settings.maxGroupSize() - riders.size(), party.isInstant(), people));
         }
@@ -117,19 +119,31 @@ public class BoardService {
                 : party.getDepartureAt().minusSeconds(settings.leadMinutes() * 60L);
     }
 
+    /** 공통 승차(FROM_HUB)로 만든 등교 요청(목적지가 학교 근처)을 게시판·대기 집계에서 등교로 구분한다. */
+    public static Direction displayDirection(RideRequest r) {
+        if (r.getDirection() == Direction.TO_SCHOOL) return Direction.TO_SCHOOL;
+        var school = r.getMember() != null ? r.getMember().getSchool() : null;
+        if (school == null) return r.getDirection();
+        var campus = new com.campustaximate.matching.GeoPoint(school.getLat(), school.getLon());
+        double destinationDistance = r.point().distanceKm(campus);
+        return destinationDistance <= 1.0 && r.origin().distanceKm(campus) > destinationDistance
+                ? Direction.TO_SCHOOL : Direction.FROM_HUB;
+    }
+
     /** 같은 성별·방향으로 기다리는 사람 수를 거점과 시간(1시간 단위)별로 센다. 본인은 뺀다. */
     private List<WaitingCount> waiting(Member viewer) {
         Map<String, WaitingCount> counts = new TreeMap<>();
         for (Direction direction : Direction.values()) {
             for (RideRequest r : requests.findByStatusAndDirection(RequestStatus.WAITING, direction)) {
                 if (r.getMember().getId() == viewer.getId() || r.getMember().getGender() != viewer.getGender()) continue;
+                Direction display = displayDirection(r);
                 Instant at = r.getWindowStart() != null ? r.getWindowStart() : r.getArriveBy();
                 if (at == null) at = clock.now();
                 Instant hour = at.atZone(SEOUL).truncatedTo(ChronoUnit.HOURS).toInstant();
                 String anchor = r.getHub() != null ? r.getHub().getName() : r.getSchool() == null ? "" : r.getSchool().getGateName();
-                String key = hour + "|" + direction + "|" + anchor;
+                String key = hour + "|" + display + "|" + anchor;
                 WaitingCount old = counts.get(key);
-                counts.put(key, new WaitingCount(direction, anchor, hour, old == null ? 1 : old.count() + 1));
+                counts.put(key, new WaitingCount(display, anchor, hour, old == null ? 1 : old.count() + 1));
             }
         }
         return counts.values().stream().filter(Objects::nonNull).limit(BOARD_LIMIT).toList();

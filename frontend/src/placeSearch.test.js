@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { PLACE_SEARCH_URL, searchPlaces } from './MapPicker.jsx'
+import { loadKakaoMaps, PLACE_SEARCH_URL, searchPlaces } from './MapPicker.jsx'
+import { buildMarkerElement } from './MapView.jsx'
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  vi.restoreAllMocks()
+  delete window.kakao
+  document.head.querySelectorAll('script').forEach((s) => s.remove())
+})
 
 describe('장소 검색', () => {
   it('http 페이지에서도 https 로컬 API를 JavaScript 키와 KA 헤더로 부른다', async () => {
@@ -24,5 +29,30 @@ describe('장소 검색', () => {
     await expect(searchPlaces('없는곳', null, 'js-key')).resolves.toEqual([])
     await expect(searchPlaces('포천시청', null, 'js-key')).rejects.toThrow('장소 검색에 실패했어요.')
     await expect(searchPlaces('포천시청', null, '')).rejects.toThrow('장소 검색 키가 없어요.')
+  })
+})
+
+describe('카카오맵 SDK와 마커 안전성', () => {
+  it('SDK 로드에 한 번 실패해도 실패한 스크립트를 치우고 다음 시도에서 다시 불러온다', async () => {
+    const first = loadKakaoMaps('test-key')
+    const badScript = document.head.querySelector('script')
+    expect(badScript).toBeTruthy()
+    badScript.onerror()
+    await expect(first).rejects.toThrow('카카오맵을 불러오지 못했습니다.')
+    expect(document.head.querySelector('script')).toBeNull()
+
+    const second = loadKakaoMaps('test-key')
+    const okScript = document.head.querySelector('script')
+    expect(okScript).toBeTruthy()
+    window.kakao = { maps: { Map: vi.fn(), load: (cb) => cb() } }
+    okScript.onload()
+    await expect(second).resolves.toBe(window.kakao.maps)
+  })
+
+  it('지도 마커는 HTML 문자열 대신 텍스트 노드로 만들어 태그를 해석하지 않는다', () => {
+    const el = buildMarkerElement({ label: '<img src=x onerror=alert(1)>', tone: 'end' })
+    expect(el.querySelector('img')).toBeNull()
+    expect(el.textContent).toBe('<img src=x onerror=alert(1)>')
+    expect(el.querySelector('.mk.end')).toBeTruthy()
   })
 })

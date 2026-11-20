@@ -174,17 +174,16 @@ export function Meter({ label, value, detail, tag, children, compact = false }) 
   )
 }
 
-/** 비동기 동작 중에는 스피너를 보이고 중복 누름을 막는다. */
+/** 비동기 동작 중에는 스피너를 보이고 중복 누름을 막는다. 동기 동작은 불필요한 상태 전환 없이 바로 실행한다. */
 export function Btn({ onClick, className = '', disabled, children, type = 'button', ...props }) {
   const [busy, setBusy] = useState(false)
-  const press = async () => {
+  const press = () => {
     if (busy || !onClick) return
+    const result = onClick()
+    if (!result || typeof result.then !== 'function') return
     setBusy(true)
-    try {
-      await onClick()
-    } finally {
-      setBusy(false)
-    }
+    const done = () => setBusy(false)
+    result.then(done, done)
   }
   return (
     <button {...props} type={type} className={`btn ${className}`} disabled={disabled || busy} onClick={press}>
@@ -206,8 +205,8 @@ export function Say({ tone = '', title, children }) {
 export function Rows({ items }) {
   return (
     <div className="rows">
-      {items.filter(Boolean).map(([label, value, tone]) => (
-        <div key={label}><span className="k">{label}</span><span className={`v ${tone || ''}`}>{value}</span></div>
+      {items.filter(Boolean).map(([label, value, tone], i) => (
+        <div key={`${label}:${i}`}><span className="k">{label}</span><span className={`v ${tone || ''}`}>{value}</span></div>
       ))}
     </div>
   )
@@ -260,18 +259,22 @@ export function Chips({ options, value, onChange, label }) {
   )
 }
 
-export function Sheet({ title, onClose, children, className = '' }) {
-  const box = useRef(null)
+const FOCUSABLE = 'button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
+
+/** 모달 다이얼로그 공통 접근성: 열릴 때 포커스 이동, Tab 순환(트랩), Escape 닫기, 닫힐 때 원래 포커스 복원. */
+export function useDialog(box, onClose, enabled = true) {
+  const closeRef = useRef(onClose)
+  useEffect(() => { closeRef.current = onClose }, [onClose])
   useEffect(() => {
+    if (!enabled) return undefined
     const key = (event) => {
-      if (event.key === 'Escape') onClose()
-      if (event.key !== 'Tab') return
-      // 시트가 열린 동안 Tab이 뒤 화면으로 나가지 않게 한다.
-      const items = box.current.querySelectorAll('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled)')
+      if (event.key === 'Escape') { closeRef.current?.(); return }
+      if (event.key !== 'Tab' || !box.current) return
+      const items = box.current.querySelectorAll(FOCUSABLE)
       if (items.length === 0) return
       const first = items[0]
       const last = items[items.length - 1]
-      if (event.shiftKey && document.activeElement === first) {
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === box.current)) {
         event.preventDefault()
         last.focus()
       } else if (!event.shiftKey && document.activeElement === last) {
@@ -281,12 +284,18 @@ export function Sheet({ title, onClose, children, className = '' }) {
     }
     window.addEventListener('keydown', key)
     return () => window.removeEventListener('keydown', key)
-  }, [onClose])
+  }, [box, enabled])
   useEffect(() => {
+    if (!enabled) return undefined
     const before = document.activeElement
-    box.current.focus()
+    box.current?.focus()
     return () => before?.focus?.()
-  }, [])
+  }, [box, enabled])
+}
+
+export function Sheet({ title, onClose, children, className = '' }) {
+  const box = useRef(null)
+  useDialog(box, onClose)
   return (
     <>
       <div className={`scrim ${className}`} onClick={onClose} aria-hidden="true" />
@@ -333,13 +342,28 @@ export function bottomInset(doc = document, height = window.innerHeight) {
 export function Toaster() {
   const [items, setItems] = useState([])
   const [inset, setInset] = useState(0)
-  // 알림이 떠 있는 동안 화면이 바뀌어도(요청 → 대기 화면) 아래 행동 영역 바로 위를 따라간다.
+  // 알림이 떠 있는 동안 화면 구조·크기가 바뀔 때만 아래 행동 영역 높이를 다시 잰다(매 프레임 리플로우 방지).
   useEffect(() => {
     if (items.length === 0) return undefined
-    let frame
-    const follow = () => { setInset(bottomInset()); frame = requestAnimationFrame(follow) }
-    follow()
-    return () => cancelAnimationFrame(frame)
+    let scheduled = null
+    const measure = () => {
+      scheduled = null
+      const next = bottomInset()
+      setInset((prev) => (prev === next ? prev : next))
+    }
+    const schedule = () => { if (scheduled == null) scheduled = requestAnimationFrame(measure) }
+    measure()
+    window.addEventListener('resize', schedule)
+    const mutation = typeof MutationObserver === 'function' ? new MutationObserver(schedule) : null
+    mutation?.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'hidden'] })
+    const resize = typeof ResizeObserver === 'function' ? new ResizeObserver(schedule) : null
+    if (resize) document.querySelectorAll(BOTTOM_STACK).forEach((el) => resize.observe(el))
+    return () => {
+      if (scheduled != null) cancelAnimationFrame(scheduled)
+      window.removeEventListener('resize', schedule)
+      mutation?.disconnect()
+      resize?.disconnect()
+    }
   }, [items.length])
   useEffect(() => {
     let id = 0

@@ -68,6 +68,15 @@ describe('선결제 카드', () => {
     expect(screen.getByText('결제 확인 중이에요. 다시 결제하지 말고 결과를 기다려 주세요.')).toBeTruthy()
     expect(screen.queryByRole('button', { name: '카드로 결제하기' })).toBeNull()
   })
+
+  it('시계(now)가 갱신돼도 주문 생성 API를 반복 호출하지 않는다', async () => {
+    const create = vi.spyOn(api, 'paymentOrder').mockResolvedValue(order)
+    const view = render(<PaymentCard partyId={11} myId={2} now={now} config={{ demo: true }} clientKey="" />)
+    await screen.findByRole('heading', { name: '선결제 3,680원' })
+    view.rerender(<PaymentCard partyId={11} myId={2} now="2026-11-11T00:00:05Z" config={{ demo: true }} clientKey="" />)
+    view.rerender(<PaymentCard partyId={11} myId={2} now="2026-11-11T00:00:10Z" config={{ demo: true }} clientKey="" />)
+    expect(create).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('결제 성공·실패 주소', () => {

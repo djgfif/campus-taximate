@@ -33,6 +33,8 @@ class QuotedRouteClientTest {
         assertThat(quoted.route(HUB, List.of(A, B)).fare()).isEqualTo(10757);
         // 같은 곳에 둘이 내려도 일행 경로다.
         assertThat(quoted.route(HUB, List.of(A, A)).fare()).isEqualTo(10757);
+        // 목적지가 1곳으로 합쳐진 뒤에도 sharedRouteAt은 일행 여유분(margin)을 적용한다.
+        assertThat(quoted.sharedRouteAt(HUB, List.of(A), Instant.parse("2026-11-20T08:00:00Z")).fare()).isEqualTo(10757);
     }
 
     @Test

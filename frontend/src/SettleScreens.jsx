@@ -51,7 +51,8 @@ export function PayerInput({ party, now, run, onDone, onLater, onUpdated }) {
   // 확정 분담금(S43): 각자 낼 돈은 확정 금액 기준으로 고정이고, 결제자는 실제 요금에서 내 몫을 뺀 만큼 돌려받는다.
   const myFixed = shares?.find((s) => s.payer)?.amount
   const payback = value > 0 && myFixed != null ? value - myFixed : null
-  const exceptional = party.expectedTotal > 0 && value * 2 > party.expectedTotal * 3
+  const highExceptional = party.expectedTotal > 0 && value * 2 > party.expectedTotal * 3
+  const lowExceptional = value > 0 && ((myFixed != null && value < myFixed) || (party.expectedTotal > 0 && value * 2 < party.expectedTotal))
   const ready = value > 0 && value <= 10000000 && Number.isSafeInteger(value) && receipt && !locked
   const submit = async () => {
     setError('')
@@ -67,13 +68,17 @@ export function PayerInput({ party, now, run, onDone, onLater, onUpdated }) {
     <div className="pad"><RideConfirmationCard party={party} onUpdated={onUpdated} /><h1 className="head">얼마를 결제했나요?</h1>
       <label className="field amount">실제 결제 금액<input aria-label="실제 결제 금액" inputMode="numeric" value={amount ? Number(amount).toLocaleString() : ''} placeholder="0"
         onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))} /><em>원</em></label>
-      {unusual ? <Say tone="stop-tone" title={'확정 금액보다 ' + Math.round(Math.abs(difference) * 100) + '% ' + (difference > 0 ? '높아요' : '낮아요')}>{exceptional
+      {unusual ? <Say tone="stop-tone" title={'확정 금액보다 ' + Math.round(Math.abs(difference) * 100) + '% ' + (difference > 0 ? '높아요' : '낮아요')}>{highExceptional
           ? '1.5배를 넘으면 관리자가 영수증을 확인한 뒤 돌려드려요. 금액이 맞으면 그대로 입력해 주세요.'
-          : '금액과 영수증을 다시 확인해 주세요. 금액이 맞으면 그대로 입력할 수 있어요.'}</Say>
+          : lowExceptional
+            ? '확정 금액의 절반보다 낮거나 내 몫보다 적으면 관리자가 영수증을 확인해요. 금액이 맞으면 그대로 입력해 주세요.'
+            : '금액과 영수증을 다시 확인해 주세요. 금액이 맞으면 그대로 입력할 수 있어요.'}</Say>
         : <p className="note">확정 금액 {won(party.expectedTotal)}</p>}
       <ReceiptField file={receipt} onChange={setReceipt} />
       {shares && <Rows items={shares.map((s) => [s.payer ? '나 (결제자)' : s.nickname, won(s.amount)])} />}
-      {payback != null && <Say title={'정산 확정 뒤 ' + won(payback) + '을 돌려드려요'}>실제 요금 {won(value)}에서 내 확정 몫 {won(myFixed)}을 뺀 금액이에요. 일행은 확정 금액만 내고, 차이는 정산 적립금이 맡아요.</Say>}
+      {payback != null && (payback >= 0
+        ? <Say title={'정산 확정 뒤 ' + won(payback) + '을 돌려드려요'}>실제 요금 {won(value)}에서 내 확정 몫 {won(myFixed)}을 뺀 금액이에요. 일행은 확정 금액만 내고, 차이는 정산 적립금이 맡아요.</Say>
+        : <Say title="정산 확정 뒤 돌려받을 금액이 없어요 (0원)">실제 요금 {won(value)}이 내 확정 몫 {won(myFixed)}보다 적어 정산 지급액은 0원이고, 관리자가 영수증을 확인해요.</Say>)}
       {locked && <Say>이의가 있거나 수정할 수 있는 시간이 지났어요.</Say>}
       {(error || preview.value === value && preview.error) && <p role="alert">{error || preview.error}</p>}
       <p className="note">입력하면 24시간 동안 일행이 이의를 낼 수 있고, 그 뒤 정산이 확정돼요. 사진은 7일 뒤 지워져요.</p>
@@ -127,7 +132,7 @@ export function SettlementScreen({ party, myId, now, config, onUpdated, onMenu, 
         {open && <Say title={'요금 이의 기간 ' + remaining(deadline, now) + ' 남음'}>{formatDateTime(deadline)}까지 이의를 낼 수 있어요. {party.status === 'REVIEW_PENDING' ? '접수된 이의는 관리자 검토를 기다려요.' : '이의가 없으면 정산을 확정해요.'}</Say>}
         {party.status === 'REVIEW_PENDING' && <Say>{financialHold ? '운행 판정은 저장됐어요. 관리자가 결제 기록을 확인할 때까지 정산을 보류해요.'
           : party.reviewReason === 'RIDE_DISPUTE' ? '운행 여부를 관리자 검토 중이에요. 환불을 보류해요.'
-            : party.reviewReason === 'FARE_EXCEPTION' ? '실제 요금이 확정 금액보다 크게 나와 관리자가 영수증을 확인하고 있어요. 각자 낼 돈은 그대로예요.'
+            : party.reviewReason === 'FARE_EXCEPTION' ? '실제 요금이 확정 금액과 크게 달라 관리자가 영수증을 확인하고 있어요. 각자 낼 돈은 그대로예요.'
             : '요금 이의가 있어 관리자 검토 중이에요. 환불과 받을 돈의 정산을 보류해요.'}</Say>}
         <RideConfirmationCard party={party} onUpdated={onUpdated} />
         {open && <Btn className="line" onClick={() => setAsking(true)}>요금 이의</Btn>}

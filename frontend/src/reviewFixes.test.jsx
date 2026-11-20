@@ -6,6 +6,8 @@ import { BoardSection } from './Board.jsx'
 import Home from './Home.jsx'
 import PaymentCard from './PaymentCard.jsx'
 import { FairnessNote } from './ui.jsx'
+import { DriverView } from './PartyScreens.jsx'
+import MapPicker from './MapPicker.jsx'
 
 // 처음 쓰는 학생·교수 관점 후기에서 나온 문제를 고친 동작.
 const now = '2026-11-12T00:00:00Z'
@@ -31,6 +33,18 @@ describe('진행 중 띠는 내 할 일 기준으로 말한다', () => {
     home([party({ myPrepaid: true })])
     expect(await screen.findByText('다른 사람들이 결제하는 중이에요')).toBeTruthy()
     expect(screen.queryByText('선결제를 해 주세요')).toBeNull()
+  })
+  it('공통 승차(FROM_HUB)로 만든 등교 기록도 등교 탭 최근 경로에 보인다', async () => {
+    api.history.mockResolvedValue([
+      { id: 1, direction: 'FROM_HUB', anchorName: '역전 정류장', anchorLat: 37.45, anchorLon: 127.0, pointName: '한빛대학교', pointLat: 37.5, pointLon: 127.0 },
+      { id: 2, direction: 'FROM_HUB', anchorName: '정문', anchorLat: 37.5, anchorLon: 127.0, pointName: '의정부역', pointLat: 37.4, pointLon: 127.0 },
+    ])
+    const onStart = vi.fn()
+    render(<Home state={{ now, parties: [], restricted: false }} myId={1} onStart={onStart} onReopen={vi.fn()} />)
+    const button = await screen.findByRole('button', { name: /한빛대학교/ })
+    expect(screen.queryByRole('button', { name: /의정부역/ })).toBeNull()
+    fireEvent.click(button)
+    expect(onStart).toHaveBeenCalledWith(expect.objectContaining({ direction: 'TO_SCHOOL' }))
   })
 })
 
@@ -69,5 +83,22 @@ describe('지금 할 일 안의 선결제', () => {
     expect(screen.getByText('승인 완료')).toBeTruthy()
     expect(screen.queryByText(/기한/)).toBeNull()
     expect(screen.queryByText('주문 금액')).toBeNull()
+  })
+})
+
+describe('다이얼로그 접근성', () => {
+  it('기사님 화면과 지도 선택창은 열릴 때 포커스를 옮기고 Escape로 닫힌다', () => {
+    const closeDriver = vi.fn()
+    const view = render(<DriverView party={{ direction: 'FROM_HUB', anchorName: '정문', payerId: 1, members: [{ requestId: 1, memberId: 1, rideOrder: 1, pointName: '역전' }] }} onClose={closeDriver} />)
+    expect(document.activeElement).toBe(screen.getByRole('dialog', { name: '기사님께 보여 줄 화면' }))
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(closeDriver).toHaveBeenCalledOnce()
+    view.unmount()
+
+    const closeMap = vi.fn()
+    render(<MapPicker center={{ lat: 37.5, lon: 127.0 }} title="출발지 고르기" onPick={vi.fn()} onClose={closeMap} />)
+    expect(document.activeElement).toBe(screen.getByRole('dialog', { name: '출발지 고르기' }))
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(closeMap).toHaveBeenCalledOnce()
   })
 })

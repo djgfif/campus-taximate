@@ -79,6 +79,15 @@ describe('새 정산 화면', () => {
     expect(screen.getByText(/1.5배를 넘으면 관리자가 영수증을 확인한 뒤 돌려드려요/)).toBeTruthy()
   })
 
+  it('실제 요금이 확정 금액의 절반이나 내 몫보다 적으면 관리자 확인과 0원 지급을 안내한다', async () => {
+    vi.spyOn(api, 'settlementPreview').mockResolvedValue(party.settlement.shares)
+    render(<PayerInput party={{ ...party, payer: true, status: 'AWAITING_FARE', settlement: null }} now={now} />)
+    fireEvent.change(screen.getByLabelText('실제 결제 금액'), { target: { value: '5000' } })
+    expect(screen.getByText(/확정 금액의 절반보다 낮거나 내 몫보다 적으면 관리자가 영수증을 확인해요/)).toBeTruthy()
+    expect(await screen.findByText('정산 확정 뒤 돌려받을 금액이 없어요 (0원)')).toBeTruthy()
+    expect(screen.queryByText(/-3,000원/)).toBeNull()
+  })
+
   it('이전 송금 데이터는 계좌와 보냄·받음 버튼 없이 읽기만 한다', () => {
     const sent = vi.spyOn(api, 'sent')
     const received = vi.spyOn(api, 'received')

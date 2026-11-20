@@ -1,3 +1,4 @@
+import importlib.util
 import json
 from pathlib import Path
 import sys
@@ -7,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import current_service as c12
 
 REPORT = c12.REPORTS / 'c12-current-service.json'
+HAS_PYPROJ = importlib.util.find_spec('pyproj') is not None
 
 
 class C12UnitTests(unittest.TestCase):
@@ -15,6 +17,7 @@ class C12UnitTests(unittest.TestCase):
         self.assertAlmostEqual(bias, 0.0657)
         self.assertAlmostEqual(margin, 0.01)
 
+    @unittest.skipUnless(HAS_PYPROJ, 'pyproj is not installed in this Python environment')
     def test_campus_grid_and_neighbourhood(self):
         center, near = c12.tims_grid(*c12.CAMPUS)
         self.assertEqual(center, '다사139171')
@@ -31,6 +34,7 @@ class C12UnitTests(unittest.TestCase):
             hub = json.loads(dest.read_text(encoding='utf-8'))['hub']
             self.assertAlmostEqual(hub['lon'], c12.CAMPUS[0], delta=0.001)
 
+    @unittest.skipUnless(HAS_PYPROJ and (c12.HERE / '.cache/kr-public/tims_2025.zip').exists(), 'pyproj or local TIMS cache not available')
     def test_observed_demand_follows_the_academic_calendar(self):
         o = c12.observed_campus_demand()
         self.assertGreater(o['semester_per_day'], 2 * o['vacation_per_day'])
