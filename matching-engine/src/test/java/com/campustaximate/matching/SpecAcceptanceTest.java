@@ -20,6 +20,8 @@ class SpecAcceptanceTest {
     private static final GroupVerifier PASS = c -> Verdict.PASS;
     private final MatchingRound round = new MatchingRound(MatchingSettings.defaults());
     private final MatchingSettings settings = MatchingSettings.defaults();
+    /** 명세 5.1 S42 이전의 조기 확정(첫 요청 10분 뒤) 규칙. 확정 자격과 무관한 규칙을 시험할 때 쓴다. */
+    private final MatchingRound legacy = new MatchingRound(MatchingSettings.defaults().withEarlyConfirmMinutes(10));
 
     /** SLOT+20분~SLOT+60분에 출발 가능, requestedAt에 요청한 예약. */
     private static MatchRequest reserved(long id, Hub point, double east, Instant requestedAt) {
@@ -43,7 +45,7 @@ class SpecAcceptanceTest {
                 reserved(2, back, 4, asked), reserved(2, station, 4, asked),
                 reserved(3, front, 5, asked), reserved(3, back, 5, asked));
 
-        RoundResult result = round.run(SLOT, requests, LEGS, PASS);
+        RoundResult result = legacy.run(SLOT, requests, LEGS, PASS);
 
         assertEquals(1, result.confirmed().size());
         ConfirmedGroup g = result.confirmed().get(0);
@@ -78,7 +80,7 @@ class SpecAcceptanceTest {
                 reserved(1, HUB, 3, asked), reserved(2, HUB, 3.5, asked), reserved(3, HUB, 4, asked),
                 reserved(4, HUB, 4.5, asked), reserved(5, HUB, 5, asked), reserved(6, HUB, 5.5, asked));
 
-        RoundResult result = round.run(SLOT, requests, ONLY_ALLOWED, ONLY_THREE);
+        RoundResult result = legacy.run(SLOT, requests, ONLY_ALLOWED, ONLY_THREE);
 
         assertEquals(Set.of(Set.of(1L, 2L, 5L), Set.of(3L, 4L, 6L)),
                 Set.copyOf(result.confirmed().stream().map(SpecAcceptanceTest::ids).toList()));
@@ -97,23 +99,41 @@ class SpecAcceptanceTest {
         assertEquals(List.of(Set.of(1L, 2L, 3L, 4L)), result.confirmed().stream().map(SpecAcceptanceTest::ids).toList());
     }
 
-    /** M-09: 가장 먼저 요청 8분 전 → 이번 회차 대기, 다음 예약 회차(10분 지남) 확정. */
+    /** M-09(조기 확정 10분 설정): 가장 먼저 요청 8분 전 → 이번 회차 대기, 다음 예약 회차(10분 지남) 확정. */
     @Test
     void m09TenMinuteRule() {
         Instant first = SLOT.minusSeconds(480);
         List<MatchRequest> requests = List.of(
                 reserved(1, HUB, 3, first), reserved(2, HUB, 4, SLOT.minusSeconds(60)), reserved(3, HUB, 5, SLOT));
 
-        assertTrue(round.run(SLOT, requests, LEGS, PASS).confirmed().isEmpty());
-        RoundResult later = round.run(SLOT.plusSeconds(300), requests, LEGS, PASS);
+        assertTrue(legacy.run(SLOT, requests, LEGS, PASS).confirmed().isEmpty());
+        RoundResult later = legacy.run(SLOT.plusSeconds(300), requests, LEGS, PASS);
         assertEquals(1, later.confirmed().size());
         assertEquals(3, later.confirmed().get(0).order().size());
     }
 
-    /** M-10: 즉시 요청 2명은 1분 회차에서 찾은 즉시 확정. 예약만인 일행은 1분 회차에서 확정하지 않는다. */
+    /** S42 기본 규칙: 2~3명 일행은 10분이 지나도 기다리고, 구성원 중 누군가의 모집 마감 회차에 확정한다. */
+    @Test
+    void s42ReservationGroupWaitsUntilDeadline() {
+        Instant first = SLOT.minusSeconds(480);
+        List<MatchRequest> requests = List.of(
+                reserved(1, HUB, 3, first), reserved(2, HUB, 4, SLOT.minusSeconds(60)), reserved(3, HUB, 5, SLOT));
+        FromHubPlan plan = new FromHubPlan(settings);
+        Instant slot = SLOT;
+        while (!plan.isDeadline(requests, slot)) {
+            assertTrue(round.run(slot, requests, LEGS, PASS).confirmed().isEmpty(), "마감 전 확정: " + slot);
+            slot = slot.plusSeconds(300);
+        }
+        assertTrue(slot.isAfter(SLOT.plusSeconds(300)), "10분 규칙이었다면 확정됐을 회차 뒤에 마감이 와야 시험이 의미 있다");
+        RoundResult atDeadline = round.run(slot, requests, LEGS, PASS);
+        assertEquals(1, atDeadline.confirmed().size());
+        assertEquals(3, atDeadline.confirmed().get(0).order().size());
+    }
+
+    /** M-10(조기 확정 설정): 즉시 요청 2명은 1분 회차에서 찾은 즉시 확정. 예약만인 일행은 1분 회차에서 확정하지 않는다. */
     @Test
     void m10InstantConfirmsWhenFound() {
-        MatchingRound everyMinute = new MatchingRound(MatchingSettings.everyMinute());
+        MatchingRound everyMinute = new MatchingRound(MatchingSettings.everyMinute().withEarlyConfirmMinutes(10));
         Instant slot = SLOT.plusSeconds(60);
         var a = Fixtures.of(1, 101, HUB, Gender.FEMALE, slot.plusSeconds(1500), slot.plusSeconds(3300), at(3, 0))
                 .requested(slot, true);
@@ -127,6 +147,25 @@ class SpecAcceptanceTest {
         // S37·S41: 확정 8:31 + max(결제 5분, 걷기 0분) + 배차 여유 5분 = 8:41
         assertEquals(slot.plusSeconds(600), result.confirmed().get(0).departure());
         assertTrue(everyMinute.run(slot, List.of(c, d), LEGS, PASS).confirmed().isEmpty());
+    }
+
+    /** S42 기본 규칙: 즉시 요청 2명도 바로 확정하지 않고 1분마다 더 모으다가, 즉시 모집 마감(요청 + 5분) 회차에 확정한다. */
+    @Test
+    void s42InstantPairWaitsUntilInstantDeadline() {
+        MatchingRound everyMinute = new MatchingRound(MatchingSettings.everyMinute());
+        FromHubPlan plan = new FromHubPlan(MatchingSettings.everyMinute());
+        Instant asked = SLOT.plusSeconds(60);
+        var a = Fixtures.of(1, 101, HUB, Gender.FEMALE, asked.plusSeconds(1500), asked.plusSeconds(3300), at(3, 0))
+                .requested(asked, true);
+        var b = Fixtures.of(2, 102, HUB, Gender.FEMALE, asked.plusSeconds(1500), asked.plusSeconds(3300), at(4, 0))
+                .requested(asked, true);
+        Instant slot = asked;
+        while (!plan.isDeadline(List.of(a, b), slot)) {
+            assertTrue(everyMinute.run(slot, List.of(a, b), LEGS, PASS).confirmed().isEmpty(), "마감 전 확정: " + slot);
+            slot = slot.plusSeconds(60);
+        }
+        assertTrue(!slot.isAfter(asked.plusSeconds(300)), "즉시 요청은 5분 안에 결과가 나와야 한다");
+        assertEquals(1, everyMinute.run(slot, List.of(a, b), LEGS, PASS).confirmed().size());
     }
 
     private static final Instant DAY = Instant.parse("2026-11-20T00:00:00Z");

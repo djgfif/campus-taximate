@@ -15,10 +15,12 @@ public class InstantMatchingConfiguration {
     @Min(1) private int instantPrepMinutes=5;
     @Min(1) private int instantDispatchMinutes=5;
     @Min(0) private int instantMaxWalkSeconds=300;
+    /** 0이면(기본, S42) 2~3명 일행도 모집 마감 회차까지 더 모은다. 0보다 크면 예전 조기 확정 규칙(첫 요청 뒤 N분)을 쓴다. */
+    @Min(0) private int earlyConfirmMinutes=0;
     @Bean public MatchingSettings matchingSettings() {
         var d=MatchingSettings.everyMinute();
         return new MatchingSettings(d.maxDelayMinutes(),d.minSavingRate(),d.maxCandidates(),d.maxGroupSize(),d.maxVerifications(),
-                d.leadMinutes(),d.slotMinutes(),d.reservationSlotMinutes(),d.earlyConfirmMinutes(),d.searchMillis(),
+                d.leadMinutes(),d.slotMinutes(),d.reservationSlotMinutes(),earlyConfirmMinutes,d.searchMillis(),
                 instantMatchMinutes,instantPrepMinutes,instantDispatchMinutes);
     }
 }

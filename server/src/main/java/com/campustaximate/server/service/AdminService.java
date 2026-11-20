@@ -23,6 +23,7 @@ public class AdminService {
     private final HubRepository hubs; private final SchoolRepository schools; private final AppClock clock;
     private final RideRequestRepository requests;
     private final PayoutLedgerRepository payouts;
+    private final ReserveEntryRepository reserve;
     public void requireAdmin(long actor) {
         if(!members.findById(actor).map(Member::isAdmin).orElse(false))throw ApiException.forbidden("관리자만 이용할 수 있어요.");
     }
@@ -108,7 +109,7 @@ public class AdminService {
         requireAdmin(actor);evidence(evidence);Party party=lockParty(partyId);
         var s=settlements.findByParty(party).orElseThrow(()->ApiException.notFound("정산이 없습니다."));
         String k="FARE:"+s.getId(),f=accept+":"+correctedAmount+":"+evidence.strip();if(done(k,f))return;
-        if(party.getStatus()!=PartyStatus.REVIEW_PENDING||"RIDE_DISPUTE".equals(party.getReviewReason())||!objections.existsBySettlementIdAndResolvedAtIsNull(s.getId()))throw ApiException.conflict("NOT_REVIEWABLE","요금 이의 검토 대상이 아니에요.");
+        if(party.getStatus()!=PartyStatus.REVIEW_PENDING||"RIDE_DISPUTE".equals(party.getReviewReason())||!"FARE_EXCEPTION".equals(party.getReviewReason())&&!objections.existsBySettlementIdAndResolvedAtIsNull(s.getId()))throw ApiException.conflict("NOT_REVIEWABLE","요금 이의 검토 대상이 아니에요.");
         if(accept){if(correctedAmount==null)throw ApiException.badRequest("AMOUNT_REQUIRED","확정할 실제 요금을 입력해 주세요.");settlementService.correctByAdmin(party,s,correctedAmount);}
         else if(correctedAmount!=null)throw ApiException.badRequest("INVALID_AMOUNT","기각할 때는 수정 금액을 넣지 마세요.");
         for(var o:objections.findBySettlementIdOrderById(s.getId()))if(o.getResolvedAt()==null){o.setResolvedAt(clock.now());o.setResolution(accept?"ACCEPTED":"REJECTED");o.setAdminId(actor);}
@@ -155,6 +156,10 @@ public class AdminService {
         String k="RELEASE:"+restrictionId,f=evidence.strip();if(done(k,f))return;
         ref.setExpiresAt(clock.now());audit(actor,"RELEASE","RESTRICTION",restrictionId,"RELEASED",evidence,k,f);
     }
+    /** 정산 적립금(S43): 잔액, 지금까지 메운 부족분, 최근 기록. 운영 주체가 초기 기금을 더해 관리한다. */
+    public record ReserveView(long balance,long covered,long settlements,List<com.campustaximate.server.domain.ReserveEntry> recent) {}
+    public ReserveView reserve(long actor){requireAdmin(actor);var all=reserve.findAll();
+        return new ReserveView(reserve.balance(),all.stream().mapToLong(com.campustaximate.server.domain.ReserveEntry::getCovered).sum(),all.size(),reserve.findTop20ByOrderByIdDesc());}
     public List<PaymentOrder> overdue(long actor){requireAdmin(actor);return orders.findAll().stream().filter(o->o.getPurpose()==PaymentPurpose.ADDITIONAL&&o.getStatus()==PaymentStatus.OVERDUE).toList();}
     @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void handleOverdue(long actor,long id,String evidence){

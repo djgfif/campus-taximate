@@ -20,13 +20,16 @@ public class RouteConfig {
                             @Value("${app.kakao.base-url}") String baseUrl,
                             @Value("${app.demo.enabled}") boolean demo,
                             @Value("${app.kakao.timeout-ms:3000}") long timeoutMillis,
-                            @Value("${app.kakao.retries:1}") int retries) {
+                            @Value("${app.kakao.retries:1}") int retries,
+                            @Value("${app.fare.quote-bias:0}") double quoteBias,
+                            @Value("${app.fare.quote-margin:0}") double quoteMargin) {
         if (!restKey.isBlank()) {
-            return new KakaoRouteClient(builder, baseUrl, restKey, java.time.Duration.ofMillis(timeoutMillis), retries);
+            return new QuotedRouteClient(new KakaoRouteClient(builder, baseUrl, restKey, java.time.Duration.ofMillis(timeoutMillis), retries),
+                    quoteBias, quoteMargin);
         }
         if (demo) {
             log.warn("KAKAO_REST_KEY가 없어 모의 경로를 씁니다. 실제 요금이 아닙니다.");
-            return new SimulatedRouteClient();
+            return new QuotedRouteClient(new SimulatedRouteClient(), quoteBias, quoteMargin);
         }
         return new RouteClient() {
             @Override

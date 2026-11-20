@@ -85,18 +85,23 @@ final class FromHubPlan implements TripPlan {
     }
 
     /**
-     * 명세 5.1. 즉시 요청이 있으면 찾은 회차에 확정. 예약만이면 예약 회차에서만,
-     * 4명이거나 모집 마감 회차이거나 가장 먼저 요청한 사람이 요청한 지 10분이 지났을 때.
+     * 명세 5.1(S42). 4명이 찼거나 구성원 중 누군가의 모집 마감 회차일 때 확정한다. 즉시 요청이 있으면 1분 회차마다,
+     * 예약만이면 예약 회차에서만 본다. 마감 전에 2~3명으로 먼저 확정하지 않고 더 모은다(C11: 매칭률 +2.5%p).
+     * earlyConfirmMinutes가 0보다 크면 예전 규칙을 쓴다: 즉시 일행은 바로, 예약 일행은 첫 요청 뒤 그 시간이 지나면 확정.
      */
     @Override
     public boolean confirmable(List<MatchRequest> group, Instant slot, int maxGroupSize) {
-        if (group.stream().anyMatch(MatchRequest::instant)) {
-            return true;
-        }
-        if (!reservationRound(slot)) {
+        boolean instant = group.stream().anyMatch(MatchRequest::instant);
+        if (!instant && !reservationRound(slot)) {
             return false;
         }
         if (group.size() >= maxGroupSize || isDeadline(group, slot)) {
+            return true;
+        }
+        if (settings.earlyConfirmMinutes() <= 0) {
+            return false;
+        }
+        if (instant) {
             return true;
         }
         return group.stream().map(MatchRequest::requestedAt)

@@ -133,7 +133,7 @@ export function PartyShell({ party, now, onHome, header, action, progress, info,
         </div>
         <p className="room-sub">
           <span>{people}명, {summary || partyLabel(party.status)}</span>
-          {party.myShare != null && <span className="room-share">{settled ? '내 몫' : '내 몫 예상'} <b>{won(party.myShare)}</b>
+          {party.myShare != null && <span className="room-share">{settled || isPaymentParty(party) ? '내 몫' : '내 몫 예상'} <b>{won(party.myShare)}</b>
             {party.mySoloFare > party.myShare && <s aria-label={`혼자 타면 ${won(party.mySoloFare)}`}>{won(party.mySoloFare)}</s>}</span>}
         </p>
       </header>
@@ -155,7 +155,7 @@ export function PartyShell({ party, now, onHome, header, action, progress, info,
 }
 
 const shareRows = (party) => [
-  ['내 예상 분담금', won(party.myShare), 'big'],
+  ['내 확정 분담금', won(party.myShare), 'big'],
   ['혼자 탈 때보다', `${won(party.mySoloFare - party.myShare)} 절약`, 'save'],
 ]
 const roleTag = (party) => (party.payer ? '내가 결제자' : `결제는 ${party.payerNickname}님`)
@@ -246,7 +246,7 @@ function SchoolPayer({ party, now, myId, run, onDetail, onHome, onMenu }) {
         <div className="list"><Item title="기사님께 보여 줄 화면" detail="들를 곳을 큰 글씨로 보여 드려요" onClick={() => setDriver(true)} /></div>
       </div>}
       info={<div className="block">
-        <Rows items={[['내 예상 분담금', won(party.myShare), 'big'], ['학교 도착', formatTime(party.arrivalAt)]]} />
+        <Rows items={[['내 확정 분담금', won(party.myShare), 'big'], ['학교 도착', formatTime(party.arrivalAt)]]} />
         <div className="list"><Item title="분담금과 경로 자세히" onClick={onDetail} /></div>
         {new Date(now) >= new Date(party.departureAt) && <MemberActions partyId={party.id} />}
         <PartySecondary party={party} onCancel={() => setAsking(true)} />
@@ -284,7 +284,7 @@ function SchoolRider({ party, now, run, onDetail, onHome, onMenu }) {
           <Say title="승차 시각에 맞춰 나와 주세요">{party.payerNickname}님이 택시를 타면 남은 시간을 알려 드려요.</Say>
         )}
       progress={<div className="block">
-        <Rows items={[['내 예상 분담금', won(party.myShare), 'big'], ['학교 도착', formatTime(party.arrivalAt)]]} />
+        <Rows items={[['내 확정 분담금', won(party.myShare), 'big'], ['학교 도착', formatTime(party.arrivalAt)]]} />
       </div>}
       info={<div className="block">
         <Rows items={[['내 승차 지점', meetPlace(party)], ['내 승차 시각', formatTime(party.myBoardAt)], ['결제자', party.payerNickname]]} />
@@ -328,7 +328,7 @@ export function PartyDetail({ party, myId, now, onBack }) {
       {mine && !wide && <RouteComparison party={party} mine={mine} />}
       <div className="block">
         {toSchool && <p className="note">승차 시각 3분 뒤까지 도착 표시가 없으면 그 사람을 빼고 갑니다. 분담금은 남은 일행으로 다시 계산하고, 혼자 남으면 일행이 취소됩니다.</p>}
-        <p className="note">실제 금액은 결제 후 같은 비율로 나눕니다. {isPaymentParty(party) ? '정산 확정 뒤 선결제와의 차액을 처리해요.' : REAL_NAME}</p>
+        <p className="note">{isPaymentParty(party) ? '각자 낼 돈은 확정 분담금 그대로예요. 실제 요금과의 차이는 정산 적립금이 맡아요.' : '실제 금액은 결제 후 같은 비율로 나눕니다. ' + REAL_NAME}</p>
         {new Date(now) >= new Date(party.departureAt) && <MemberActions partyId={party.id} />}
       </div>
     </Screen>
@@ -426,7 +426,7 @@ function NextAction({ party, now, myId, mine, config, run, onUpdated, onDriver }
     const paid = prepay?.status === 'APPROVED'
     title = paid ? '선결제를 마쳤어요' : prepay?.status === 'PROCESSING' ? '결제를 확인하고 있어요' : '선결제를 마쳐 주세요'
     detail = paid ? '모두 결제하면 만날 시간과 장소를 알려 드려요.'
-      : '내 몫에 여유 15%를 더한 금액이에요. 남는 돈은 내린 뒤 돌려받아요.'
+      : '내 확정 분담금이에요. 실제 요금이 더 나와도 더 내지 않아요.'
     if (paid) tone = 'calm'
     extra = <PaymentCard compact partyId={party.id} myId={myId} now={now} config={config} onUpdated={onUpdated} onOrder={setPrepay} />
   } else if (waiting && party.payer) {
@@ -467,7 +467,7 @@ function NextAction({ party, now, myId, mine, config, run, onUpdated, onDriver }
     }
   } else if (party.status === 'AWAITING_FARE') {
     title = party.payer ? '실제 금액을 입력해 주세요' : '결제자의 금액 입력을 기다려요'
-    detail = party.payer ? '영수증 사진과 함께 올리면 같은 비율로 나눠요.' : '입력되면 24시간 동안 요금 이의를 낼 수 있어요.'
+    detail = party.payer ? '영수증 사진과 함께 올리면 내 몫을 뺀 나머지를 돌려드려요.' : '입력되면 24시간 동안 요금 이의를 낼 수 있어요.'
     if (!party.payer) tone = 'calm'
   } else if (['DISSOLVED', 'NOT_OPERATED', 'FARE_MISSING'].includes(party.status)) {
     title = party.status === 'DISSOLVED' ? '일행이 해산됐어요' : '운행이 성사되지 않았어요'
@@ -563,7 +563,7 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
           <ul>
             <li>{free ? '무료 취소 마감 전 취소하면 승인된 선결제를 전액 환불해요.' : '무료 취소 마감이 지나 취소하면 남은 일행의 늘어난 몫을 보전해요.'}</li>
             <li>누가 오지 않으면 일행·본인 소명을 보고 24시간 뒤 판정해요. 노쇼로 확정되면 남은 일행의 늘어난 몫을 그 사람의 선결제에서 보전하고, 판단할 수 없으면 노쇼로 보지 않아요.</li>
-            <li>선결제는 확정 때 내 몫에 여유 15%를 더한 금액이에요. 길이 막히면 요금이 늘 수 있어서 조금 더 받아 두고, 실제 요금으로 나눈 뒤 남으면 돌려주고 모자라면 더 받아요.</li>
+            <li>선결제는 확정 때 정해진 내 몫 그대로이고, 그게 최종 금액이에요. 길이 막혀 요금이 더 나와도 더 받지 않아요. 차이는 정산 적립금이 맡아요.</li>
             {party.instant && <li>즉시 일행은 선결제 기한이 확정 뒤 {config?.instantMatching?.prepMinutes ?? 3}분이고, 모두 준비되면 바로 호출해요.</li>}
             <li>택시는 결제자가 카카오T로 직접 불러요. 앱은 부른 사실만 기록해요.</li>
             <li>운행 시작 표시가 없으면 탔는지 물어보고, 미운행이 확인될 때만 환불해요.</li>

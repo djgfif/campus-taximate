@@ -43,7 +43,11 @@ public class PaymentService {
     public boolean simulated() { return gateway.simulated(); }
     private TransactionTemplate tx() { return new com.campustaximate.server.common.RetryingTransactionTemplate(transactionManager); }
 
-    public static long prepayAmount(long share) { return Math.addExact(Math.multiplyExact(share, 115), 99) / 100; }
+    /**
+     * 확정 분담금(S43): 선결제 = 확정된 내 몫 그대로이고 그것이 최종 금액이다. 실제 미터와의 차이는 정산 적립금이 맡아서
+     * 일반 운행에서 나중에 더 내는 일이 없다(실험 C11). 예전에는 미터 오차를 대비해 115%를 받고 차액을 정산했다.
+     */
+    public static long prepayAmount(long share) { return share; }
     /** 선결제 기한 [S39]: 예약은 출발 20분 전, 즉시는 확정 + 5분(S41: 결제창과 카드사 인증에 3분은 빠듯했다). 확정 + 5분보다 이르면 확정 + 5분(안전장치). */
     public static Instant prepayDeadline(Instant confirmed, Instant departure, boolean instant) {
         if (instant) return confirmed.plusSeconds(com.campustaximate.matching.MatchingSettings.everyMinute().instantPrepMinutes()*60L);

@@ -39,6 +39,7 @@ public class AdminController {
     @GetMapping("/members/{id}/restrictions") public List<MemberRestriction> restrictions(@PathVariable long id,HttpSession s){return admin.restrictions(actor(s),id);}
     @PostMapping("/members/{id}/restrictions") public MemberRestriction restrict(@PathVariable long id,@Valid @RequestBody RestrictionBody b,@RequestHeader("Idempotency-Key") String key,HttpSession s){return admin.restrict(actor(s),id,b.until(),b.evidence(),key);}
     @PostMapping("/restrictions/{id}/release") public void release(@PathVariable long id,@Valid @RequestBody EvidenceBody b,HttpSession s){admin.release(actor(s),id,b.evidence());}
+    @GetMapping("/reserve") public AdminService.ReserveView reserve(HttpSession s){return admin.reserve(actor(s));}
     @GetMapping("/overdue-payments") public List<PaymentOrder> overdue(HttpSession s){return admin.overdue(actor(s));}
     @PostMapping("/overdue-payments/{id}/handled") public void handled(@PathVariable long id,@Valid @RequestBody EvidenceBody b,HttpSession s){admin.handleOverdue(actor(s),id,b.evidence());}
     @GetMapping("/hubs") public List<AdminService.HubView> hubs(HttpSession s){return admin.hubs(actor(s));}

@@ -9,7 +9,7 @@ export function PaymentRecord({ order }) {
   return <Rows items={[
     ['주문 금액', won(order.amount)], ['결제한 금액', order.approvedAmount > 0 ? won(order.approvedAmount) : '아직 결제 전'],
     order.deadlineAt && ['결제 기한', formatDateTime(order.deadlineAt)],
-    ['결제 상태', ({ REQUIRED: '결제 대기', PROCESSING: '확인 중', APPROVED: '승인 완료', EXPIRED: '기한 종료', OVERDUE: '추가 결제 기한 지남', ADMIN_REQUIRED: '관리자 확인 필요' })[order.status] || '상태 확인 중'],
+    ['결제 상태', ({ REQUIRED: '결제 대기', PROCESSING: '확인 중', APPROVED: '승인 완료', EXPIRED: '기한 종료', OVERDUE: '분담금 결제 기한 지남', ADMIN_REQUIRED: '관리자 확인 필요' })[order.status] || '상태 확인 중'],
     order.refundedAmount > 0 && ['환불 처리 금액', won(order.refundedAmount)],
     refundPending > 0 && ['환불 처리 중', won(refundPending)],
   ]} />
@@ -49,9 +49,9 @@ export default function PaymentCard({ partyId, purpose = 'PREPAY', myId, now, co
   const settled = compact && order && order.status === 'APPROVED' && !(order.refundRequestedAmount > 0) && !(order.refundedAmount > 0)
   const minutesLeft = order && now ? (new Date(order.deadlineAt) - new Date(now)) / 60000 : null
   const urgent = minutesLeft != null && minutesLeft > 0 && minutesLeft <= 10
-  return <section className={compact ? 'payment-card compact' : 'payment-card'} aria-label={extra ? '추가 결제' : '선결제'}>
-    <h2>{extra ? '추가 결제' : '선결제'}{order ? ' ' + won(order.amount) : ''}</h2>
-    {!extra && !compact && <p>처음 안내된 내 몫에 여유 15%를 더해 미리 결제해요.</p>}
+  return <section className={compact ? 'payment-card compact' : 'payment-card'} aria-label={extra ? '분담금 결제' : '선결제'}>
+    <h2>{extra ? '분담금 결제' : '선결제'}{order ? ' ' + won(order.amount) : ''}</h2>
+    {!extra && !compact && <p>확정된 내 몫을 미리 결제해요. 나중에 더 내는 일은 없어요.</p>}
     {!order && !error && <p role="status">주문을 확인하고 있어요.</p>}
     {order && <>
       {settled ? <p className="due paid">승인 완료</p> : <>
@@ -64,7 +64,7 @@ export default function PaymentCard({ partyId, purpose = 'PREPAY', myId, now, co
           : order.status === 'ADMIN_REQUIRED' ? <Say tone="stop-tone">관리자 확인이 필요한 결제예요.</Say>
             : order.status === 'EXPIRED' || (!extra && late) ? <Say>선결제 기한이 지났어요.</Say>
               : !['REQUIRED', 'OVERDUE'].includes(order.status) ? <Say>결제 상태를 확인하고 있어요.</Say> : null}
-      {extra && late && order.status !== 'APPROVED' && <Say tone="stop-tone">추가 결제 기한이 지났어요. 결제를 마치면 새 요청 제한이 풀려요.</Say>}
+      {extra && late && order.status !== 'APPROVED' && <Say tone="stop-tone">분담금 결제 기한이 지났어요. 결제를 마치면 새 요청 제한이 풀려요.</Say>}
       {(order.refundRequestedAmount > 0 || order.refundedAmount > 0) && <p className="note">환불은 카드사에 반영되기까지 3~4영업일 정도 걸려요.</p>}
       {/* 결제 방식은 서버의 주문(order.simulated)만 따른다. 화면에 토스 키가 빌드돼 있어도 모의 결제 서버면 토스 창을 열지 않는다. */}
       {payable && (order.simulated ? <>

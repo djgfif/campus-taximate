@@ -124,8 +124,8 @@ function HistoryFinance({ item }) {
     {current.party ? <FinancialDetails party={current.party} />
       : current.orders ? <>
         {current.orders.length === 0 && <p className="note">내 결제 주문이 없어요.</p>}
-        {current.orders.map((order) => <section key={order.orderId} aria-label={order.purpose === 'ADDITIONAL' ? '추가 결제 기록' : '선결제 기록'}>
-          <h4>{order.purpose === 'ADDITIONAL' ? '추가 결제 기록' : '선결제 기록'}</h4>
+        {current.orders.map((order) => <section key={order.orderId} aria-label={order.purpose === 'ADDITIONAL' ? '분담금 결제 기록' : '선결제 기록'}>
+          <h4>{order.purpose === 'ADDITIONAL' ? '분담금 결제 기록' : '선결제 기록'}</h4>
           <PaymentRecord order={order} />
           {order.refundHeld && <p className="note">{order.holdReason || '환불 보류 중'}</p>}
           {order.simulated && <p className="note">시연용 모의 결제 기록이에요. 실제 돈은 나가지 않아요.</p>}

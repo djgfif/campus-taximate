@@ -154,7 +154,7 @@ export function FairnessNote({ delay, solo, share, rules, walkExcluded = false }
       <div><span>{walkExcluded ? '차로 늘어나는 시간' : '늘어나는 시간'}</span><b>{delay}분</b><small>{maxDelay}분 이내만 묶어요</small></div>
       <div><span>혼자 탈 때 대비 내 몫</span><b>{pct}%</b><small>{maxShare}% 이하만 묶어요</small></div>
     </div>
-    <p>내릴 때 나온 실제 요금은 각자 혼자 탈 때 요금의 비율대로 나눠요. 멀리 가는 사람이 더 내요.</p>
+    <p>확정 금액을 각자 혼자 탈 때 요금의 비율대로 나눠요. 멀리 가는 사람이 더 내고, 실제 요금이 더 나와도 더 내지 않아요.</p>
   </section>
 }
 

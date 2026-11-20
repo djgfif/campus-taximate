@@ -17,7 +17,7 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks() })
 
 describe('새 정산 화면', () => {
-  it('정산 확정 뒤 환불·추가 결제·앱 정산 기록상 받을 돈(실제 송금 없음)을 서버 기록대로 표시한다', () => {
+  it('정산 확정 뒤 환불·분담금 결제·앱 정산 기록상 받을 돈(실제 송금 없음)을 서버 기록대로 표시한다', () => {
     const payments = [
       { orderId: 'p1', purpose: 'PREPAY', amount: 3680, approvedAmount: 3680, refundedAmount: 480, refundRequestedAmount: 480, status: 'APPROVED' },
       { orderId: 'a1', purpose: 'ADDITIONAL', amount: 892, approvedAmount: 0, refundedAmount: 0, status: 'REQUIRED', deadlineAt: '2026-11-12T00:00:00Z', simulated: true },
@@ -28,7 +28,7 @@ describe('새 정산 화면', () => {
     expect(screen.getByRole('heading', { name: '정산 확정' })).toBeTruthy()
     expect(within(screen.getByRole('region', { name: '선결제 기록' })).getByText('480원')).toBeTruthy()
     expect(screen.getByText('환불은 카드 반영까지 3~4영업일 정도 걸려요.')).toBeTruthy()
-    expect(screen.getByRole('heading', { name: '추가 결제 892원' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: '분담금 결제 892원' })).toBeTruthy()
     expect(screen.getByText('앱 정산 기록상 받을 돈(실제 송금 없음) 8,800원')).toBeTruthy()
     expect(screen.getByText('실제 송금 없음')).toBeTruthy()
     expect(screen.queryByRole('button', { name: /^(보냄|받음)$/ })).toBeNull()
@@ -50,13 +50,13 @@ describe('새 정산 화면', () => {
     await waitFor(() => expect(updated).toHaveBeenCalledOnce())
     expect(confirm).not.toHaveBeenCalled()
     expect(create).not.toHaveBeenCalled()
-    expect(screen.queryByRole('region', { name: '추가 결제' })).toBeNull()
+    expect(screen.queryByRole('region', { name: '분담금 결제' })).toBeNull()
   })
 
   it('관리자 검토 중에는 금액 수정 버튼을 제공하지 않는다', () => {
     render(<SettlementScreen party={{ ...party, status: 'REVIEW_PENDING' }} myId={3} now={now} onCorrect={() => {}} />)
     expect(screen.getByText(/명, 관리자 검토 중$/)).toBeTruthy()
-    expect(screen.getByText('요금 이의가 있어 관리자 검토 중이에요. 환불과 추가 결제, 받을 돈의 정산을 보류해요.')).toBeTruthy()
+    expect(screen.getByText('요금 이의가 있어 관리자 검토 중이에요. 환불과 받을 돈의 정산을 보류해요.')).toBeTruthy()
     expect(screen.queryByRole('button', { name: '금액 고치기' })).toBeNull()
   })
 
@@ -64,11 +64,19 @@ describe('새 정산 화면', () => {
     vi.spyOn(api, 'settlementPreview').mockResolvedValue(party.settlement.shares)
     render(<PayerInput party={{ ...party, payer: true, status: 'AWAITING_FARE', settlement: null }} now={now} />)
     fireEvent.change(screen.getByLabelText('실제 결제 금액'), { target: { value: '20000' } })
-    expect(screen.getByText('예상 요금보다 19% 높아요')).toBeTruthy()
+    expect(screen.getByText('확정 금액보다 19% 높아요')).toBeTruthy()
     expect(screen.queryByLabelText('은행')).toBeNull()
     expect(screen.queryByLabelText('받을 계좌')).toBeNull()
     expect(screen.getByLabelText('영수증 사진')).toBeTruthy()
     await waitFor(() => expect(api.settlementPreview).toHaveBeenCalledWith(11, 20000))
+    // 확정 분담금: 결제자는 실제 요금 20,000원에서 내 확정 몫 8,000원을 뺀 12,000원을 돌려받는다.
+    expect(await screen.findByText('정산 확정 뒤 12,000원을 돌려드려요')).toBeTruthy()
+  })
+
+  it('실제 요금이 확정 금액의 1.5배를 넘으면 관리자가 영수증을 본다고 알린다', () => {
+    render(<PayerInput party={{ ...party, payer: true, status: 'AWAITING_FARE', settlement: null }} now={now} />)
+    fireEvent.change(screen.getByLabelText('실제 결제 금액'), { target: { value: '26000' } })
+    expect(screen.getByText(/1.5배를 넘으면 관리자가 영수증을 확인한 뒤 돌려드려요/)).toBeTruthy()
   })
 
   it('이전 송금 데이터는 계좌와 보냄·받음 버튼 없이 읽기만 한다', () => {
@@ -125,7 +133,7 @@ describe('이용 내역의 결제 기록', () => {
     expect(own).toHaveBeenCalledWith(102)
     expect(detail).not.toHaveBeenCalled()
     expect(chat).not.toHaveBeenCalled()
-    expect(screen.getByRole('region', { name: '추가 결제 기록' })).toBeTruthy()
+    expect(screen.getByRole('region', { name: '분담금 결제 기록' })).toBeTruthy()
     expect(screen.getByText('2,140원')).toBeTruthy()
     expect(screen.getByText(/선결제는 조사 중 보류돼요/)).toBeTruthy()
     expect(screen.queryByRole('button', { name: '일행 채팅 보기' })).toBeNull()

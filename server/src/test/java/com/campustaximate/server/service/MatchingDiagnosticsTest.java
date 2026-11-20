@@ -8,7 +8,8 @@ class MatchingDiagnosticsTest {
         Instant slot=Instant.parse("2026-11-12T00:00:00Z");Hub hub=new Hub(1,new GeoPoint(37,127));
         var a=new MatchRequest(1,1,hub,Gender.FEMALE,slot.plusSeconds(1800),slot.plusSeconds(3600),new GeoPoint(37.01,127),1,100).requested(slot.minusSeconds(600),false);
         var b=new MatchRequest(2,2,hub,Gender.FEMALE,slot.plusSeconds(1800),slot.plusSeconds(3600),new GeoPoint(37.02,127),2,100).requested(slot.minusSeconds(600),false);
-        var diagnostics=new MatchingDiagnostics(MatchingSettings.everyMinute());diagnostics.inspect(slot,List.of(a,b),(x,y)->Optional.of(new RoadLeg(1,1000)));
+        // 확정 자격(S42 마감 대기)과 무관하게 지연·차단 진단을 보려고 예전 조기 확정 규칙으로 둔다.
+        var diagnostics=new MatchingDiagnostics(MatchingSettings.everyMinute().withEarlyConfirmMinutes(10));diagnostics.inspect(slot,List.of(a,b),(x,y)->Optional.of(new RoadLeg(1,1000)));
         diagnostics.inspect(slot,List.of(a.withAvoidMemberIds(Set.of(2L)),b),(x,y)->Optional.of(new RoadLeg(1,10)));
         assertThat(out.getAll()).contains("code=DELAY","code=BLOCKED","requests=[1, 2]").doesNotContain("GeoPoint","lat=","37.01");
     }

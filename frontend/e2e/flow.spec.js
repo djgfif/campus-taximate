@@ -141,7 +141,7 @@ test('승차 지점 요청부터 이의 기간과 정산 완료까지 화면으�
 
   await demo(page, '하루 뒤')
   await demo(page, '5분 뒤')
-  // 확정 후 추가 결제가 생긴 샘플도 모의 게이트웨이로 승인한다.
+  // 다른 샘플 일행도 확정 분담금으로 정산을 마친다(추가 결제 없음).
   await demo(page, '다른 일행이 움직이기')
   await demo(page, '5분 뒤')
   await page.goto('/history')

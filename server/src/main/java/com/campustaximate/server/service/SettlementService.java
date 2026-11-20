@@ -95,6 +95,7 @@ public class SettlementService {
             settlement.setObjectionDeadlineAt(storedAt.plus(OBJECTION_WINDOW));
             saveAllocations(party, settlement, riders, shares);
             if(party.getFareRecoveryAt()==null && rideConfirmations.hasNegativeAnswer(party.getId())) { party.setStatus(PartyStatus.REVIEW_PENDING); party.setAdminReviewRequired(true); party.setReviewReason("RIDE_DISPUTE"); }
+            else if(exceptionalFare(party, amount)) { party.setStatus(PartyStatus.REVIEW_PENDING); party.setAdminReviewRequired(true); party.setReviewReason("FARE_EXCEPTION"); }
             else party.setStatus(PartyStatus.OBJECTION_WINDOW);
             chatLog.system(party, String.format("결제자가 실제 금액 %,d원과 영수증을 올렸어요. 24시간 동안 요금 이의를 낼 수 있어요.", amount));
             return;
@@ -171,6 +172,8 @@ public class SettlementService {
             settlement.setPaidAmount(amount); settlement.setRevision(settlement.getRevision() + 1); settlement.setStoredAt(storedAt);
             settlement.setObjectionDeadlineAt(storedAt.plus(OBJECTION_WINDOW)); settlement.clearAccount();
             saveAllocations(party, settlement, riders, values);
+            // 고친 금액도 확정 금액의 1.5배를 넘으면 관리자 검토로 보낸다. 처음엔 정상으로 올리고 나중에 부풀리는 길을 막는다.
+            if (exceptionalFare(party, amount)) { party.setStatus(PartyStatus.REVIEW_PENDING); party.setAdminReviewRequired(true); party.setReviewReason("FARE_EXCEPTION"); }
             media.deleteAfterCommit(previous);
             return;
         }
@@ -332,7 +335,14 @@ public class SettlementService {
                 payerIndex = i;
             }
         }
-        return SettlementCalculator.shares(amount, units, payerIndex);
+        // 확정 분담금(S43): 선결제 흐름에서는 실제 미터가 아니라 확정 금액을 나눈다. 미터와의 차이는 정산 적립금이 맡는다.
+        long base = party.paymentFlow() ? party.getExpectedTotal() : amount;
+        return SettlementCalculator.shares(base, units, payerIndex);
+    }
+
+    /** 실제 요금이 확정 금액의 1.5배를 넘으면 적립금으로 바로 메우지 않고 관리자가 영수증을 본다(사고·우회·입력 실수). */
+    static boolean exceptionalFare(Party party, long amount) {
+        return party.paymentFlow() && amount * 2 > party.getExpectedTotal() * 3;
     }
 
     /** 브라우저가 보낸 형식은 믿지 않고 파일 앞부분으로 확인한다. */

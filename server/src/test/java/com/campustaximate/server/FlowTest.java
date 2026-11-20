@@ -154,12 +154,15 @@ class FlowTest {
             mvc.perform(post("/api/parties/" + partyId + "/arrive").session(user)).andExpect(status().isOk());
         }
         var once = new java.util.concurrent.atomic.AtomicBoolean();
-        org.mockito.Mockito.doAnswer(call -> {
+        org.mockito.stubbing.Answer<Object> slow = call -> {
             if (once.compareAndSet(false, true)) {
                 advance(30);
             }
             return call.callRealMethod();
-        }).when(routes).route(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        };
+        // 견적 래퍼(QuotedRouteClient)는 출발 시각 조회를 routeAt으로 바로 넘기므로 두 경로 조회를 모두 가로챈다.
+        org.mockito.Mockito.doAnswer(slow).when(routes).route(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        org.mockito.Mockito.doAnswer(slow).when(routes).routeAt(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
 
         mvc.perform(delete("/api/requests/" + requestId).session(users.get(0))).andExpect(status().isConflict());
 
@@ -285,12 +288,19 @@ class FlowTest {
         List<MockHttpSession> users = departedParty();
         MockHttpSession payer = payerOf(users);
         long id = onlyParty(payer).get("id").asLong();
-        submit(id, onlyParty(payer).get("expectedTotal").asLong() * 2, payer).andExpect(status().isOk());
-        // 이 시나리오에서는 추가 결제를 자동 승인하지 않고 연체와 해제를 직접 검증한다.
+        submit(id, onlyParty(payer).get("expectedTotal").asLong(), payer).andExpect(status().isOk());
+        // 확정 분담금(S43)에서는 요금이 더 나와도 추가 결제가 생기지 않는다. 선결제를 하지 않은 몫(미납)만 결제 요청이 되므로
+        // 그 요청을 직접 만들고, 자동 승인하지 않은 채 연체와 해제를 검증한다.
+        long debtor = requests.findByPartyOrderByRideOrder(parties.findById(id).orElseThrow()).stream()
+                .map(r -> r.getMember().getId()).filter(m -> !m.equals(parties.findById(id).orElseThrow().getPayer().getId())).findFirst().orElseThrow();
+        payments.createObligation(id, debtor, null, null, com.campustaximate.server.domain.PaymentPurpose.ADDITIONAL, 1000, clock.now().plusSeconds(25 * 3600));
         demo.advance(48 * 60);
         demo.advance(1);
-        var extra = paymentOrders.findByPartyIdOrderById(id).stream()
-                .filter(o -> o.getPurpose() == com.campustaximate.server.domain.PaymentPurpose.ADDITIONAL).findFirst().orElseThrow();
+        // 정산 확정은 추가 결제를 새로 만들지 않았다. 직접 만든 미납 요청 하나만 있다.
+        var extras = paymentOrders.findByPartyIdOrderById(id).stream()
+                .filter(o -> o.getPurpose() == com.campustaximate.server.domain.PaymentPurpose.ADDITIONAL).toList();
+        assertThat(extras).hasSize(1);
+        var extra = extras.getFirst();
         MockHttpSession sender = sessionOf(users, extra.getMemberId());
         assertThat(state(sender).get("restricted").asBoolean()).isTrue();
         createRequest(sender, POINTS[0]).andExpect(status().isConflict());
@@ -710,7 +720,8 @@ class FlowTest {
         assertThat(mine.get("partyPaid").asLong()).isEqualTo(15000);
         assertThat(mine.get("partySize").asInt()).isEqualTo(3);
         advance(24 * 60 + 1);
-        assertThat(allocations.findAll().stream().mapToLong(a -> a.getAmount()).sum()).isEqualTo(15000);
+        // 확정 분담금(S43): 각자 몫은 실제 요금(15,000원)이 아니라 확정 금액을 나눈다.
+        assertThat(allocations.findAll().stream().mapToLong(a -> a.getAmount()).sum()).isEqualTo(parties.findById(id).orElseThrow().getExpectedTotal());
         assertThat(payouts.findAll()).hasSize(1);
         assertThat(transfers.count()).isZero();
     }

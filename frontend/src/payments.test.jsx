@@ -17,14 +17,14 @@ const PartyCardApproved = () => <PaymentCard partyId={11} myId={2} now={now} con
   knownOrder={{ ...order, status: 'APPROVED', approvedAmount: order.amount }} />
 
 describe('선결제 카드', () => {
-  it('서버 주문의 금액·여유 15% 안내·기한을 표시하고 시연 모드에서만 모의 승인한다', async () => {
+  it('서버 주문의 금액·확정 금액 안내·기한을 표시하고 시연 모드에서만 모의 승인한다', async () => {
     const create = vi.spyOn(api, 'paymentOrder').mockResolvedValue(order)
     const confirm = vi.spyOn(api, 'confirmPayment').mockResolvedValue({ ...order, status: 'APPROVED', approvedAmount: order.amount })
     const updated = vi.fn().mockResolvedValue()
     render(<PaymentCard partyId={11} myId={2} now={now} config={{ demo: true }} clientKey="" onUpdated={updated} />)
     await screen.findByRole('heading', { name: '선결제 3,680원' })
     expect(create).toHaveBeenCalledWith(11, 'PREPAY')
-    expect(screen.getByText('처음 안내된 내 몫에 여유 15%를 더해 미리 결제해요.')).toBeTruthy()
+    expect(screen.getByText('확정된 내 몫을 미리 결제해요. 나중에 더 내는 일은 없어요.')).toBeTruthy()
     expect(screen.getByText(/^기한 /).textContent).toContain('10')
     expect(screen.getByText('시연용 모의 결제예요. 실제 돈은 나가지 않아요.')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '시연 결제하기' }))

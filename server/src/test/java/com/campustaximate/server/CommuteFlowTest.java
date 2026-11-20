@@ -463,8 +463,13 @@ class CommuteFlowTest {
         for (JsonNode share : shares) {
             sum += share.get("amount").asLong();
         }
-        assertThat(sum).isEqualTo(15000);
+        // 확정 분담금(S43): 입력한 실제 요금과 상관없이 확정 금액을 나눈 몫을 보여 준다.
+        assertThat(sum).isEqualTo(onlyParty(users.get(2)).get("expectedTotal").asLong());
         assertThat(shares.get(0).get("payer").asBoolean()).isTrue();
+        JsonNode other = read(mvc.perform(get("/api/parties/" + partyId + "/settlement/preview")
+                        .param("amount", "30000").session(users.get(2)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertThat(other).isEqualTo(shares);
         mvc.perform(get("/api/parties/" + partyId + "/settlement/preview").param("amount", "15000")
                 .session(users.get(0))).andExpect(status().isForbidden());
     }

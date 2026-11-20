@@ -31,6 +31,7 @@ public class PaymentLifecycleService {
     private final BoardingCaseRepository boardingCases;
     private final CompensationService compensation;
     private final CompensationEntryRepository compensationEntries;
+    private final ReserveEntryRepository reserve;
     private final PlatformTransactionManager transactionManager;
     private TransactionTemplate tx() { return new com.campustaximate.server.common.RetryingTransactionTemplate(transactionManager); }
 
@@ -143,34 +144,41 @@ public class PaymentLifecycleService {
         List<SettlementShare> allocations = shares.findBySettlementIdOrderByRideOrder(settlement.getId());
         compensation.apply(party,settlement,allocations);
         var compensations=compensationEntries.findBySettlementIdOrderByRequestId(settlement.getId());
+        // 확정 분담금(S43): 각자 낼 돈은 확정 몫(보전 반영) 그대로다. 선결제가 그보다 적으면(일행 축소·보전 면제 등)
+        // 추가 결제를 만들지 않고 정산 적립금이 메운다(covered). 남는 선결제는 돌려준다.
+        long collected=0,covered=0;
         for (PaymentOrder order : orders.findByPartyIdOrderById(partyId)) {
-            if (order.getPurpose() != PaymentPurpose.PREPAY || order.getApprovedAmount() == 0 || payments.refundHeld(order)) continue;
+            if (order.getPurpose() != PaymentPurpose.PREPAY || order.getApprovedAmount() == 0) continue;
             SettlementShare share = allocations.stream().filter(s -> s.getMemberId().equals(order.getMemberId())).findFirst().orElse(null);
             // 승계자 선결제는 전액, 이탈자 선결제는 확정된 보전 부담을 뺀 차액을 돌려준다.
             long due=share==null?compensations.stream().filter(e->e.getMemberId().equals(order.getMemberId())).mapToLong(CompensationEntry::getCharge).sum():share.isPayer()?0:share.getAmount();
+            collected+=Math.min(due,order.getApprovedAmount()); covered+=Math.max(0,due-order.getApprovedAmount());
+            if (payments.refundHeld(order)) continue;
             long refund = Math.max(0, order.getApprovedAmount() - due);
             payments.refundTo(order.getId(), refund, "정산 확정 차액 환불");
         }
+        // 선결제를 전혀 하지 않은 일행원은 확정 몫 전액을 아직 내지 않은 것이므로(추가가 아니라 미납) 결제 요청을 만든다.
         for (SettlementShare share : allocations) {
-            if (share.isPayer()) continue;
-            long prepay = orders.findByPartyIdAndMemberIdAndPurpose(partyId, share.getMemberId(), PaymentPurpose.PREPAY)
-                    .map(PaymentOrder::getApprovedAmount).orElse(0L);
-            if (share.getAmount() > prepay) {
-                payments.createObligation(partyId, share.getMemberId(), null, settlement.getId(),
-                        PaymentPurpose.ADDITIONAL, share.getAmount() - prepay, clock.now().plusSeconds(24 * 3600));
-                requests.findByPartyOrderByRideOrder(party).stream().filter(r -> r.getMember().getId().equals(share.getMemberId())).findFirst()
-                        .ifPresent(r -> notifications.toMember(r.getMember(), "[캠퍼스 택시메이트] 추가 결제 요청", "정산 차액 " + (share.getAmount() - prepay) + "원을 24시간 안에 결제해 주세요."));
-            }
-        }
-        for(var e:compensations) if(e.getCharge()>0) {
-            long prepay=orders.findByPartyIdAndMemberIdAndPurpose(partyId,e.getMemberId(),PaymentPurpose.PREPAY).map(PaymentOrder::getApprovedAmount).orElse(0L);
-            if(e.getCharge()>prepay) payments.createObligation(partyId,e.getMemberId(),e.getRequestId(),settlement.getId(),PaymentPurpose.ADDITIONAL,e.getCharge()-prepay,clock.now().plusSeconds(86400));
+            if (share.isPayer() || share.getAmount() == 0) continue;
+            boolean prepaid=orders.findByPartyIdAndMemberIdAndPurpose(partyId, share.getMemberId(), PaymentPurpose.PREPAY).map(o->o.getApprovedAmount()>0).orElse(false);
+            if (prepaid) continue;
+            payments.createObligation(partyId, share.getMemberId(), null, settlement.getId(),
+                    PaymentPurpose.ADDITIONAL, share.getAmount(), clock.now().plusSeconds(24 * 3600));
+            collected += share.getAmount();
+            requests.findByPartyOrderByRideOrder(party).stream().filter(r -> r.getMember().getId().equals(share.getMemberId())).findFirst()
+                    .ifPresent(r -> notifications.toMember(r.getMember(), "[캠퍼스 택시메이트] 분담금 결제 요청", "선결제하지 않은 분담금 " + share.getAmount() + "원을 24시간 안에 결제해 주세요."));
         }
         SettlementShare payer = allocations.stream().filter(SettlementShare::isPayer).findFirst().orElseThrow();
+        long payout=settlement.getPaidAmount() - payer.getAmount();
         if (!payouts.existsBySettlementId(settlement.getId())) {
             PayoutLedger ledger = new PayoutLedger(); ledger.setSettlementId(settlement.getId()); ledger.setPartyId(partyId);
-            ledger.setMemberId(payer.getMemberId()); ledger.setAmount(settlement.getPaidAmount() - payer.getAmount());
+            ledger.setMemberId(payer.getMemberId()); ledger.setAmount(payout);
             ledger.setRecordedAt(clock.now()); payouts.save(ledger);
+        }
+        if (!reserve.existsBySettlementId(settlement.getId())) {
+            ReserveEntry entry=new ReserveEntry(); entry.setSettlementId(settlement.getId()); entry.setPartyId(partyId);
+            entry.setAmount(collected-payout); entry.setCovered(covered); entry.setPaidAmount(settlement.getPaidAmount());
+            entry.setFixedTotal(party.getExpectedTotal()); entry.setRecordedAt(clock.now()); reserve.save(entry);
         }
     }
 }

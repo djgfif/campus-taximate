@@ -42,6 +42,7 @@ class PaymentFlowTest {
     @Autowired PaymentOperationRepository operations;
     @Autowired SettlementShareRepository allocations;
     @Autowired PayoutLedgerRepository payouts;
+    @Autowired ReserveEntryRepository reserve;
     @Autowired RideRequestService rideRequests;
     @Autowired RideConfirmationService rideConfirmations;
     @Autowired PartyMemberTermRepository terms;
@@ -72,7 +73,7 @@ class PaymentFlowTest {
 
     @BeforeEach
     void prepare() {
-        PaymentTestSupport.clear(jdbc); transfers.deleteAll(); settlements.deleteAll(); requests.deleteAll(); parties.deleteAll();
+        PaymentTestSupport.clear(jdbc); jdbc.update("delete from reserve_entry"); transfers.deleteAll(); settlements.deleteAll(); requests.deleteAll(); parties.deleteAll();
         at(NOW); jdbc.update("delete from mail_outbox");
         jdbc.update("delete from member_restriction"); jdbc.update("update member set no_show_count=0");
         provider = new SimulatedPaymentGateway();
@@ -104,7 +105,7 @@ class PaymentFlowTest {
         });
     }
     @AfterEach void clean() {
-        PaymentTestSupport.clear(jdbc); transfers.deleteAll(); settlements.deleteAll(); requests.deleteAll(); parties.deleteAll();
+        PaymentTestSupport.clear(jdbc); jdbc.update("delete from reserve_entry"); transfers.deleteAll(); settlements.deleteAll(); requests.deleteAll(); parties.deleteAll();
     }
     void at(Instant time) { doReturn(time).when(clock).now(); }
     PaymentOrder order(int member) { return orders.findByPartyIdAndMemberIdAndPurpose(partyId,ids.get(member),PaymentPurpose.PREPAY).orElseThrow(); }
@@ -126,28 +127,75 @@ class PaymentFlowTest {
         assertThat(transfers.count()).isZero(); assertThat(payouts.count()).isZero();
         assertThat(settlements.findAll().getFirst().getAccountNumber()).isNull();
     }
-    @Test void p04RefundsOnlyAfterSettlementAndRecordsMockPayout() {
+    ReserveEntry reserveEntry() { return reserve.findAll().stream().filter(e->e.getPartyId()==partyId).findFirst().orElseThrow(); }
+    List<PaymentOrder> additional() { return orders.findByPartyIdOrderById(partyId).stream().filter(o->o.getPurpose()==PaymentPurpose.ADDITIONAL).toList(); }
+    /** S43: 선결제가 곧 확정 몫이라, 미터가 확정 금액과 같으면 정산 때 돌려줄 돈도 더 받을 돈도 없다. 결제자 지급은 그대로 장부에 남는다. */
+    @Test void p04FixedSharePrepaymentNeedsNoRefundAndRecordsMockPayout() {
         depart(); submit(16800);
-        verify(gateway,never()).cancel(anyString(),anyLong(),anyString(),anyString());
         finalizeFare();
-        assertThat(order(0).getRefundedAmount()).isEqualTo(480); assertThat(order(1).getRefundedAmount()).isEqualTo(840);
-        verify(gateway).cancel(eq(order(0).getPaymentKey()),eq(480L),anyString(),anyString());
-        verify(gateway).cancel(eq(order(1).getPaymentKey()),eq(840L),anyString(),anyString());
+        assertThat(order(0).getRefundedAmount()).isZero(); assertThat(order(1).getRefundedAmount()).isZero();
+        verify(gateway,never()).cancel(anyString(),anyLong(),anyString(),anyString());
+        assertThat(additional()).isEmpty();
         assertThat(payouts.findAll().getFirst().getAmount()).isEqualTo(8800);
+        assertThat(reserveEntry().getAmount()).isZero(); assertThat(reserveEntry().getCovered()).isZero();
         assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.COMPLETED);
     }
-    @Test void p05CreatesAdditional892And1560() {
+    /** (a) 미터가 확정 금액보다 높아도 추가 결제는 없다. 차액 7,200원은 적립금이 메우고 결제자는 낸 돈 − 자기 몫을 받는다. */
+    @Test void p05HigherMeterCreatesNoAdditionalOrdersAndReserveCoversDifference() {
         depart(); submit(24000); finalizeFare();
-        assertThat(orders.findByPartyIdOrderById(partyId).stream().filter(o->o.getPurpose()==PaymentPurpose.ADDITIONAL).map(PaymentOrder::getAmount).toList()).containsExactly(892L,1560L);
+        assertThat(additional()).isEmpty();
+        assertThat(order(0).getRefundedAmount()).isZero(); assertThat(order(1).getRefundedAmount()).isZero();
         verify(gateway,never()).cancel(anyString(),anyLong(),anyString(),anyString());
-        assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.SETTLED);
+        assertThat(allocations.findAll().stream().sorted(Comparator.comparingInt(SettlementShare::getRideOrder)).map(SettlementShare::getAmount).toList()).containsExactly(3200L,5600L,8000L);
+        assertThat(settlements.findAll().getFirst().getPaidAmount()).isEqualTo(24000);
+        assertThat(payouts.findAll()).singleElement().satisfies(p->{assertThat(p.getMemberId()).isEqualTo(ids.get(2));assertThat(p.getAmount()).isEqualTo(24000-8000);});
+        assertThat(reserveEntry()).satisfies(e->{assertThat(e.getAmount()).isEqualTo(16800-24000);assertThat(e.getCovered()).isZero();
+            assertThat(e.getPaidAmount()).isEqualTo(24000);assertThat(e.getFixedTotal()).isEqualTo(16800);});
+        assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.COMPLETED);
+    }
+    /** (b) 미터가 확정 금액보다 낮으면 그 차이가 적립금으로 쌓인다. */
+    @Test void p05LowerMeterAddsDifferenceToReserve() {
+        depart(); submit(15000); finalizeFare();
+        assertThat(order(0).getRefundedAmount()).isZero(); assertThat(order(1).getRefundedAmount()).isZero();
+        assertThat(additional()).isEmpty();
+        assertThat(payouts.findAll()).singleElement().satisfies(p->assertThat(p.getAmount()).isEqualTo(15000-8000));
+        assertThat(reserveEntry().getAmount()).isEqualTo(16800-15000).isPositive();
+        assertThat(reserve.balance()).isEqualTo(1800);
+    }
+    /** (c) 확정 금액의 1.5배(25,200원)까지는 바로 이의 기간으로 가고, 넘으면 관리자가 영수증을 본다. */
+    @Test void p05FareUpToOneAndHalfTimesFixedTotalGoesStraightToObjectionWindow() {
+        depart(); submit(25200);
+        assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.OBJECTION_WINDOW);
+    }
+    @Test void p05ExceptionalFareWaitsForAdminAndRejectionResumesSettlement() {
+        depart(); submit(25201);
+        Party held=parties.findById(partyId).orElseThrow();
+        assertThat(held.getStatus()).isEqualTo(PartyStatus.REVIEW_PENDING);assertThat(held.getReviewReason()).isEqualTo("FARE_EXCEPTION");assertThat(held.isAdminReviewRequired()).isTrue();
+        at(clock.now().plusSeconds(25*3600)); lifecycle.afterDepartures();
+        assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.REVIEW_PENDING);
+        assertThat(payouts.count()).isZero(); assertThat(reserve.count()).isZero();
+        // 이의가 없어도 요금 예외는 관리자가 판단할 수 있다. 영수증이 맞다면 기각(원금 유지)하고 정산을 이어 간다.
+        admin.decideFare(adminId(),partyId,false,null,"사고 우회 운행 영수증 확인"); lifecycle.afterDepartures();
+        assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.COMPLETED);
+        assertThat(additional()).isEmpty();
+        assertThat(payouts.findAll()).singleElement().satisfies(p->assertThat(p.getAmount()).isEqualTo(25201-8000));
+        assertThat(reserveEntry().getAmount()).isEqualTo(16800-25201);
+    }
+    @Test void p05ExceptionalFareAcceptedWithCorrectedAmountSettlesThatAmount() {
+        depart(); submit(168000);
+        assertThat(parties.findById(partyId).orElseThrow().getReviewReason()).isEqualTo("FARE_EXCEPTION");
+        admin.decideFare(adminId(),partyId,true,16800L,"입력 실수, 영수증은 16,800원"); lifecycle.afterDepartures();
+        assertThat(settlements.findAll().getFirst().getPaidAmount()).isEqualTo(16800);
+        assertThat(payouts.findAll()).singleElement().satisfies(p->assertThat(p.getAmount()).isEqualTo(8800));
+        assertThat(reserveEntry().getAmount()).isZero();
+        assertThat(adminAudits.findAll()).singleElement().satisfies(a->assertThat(a.getDecision()).isEqualTo("ACCEPTED"));
     }
     @Test void p06OnlyUnpaidMemberIsRemovedWithoutNoShow() {
         approve(0); at(NOW.plusSeconds(600)); lifecycle.beforeDepartures();
         assertThat(requests.findByStatus(RequestStatus.MATCHED)).hasSize(2);
         RideRequest removed=requests.findAll().stream().filter(r->r.getMember().getId().equals(ids.get(1))).findFirst().orElseThrow();
         assertThat(removed.getStatus()).isEqualTo(RequestStatus.CANCELED); assertThat(removed.isNoShow()).isFalse();
-        assertThat(order(0).getAmount()).isEqualTo(3680);
+        assertThat(order(0).getAmount()).isEqualTo(3200);
         assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.READY);
     }
     /** 남은 두 명의 동승 예상 요금을 정한다. 단독 요금 합은 A 6,000 + C 15,000 = 21,000원이고 90%는 18,900원이다. */
@@ -164,7 +212,7 @@ class PaymentFlowTest {
         approve(0); at(NOW.plusSeconds(600)); lifecycle.beforeDepartures(); payments.retryDue();
         assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.DISSOLVED);
         assertThat(requests.findByStatus(RequestStatus.MATCHED)).isEmpty();
-        assertThat(order(0).getRefundedAmount()).isEqualTo(3680);
+        assertThat(order(0).getRefundedAmount()).isEqualTo(3200);
     }
     @Test void p11UnpaidRemovalKeepsPartyWhenRemainingPairSavesExactlyTenPercent() {
         remainingPairFare(18900);
@@ -199,7 +247,7 @@ class PaymentFlowTest {
     @Test void e04MissingFareRefundsAllPrepaymentsAndClosesSubmission() {
         depart(); at(NOW.plusSeconds(1800+24*3600)); lifecycle.afterDepartures();
         assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.FARE_MISSING);
-        assertThat(order(0).getRefundedAmount()).isEqualTo(3680); assertThat(order(1).getRefundedAmount()).isEqualTo(6440);
+        assertThat(order(0).getRefundedAmount()).isEqualTo(3200); assertThat(order(1).getRefundedAmount()).isEqualTo(5600);
         assertThatThrownBy(()->submit(16800)).isInstanceOf(ApiException.class);
     }
     @Test void mismatchedServerAmountIsRejectedBeforeGateway() {
@@ -215,7 +263,7 @@ class PaymentFlowTest {
         assertThat(partyService.view(ids.get(1),partyId).myPrepaid()).isFalse();
     }
     @Test void sameOrderConfirmationCallsGatewayOnce() {
-        approve(0); approve(0); verify(gateway,times(1)).confirm(anyString(),anyString(),eq(3680L),anyString());
+        approve(0); approve(0); verify(gateway,times(1)).confirm(anyString(),anyString(),eq(3200L),anyString());
     }
     @Test void reservationAndInstantDeadlinesFollowConfirmedSlot() {
         assertThat(PaymentService.prepayDeadline(NOW,NOW.plusSeconds(1800),false)).isEqualTo(NOW.plusSeconds(600));
@@ -223,7 +271,9 @@ class PaymentFlowTest {
         assertThat(PaymentService.prepayDeadline(NOW,NOW.plusSeconds(1500),false)).isEqualTo(NOW.plusSeconds(300));
         // S39: 전날 확정이어도 기한은 출발 20분 전(예전에는 확정 + 60분)
         assertThat(PaymentService.prepayDeadline(NOW,NOW.plusSeconds(86400),false)).isEqualTo(NOW.plusSeconds(86400-1200));
-        assertThat(PaymentService.prepayAmount(1)).isEqualTo(2);
+        // S43: 선결제 = 확정 몫 그대로(예전 115% 올림이 아니다)
+        assertThat(PaymentService.prepayAmount(1)).isEqualTo(1);assertThat(PaymentService.prepayAmount(3200)).isEqualTo(3200);
+
     }
     /** 이의 마감은 금액을 저장한 바로 그 시각에서 24시간이다. 시계가 호출마다 흘러도(리눅스 CI처럼) 정확히 맞아야 한다. */
     @Test void objectionDeadlineIsExactlyTwentyFourHoursAfterTheStoredMomentEvenWhileTheClockTicks() {
@@ -244,32 +294,59 @@ class PaymentFlowTest {
         settlementService.objectToFare(ids.get(1),partyId,"금액 확인");
         assertThatThrownBy(()->settlementService.correct(ids.get(2),partyId,16800,receipt(),null,null)).isInstanceOf(ApiException.class);
     }
+    @Test void correctingToMoreThanOneAndHalfTimesFixedTotalAlsoWaitsForAdmin() {
+        // 정상 금액으로 올린 뒤 부풀려 고쳐도 적립금으로 바로 메우지 않고 관리자가 영수증을 본다.
+        depart(); submit(16800);
+        at(clock.now().plusSeconds(600)); settlementService.correct(ids.get(2),partyId,25201,receipt(),null,null);
+        Party party=parties.findById(partyId).orElseThrow();
+        assertThat(party.getStatus()).isEqualTo(PartyStatus.REVIEW_PENDING);
+        assertThat(party.getReviewReason()).isEqualTo("FARE_EXCEPTION");
+        finalizeFare();
+        assertThat(payouts.findAll()).isEmpty();
+    }
     @Test void cannotCorrectFinalizedFare() {
         depart(); submit(16800); finalizeFare();
         assertThatThrownBy(()->settlementService.correct(ids.get(2),partyId,17000,receipt(),null,null)).isInstanceOf(ApiException.class);
     }
+    /**
+     * S43 이후 정산 확정은 차액 추가 결제를 만들지 않는다. 연체·관리자 처리·승인 경합 같은 추가 결제 자체의 규칙은
+     * 선결제하지 않은 몫(미납)이나 보전 부담에 여전히 쓰이므로, 정산을 끝낸 뒤 그 의무를 직접 만들어 확인한다.
+     */
+    PaymentOrder settledWithAdditional(int member,long amount) {
+        depart(); submit(24000); finalizeFare();
+        assertThat(additional()).isEmpty();
+        Instant deadline=clock.now().plusSeconds(24*3600);
+        long settlementId=settlements.findAll().getFirst().getId();
+        // 정산 확정이 미납 몫을 만들 때처럼 일행은 그 결제가 끝날 때까지 SETTLED에 머문다.
+        new TransactionTemplate(manager).executeWithoutResult(tx->{
+            parties.findByIdForUpdate(partyId).orElseThrow().setStatus(PartyStatus.SETTLED);
+            payments.createObligation(partyId,ids.get(member),null,settlementId,PaymentPurpose.ADDITIONAL,amount,deadline);
+        });
+        return orders.findByPartyIdAndMemberIdAndPurpose(partyId,ids.get(member),PaymentPurpose.ADDITIONAL).orElseThrow();
+    }
     @Test void overdueAdditionalBlocksRequestsUntilApproval() {
-        depart(); submit(24000); finalizeFare(); at(clock.now().plusSeconds(24*3600)); lifecycle.afterDepartures();
+        settledWithAdditional(0,1200); at(clock.now().plusSeconds(24*3600)); lifecycle.afterDepartures();
         assertThat(rideRequests.isRestricted(ids.get(0))).isTrue();
         PaymentOrder o=orders.findByPartyIdAndMemberIdAndPurpose(partyId,ids.get(0),PaymentPurpose.ADDITIONAL).orElseThrow();
         payments.confirm(ids.get(0),o.getOrderId(),"extra_"+o.getOrderId(),o.getAmount());
         assertThat(rideRequests.isRestricted(ids.get(0))).isFalse();
     }
     @Test void responseLostAfterCancellationIsRecoveredByLookup() {
-        depart(); submit(16800);
+        promotedPayerSettlement();
         doAnswer(c->{provider.cancel(c.getArgument(0),c.getArgument(1),c.getArgument(2),c.getArgument(3));throw new PaymentGateway.Unavailable("모의 응답 유실");})
                 .when(gateway).cancel(anyString(),anyLong(),anyString(),anyString());
         finalizeFare(); payments.retryDue();
-        assertThat(order(0).getRefundedAmount()).isEqualTo(480);
-        verify(gateway,times(2)).cancel(anyString(),anyLong(),anyString(),anyString());
+        assertThat(order(1).getRefundedAmount()).isEqualTo(5600);
+        // 응답이 사라진 취소는 조회로 복구하고 다시 취소하지 않는다(정산 환불은 B 한 건).
+        verify(gateway,times(1)).cancel(anyString(),anyLong(),anyString(),anyString());
     }
     @Test void failedOperationsStopAfterThreeRetries() {
-        depart(); submit(16800);
+        promotedPayerSettlement();
         doThrow(new PaymentGateway.Unavailable("모의 장애")).when(gateway).cancel(anyString(),anyLong(),anyString(),anyString());
         finalizeFare();
         for(int i=0;i<3;i++){at(clock.now().plusSeconds(60));payments.retryDue();}
-        assertThat(operations.findAll().stream().filter(o->o.getType()==PaymentOperationType.CANCEL)).allMatch(o->o.getAttempts()==4&&o.getStatus()==PaymentOperationStatus.ADMIN_REQUIRED);
-        payments.retryDue(); verify(gateway,times(8)).cancel(anyString(),anyLong(),anyString(),anyString());
+        assertThat(operations.findAll().stream().filter(o->o.getType()==PaymentOperationType.CANCEL)).singleElement().satisfies(o->{assertThat(o.getAttempts()).isEqualTo(4);assertThat(o.getStatus()).isEqualTo(PaymentOperationStatus.ADMIN_REQUIRED);});
+        payments.retryDue(); verify(gateway,times(4)).cancel(anyString(),anyLong(),anyString(),anyString());
     }
     @Test void notOperatedDeadlineCannotBecomeLateStart() {
         approve(0);approve(1);at(NOW.plusSeconds(1800+300));slots.runLocked(()->{slots.process(clock.now());return null;});
@@ -283,7 +360,7 @@ class PaymentFlowTest {
         rideRequests.cancel(ids.get(1),requests.findAll().stream().filter(r->r.getMember().getId().equals(ids.get(1))).findFirst().orElseThrow().getId());
         payments.retryDue();
         assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.DISSOLVED);
-        assertThat(order(0).getRefundedAmount()).isEqualTo(3680);
+        assertThat(order(0).getRefundedAmount()).isEqualTo(3200);
     }
     @Test void twelveHourReminderIsSentOnce() {
         depart();at(NOW.plusSeconds(1800+12*3600));lifecycle.afterDepartures();lifecycle.afterDepartures();
@@ -297,32 +374,54 @@ class PaymentFlowTest {
 
     @Test void p02OneWonResidualGoesToNonPayers() {
         new TransactionTemplate(manager).executeWithoutResult(status->{
-            Party party=parties.findByIdForUpdate(partyId).orElseThrow();party.setPayer(members.findById(ids.get(0)).orElseThrow());
+            // 나누는 금액은 확정 금액이다(S43). 3으로 나누어떨어지지 않는 10,001원으로 1원 잔여를 만든다.
+            Party party=parties.findByIdForUpdate(partyId).orElseThrow();party.setPayer(members.findById(ids.get(0)).orElseThrow());party.setExpectedTotal(10001);
             requests.findByPartyOrderByRideOrder(party).forEach(r->r.setRatioUnits(1L));
         });
-        assertThat(settlementService.preview(ids.get(0),partyId,10001).stream().map(SettlementService.ShareView::amount).toList())
+        assertThat(settlementService.preview(ids.get(0),partyId,24000).stream().map(SettlementService.ShareView::amount).toList())
                 .containsExactly(3333L,3334L,3334L);
     }
-    @Test void p03ServerPreviewPreservesSumAndPayerBoundForOneThousandAmounts() {
+    /** (d) 미리보기는 입력한 미터와 상관없이 확정 금액 16,800원을 나눈 같은 몫을 보여 준다. 합은 확정 금액, 결제자는 비례 몫 이하. */
+    @Test void p03ServerPreviewReturnsSameFixedSharesForAnyAmount() {
+        var low=settlementService.preview(ids.get(2),partyId,9000).stream().map(SettlementService.ShareView::amount).toList();
+        var high=settlementService.preview(ids.get(2),partyId,24000).stream().map(SettlementService.ShareView::amount).toList();
+        assertThat(low).containsExactly(3200L,5600L,8000L).isEqualTo(high);
         for(long amount=1;amount<=1000;amount++) {
             var values=settlementService.preview(ids.get(2),partyId,amount);
-            assertThat(values.stream().mapToLong(SettlementService.ShareView::amount).sum()).isEqualTo(amount);
-            assertThat(values).allMatch(v->v.amount()>=0);
-            assertThat(values.get(2).amount()*31500).isLessThanOrEqualTo(amount*15000);
+            assertThat(values.stream().map(SettlementService.ShareView::amount).toList()).isEqualTo(low);
+            assertThat(values.stream().mapToLong(SettlementService.ShareView::amount).sum()).isEqualTo(16800);
+            assertThat(values.get(2).amount()*31500).isLessThanOrEqualTo(16800L*15000);
         }
     }
-    @Test void promotedPayerKeepsDepositUntilSettlementThenGetsFullRefund() {
+
+    /**
+     * 결제자 C가 무료 취소로 빠지면 B가 결제자가 되고, 남은 A·B의 확정 금액은 14,000원(단독 합 16,500원의 90% 이하)이 된다.
+     * B의 선결제 5,600원은 정산 확정 때 전액 돌려주고(결제자는 낼 몫이 없다), A의 새 몫 5,091원 중 선결제 3,200원을 넘는
+     * 1,891원은 추가 결제 대신 적립금이 메운다. 정산 확정에서 실제 환불이 생기는 대표 경로라 환불 재시도 시험도 이것을 쓴다.
+     */
+    void promotedPayerSettlement() {
+        remainingPairFare(14000);
         approve(0);approve(1);
         long formerPayerRequest=requests.findAll().stream().filter(r->r.getMember().getId().equals(ids.get(2))).findFirst().orElseThrow().getId();
         rideRequests.cancel(ids.get(2),formerPayerRequest);
         assertThat(parties.findById(partyId).orElseThrow().getPayer().getId()).isEqualTo(ids.get(1));
+        assertThat(parties.findById(partyId).orElseThrow().getExpectedTotal()).isEqualTo(14000);
         assertThat(order(1).getRefundTarget()).isZero();
         at(NOW.plusSeconds(600));lifecycle.beforeDepartures();at(NOW.plusSeconds(1800));slots.runLocked(()->{slots.process(clock.now());return null;});
         boardAndStart(2);
         settlementService.submit(ids.get(1),partyId,12000,receipt(),null,null);
+    }
+    @Test void promotedPayerKeepsDepositUntilSettlementThenGetsFullRefund() {
+        promotedPayerSettlement();
+        verify(gateway,never()).cancel(anyString(),anyLong(),anyString(),anyString());
         finalizeFare();
-        assertThat(order(1).getRefundedAmount()).isEqualTo(6440);
-        assertThat(payouts.findAll().getFirst().getMemberId()).isEqualTo(ids.get(1));
+        assertThat(order(1).getRefundedAmount()).isEqualTo(5600);
+        verify(gateway,times(1)).cancel(eq(order(1).getPaymentKey()),eq(5600L),anyString(),anyString());
+        assertThat(order(0).getRefundedAmount()).isZero();assertThat(additional()).isEmpty();
+        assertThat(allocations.findAll().stream().sorted(Comparator.comparingInt(SettlementShare::getRideOrder)).map(SettlementShare::getAmount).toList()).containsExactly(5091L,8909L);
+        assertThat(payouts.findAll()).singleElement().satisfies(p->{assertThat(p.getMemberId()).isEqualTo(ids.get(1));assertThat(p.getAmount()).isEqualTo(12000-8909);});
+        // 받은 몫 3,200 − 지급 3,091 = 109 = (확정 14,000 − 미터 12,000) − 적립금이 메운 1,891
+        assertThat(reserveEntry()).satisfies(e->{assertThat(e.getCovered()).isEqualTo(5091-3200);assertThat(e.getAmount()).isEqualTo(3200-(12000-8909));assertThat(e.getFixedTotal()).isEqualTo(14000);});
     }
 
     @Test void freeCancellationDeadlineUsesLaterOfPrepaymentAndTMinusThirty() {
@@ -331,10 +430,10 @@ class PaymentFlowTest {
         assertThat(party.freeCancelUntil()).isEqualTo(NOW.plusSeconds(600));
         long request=requests.findAll().stream().filter(r->r.getMember().getId().equals(ids.get(0))).findFirst().orElseThrow().getId();
         rideRequests.cancel(ids.get(0),request);payments.retryDue();
-        assertThat(order(0).getRefundedAmount()).isEqualTo(3680);
+        assertThat(order(0).getRefundedAmount()).isEqualTo(3200);
     }
     @Test void C02_lateCancellationCompensatesAtSettlementWithoutNoShow() {
-        approve(0);approve(1);
+        remainingPairFare(16100);approve(0);approve(1);
         new TransactionTemplate(manager).executeWithoutResult(tx->{var p=parties.findByIdForUpdate(partyId).orElseThrow();p.setDepartureAt(NOW.plusSeconds(7200));p.setPrepayDeadlineAt(NOW.plusSeconds(3600));orders.findByPartyIdOrderById(partyId).forEach(o->o.setDeadlineAt(NOW.plusSeconds(3600)));});
         at(NOW.plusSeconds(6000));lifecycle.beforeDepartures();
         long request=requests.findAll().stream().filter(r->r.getMember().getId().equals(ids.get(0))).findFirst().orElseThrow().getId();
@@ -345,7 +444,10 @@ class PaymentFlowTest {
         boardAndStart(0);
         submit(20000);finalizeFare();
         var charge=compensationEntries.findByPartyIdOrderByRequestId(partyId).stream().filter(e->e.getMemberId().equals(ids.get(0))).findFirst().orElseThrow();
-        assertThat(charge.getCharge()).isEqualTo(3200);assertThat(order(0).getRefundedAmount()).isEqualTo(480);
+        // 남은 B·C 확정 금액 16,100원은 확정 몫 합 13,600원보다 2,500원 늘었다. 보전은 미터(20,000원)가 아니라 이 증가분이고 상한 3,200원 안이다.
+        assertThat(parties.findById(partyId).orElseThrow().getExpectedTotal()).isEqualTo(16100);
+        assertThat(charge.getCharge()).isEqualTo(2500);assertThat(order(0).getRefundedAmount()).isEqualTo(3200-2500);
+        assertThat(comp(1).getNetShare()).isEqualTo(5600);assertThat(comp(2).getNetShare()).isEqualTo(8000);assertThat(additional()).isEmpty();
         assertThat(requests.findById(request).orElseThrow().isNoShow()).isFalse();
     }
 
@@ -438,7 +540,7 @@ class PaymentFlowTest {
             assertThat(op.getStatus()).isEqualTo(PaymentOperationStatus.CANCELED);
         });
         assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.COMPLETED);
-        assertThat(order(0).getRefundedAmount()).isEqualTo(480);
+        assertThat(order(0).getRefundedAmount()).isZero();
         assertThat(payouts.findAll()).singleElement().satisfies(payout->assertThat(payout.getAmount()).isEqualTo(8800));
     }
 
@@ -459,7 +561,7 @@ class PaymentFlowTest {
         at(NOW.plusSeconds(1200));lifecycle.beforeDepartures();
         doAnswer(c->provider.get(c.getArgument(0))).when(gateway).get(anyString());
         at(NOW.plusSeconds(1260));payments.retryDue();payments.retryDue();
-        assertThat(order(0).getRefundedAmount()).isEqualTo(3680);
+        assertThat(order(0).getRefundedAmount()).isEqualTo(3200);
         assertThat(requests.findByStatus(RequestStatus.MATCHED)).noneMatch(r->r.getMember().getId().equals(ids.get(0)));
         verify(gateway,times(1)).confirm(anyString(),eq(original.getOrderId()),anyLong(),anyString());
     }
@@ -517,9 +619,9 @@ class PaymentFlowTest {
         assertThat(order(1).getExcludedAt()).isEqualTo(clock.now());
         doAnswer(c->provider.get(c.getArgument(0))).when(gateway).get(anyString());
         for(int i=0;i<5;i++){lifecycle.beforeDepartures();payments.retryDue();}
-        assertThat(order(1).getRefundedAmount()).isEqualTo(6440);
+        assertThat(order(1).getRefundedAmount()).isEqualTo(5600);
         assertThat(requests.findByStatus(RequestStatus.MATCHED)).noneMatch(r->r.getMember().getId().equals(ids.get(1)));
-        verify(gateway,times(1)).cancel(eq(order(1).getPaymentKey()),eq(6440L),anyString(),anyString());
+        verify(gateway,times(1)).cancel(eq(order(1).getPaymentKey()),eq(5600L),anyString(),anyString());
         verify(gateway,times(1)).confirm(anyString(),eq(b.getOrderId()),anyLong(),anyString());
     }
     @Test void terminalPaymentFailureIsRemovedAtPrepayDeadlineWithoutGrace() {
@@ -533,9 +635,9 @@ class PaymentFlowTest {
     @Test void c06OriginalTermsSurviveRecalculationAndBusinessVersionBecomesTwo() {
         approve(0);at(NOW.plusSeconds(600));lifecycle.beforeDepartures();
         var a=terms.findByPartyIdAndMemberId(partyId,ids.get(0)).orElseThrow();
-        assertThat(a.getConfirmedShare()).isEqualTo(3200);assertThat(a.getConfirmedPrepay()).isEqualTo(3680);
+        assertThat(a.getConfirmedShare()).isEqualTo(3200);assertThat(a.getConfirmedPrepay()).isEqualTo(3200);
         assertThat(a.isMigratedUnknown()).isFalse();
-        assertThat(order(0).getAmount()).isEqualTo(3680);
+        assertThat(order(0).getAmount()).isEqualTo(3200);
         assertThat(parties.findById(partyId).orElseThrow().getGroupVersion()).isEqualTo(2);
         assertThat(partyChanges.findByPartyIdOrderByGroupVersion(partyId)).singleElement().satisfies(c->{assertThat(c.getGroupVersion()).isEqualTo(2);assertThat(c.getReason()).isEqualTo("PREPAY_UNPAID");assertThat(c.getChangedAt()).isEqualTo(clock.now());});
         assertThat(partyService.view(ids.get(0),partyId).myConfirmedShare()).isEqualTo(3200);
@@ -581,7 +683,7 @@ class PaymentFlowTest {
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.length()").value(1))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].orderId").value(order(1).getOrderId()))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].approvedAmount").value(6440))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].approvedAmount").value(5600))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].refundHeld").value(true))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].paymentKey").doesNotExist())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].memberId").doesNotExist())
@@ -598,7 +700,7 @@ class PaymentFlowTest {
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/history").session(session))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].stage").value("BOARDING_NO_SHOW"));
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(endpoint).session(session))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].refundedAmount").value(2140))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].refundedAmount").value(0))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].refundHeld").value(false));
     }
 
@@ -612,7 +714,7 @@ class PaymentFlowTest {
             payments.createObligation(partyId,ids.get(0),null,null,PaymentPurpose.ADDITIONAL,999,clock.now().plusSeconds(86400));
         });
         assertThat(payments.history(ids.get(1),rider(1).getId())).hasSize(2)
-                .extracting(PaymentService.OrderView::amount).containsExactly(6440L,123L);
+                .extracting(PaymentService.OrderView::amount).containsExactly(5600L,123L);
     }
     @Test void n09NoPayerAnswerOrFareByTPlus24RefundsAllAndClosesInput() {
         unconfirmed();at(NOW.plusSeconds(1800+24*3600-1));lifecycle.afterDepartures();
@@ -620,7 +722,7 @@ class PaymentFlowTest {
         assertThat(order(0).getRefundedAmount()).isZero();
         at(NOW.plusSeconds(1800+24*3600));lifecycle.afterDepartures();
         assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.NOT_OPERATED);
-        assertThat(order(0).getRefundedAmount()).isEqualTo(3680);assertThat(order(1).getRefundedAmount()).isEqualTo(6440);
+        assertThat(order(0).getRefundedAmount()).isEqualTo(3200);assertThat(order(1).getRefundedAmount()).isEqualTo(5600);
         assertThatThrownBy(()->submit(16800)).isInstanceOf(ApiException.class);
     }
     @Test void fareWithinTPlus24IsAcceptedWithoutPayerAnswer() {
@@ -644,7 +746,7 @@ class PaymentFlowTest {
     }
     @Test void payerNoRefundsButLateRodeOnlyRecordsAdminFlag() {
         unconfirmed();rideConfirmations.answer(ids.get(2),partyId,false);payments.retryDue();
-        assertThat(order(0).getRefundedAmount()).isEqualTo(3680);assertThat(order(1).getRefundedAmount()).isEqualTo(6440);
+        assertThat(order(0).getRefundedAmount()).isEqualTo(3200);assertThat(order(1).getRefundedAmount()).isEqualTo(5600);
         rideConfirmations.answer(ids.get(0),partyId,true);payments.retryDue();
         Party party=parties.findById(partyId).orElseThrow();
         assertThat(party.getStatus()).isEqualTo(PartyStatus.NOT_OPERATED);assertThat(party.isAdminReviewRequired()).isTrue();
@@ -670,14 +772,16 @@ class PaymentFlowTest {
     @Test void s30BeforeCallChangeExitIsFreeAndRefunded() {
         changedGroup();at(NOW.plusSeconds(1199));
         assertThat(rideRequests.leaveAfterChange(ids.get(0),partyId,2)).isTrue();payments.retryDue();
-        assertThat(order(0).getRefundedAmount()).isEqualTo(3680);
+        assertThat(order(0).getRefundedAmount()).isEqualTo(3200);
         assertThat(payouts.count()).isZero();assertThat(compensationEntries.count()).isZero();
         assertThat(terms.findByPartyIdAndMemberId(partyId,ids.get(0)).orElseThrow().isRefundHeld()).isFalse();
     }
     @Test void s30AtCallChangeExitIsNotFreeEvenIfPartyDissolves() {
         changedGroup();at(NOW.plusSeconds(1200));
         assertThat(rideRequests.leaveAfterChange(ids.get(0),partyId,2)).isFalse();payments.retryDue();
-        assertThat(order(0).getRefundedAmount()).isEqualTo(480);assertThat(order(0).getRefundTarget()).isEqualTo(480);
+        // 보전 부담 3,200원이 선결제 3,200원과 같아 돌려줄 돈이 없다(무료 이탈이면 전액 환불).
+        assertThat(order(0).getRefundedAmount()).isZero();assertThat(order(0).getRefundTarget()).isZero();
+        assertThat(compensationEntries.findByPartyIdOrderByRequestId(partyId)).anySatisfy(e->{assertThat(e.getMemberId()).isEqualTo(ids.get(0));assertThat(e.getCharge()).isEqualTo(3200);});
         assertThat(terms.findByPartyIdAndMemberId(partyId,ids.get(0)).orElseThrow().isRefundHeld()).isFalse();
         assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.DISSOLVED);
         assertThat(payouts.findAll()).singleElement().satisfies(p->{assertThat(p.getMemberId()).isEqualTo(ids.get(2));assertThat(p.getAmount()).isEqualTo(3200);});
@@ -688,7 +792,7 @@ class PaymentFlowTest {
         assertThatThrownBy(()->rideRequests.leaveAfterChange(ids.get(0),partyId,1)).isInstanceOf(ApiException.class);
         assertThat(parties.findById(partyId).orElseThrow().getGroupVersion()).isEqualTo(2);
         assertThat(rideRequests.leaveAfterChange(ids.get(0),partyId,2)).isFalse();payments.retryDue();
-        assertThat(order(0).getRefundedAmount()).isEqualTo(480);
+        assertThat(order(0).getRefundedAmount()).isZero();
         assertThat(payouts.findAll()).singleElement().satisfies(p->{assertThat(p.getMemberId()).isEqualTo(ids.get(2));assertThat(p.getAmount()).isEqualTo(3200);});
     }
 
@@ -735,7 +839,7 @@ class PaymentFlowTest {
                 .session(session).contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{\"groupVersion\":2}"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.freeRefund").value(false));
-        assertThat(order(0).getRefundedAmount()).isEqualTo(480);
+        assertThat(order(0).getRefundedAmount()).isZero();
         assertThat(payouts.findAll()).singleElement().satisfies(p->{assertThat(p.getMemberId()).isEqualTo(ids.get(2));assertThat(p.getAmount()).isEqualTo(3200);});
     }
 
@@ -746,7 +850,7 @@ class PaymentFlowTest {
         doAnswer(c->{at(NOW.plusSeconds(1201));return c.callRealMethod();}).when(routeClient)
                 .routeAt(any(),any(),any());
         assertThat(rideRequests.leaveAfterChange(ids.get(0),partyId,2)).isTrue();payments.retryDue();
-        assertThat(order(0).getRefundedAmount()).isEqualTo(3680);
+        assertThat(order(0).getRefundedAmount()).isEqualTo(3200);
         assertThat(terms.findByPartyIdAndMemberId(partyId,ids.get(0)).orElseThrow().isRefundHeld()).isFalse();
     }
 
@@ -766,13 +870,13 @@ class PaymentFlowTest {
         assertThat(order(0).getRefundTarget()).isZero();
         calls.set(false);lifecycle.beforeDepartures();payments.retryDue();
         assertThat(parties.findById(partyId).orElseThrow().isRouteVerificationPending()).isFalse();
-        assertThat(order(0).getRefundedAmount()).isEqualTo(3680);
+        assertThat(order(0).getRefundedAmount()).isEqualTo(3200);
         assertThat(rider(0).getStatus()).isEqualTo(RequestStatus.CANCELED);
     }
 
     @Test void overdueApprovalRacingDeadlineProcessingAlwaysClearsOnlyThatMembersRestriction() throws Exception {
-        depart();submit(24000);finalizeFare();
-        PaymentOrder extra=orders.findByPartyIdAndMemberIdAndPurpose(partyId,ids.get(0),PaymentPurpose.ADDITIONAL).orElseThrow();
+        PaymentOrder extra=settledWithAdditional(0,892);
+        new TransactionTemplate(manager).executeWithoutResult(tx->payments.createObligation(partyId,ids.get(1),null,extra.getSettlementId(),PaymentPurpose.ADDITIONAL,1560,extra.getDeadlineAt()));
         at(extra.getDeadlineAt());lifecycle.afterDepartures();
         assertThat(rideRequests.isRestricted(ids.get(0))).isTrue();
         var entered=new java.util.concurrent.CountDownLatch(1);var release=new java.util.concurrent.CountDownLatch(1);
@@ -849,10 +953,10 @@ class PaymentFlowTest {
     }
 
     @Test void sevenDayJumpCompletesAllRefundsEvenAtSubMicrosecondTimestamp() {
-        depart();submit(16800);
+        promotedPayerSettlement();
         // datetime(6)이 999ns를 다음 마이크로초로 반올림하면 예전 코드는 이 회차의 즉시 환불을 놓쳤다.
         at(NOW.plusSeconds(1800+7*24*3600L).plusNanos(999));lifecycle.afterDepartures();
-        assertThat(order(0).getRefundedAmount()).isEqualTo(480);assertThat(order(1).getRefundedAmount()).isEqualTo(840);
+        assertThat(order(0).getRefundedAmount()).isZero();assertThat(order(1).getRefundedAmount()).isEqualTo(5600);
         assertThat(operations.findAll()).allMatch(op->op.getStatus()==PaymentOperationStatus.SUCCEEDED);
         assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.COMPLETED);
         assertThat(payouts.findAll()).hasSize(1);
@@ -865,9 +969,9 @@ class PaymentFlowTest {
         approve(0);at(NOW.plusSeconds(1200));lifecycle.beforeDepartures();
         doAnswer(c->provider.get(c.getArgument(0))).when(gateway).get(anyString());
         payments.retryDue();
-        assertThat(order(0).getRefundedAmount()).isEqualTo(3680);
+        assertThat(order(0).getRefundedAmount()).isEqualTo(3200);
         assertThat(operations.findByPaymentOrderIdOrderById(order(0).getId())).allMatch(op->op.getStatus()==PaymentOperationStatus.SUCCEEDED);
-        verify(gateway,times(1)).cancel(eq(order(0).getPaymentKey()),eq(3680L),anyString(),anyString());
+        verify(gateway,times(1)).cancel(eq(order(0).getPaymentKey()),eq(3200L),anyString(),anyString());
     }
 
     @Test void instantPendingPaymentWaitsUntilEstimatedTThenExcludesWithoutDepartureConflict() {
@@ -907,14 +1011,16 @@ class PaymentFlowTest {
     void reviewB(){departWithout(1);submit(15500);at(investigation(1).getDeadlineAt());lifecycle.afterDepartures();assertThat(investigation(1).getStatus()).isEqualTo("REVIEW");}
     CompensationEntry comp(int index){return compensationEntries.findByPartyIdOrderByRequestId(partyId).stream().filter(e->e.getMemberId().equals(ids.get(index))).findFirst().orElseThrow();}
 
-    @Test void N01_confirmedBNoShowCharges4300Refunds2140AndPayerReceives7500(){
+    /** 확정 금액 16,800원을 A·C가 나누면 증가분 합이 B의 확정 몫 5,600원과 같아 B는 선결제 전액을 부담한다. 미터 15,500원은 지급에만 쓰인다. */
+    @Test void N01_confirmedBNoShowCharges5600WithNoRefundAndPayerReceives7500(){
         departWithout(1);noShows.vote(ids.get(0),partyId,ids.get(1),false);submit(15500);
         assertThat(boardingCases.findAll()).singleElement().satisfies(c->assertThat(c.getStatus()).isEqualTo("PENDING"));
         assertThat(order(1).getRefundedAmount()).isZero();assertThat(payouts.count()).isZero();
         finalizeFare();
-        assertThat(comp(1).getCharge()).isEqualTo(4300);assertThat(order(1).getRefundedAmount()).isEqualTo(2140);
+        assertThat(comp(1).getCharge()).isEqualTo(5600);assertThat(order(1).getRefundedAmount()).isZero();
         assertThat(comp(0).getNetShare()).isEqualTo(3200);assertThat(comp(2).getNetShare()).isEqualTo(8000);
-        assertThat(payouts.findAll()).singleElement().satisfies(p->assertThat(p.getAmount()).isEqualTo(7500));
+        assertThat(payouts.findAll()).singleElement().satisfies(p->assertThat(p.getAmount()).isEqualTo(15500-8000));
+        assertThat(reserveEntry().getAmount()).isEqualTo(3200+5600-7500);assertThat(reserveEntry().getCovered()).isZero();assertThat(additional()).isEmpty();
         assertThat(rider(1).isNoShow()).isTrue();assertThat(members.findById(ids.get(1)).orElseThrow().getNoShowCount()).isEqualTo(1);
         assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.COMPLETED);
     }
@@ -922,7 +1028,7 @@ class PaymentFlowTest {
         approve(0);approve(1);
         new TransactionTemplate(manager).executeWithoutResult(tx->rideConfirmations.notOperated(parties.findByIdForUpdate(partyId).orElseThrow()));
         payments.retryDue();
-        assertThat(order(0).getRefundedAmount()).isEqualTo(3680);assertThat(order(1).getRefundedAmount()).isEqualTo(6440);
+        assertThat(order(0).getRefundedAmount()).isEqualTo(3200);assertThat(order(1).getRefundedAmount()).isEqualTo(5600);
         assertThat(boardingCases.count()).isZero();assertThat(requests.findAll()).noneMatch(RideRequest::isNoShow);
     }
     @Test void N03_acceptedExplanationRefundsAllBAndMakesNoNoShowRecord(){
@@ -930,7 +1036,7 @@ class PaymentFlowTest {
         noShows.explain(ids.get(1),investigation(1).getId(),"기사님이 승차를 거절했어요.");submit(15500);finalizeFare();
         assertThat(investigation(1).getStatus()).isEqualTo("REVIEW");assertThat(payouts.count()).isZero();
         admin.decideNoShow(adminId(),investigation(1).getId(),"NOT_NO_SHOW","기사 거절 소명 확인");lifecycle.afterDepartures();
-        assertThat(order(1).getRefundedAmount()).isEqualTo(6440);assertThat(comp(1).getCharge()).isZero();assertThat(rider(1).isNoShow()).isFalse();
+        assertThat(order(1).getRefundedAmount()).isEqualTo(5600);assertThat(comp(1).getCharge()).isZero();assertThat(rider(1).isNoShow()).isFalse();
         assertThat(members.findById(ids.get(1)).orElseThrow().getNoShowCount()).isZero();
     }
     @Test void N04_conflictingPeerVotesRequireReviewAndHoldAllSettlementEffects(){
@@ -966,18 +1072,21 @@ class PaymentFlowTest {
         boardAndStart(2);
         assertThat(parties.findById(partyId).orElseThrow().getPayer().getId()).isEqualTo(ids.get(1));assertThat(order(1).getRefundedAmount()).isZero();
         settlementService.submit(ids.get(1),partyId,12000,receipt(),null,null);finalizeFare();
-        assertThat(order(1).getRefundedAmount()).isEqualTo(6440);assertThat(comp(2).getCharge()).isZero();assertThat(rider(2).isNoShow()).isTrue();
+        assertThat(order(1).getRefundedAmount()).isEqualTo(5600);assertThat(comp(2).getCharge()).isZero();assertThat(rider(2).isNoShow()).isTrue();
         assertThat(investigation(2).isNoCompensation()).isTrue();
     }
-    @Test void N07_compensationCap5600Splits12800IncreaseByItsRatio(){
+    /** 예전에는 미터 24,000원의 증가분 12,800원을 상한 5,600원으로 잘랐다. 이제는 확정 금액을 나누므로 증가분이 정확히 5,600원이고 미터와 무관하다. */
+    @Test void N07_compensationSplitsFixedTotalIncreaseByItsRatioRegardlessOfMeter(){
         departWithout(1);noShows.vote(ids.get(0),partyId,ids.get(1),false);submit(24000);finalizeFare();
         assertThat(comp(1).getCharge()).isEqualTo(5600);assertThat(comp(0).getCredit()).isEqualTo(1600);assertThat(comp(2).getCredit()).isEqualTo(4000);
-        assertThat(order(1).getRefundedAmount()).isEqualTo(840);
+        assertThat(comp(0).getRawShare()).isEqualTo(4800);assertThat(comp(2).getRawShare()).isEqualTo(12000);
+        assertThat(order(1).getRefundedAmount()).isZero();assertThat(additional()).isEmpty();
+        assertThat(payouts.findAll()).singleElement().satisfies(p->assertThat(p.getAmount()).isEqualTo(24000-8000));
     }
     @Test void N10_refusedSuccessionDoesNotOfferNextCandidateAndRefundsOthers(){
         absentPayerOffer();noShows.succession(ids.get(1),partyId,false);payments.retryDue();
         assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.NOT_OPERATED);
-        assertThat(order(0).getRefundedAmount()).isEqualTo(3680);assertThat(order(1).getRefundedAmount()).isEqualTo(6440);
+        assertThat(order(0).getRefundedAmount()).isEqualTo(3200);assertThat(order(1).getRefundedAmount()).isEqualTo(5600);
         assertThatThrownBy(()->noShows.succession(ids.get(0),partyId,true)).isInstanceOf(ApiException.class);
         at(investigation(2).getDeadlineAt());lifecycle.afterDepartures();assertThat(rider(2).isNoShow()).isTrue();
         assertThat(compensationEntries.count()).isZero();assertThat(payouts.count()).isZero();
@@ -985,16 +1094,19 @@ class PaymentFlowTest {
     @Test void N10_unansweredSuccessionExpiresWithoutAnotherOffer(){
         absentPayerOffer();at(NOW.plusSeconds(2100));lifecycle.beforeDepartures();payments.retryDue();
         assertThat(parties.findById(partyId).orElseThrow().getSuccessionStatus()).isEqualTo("REFUSED");
-        assertThat(order(0).getRefundedAmount()).isEqualTo(3680);assertThat(order(1).getRefundedAmount()).isEqualTo(6440);
+        assertThat(order(0).getRefundedAmount()).isEqualTo(3200);assertThat(order(1).getRefundedAmount()).isEqualTo(5600);
     }
     @Test void N11_twoAbsenteesShareTheSameCompensationTotalWithinBothCaps(){
         long fourth=members.findByEmail("demo-f4@daejin.ac.kr").orElseThrow().getId();
         new TransactionTemplate(manager).executeWithoutResult(tx->{
             var p=parties.findByIdForUpdate(partyId).orElseThrow();RideRequest r=new RideRequest();r.setMember(members.getReferenceById(fourth));r.setDirection(Direction.FROM_HUB);r.setHub(p.getHub());r.setPointName("추가 도착지");r.setRequestedAt(NOW);r.setParty(p);r.setRideOrder(2);r.setRatioUnits(9000L);r.setSoloFare(9000);r.setExpectedShare(4000L);r.setStatus(RequestStatus.MATCHED);r.setArrived(false);requests.save(r);
-            payments.createObligation(partyId,fourth,r.getId(),null,PaymentPurpose.PREPAY,4600,p.getPrepayDeadlineAt());
+            // 네 번째 사람의 확정 몫 4,000원을 일행 확정 금액에도 더한다(16,800 + 4,000). 선결제는 확정 몫 그대로다.
+            p.setExpectedTotal(20800);
+            payments.createObligation(partyId,fourth,r.getId(),null,PaymentPurpose.PREPAY,PaymentService.prepayAmount(4000),p.getPrepayDeadlineAt());
             changeService.capture(p,List.of(r),false);
         });
         var extra=orders.findByPartyIdAndMemberIdAndPurpose(partyId,fourth,PaymentPurpose.PREPAY).orElseThrow();payments.confirm(fourth,extra.getOrderId(),"fourth",extra.getAmount());
+        // A·C가 20,800원을 나누면 증가분 합이 두 사람의 확정 몫 합 9,600원과 같다. 이를 상한 비율(5,600:4,000)로 나눈다.
         departWithout(1);noShows.vote(ids.get(0),partyId,ids.get(1),false);noShows.vote(ids.get(2),partyId,fourth,false);submit(24000);finalizeFare();
         var values=compensationEntries.findByPartyIdOrderByRequestId(partyId);
         assertThat(values.stream().mapToLong(CompensationEntry::getCharge).sum()).isEqualTo(values.stream().mapToLong(CompensationEntry::getCredit).sum()).isEqualTo(9600);
@@ -1003,15 +1115,18 @@ class PaymentFlowTest {
     @Test void N12_unresolvableConflictMeansNotNoShowAndFullRefund(){
         departWithout(1);noShows.vote(ids.get(0),partyId,ids.get(1),false);noShows.vote(ids.get(2),partyId,ids.get(1),true);submit(15500);finalizeFare();
         admin.decideNoShow(adminId(),investigation(1).getId(),"UNDETERMINED","추가 증거가 없어 판단 불가");lifecycle.afterDepartures();
-        assertThat(investigation(1).getStatus()).isEqualTo("EXONERATED");assertThat(order(1).getRefundedAmount()).isEqualTo(6440);assertThat(rider(1).isNoShow()).isFalse();
+        assertThat(investigation(1).getStatus()).isEqualTo("EXONERATED");assertThat(order(1).getRefundedAmount()).isEqualTo(5600);assertThat(rider(1).isNoShow()).isFalse();
     }
     @Test void lateChangedExitUsesSameSettlementCompensation(){
-        approve(0);approve(1);at(NOW.plusSeconds(600));lifecycle.beforeDepartures();
+        remainingPairFare(16100);approve(0);approve(1);at(NOW.plusSeconds(600));lifecycle.beforeDepartures();
         new TransactionTemplate(manager).executeWithoutResult(tx->parties.findByIdForUpdate(partyId).orElseThrow().setGroupVersion(2));
         at(NOW.plusSeconds(1201));assertThat(rideRequests.leaveAfterChange(ids.get(1),partyId,2)).isFalse();
         assertThat(investigation(1).getKind()).isEqualTo("LATE_CANCEL");assertThat(investigation(1).getStatus()).isEqualTo("CONFIRMED");
         at(NOW.plusSeconds(1800));slots.runLocked(()->{slots.process(clock.now());return null;});boardAndStart(1);submit(15500);finalizeFare();
-        assertThat(comp(1).getCharge()).isEqualTo(4300);assertThat(order(1).getRefundedAmount()).isEqualTo(2140);assertThat(rider(1).isNoShow()).isFalse();
+        // 남은 A·C 확정 금액 16,100원 = 확정 몫 합 11,200원 + 4,900원. 보전은 이 증가분(상한 5,600원 안)이고 나머지 700원을 돌려준다.
+        assertThat(parties.findById(partyId).orElseThrow().getExpectedTotal()).isEqualTo(16100);
+        assertThat(comp(1).getCharge()).isEqualTo(4900);assertThat(order(1).getRefundedAmount()).isEqualTo(5600-4900);assertThat(rider(1).isNoShow()).isFalse();
+        assertThat(comp(0).getNetShare()).isEqualTo(3200);assertThat(comp(2).getNetShare()).isEqualTo(8000);
     }
     @Test void A01_adminPathsRejectNormalMemberAndAllowAdmin() throws Exception {
         var user=new org.springframework.mock.web.MockHttpSession();com.campustaximate.server.AuthenticatedTestSession.authenticate(user, ids.get(0), testTokens);
@@ -1024,15 +1139,18 @@ class PaymentFlowTest {
         reviewB();var session=new org.springframework.mock.web.MockHttpSession();com.campustaximate.server.AuthenticatedTestSession.authenticate(session, adminId(), testTokens);long id=investigation(1).getId();
         String json="{\"decision\":\"NO_SHOW\",\"evidence\":\"탑승 확인 자료 검토\"}";
         for(int i=0;i<2;i++) mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/admin/no-shows/"+id+"/decision").session(session).contentType(org.springframework.http.MediaType.APPLICATION_JSON).content(json)).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
-        assertThat(adminAudits.count()).isEqualTo(1);assertThat(order(1).getRefundedAmount()).isEqualTo(2140);assertThat(payouts.count()).isEqualTo(1);
+        // 노쇼 확정이면 B는 확정 몫 5,600원 전액을 부담해 돌려줄 돈이 없다. 두 번 판정해도 보전·지급은 한 번이다.
+        assertThat(adminAudits.count()).isEqualTo(1);assertThat(order(1).getRefundedAmount()).isZero();assertThat(payouts.count()).isEqualTo(1);
+        assertThat(comp(1).getCharge()).isEqualTo(5600);assertThat(compensationEntries.findByPartyIdOrderByRequestId(partyId)).hasSize(3);
         assertThat(members.findById(ids.get(1)).orElseThrow().getNoShowCount()).isEqualTo(1);
-        verify(gateway,times(1)).cancel(eq(order(1).getPaymentKey()),eq(2140L),anyString(),anyString());
+        verify(gateway,never()).cancel(eq(order(1).getPaymentKey()),anyLong(),anyString(),anyString());
     }
     @Test void adminFareRejectionResumesSettlementAndCannotBeAppliedTwice(){
         depart();submit(16800);settlementService.objectToFare(ids.get(0),partyId,"확인 요청");
         at(NOW.plusSeconds(1800+86400));admin.decideFare(adminId(),partyId,false,null,"영수증 원금과 일치");lifecycle.afterDepartures();
         admin.decideFare(adminId(),partyId,false,null,"영수증 원금과 일치");lifecycle.afterDepartures();
-        assertThat(payouts.count()).isEqualTo(1);assertThat(adminAudits.count()).isEqualTo(1);assertThat(order(0).getRefundedAmount()).isEqualTo(480);
+        assertThat(payouts.count()).isEqualTo(1);assertThat(adminAudits.count()).isEqualTo(1);assertThat(order(0).getRefundedAmount()).isZero();
+        assertThat(payouts.findAll().getFirst().getAmount()).isEqualTo(8800);assertThat(reserve.count()).isEqualTo(1);
     }
     @Test void explanationDeadlineAndPeerPermissionsAreStrict(){
         departWithout(1);long id=investigation(1).getId();
@@ -1046,15 +1164,18 @@ class PaymentFlowTest {
         assertThat(rideRequests.leaveAfterChange(ids.get(0),partyId,2)).isFalse();payments.retryDue();
         assertThat(investigation(0).getKind()).isEqualTo("LATE_CANCEL");assertThat(investigation(0).getStatus()).isEqualTo("CONFIRMED");
         assertThat(terms.findByPartyIdAndMemberId(partyId,ids.get(0)).orElseThrow().getConfirmedShare()).isEqualTo(3200);
-        assertThat(compensationEntries.count()).isEqualTo(2);assertThat(comp(0).getCharge()).isEqualTo(3200);assertThat(comp(2).getCredit()).isEqualTo(3200);assertThat(order(0).getRefundedAmount()).isEqualTo(480);assertThat(rider(0).isNoShow()).isFalse();
+        assertThat(compensationEntries.count()).isEqualTo(2);assertThat(comp(0).getCharge()).isEqualTo(3200);assertThat(comp(2).getCredit()).isEqualTo(3200);assertThat(order(0).getRefundedAmount()).isZero();assertThat(rider(0).isNoShow()).isFalse();
         assertThat(payouts.findAll()).singleElement().satisfies(p->{assertThat(p.getMemberId()).isEqualTo(ids.get(2));assertThat(p.getAmount()).isEqualTo(3200);});
     }
 
-    @Test void adminFareAcceptanceRecalculatesActualSharesAndWritesOneAudit(){
+    /** 이의 인용은 결제자가 받은 실제 금액(지급액)을 고친다. 각자의 몫은 확정 금액 기준이라 그대로다. */
+    @Test void adminFareAcceptanceCorrectsPaidAmountAndPayoutAndWritesOneAudit(){
         depart();submit(24000);settlementService.objectToFare(ids.get(0),partyId,"실제 금액은 영수증의 16800원");
         admin.decideFare(adminId(),partyId,true,16800L,"영수증 금액 확인");lifecycle.afterDepartures();
         assertThat(settlements.findAll().getFirst().getPaidAmount()).isEqualTo(16800);
-        assertThat(order(0).getRefundedAmount()).isEqualTo(480);assertThat(order(1).getRefundedAmount()).isEqualTo(840);
+        assertThat(order(0).getRefundedAmount()).isZero();assertThat(order(1).getRefundedAmount()).isZero();
+        assertThat(allocations.findAll().stream().sorted(Comparator.comparingInt(SettlementShare::getRideOrder)).map(SettlementShare::getAmount).toList()).containsExactly(3200L,5600L,8000L);
+        assertThat(payouts.findAll()).singleElement().satisfies(p->assertThat(p.getAmount()).isEqualTo(8800));
         assertThat(adminAudits.findAll()).singleElement().satisfies(a->{assertThat(a.getActorId()).isEqualTo(adminId());assertThat(a.getEvidence()).isEqualTo("영수증 금액 확인");});
     }
     @Test void payerBoardingWithoutStartRoutesToReviewAndAllowsFareRecovery() {
@@ -1079,7 +1200,7 @@ class PaymentFlowTest {
         unconfirmed();rideConfirmations.answer(ids.get(0),partyId,true);rideConfirmations.answer(ids.get(2),partyId,false);
         admin.decideRide(adminId(),partyId,"NOT_OPERATED","일행 증언을 대조해 미운행 판정");lifecycle.afterDepartures();
         assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.NOT_OPERATED);
-        assertThat(order(0).getRefundedAmount()).isEqualTo(3680);assertThat(order(1).getRefundedAmount()).isEqualTo(6440);
+        assertThat(order(0).getRefundedAmount()).isEqualTo(3200);assertThat(order(1).getRefundedAmount()).isEqualTo(5600);
     }
     @Test void adminRideDisputeWithReceiptResumesFareSettlement(){
         depart();submit(16800);
@@ -1116,7 +1237,7 @@ class PaymentFlowTest {
         assertThat(hubs.findBySchool(school)).noneMatch(h->h.getId().equals(hub.id()));assertThat(adminAudits.count()).isEqualTo(5);
     }
     @Test void adminOverdueHandledFlagDoesNotForgePaymentApprovalOrRemoveDebtRestriction(){
-        depart();submit(24000);finalizeFare();var extra=orders.findByPartyIdAndMemberIdAndPurpose(partyId,ids.get(0),PaymentPurpose.ADDITIONAL).orElseThrow();
+        var extra=settledWithAdditional(0,1200);
         at(extra.getDeadlineAt());lifecycle.afterDepartures();
         admin.handleOverdue(adminId(),extra.getId(),"추가 결제 안내 처리");admin.handleOverdue(adminId(),extra.getId(),"추가 결제 안내 처리");
         var result=orders.findById(extra.getId()).orElseThrow();assertThat(result.getStatus()).isEqualTo(PaymentStatus.OVERDUE);assertThat(result.getAdminHandledBy()).isEqualTo(adminId());
@@ -1133,8 +1254,8 @@ class PaymentFlowTest {
             for(var result:pool.invokeAll(tasks)) result.get(10,java.util.concurrent.TimeUnit.SECONDS);
         }finally{pool.shutdownNow();}
         assertThat(adminAudits.count()).isEqualTo(1);assertThat(compensationEntries.findByPartyIdOrderByRequestId(partyId)).hasSize(3);
-        assertThat(payouts.count()).isEqualTo(1);assertThat(order(1).getRefundedAmount()).isEqualTo(2140);
-        verify(gateway,times(1)).cancel(eq(order(1).getPaymentKey()),eq(2140L),anyString(),anyString());
+        assertThat(payouts.count()).isEqualTo(1);assertThat(order(1).getRefundedAmount()).isZero();assertThat(comp(1).getCharge()).isEqualTo(5600);
+        verify(gateway,never()).cancel(eq(order(1).getPaymentKey()),anyLong(),anyString(),anyString());
     }
     @Test void automaticNoShowAndSameAdminDecisionCountOnlyOnce(){
         departWithout(1);noShows.vote(ids.get(0),partyId,ids.get(1),false);submit(15500);finalizeFare();
@@ -1142,7 +1263,8 @@ class PaymentFlowTest {
         admin.decideNoShow(adminId(),investigation(1).getId(),"NO_SHOW","자동 판정 자료 확인");lifecycle.afterDepartures();
         admin.decideNoShow(adminId(),investigation(1).getId(),"NO_SHOW","자동 판정 자료 확인");lifecycle.afterDepartures();
         assertThat(members.findById(ids.get(1)).orElseThrow().getNoShowCount()).isEqualTo(1);assertThat(adminAudits.count()).isEqualTo(1);assertThat(payouts.count()).isEqualTo(1);
-        verify(gateway,times(1)).cancel(eq(order(1).getPaymentKey()),eq(2140L),anyString(),anyString());
+        assertThat(compensationEntries.findByPartyIdOrderByRequestId(partyId)).hasSize(3);assertThat(comp(1).getCharge()).isEqualTo(5600);
+        verify(gateway,never()).cancel(eq(order(1).getPaymentKey()),anyLong(),anyString(),anyString());
     }
     @Test void ownInvestigationsRemainDiscoverableAfterRemovalAndAdminReceiptRequiresRole() throws Exception {
         departWithout(1);submit(15500);
@@ -1166,13 +1288,13 @@ class PaymentFlowTest {
         assertThat(investigation(1).getStatus()).isEqualTo("PENDING");assertThat(rider(1).isNoShow()).isFalse();
         admin.decideRide(adminId(),partyId,"NOT_OPERATED","기사 거절로 운행하지 못했다는 증언 확인");lifecycle.afterDepartures();
         assertThat(investigation(1).getStatus()).isEqualTo("EXONERATED");assertThat(rider(1).isNoShow()).isFalse();
-        assertThat(order(0).getRefundedAmount()).isEqualTo(3680);assertThat(order(1).getRefundedAmount()).isEqualTo(6440);
+        assertThat(order(0).getRefundedAmount()).isEqualTo(3200);assertThat(order(1).getRefundedAmount()).isEqualTo(5600);
         assertThat(payments.get(ids.get(1),order(1).getOrderId()).refundHeld()).isFalse();
     }
 
     /** N-13: 확정 때 A 8000/B 5600인 두 사람. 변경 이탈용 버전은 이전 변경을 마친 상태다. */
     void prepareN13(long survivorSolo) {
-        PaymentTestSupport.clear(jdbc);transfers.deleteAll();settlements.deleteAll();requests.deleteAll();parties.deleteAll();
+        PaymentTestSupport.clear(jdbc);jdbc.update("delete from reserve_entry");transfers.deleteAll();settlements.deleteAll();requests.deleteAll();parties.deleteAll();
         at(NOW);
         partyId=new TransactionTemplate(manager).execute(tx->{
             Party p=parties.save(new Party(Direction.FROM_HUB,hubs.findAll().getFirst(),null,members.getReferenceById(ids.get(2)),NOW.plusSeconds(7200),13600));
@@ -1196,43 +1318,45 @@ class PaymentFlowTest {
         assertThat(settlements.count()).isZero();assertThat(requests.findAll()).noneMatch(RideRequest::isNoShow);
         assertThat(members.findAll().stream().filter(m->ids.contains(m.getId()))).allMatch(m->m.getNoShowCount()==0);
     }
-    @Test void N13_changeExitAfterCallCharges5600Refunds840AndPaysSurvivor5600() {
+    /** 선결제가 확정 몫 5,600원 그대로라, 상한까지 보전하면 돌려줄 돈이 없고 해산 환불도 부르지 않는다. */
+    @Test void N13_changeExitAfterCallCharges5600WithNoRefundAndPaysSurvivor5600() {
         prepareN13(15000);approve(1);at(NOW.plusSeconds(6601));
         assertThat(rideRequests.leaveAfterChange(ids.get(1),partyId,2)).isFalse();payments.retryDue();
-        assertN13(5600,840);
+        assertN13(5600,0);
         assertThat(orders.findByPartyIdAndMemberIdAndPurpose(partyId,ids.get(2),PaymentPurpose.PREPAY)).isEmpty();
         assertThat(terms.findByPartyIdAndMemberId(partyId,ids.get(2)).orElseThrow().getConfirmedShare()).isEqualTo(8000);
-        verify(gateway,times(1)).cancel(eq(order(1).getPaymentKey()),eq(840L),anyString(),anyString());
+        verify(gateway,never()).cancel(eq(order(1).getPaymentKey()),anyLong(),anyString(),anyString());
     }
     @Test void N13_generalLateCancellationUsesSameDissolutionCompensation() {
         prepareN13(15000);approve(1);at(NOW.plusSeconds(6060)) /* S39: 무료 취소 마감(T−20분=6000초) 1분 뒤 */;
-        rideRequests.cancel(ids.get(1),rider(1).getId());payments.retryDue();assertN13(5600,840);
+        rideRequests.cancel(ids.get(1),rider(1).getId());payments.retryDue();assertN13(5600,0);
     }
-    @Test void N13_increaseBelowCapCharges2000AndRefunds4440() {
+    @Test void N13_increaseBelowCapCharges2000AndRefunds3600() {
         prepareN13(10000);approve(1);at(NOW.plusSeconds(6601));
-        assertThat(rideRequests.leaveAfterChange(ids.get(1),partyId,2)).isFalse();payments.retryDue();assertN13(2000,4440);
+        assertThat(rideRequests.leaveAfterChange(ids.get(1),partyId,2)).isFalse();payments.retryDue();assertN13(2000,5600-2000);
     }
     @Test void N13_freeChangeExitBeforeCallStillRefundsAllWithoutCompensation() {
         prepareN13(15000);approve(1);at(NOW.plusSeconds(6599));
         assertThat(rideRequests.leaveAfterChange(ids.get(1),partyId,2)).isTrue();payments.retryDue();
-        assertThat(order(1).getRefundedAmount()).isEqualTo(6440);assertThat(compensationEntries.count()).isZero();assertThat(payouts.count()).isZero();
+        assertThat(order(1).getRefundedAmount()).isEqualTo(5600);assertThat(compensationEntries.count()).isZero();assertThat(payouts.count()).isZero();
         assertThat(requests.findAll()).noneMatch(RideRequest::isNoShow);
     }
     @Test void N13_repeatedDissolutionRefundCreatesOneJournalAndOneGatewayCancel() {
-        prepareN13(15000);approve(1);at(NOW.plusSeconds(6601));
+        // 환불이 실제로 생기도록 증가분이 상한보다 작은 경우(보전 2,000원, 환불 3,600원)로 반복한다.
+        prepareN13(10000);approve(1);at(NOW.plusSeconds(6601));
         rideRequests.leaveAfterChange(ids.get(1),partyId,2);
         for(int i=0;i<5;i++) {
             payments.refundForDissolution(partyId,Set.of(rider(1).getId()));payments.refundForDissolution(partyId);payments.retryDue();
             lifecycle.beforeDepartures();lifecycle.afterDepartures();
         }
-        assertN13(5600,840);assertThat(compensationEntries.count()).isEqualTo(2);
-        verify(gateway,times(1)).cancel(eq(order(1).getPaymentKey()),eq(840L),anyString(),anyString());
+        assertN13(2000,3600);assertThat(compensationEntries.count()).isEqualTo(2);
+        verify(gateway,times(1)).cancel(eq(order(1).getPaymentKey()),eq(3600L),anyString(),anyString());
     }
     @Test void N13_departingPayerAlsoBearsCompensationAndSurvivorDepositIsFullyRefunded() {
         prepareN13(15000);approve(1);at(NOW.plusSeconds(6060)) /* S39: 무료 취소 마감(T−20분=6000초) 1분 뒤 */;
         rideRequests.cancel(ids.get(2),rider(2).getId());payments.retryDue();
         assertThat(comp(2).getCharge()).isEqualTo(4900);assertThat(comp(1).getCredit()).isEqualTo(4900);
-        assertThat(order(1).getRefundedAmount()).isEqualTo(6440);
+        assertThat(order(1).getRefundedAmount()).isEqualTo(5600);
         assertThat(payouts.findAll()).singleElement().satisfies(p->{assertThat(p.getMemberId()).isEqualTo(ids.get(1));assertThat(p.getAmount()).isEqualTo(4900);});
         PaymentOrder extra=orders.findByPartyIdAndMemberIdAndPurpose(partyId,ids.get(2),PaymentPurpose.ADDITIONAL).orElseThrow();
         assertThat(extra.getAmount()).isEqualTo(4900);assertThat(extra.getDeadlineAt()).isEqualTo(clock.now().plusSeconds(86400));
@@ -1241,14 +1365,15 @@ class PaymentFlowTest {
         assertThat(requests.findAll()).noneMatch(RideRequest::isNoShow);
     }
     @Test void N13_lateApprovalUsesConfirmedChargeInsteadOfFullRefund() {
-        prepareN13(15000);PaymentOrder b=order(1);
+        // 전액 환불과 구별되도록 보전 2,000원·환불 3,600원인 경우로 본다.
+        prepareN13(10000);PaymentOrder b=order(1);
         doAnswer(c->{provider.confirm(c.getArgument(0),c.getArgument(1),c.getArgument(2),c.getArgument(3));throw new PaymentGateway.Unavailable("승인 응답 유실");})
                 .when(gateway).confirm(anyString(),eq(b.getOrderId()),anyLong(),anyString());
         doThrow(new PaymentGateway.Unavailable("상태 조회 장애")).when(gateway).get(anyString());
         approve(1);assertThat(order(1).getStatus()).isEqualTo(PaymentStatus.PROCESSING);
         at(NOW.plusSeconds(6060)) /* S39: 무료 취소 마감(T−20분=6000초) 1분 뒤 */;rideRequests.cancel(ids.get(1),rider(1).getId());
         doAnswer(c->provider.get(c.getArgument(0))).when(gateway).get(anyString());payments.retryDue();payments.retryDue();
-        assertN13(5600,840);verify(gateway,times(1)).cancel(eq(order(1).getPaymentKey()),eq(840L),anyString(),anyString());
+        assertN13(2000,3600);verify(gateway,times(1)).cancel(eq(order(1).getPaymentKey()),eq(3600L),anyString(),anyString());
     }
     @Test void N13_preDeadlineChangeExitStaysFreeWhenDissolutionFinishesAfterDeadline() {
         prepareN13(15000);approve(1);at(NOW.plusSeconds(6599));
@@ -1256,7 +1381,7 @@ class PaymentFlowTest {
             // 트랜잭션 프록시를 거치지 않게 스파이 본체에 스텁한다(MANDATORY 전파라 프록시로 부르면 실제 메서드가 실행된다).
             .when(org.springframework.test.util.AopTestUtils.<PartyChangeService>getUltimateTargetObject(changeService)).changed(any(Party.class),anySet(),anyString(),anySet());
         assertThat(rideRequests.leaveAfterChange(ids.get(1),partyId,2)).isTrue();payments.retryDue();
-        assertThat(order(1).getRefundedAmount()).isEqualTo(6440);
+        assertThat(order(1).getRefundedAmount()).isEqualTo(5600);
         assertThat(compensationEntries.count()).isZero();
         assertThat(payouts.count()).isZero();
         assertThat(terms.findByPartyIdAndMemberId(partyId,ids.get(1)).orElseThrow().isRefundHeld()).isFalse();
@@ -1286,7 +1411,7 @@ class PaymentFlowTest {
         assertThat(join.getDeadlineAt()).isEqualTo(NOW.plusSeconds(300));approveJoin(join);
         var after=partyService.view(ids.get(2),partyId);assertThat(after.members()).hasSize(4);assertThat(after.payerId()).isEqualTo(before.payerId());assertThat(after.departureAt()).isEqualTo(before.departureAt());assertThat(after.groupVersion()).isEqualTo(2);
         for(var old:before.members())assertThat(after.members().stream().filter(m->m.memberId()==old.memberId()).findFirst().orElseThrow().expectedShare()).isLessThanOrEqualTo(old.expectedShare());
-        assertThat(order(0).getAmount()).isEqualTo(3680);assertThat(order(1).getAmount()).isEqualTo(6440);
+        assertThat(order(0).getAmount()).isEqualTo(3200);assertThat(order(1).getAmount()).isEqualTo(5600);
         assertThat(terms.findByPartyIdAndMemberId(partyId,ids.get(0)).orElseThrow().getConfirmedShare()).isEqualTo(3200);
         assertThat(partyJoins.findById(join.getId()).orElseThrow().getState()).isEqualTo("CONFIRMED");
     }
@@ -1313,7 +1438,7 @@ class PaymentFlowTest {
         at(join.getDeadlineAt());joins.expireDue();payments.retryDue();var after=partyService.view(ids.get(2),partyId);
         assertThat(after.members()).isEqualTo(before.members());assertThat(after.expectedTotal()).isEqualTo(before.expectedTotal());assertThat(after.payerId()).isEqualTo(before.payerId());assertThat(after.departureAt()).isEqualTo(before.departureAt());assertThat(after.groupVersion()).isEqualTo(1);
         assertThat(requests.findById(request).orElseThrow().getStatus()).isEqualTo(RequestStatus.CANCELED);assertThat(partyJoins.findById(join.getId()).orElseThrow().getState()).isEqualTo("EXPIRED");assertThat(parties.findById(partyId).orElseThrow().getPendingJoinId()).isNull();
-        assertThat(order(0).getAmount()).isEqualTo(3680);assertThat(order(1).getAmount()).isEqualTo(6440);verify(gateway,never()).cancel(anyString(),anyLong(),anyString(),anyString());
+        assertThat(order(0).getAmount()).isEqualTo(3200);assertThat(order(1).getAmount()).isEqualTo(5600);verify(gateway,never()).cancel(anyString(),anyLong(),anyString(),anyString());
     }
     @Test void J06_twoConcurrentJoinersReserveOnlyOneRemainingSeat()throws Exception{
         joinRoutes(15000);long first=fourthMember();long second=new TransactionTemplate(manager).execute(tx->{
@@ -1416,7 +1541,7 @@ class PaymentFlowTest {
         payments.confirm(ids.get(0),o.getOrderId(),"declined_key",o.getAmount());
         assertThat(order(0).getStatus()).isEqualTo(PaymentStatus.REQUIRED);
         depart(); submit(16800); finalizeFare();
-        assertThat(order(0).getRefundedAmount()).isEqualTo(480);
+        assertThat(order(0).getRefundedAmount()).isZero();
         assertThat(parties.findById(partyId).orElseThrow().getStatus()).isEqualTo(PartyStatus.COMPLETED);
     }
 }

@@ -1,4 +1,11 @@
 app:
+  # 기존 흐름 시험은 일행을 바로 만드는 예전 조기 확정(10분) 규칙으로 준비한다. 마감 대기 규칙은 엔진 시험(SpecAcceptanceTest s42…)과 MatchingDeadlineRuleTest가 본다.
+  matching:
+    early-confirm-minutes: 10
+  # 기존 금액 시험은 견적 그대로(보정 0)로 본다. 보정 계수는 QuotedRouteClientTest에서 따로 시험한다.
+  fare:
+    quote-bias: 0
+    quote-margin: 0
   # 시연 학교. 시연 계정(demo-f1 등)과 시연 지점은 이 학교 주변 기준이다.
   schools:
     - name: 대진대학교

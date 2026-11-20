@@ -70,16 +70,16 @@ class AutoMatchingScenarioTest {
         }
         System.out.println("confirmed=" + confirmedAt.keySet() + " expired=" + expiredAt);
 
-        // 17:30 A·B 둘뿐, 10분 안 지남 → 대기. 17:35 예약 회차에 4명 확정.
+        // 17:30 A·B 둘뿐, 마감 전 → 더 모은다(S42). 17:35 예약 회차에 4명이 차서 확정.
         // F는 A를 차단해서 ABCD와 BCDF 중 기다린 시간이 긴 ABCD.
-        assertEquals(List.of("17:35 [1, 2, 3, 4]", "18:02 [6, 7]"), new ArrayList<>(confirmedAt.keySet()));
+        assertEquals(List.of("17:35 [1, 2, 3, 4]", "18:07 [6, 7]"), new ArrayList<>(confirmedAt.keySet()));
         ConfirmedGroup first = confirmedAt.get("17:35 [1, 2, 3, 4]");
         assertEquals(hm("18:10"), first.departure());
         assertEquals(d, first.payer());
-        // 18:02 즉시 G가 들어오자 1분 회차에서 바로 F와 확정. 즉시 예상 T = 18:02 + 5(결제 준비) + 5(배차 여유) = 18:12가
-        // 예약자 F의 출발 가능 범위(18:10~18:40) 안이라 함께 묶인다. 즉시 요청자는 10분 뒤 출발한다.
-        ConfirmedGroup second = confirmedAt.get("18:02 [6, 7]");
-        assertEquals(hm("18:12"), second.departure());
+        // 18:02 즉시 G가 들어오면 F와 묶일 수 있지만 더 모으다가 G의 즉시 모집 마감(18:07) 회차에 확정(S42).
+        // 즉시 예상 T = 18:07 + 5(결제 준비) + 5(배차 여유) = 18:17이 예약자 F의 출발 가능 범위(18:10~18:40) 안이다.
+        ConfirmedGroup second = confirmedAt.get("18:07 [6, 7]");
+        assertEquals(hm("18:17"), second.departure());
         assertEquals(g, second.payer());
         // 남자 E는 같이 탈 사람이 없어 모집 마감(18:40 − 25분 = 18:15) 회차에 실패
         assertEquals(Map.of("18:15", List.of(e)), expiredAt);

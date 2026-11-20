@@ -284,7 +284,7 @@ function Hubs({ items, onSaved }) {
 }
 
 const ADMIN_TABS = [['no-shows', '노쇼 검토', () => api.adminNoShows()], ['fare', '요금·운행', () => api.adminFareReviews()],
-  ['reports', '신고·제한', () => api.adminReports()], ['overdue', '미정산', () => api.adminOverdue()], ['hubs', '승차 지점', () => api.adminHubs()], ['audits', '처리 기록', () => api.adminAudits()]]
+  ['reports', '신고·제한', () => api.adminReports()], ['overdue', '미정산', () => api.adminOverdue()], ['reserve', '적립금', () => api.adminReserve()], ['hubs', '승차 지점', () => api.adminHubs()], ['audits', '처리 기록', () => api.adminAudits()]]
 
 function AdminList({ tab }) {
   const remote = useRemote(ADMIN_TABS.find(([id]) => id === tab)[2])
@@ -296,11 +296,17 @@ function AdminList({ tab }) {
       {tab === 'reports' && <Reports items={remote.data} />}
       {tab === 'hubs' && <Hubs items={remote.data} onSaved={remote.reload} />}
       {tab === 'overdue' && remote.data.map((o) => <article className="review-card" key={o.id}>
-        <h2>일행 #{o.partyId} · 회원 #{o.memberId}</h2><p>추가 결제 {won(o.amount)} · 기한 {formatDateTime(o.deadlineAt)}</p>
+        <h2>일행 #{o.partyId} · 회원 #{o.memberId}</h2><p>분담금 결제 {won(o.amount)} · 기한 {formatDateTime(o.deadlineAt)}</p>
         {o.adminHandledAt ? <Say title="관리자 확인 완료">{o.adminNote} · {formatDateTime(o.adminHandledAt)}</Say>
           : <EvidenceAction label="미정산 확인 기록" onSaved={remote.reload} act={(evidence) => api.handleOverdue(o.id, evidence)} />}
         <p className="note">확인 기록은 결제 승인이나 채무 면제가 아니에요.</p>
       </article>)}
+      {tab === 'reserve' && <article className="review-card" aria-label="정산 적립금">
+        <h2>정산 적립금 {won(remote.data.balance)}</h2>
+        <p>정산 {remote.data.settlements}건 · 부족분을 메운 금액 {won(remote.data.covered)}</p>
+        <p className="note">각자 확정 몫만 내고, 실제 요금과의 차이를 여기서 맡아요. 초기 기금은 운영 주체가 따로 더해 관리해요.</p>
+        {remote.data.recent?.length > 0 && <Rows items={remote.data.recent.map((e) => ['일행 #' + e.partyId, (e.amount >= 0 ? '+' : '') + won(e.amount) + ' (확정 ' + won(e.fixedTotal) + ' / 실제 ' + won(e.paidAmount) + ')'])} />}
+      </article>}
       {tab === 'audits' && [...remote.data].reverse().map((a) => <article className="review-card" key={a.id}>
         <h2>처리 #{a.id} · {a.action}</h2><p>관리자 #{a.actorId} · {formatDateTime(a.createdAt)}</p>
         <p>{a.targetType} #{a.targetId} · {a.decision}</p><p className="review-text">{a.evidence}</p>

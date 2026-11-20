@@ -52,6 +52,7 @@ export const api = {
   restrictMember: (id, body, key) => idempotent('POST', `/admin/members/${id}/restrictions`, body, key),
   releaseRestriction: (id, evidence) => json('POST', `/admin/restrictions/${id}/release`, { evidence }),
   adminOverdue: () => request('/admin/overdue-payments'),
+  adminReserve: () => request('/admin/reserve'),
   handleOverdue: (id, evidence) => json('POST', `/admin/overdue-payments/${id}/handled`, { evidence }),
   adminHubs: () => request('/admin/hubs'),
   saveHub: (id, body, key) => idempotent(id ? 'PUT' : 'POST', `/admin/hubs${id ? `/${id}` : ''}`, body, key),

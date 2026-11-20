@@ -40,7 +40,7 @@ public class JoinCompletionService {
         }
         newcomer.setPendingJoinId(null);party.setPendingJoinId(null);party.setExpectedTotal(join.getTotalFare());join.setState("CONFIRMED");
         changes.capture(party,List.of(newcomer),false);safety.remember(party,List.of(newcomer));changes.changed(party,Set.of(),"JOIN_CONFIRMED",Set.of());chatLog.system(party,newcomer.getMember().getId(),"%s님이 합류했어요. 기존 분담금은 같거나 줄어요.");
-        for(var rider:requests.findByPartyOrderByRideOrder(party))notifications.toMember(rider.getMember(),"[캠퍼스 택시메이트] 합류 확정","일행이 합류했어요. 현재 예상 분담금은 "+rider.getExpectedShare()+"원이에요. 선결제 차액은 정산 때 돌려드려요.");
+        for(var rider:requests.findByPartyOrderByRideOrder(party))notifications.toMember(rider.getMember(),"[캠퍼스 택시메이트] 합류 확정","일행이 합류했어요. 바뀐 확정 분담금은 "+rider.getExpectedShare()+"원이에요. 먼저 낸 금액과의 차이는 정산 때 돌려드려요.");
         return false;
     }
     private boolean reject(PartyJoin join,Party party){
