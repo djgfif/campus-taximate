@@ -27,6 +27,7 @@ SPREADS = (.5, 1., 1.5, 2.)
 DAYS = 30
 SEED = c10.SEED
 CAMPUS = (127.1561, 37.8707)  # 시연·실험 공통 허브(정문)
+ROUTING = HERE / '.cache' / 'osrm-campus'  # 캠퍼스 정문에서 출발하는 경로(C7 캐시의 출발점은 포천 시내였다)
 SEMESTER_MONTHS = ('2025-03', '2025-04', '2025-05', '2025-09', '2025-10', '2025-11')
 VACATION_MONTHS = ('2025-01', '2025-07', '2025-08')
 ATTRIBUTION = c11.ATTRIBUTION
@@ -100,8 +101,35 @@ def compile_current():
     return command, provenance
 
 
+def ensure_routing():
+    """C7 규칙 그대로 목적지 격자와 OSRM 행렬을 캠퍼스 정문 출발로 다시 만든다. 시간 보정은 C7 카카오 400건 모델을 그대로 쓴다."""
+    import math, osrm_matrix as om
+    from fares import korea_tariff
+    manifest_path = ROUTING / 'MANIFEST.json'
+    if manifest_path.exists() and json.loads(manifest_path.read_text(encoding='utf-8')).get('status') == 'CALIBRATED':
+        return
+    if not (ROUTING / 'raw_matrix.tsv').exists():
+        om.build(cache=HERE / '.cache', output=ROUTING, url='http://127.0.0.1:5000', hub=om.CAMPUS_HUB, workers=4)
+    model_path = HERE / '.cache/osrm/calibration-model.json'
+    model = json.loads(model_path.read_text(encoding='utf-8'))
+    with (ROUTING / 'raw_matrix.tsv').open(encoding='utf-8', newline='') as src, (ROUTING / 'matrix.tsv').open('w', encoding='utf-8', newline='') as dst:
+        w = csv.DictWriter(dst, fieldnames=['i', 'j', 'km', 'seconds'], delimiter='	'); w.writeheader()
+        for r in csv.DictReader(src, delimiter='	'):
+            r['seconds'] = math.ceil(float(r['seconds']) * model['duration_ratio']); w.writerow(r)
+    data = json.loads((ROUTING / 'destinations.json').read_text(encoding='utf-8'))
+    solos = []
+    for p in data['points']:
+        sec = math.ceil(p['solo_seconds'] * model['duration_ratio'])
+        solos.append(dict(point=p['id'], direction='FROM_HUB', km=p['solo_km'], seconds=sec, fare=korea_tariff(p['solo_km'], sec / 60, 12, 'pocheon')))
+    om.write_csv(ROUTING / 'solo.csv', solos)
+    manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+    manifest.update(status='CALIBRATED', calibration=model, calibration_source=om.artifact(model_path))
+    manifest['files'] = [om.artifact(ROUTING / f) for f in ('destinations.json', 'raw_matrix.tsv', 'snaps.csv', 'matrix.tsv', 'solo.csv')]
+    om.save(manifest_path, manifest)
+
+
 def cases():
-    hub, points, hours, header, demand = c7.demand_inputs(None, HERE / '.cache', HERE / '.cache/osrm')
+    hub, points, hours, header, demand = c7.demand_inputs(None, HERE / '.cache', ROUTING)
     errors = [float(x) for x in (HERE / '.cache/kr-public/tims-errors.csv').read_text().splitlines() if x.strip()]
     ss = [replace(c7.Scenario(), name=f'n{n}', requests=n) for n in LEVELS]
     meta = c7.write_cases(CACHE / 'cases.tsv', ss, DAYS, SEED, points, hours, header, errors)
@@ -111,7 +139,7 @@ def cases():
 
 def simulate(command, bias, margin):
     with (CACHE / 'sim.log').open('w', encoding='utf-8') as log:
-        subprocess.run(command + ['com.campustaximate.server.service.C11Simulation', str(CACHE / 'cases.tsv'), str(HERE / '.cache/osrm/matrix.tsv'),
+        subprocess.run(command + ['com.campustaximate.server.service.C11Simulation', str(CACHE / 'cases.tsv'), str(ROUTING / 'matrix.tsv'),
                                   str(HERE / '.cache/kr-public/tims-errors.csv'), str(CACHE / 'groups.tsv'), str(CACHE / 'days.csv'), '-', str(bias),
                                   'CURRENT', str(margin)], cwd=ROOT, check=True, stdout=log, stderr=log)
 
@@ -188,6 +216,7 @@ def report(levels, observed, bias, margin, provenance):
     L = ['# C12 지금 서비스 그대로: 수요에 따른 매칭과 확정 분담금', '', ATTRIBUTION, '',
          f'운영 코드 {provenance["git_head"][:7]}{" (작업 중 변경 있음)" if provenance["production_dirty"] else ""}를 그대로 컴파일했다. '
          f'매칭은 모집 마감까지 모아 확정(S42), 요금은 확정 분담금(S43, 견적 보정 {100 * bias:.2f}% + 여유 {100 * margin:.0f}%).', '',
+         '출발점은 대진대 정문(37.8707, 127.1561)이다. 11/20 이전 C7~C12 값은 포천 시내(37.874, 127.205)에서 출발한 값이라 이 결과로 대체한다.', '',
          '## 학교 앞 실제 택시 이용량 (관측)', '',
          f'TIMS 2025 영업건수, 정문 반경 약 1.5km 격자 9칸: 학기 중 하루 {observed["semester_per_day"]:.1f}건, '
          f'방학 하루 {observed["vacation_per_day"]:.1f}건, 연평균 {observed["year_per_day"]:.1f}건.', '',
@@ -223,6 +252,7 @@ def main():
     argparse.ArgumentParser(description=__doc__).parse_args()
     bias, margin = fare_config()
     command, provenance = compile_current()
+    ensure_routing()
     cases()
     simulate(command, bias, margin)
     groups, fixed = finance(command, bias, margin)

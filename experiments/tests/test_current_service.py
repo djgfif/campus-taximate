@@ -21,6 +21,16 @@ class C12UnitTests(unittest.TestCase):
         self.assertEqual(len(near), 9)
         self.assertIn(center, near)
 
+    def test_routes_start_at_the_campus_gate(self):
+        import osrm_matrix as om
+        self.assertAlmostEqual(om.CAMPUS_HUB['lon'], c12.CAMPUS[0], delta=0.001)
+        self.assertAlmostEqual(om.CAMPUS_HUB['lat'], c12.CAMPUS[1], delta=0.001)
+        self.assertNotAlmostEqual(om.HUB['lon'], c12.CAMPUS[0], delta=0.01)  # legacy C7 hub stays for frozen experiments
+        dest = c12.ROUTING / 'destinations.json'
+        if dest.exists():
+            hub = json.loads(dest.read_text(encoding='utf-8'))['hub']
+            self.assertAlmostEqual(hub['lon'], c12.CAMPUS[0], delta=0.001)
+
     def test_observed_demand_follows_the_academic_calendar(self):
         o = c12.observed_campus_demand()
         self.assertGreater(o['semester_per_day'], 2 * o['vacation_per_day'])

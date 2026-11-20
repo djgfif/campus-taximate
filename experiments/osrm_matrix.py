@@ -13,7 +13,8 @@ import urllib.request
 
 HERE = Path(__file__).resolve().parent
 DEFAULT = HERE/'.cache'/'osrm'
-HUB = dict(id=0,lat=37.874,lon=127.205,region_code='41650000')
+HUB = dict(id=0,lat=37.874,lon=127.205,region_code='41650000')  # C7~C11 legacy hub: Pocheon downtown, about 4.4km east of campus
+CAMPUS_HUB = dict(id=0,lat=37.870685,lon=127.156122,region_code='41650000')  # 대진대 정문(카카오 로컬, 호국로 1007)
 OSM = dict(provider='Geofabrik South Korea / OpenStreetMap contributors',
     downloaded='2026-11-20',sha256='7fb2770e9886faab3aeda88567d9d2ce057cf548f7d01b924f1a24180058ab35',
     image='ghcr.io/project-osrm/osrm-backend:v5.27.1',algorithm='MLD',profile='car',
@@ -171,14 +172,16 @@ def universe(cache,crosswalk=None):
     if missing_grids: raise ValueError('No positive TIMS grids for flow regions: '+','.join(sorted(missing_grids)))
     return points,dict(merged),summary
 
-def build(cache=HERE/'.cache',output=DEFAULT,url='http://localhost:5000',chunk=40,crosswalk=None,workers=4):
+def build(cache=HERE/'.cache',output=DEFAULT,url='http://localhost:5000',chunk=40,crosswalk=None,workers=4,hub=None):
+    hub=dict(HUB if hub is None else hub)
     if not 1<=chunk<=50: raise ValueError('chunk must be 1..50: <=100 coordinates per table')
     if not 1<=workers<=8: raise ValueError('workers must be 1..8')
     output=Path(output); output.mkdir(parents=True,exist_ok=True)
     if crosswalk is None:
         crosswalk=Path(cache)/'kr-public'/'livingmove-sgis-crosswalk.csv'
     points,flows,summary=universe(cache,crosswalk); client=OSRM(url)
-    identity=hashlib.sha256(json.dumps([points,OSM,url],sort_keys=True).encode()).hexdigest()
+    # Legacy hub keeps its original chunk identity; any other hub gets its own chunk cache.
+    identity=hashlib.sha256(json.dumps([points,OSM,url] if hub==HUB else [points,OSM,url,hub],sort_keys=True).encode()).hexdigest()
     chunks=output/'chunks'/identity; chunks.mkdir(parents=True,exist_ok=True)
     from pyproj import Geod
     geod=Geod(ellps='WGS84'); snaps={}
@@ -187,20 +190,20 @@ def build(cache=HERE/'.cache',output=DEFAULT,url='http://localhost:5000',chunk=4
         # route. No synthetic route is written for these pre-excluded cells.
         part=[]
         for p in points[i:i+chunk]:
-            lower=geod.inv(HUB['lon'],HUB['lat'],p['lon'],p['lat'])[2]/1000
+            lower=geod.inv(hub['lon'],hub['lat'],p['lon'],p['lat'])[2]/1000
             p.update(geodesic_lower_bound_km=lower,solo_km=None,solo_seconds=None)
             if lower<=60: part.append(p)
         if not part: continue
         path=chunks/f'hub-{i}.json'
         if path.exists(): data=json.loads(path.read_text(encoding='utf-8'))
         else:
-            rows,snap=table_rows(client,[HUB],part); data=dict(rows=rows,snaps=snap); save(path,data)
+            rows,snap=table_rows(client,[hub],part); data=dict(rows=rows,snaps=snap); save(path,data)
         snaps.update({int(k):v for k,v in data['snaps'].items()})
         for p,r in zip(part,data['rows']): p.update(solo_km=r['km'],solo_seconds=r['seconds'])
     selected,coverage=select_grids(points,flows)
-    save(output/'destinations.json',dict(hub=HUB,points=selected,coverage=coverage,
+    save(output/'destinations.json',dict(hub=hub,points=selected,coverage=coverage,
         hours=summary['hours_home'],days=summary['days'],age_check=summary['age_check']))
-    nodes=[HUB]+selected; matrix=output/'raw_matrix.tsv'; tmp=matrix.with_suffix('.tsv.part')
+    nodes=[hub]+selected; matrix=output/'raw_matrix.tsv'; tmp=matrix.with_suffix('.tsv.part')
     def fetch_pair(position):
         i,j=position; ss=nodes[i:i+chunk]; tt=nodes[j:j+chunk]
         key=hashlib.sha256(json.dumps([ss,tt],sort_keys=True).encode()).hexdigest()
