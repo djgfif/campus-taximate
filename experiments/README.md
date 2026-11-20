@@ -191,3 +191,52 @@ C5~C11은 커밋 `2c7aeaf`의 서비스 코드(조기 확정 10분, 선결제 11
 ```
 
 현재 체크아웃의 운영 코드(마감 확정 S42, 확정 분담금 S43)를 해시 고정 없이 그대로 컴파일해, 하루 15·35·70·100·200·400건 × 30일을 처리한다. 견적 보정과 여유분은 `server/src/main/resources/application.yml`의 `app.fare` 기본값을 읽는다. 요청 수는 시나리오이며, 학교 앞 실제 택시 이용량(TIMS 2025, 정문 반경 약 1.5km 격자 9칸: 학기 하루 약 36건, 방학 약 16건)을 관측 구간으로 함께 적는다. 오차는 1·1.5·2배로 키워 적립금 초기 기금을 구한다. 결과는 [reports/c12-current-service.md](reports/c12-current-service.md). C5~C11은 결정 근거 실험으로 커밋 2c7aeaf 기준 그대로 둔다.
+
+## C13 1층: 전국 대학 캠퍼스 주변 택시 이용량
+
+```powershell
+.\experiments\.cache\venv\python.exe experiments\campus_survey.py
+```
+
+대학알리미 재적 학생 현황 2026(공공데이터포털 15164558)으로 4년제 대학 목록과 재학생 수를 만들고, 카카오 로컬 검색으로 캠퍼스 좌표를 붙인 뒤 TIMS 2025 택시 승차를 캠퍼스 반경 약 1.5km에서 센다. 도심 캠퍼스는 역·상권 승차가 섞이므로 같은 시군구 전체의 학기/방학 변화를 빼서 "학기에만 늘어난 승차"를 학생(학사일정) 효과로 본다. 결과는 [reports/c13-campus-survey.md](reports/c13-campus-survey.md).
+
+## C13 2층: 수도권 대학 실제 이동 자료 축소 모의실험
+
+```powershell
+.\experiments\.cache\venv\python.exe experiments\metro_campuses.py
+.\experiments\.cache\venv\python.exe experiments\metro_report.py
+```
+
+1층의 수도권 캠퍼스 79곳마다 캠퍼스 좌표를 출발점으로, 생활이동 귀가 흐름(서울은 행정동, 경기·인천은 시군구 출발)과 TIMS 격자로 목적지를 만들고, 로컬 OSRM 경로와 지역 요금표로 지금 서비스 코드를 10일씩 돌린다(하루 35·70·140건과 그 학교의 학생 수준). 결과는 [reports/c13-metro-campuses.md](reports/c13-metro-campuses.md). C7~C12의 출발점(37.874, 127.205)은 포천 시내라 캠퍼스(37.8707, 127.1561)와 약 4.4km 다르다는 것을 여기서 발견했고, 2층의 대진대 값은 캠퍼스 좌표로 다시 계산한 것이다.
+
+목적지는 학교마다 최대 800격자로 줄인다. 시군구마다 대표 격자를 두고, 고르지 않은 격자의 흐름은 같은 시군구의 가까운 격자로 옮겨 시군구별 흐름을 그대로 둔다. 11/20 이전에는 무게 상위 격자만 남기고 다시 나눠 먼 시군구가 빠졌고(대진대 흐름의 67%, 평균 혼자 이동 13.6km), 매칭률이 4~10%p 높게 나왔다. 2층·3층은 고친 방식으로 모두 다시 계산했다.
+
+```powershell
+.\experiments\.cache\venv\python.exe experiments\representation_check.py
+```
+
+줄인 목적지로 대진대를 C12와 같은 수요·30일로 돌려 전체 격자 계산(C12)과 비교한다: 평균 혼자 이동 18.7km / 18.5km, 매칭률 차이 평균 +2.0%p. 결과는 [reports/c13-representation-check.md](reports/c13-representation-check.md).
+
+## C13 3층: 출발 편 실험
+
+```powershell
+.\experiments\.cache\venv\python.exe experiments\departure_slots.py
+```
+
+2층의 캠퍼스별 요청·경로를 그대로 두고 예약 요청의 출발 규칙만 바꿔 같은 10일을 다시 돌린다. 지금(20분 안 자유 출발), 20분·30분 간격 출발 편(편 시각부터 5분 안), 비교군으로 출발 폭 30분. 지금 정책은 2층 결과를 그대로 재현해야 하고 테스트가 이를 확인한다. 결과는 [reports/c13-departure-slots.md](reports/c13-departure-slots.md): 요청 시각이 그대로면 편은 79곳 모두에서 매칭률을 낮추고(35건 중앙값 -15%p / -6%p), 출발 폭을 30분으로 넓히면 79곳 모두에서 오른다(+13%p, 대신 출발이 평균 약 6분 더 밀림).
+
+## C13 3층 후속: 출발 가능 범위 곡선
+
+```powershell
+.\experiments\.cache\venv\python.exe experiments\window_curve.py
+```
+
+서비스는 출발 가능 범위를 0~60분(기본 60분)에서 학생이 고르게 하지만 C7~C13은 모두 20분을 가정했다. 같은 79곳에서 예약 요청의 범위만 10·20·30·45·60분으로 바꿔 돌린다. 결과는 [reports/c13-window-curve.md](reports/c13-window-curve.md): 35건 매칭률 중앙값 26% → 48% → 60% → 71% → 75%, 매칭된 예약이 가장 이른 출발에서 밀린 시간 5.7 → 30.9분.
+
+## C13 설정 최적화: 지연 한도 × 최소 절약 × 출발 가능 범위
+
+```powershell
+.\experiments\.cache\venv\python.exe experiments\settings_sweep.py
+```
+
+같은 79곳에서 운영 코드의 매칭 설정만 바꿔 27개 조합(지연 한도 10·15·20분 × 최소 절약 5·10·15% × 범위 20·30·60분)을 돌리고, 요청자 전체 1인 절약·차 안 지연·출발 밀림으로 효율 경계를 찾는다. 학생이 느끼지 못할 차이(절약 0.5%p, 지연 30초, 출발 1분 미만)는 같은 것으로 본다. 결과는 [reports/c13-settings-sweep.md](reports/c13-settings-sweep.md): 지금 설정(15분, 10%)은 수요 3가지 × 범위 3가지 모두에서 경계 위이고, 지연·절약을 바꾸면 35건 매칭률이 최대 9%p, 범위를 20분에서 60분으로 넓히면 +27%p 움직인다.
