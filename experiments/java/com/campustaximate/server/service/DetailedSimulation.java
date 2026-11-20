@@ -202,7 +202,7 @@ public final class DetailedSimulation {
     }
     public static void main(String[] args)throws Exception {
         if(args[0].equals("--self-test")){selfTest();return;}
-        Path input=Path.of(args[0]);var cfg=configs(input);var matrix=ExperimentRunner.readMatrix(Path.of(args[1]));
+        Path input=Path.of(args[0]);var cfg=configs(input);var matrix=C7RoadMatrix.read(Path.of(args[1]));
         double[] errors;
         try(var lines=Files.lines(Path.of(args[2]))){errors=lines.filter(x->!x.isBlank()).mapToDouble(Double::parseDouble).toArray();}
         if(errors.length==0||Arrays.stream(errors).anyMatch(e->!Double.isFinite(e)||e<=-1))throw new IllegalArgumentException("invalid C5 errors");
@@ -216,6 +216,7 @@ public final class DetailedSimulation {
         }
     }
     static void selfTest() {
+        try { C7RoadMatrix.selfTest(); } catch (IOException e) { throw new AssertionError(e); }
         // Exercise the real secondary verifier with a permissive primary candidate: boundary settings must propagate.
         var c=new ExperimentRunner.Case();c.id="test";c.hub=new GeoPoint(37.874,127.205);c.factor=1;c.speed=24;
         c.a=0;c.b=1050;c.c=0;c.tick=1;c.min=1;

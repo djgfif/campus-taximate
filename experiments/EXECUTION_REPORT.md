@@ -1,3 +1,33 @@
+# 2026-11-20 C7 격자·OSRM 실행 완료
+
+전체 교차표를 인천·화성 그룹 양쪽 합집합으로 적용하고 OSRM → Kakao 400건 표본/수집/보정 → C7 전체 → pytest 순서로 실행했다. 커밋하지 않았다. 전체 250개 코드는 244개 결합 지역으로 해석되며 미해결 흐름은 0%다.
+
+- 4,311개 TIMS 500m 중심, 허브 포함 18,593,344개 방향별 구간. 전국 귀가 흐름 93.9855%, 서비스 가능 흐름 99.00003% 대표. 서비스 범위 밖 지역 195개·흐름 3.2792%; 부분 지역 제외까지 포함한 서비스 제외 5.0652%, 선택 꼬리 0.9493%.
+- snap >300m 목적지 82개, 최대 1,538.3625m. jitter는 없다.
+- Kakao 미래경로 400건(훈련 321/검증 79). 시간 보정 1.567022배. 검증 시간 MAPE 32.7069%→22.6869%, 거리 11.9322%, 요금 18.5227%, Kakao/OSRM 시간비 중앙값 1.417492. 30km 이상 시간 MAPE는 19.3144%→27.1982%로 악화되어 한계로 공개한다.
+- 24조건×30일, 105,000요청. 정산 합계 오류 0, 경로 불가 0, 탐색시간 경고 0, 최대 회차 58.721ms. 기본 매칭률 61.00%(일 단위 95% CI 59.17~62.83%), 비율 절약률 28.71%, 대기 8.54분.
+- C6 60사례 768요청/661매칭과 1,000회 민감도 결과는 UNCHANGED. C6 원본 코드·결과를 수정하지 않았다.
+- pytest: 61 passed, 9 subtests passed.
+
+# C7 grid vs historical 118-point results
+
+Destination universe, routes, duration correction and solo tariffs change together; differences are not isolated causal effects. Both studies are simulated proxy demand, not measured student outcomes.
+
+| Scenario | Requests/day | Matching old → grid | Ratio saving old → grid | Wait min old → grid | Delay min old → grid | Additional-payment rate old → grid |
+|---|---:|---:|---:|---:|---:|---:|
+| base | 100 | 61.60% → 61.00% | 49.55% → 28.71% | 8.40 → 8.54 | 3.87 → 3.79 | 23.62% → 23.20% |
+| n50_d15 | 50 | 45.47% → 47.73% | 49.04% → 27.26% | 8.71 → 8.64 | 3.76 → 3.65 | 23.55% → 22.43% |
+| participation150 | 150 | 68.22% → 68.60% | 52.42% → 30.41% | 7.83 → 8.10 | 3.75 → 3.92 | 24.82% → 22.91% |
+| error_x1_5 | 100 | 61.60% → 61.00% | 47.09% → 25.75% | 8.40 → 8.54 | 3.87 → 3.79 | 31.55% → 31.91% |
+| error_x2 | 100 | 61.60% → 61.00% | 47.73% → 23.80% | 8.40 → 8.54 | 3.87 → 3.79 | 33.08% → 37.59% |
+| exclude_intra_pocheon | 100 | 51.60% → 49.27% | 54.26% → 35.93% | 8.61 → 8.74 | 3.82 → 4.38 | 23.89% → 26.36% |
+
+[지역별 전체 표](reports/c7-osrm-region-coverage.csv), [보정 결과](reports/c7-osrm-calibration.json), [snap 목록](reports/c7-osrm-snaps-over300.csv), [명령·파일·한계 인계서](reports/osrm-step1-handoff.md). 실제 학생 이용 성과나 관측 미터 요금 검증이 아니다. 목적지·경로·시간·단독요금이 함께 바뀌어 단일 변경의 인과효과로 해석하지 않는다.
+
+---
+
+# 이하 이전 118점 연구 기록 (역사 자료)
+
 # 검토 반영 실행 결과
 
 이번 검토에서 확인된 공간 커버리지 편향과 10월 5일 공휴일 포함을 수정했다. 이 문서와 최신 C7 보고서가 이전 21일·23조건 결과를 대체한다. 커밋하지 않았고 수정 범위는 experiments 안이다.

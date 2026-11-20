@@ -1,13 +1,14 @@
 # 한국 공개자료 기반 캡스톤 모의실험
 
-실제 앱의 매칭·검증·정산·보전 코드를 현재 checkout에서 재컴파일한다. 배포 실험이 아니며 학생 이용 실적을 수집하지 않는다. 원본은 Git 제외인 .cache 안에만 저장한다. 새 카카오 호출은 0회다. Python 3.10+, DuckDB, JDK 21이 필요하다.
+실제 앱의 매칭·검증·정산·보전 코드를 현재 checkout에서 재컴파일한다. 배포 실험이 아니며 학생 이용 실적을 수집하지 않는다. 원본은 Git 제외인 .cache 안에만 저장한다. 이번 OSRM 보정은 Kakao 미래경로 API 400건을 사용했고, C7 엔진 실행 단계의 새 API 호출은 0회다. Python 3.10+, DuckDB, JDK 21이 필요하다.
 
 ## 자료 구성
 
 - C5 요금 비교: 한국교통안전공단 TIMS 2025 택시운행정보 격자별 영업통계(500m 격자×월), data.go.kr 15165682. 전국·대진대 5~25km 통학권·기존 캐시 중 포천 목적지 격자를 비교한다. 포천 하위 격자는 포천 전체를 대표하지 않는다. 기존 연간 격자는 선택·보조 비교로 구분한다.
 - C7 수요: 서울시·KT 수도권 생활이동 목적별 OA-22300, 출발-도착지 기준. 2026년 10월 포천 출발(41650000), 공휴일 10/5·10/9를 제외한 월~금 20일, 귀가 목적 코드 3을 사용한다. 10/31은 토요일이므로 집계 제외하고 manifest만 기록한다. 10/5 개천절 대체공휴일도 집계에서 제외하고 사유와 해시를 manifest에 남긴다.
 - 연령 기술통계: OA-22299의 포천 출발 2030/전체 이동량을 목적지·시간별로 비교한다. 목적 열이 없으므로 귀가·학생 비율로 해석하거나 수요 가중치에 쓰지 않는다.
-- 경로: 인접 저장소 taximate-matching-sim/realdata의 121개 점(허브 포함)과 기존 Kakao 단독·구간 캐시를 읽기 전용으로 재사용한다. 허브는 목적지가 아니며 단독 견적 없는 2점도 제외한다. 사용 목적지는 118점이다. 없는 견적을 만들거나 새 경로 조회를 하지 않는다. 모든 제외·지역별 유실 비중은 C7 JSON에 공개한다.
+- C6 경로: 인접 저장소 taximate-matching-sim/realdata의 기존 Kakao 단독·구간 캐시를 고정 코호트로 유지한다.
+- C7 경로: 전체 TIMS 500m 격자를 후보로 60km 서비스 범위와 누적 가중치 99% 기준을 적용한 4,311개 중심점을 사용한다. OSRM MLD/car의 모든 방향별 도로 구간을 계산하고 Kakao 미래경로 400건의 훈련 OD 중앙 시간비 1.5670을 적용한다. 기존 118점에 의존하지 않는다.
 
 생활이동 출처 표기: **출처: 서울특별시·KT, 서울시 통신데이터**. 분석 결과는 출처와 함께 공개하며 ZIP·원본 행은 보고서에 복사하거나 커밋하지 않는다.
 
@@ -24,7 +25,13 @@ node experiments/acquire-public.mjs all
 ./experiments/.cache/venv/python.exe experiments/fares.py --public
 ./experiments/.cache/venv/python.exe experiments/run.py --java-home C:/Users/gkho0/.jdks/ms-21.0.12.1 --legacy-realdata ../taximate-matching-sim/realdata --limit 60 --output-prefix korea-cached
 ./experiments/.cache/venv/python.exe experiments/run.py --java-home C:/Users/gkho0/.jdks/ms-21.0.12.1 --output-prefix synthetic
-./experiments/.cache/venv/python.exe experiments/detailed.py --days 30 --java-home C:/Users/gkho0/.jdks/ms-21.0.12.1
+# Claude가 준비한 전체 교차표(livingmove-sgis-crosswalk.csv)를 먼저 둔다.
+./experiments/.cache/venv/python.exe experiments/osrm_matrix.py --crosswalk experiments/.cache/kr-public/livingmove-sgis-crosswalk.csv
+./experiments/.cache/venv/python.exe experiments/kakao_calibration.py sample --n 400
+./experiments/.cache/venv/python.exe experiments/kakao_calibration.py query
+./experiments/.cache/venv/python.exe experiments/kakao_calibration.py fit
+./experiments/.cache/venv/python.exe experiments/detailed.py --days 30 --verify-c6 --java-home C:/Users/gkho0/.jdks/ms-21.0.12.1
+./experiments/.cache/venv/python.exe experiments/compare_c7.py
 ./experiments/.cache/venv/python.exe -m pytest experiments/tests
 ~~~
 
@@ -36,7 +43,11 @@ run.ps1은 run.py의 PowerShell 실행 래퍼다. --build는 Maven 서버 패키
 
 livingmove.py는 ZIP에서 포천 출발 행만 스트리밍하고 DuckDB로 date,d_code,hour,purpose,cnt를 집계하여 .cache/kr-public/living-move-pocheon.csv에 쓴다. 개인 원본은 디스크에 풀지 않는다. 1~2자리 시각은 시간 코드, 3~4자리는 HHMM이며 분은 00/20/40만 허용한다. 예: 16→16시, 1720→17시, 0800→8시. cnt의 *·빈 값은 결측으로 제외하며 0으로 대체하지 않는다. 연령은 2030_cnt와 total_cnt가 함께 공개된 동일 셀만 집계한다. JSON에 파일별 마스킹 수와 관측 시간 코드를 공개한다.
 
-경기 지점의 Kakao 행정동 H10 앞 5자리+000을 KT 시군구 코드로 연결한다. 서울은 H10 앞 8자리와 실제 KT 목적지 코드를 대조했지만, 커버리지 보정은 모든 지역에서 시군구 단위를 쓰므로 서울도 자치구(앞 5자리+000)로 합친다. 점의 최종 가중치는 포천 출발 귀가 시군구 비중×TIMS 커버리지×지역 내 TIMS 격자 분할이다. 같은 격자의 여러 점은 격자량을 나눈다. TIMS 커버리지는 캐시 점이 있는 유일 격자들의 2025 승차량 합÷해당 시군구 전체 TIMS 격자의 승차량 합이다. 같은 격자를 중복 계산하지 않는다. 각 지역 흐름 중 이 비율만 보존하고 나머지는 유실로 센다. 점이 있는 지역의 흐름 전체를 점에 몰아주지 않는다. 보존된 이동량만 다시 정규화하고, 점 없는 지역 및 미대표 격자의 유실을 나누어 공개한다. 포천 내부 이동도 유지한다. 시간은 귀가 출발 시간 분포를 12:00~21:59로 제한해 정규화하고 추가 재가중은 없다. 목적지와 시간은 각각 독립 추출하며 시간 안은 균등하다.
+sgis_mois_crosswalk.py가 만든 전체 교차표는 SGIS 2025Q2 각 다각형의 내부 대표점을 Kakao coord2regioncode로 확인한 H 코드와 이름을 보존한다. 생활이동 250개 코드 모두를 해석하며 서울은 자치구(앞 5자리+000)로 합친다. INCHEON_2026과 HWASEONG_2026은 SGIS 다각형과 MOIS 코드 양쪽의 합집합을 하나의 지역으로 처리하므로 244개 지역이 된다. 생성 코드와 출력 CSV의 SHA256은 OSRM manifest와 baseline/PROVENANCE.md에 기록한다.
+
+격자 가중치 = 지역 귀가 흐름 비중 × 해당 격자의 TIMS 2025 승차량 / 그 지역 전체 TIMS 승차량이다. 모든 지역의 209,563개 양수 격자를 후보로 읽는다. 허브 도로거리 60km 밖 격자는 원래 질량을 제외량으로 기록한다. 서비스 가능 격자 가중치의 최소 내림차순 접두합으로 99% 이상을 대표한다. 이는 서비스 밖 지역을 포함한 전국 흐름의 99%라는 뜻이 아니다. 선택된 4,311개 격자는 전체 귀가 흐름의 93.9855%, 서비스 가능 흐름의 99.00003%를 대표한다. 지역 전체 제외 195곳(3.2792%), 일부 지역 내 제외 격자를 합친 서비스 제외 5.0652%, 선택 꼬리 제외 0.9493%를 별도로 공개한다.
+
+TIMS 500m 중심만 사용하며 jitter는 없다. OSRM snap >300m 목적지는 82개이며 최대 1,538m로, 중심점과 실제 도로 종점의 차이가 남는다. 단독요금은 보정 도로시간과 원래 도로거리에 포천 낮 요금 공식을 적용한다. C7 전용 C7RoadMatrix는 18,593,344개 구간을 약 223MB의 연속 배열에 읽고 C6 로더를 바꾸지 않는다. 목적지와 시간은 독립 추출하고 시간은 귀가 출발 분포의 12:00~21:59를 정규화한다.
 
 ## 오차와 민감도
 
@@ -64,20 +75,31 @@ C7 보전은 실제 CompensationService.apply를 메모리 저장소에 연결�
 - **생활이동은 통신 기반 추정치이며 포천은 시군구 단위라 캠퍼스 단위가 아니다.** 이용자별 독립성, 반복 이동, 추정·마스킹 편향을 해소하지 못한다.
 - **귀가 목적이 학생 하교를 대표한다는 가정**이다. 2030 비율도 목적 구분 없는 기술통계이며 학생 비율이 아니다.
 - **TIMS 잔차는 집계 평균이라 개별 오차를 과소추정**한다. 편차 배수만으로 실제 개인 오차 분포를 복원하지 못한다.
-- 캐시 목적지가 없는 지역은 제외·재정규화한다. 서울도 자치구로 합쳐 경기와 같은 시군구 커버리지 단위를 쓴다. 목적지×시간·거리·요금의 실제 상관과 시간대 교통을 재현하지 않는다.
-- 기존 행렬 약 51.5%는 관측 구간 합성이며 다중경유 요금은 단독 견적 보정 모델이다. 실제 미터 결제 검증이 아니다.
+- 60km 서비스 범위·가중치 꼬리 밖 흐름은 제외·재정규화한다. 목적지×시간 상관과 시간대별 교통은 재현하지 않는다. 개편 그룹 내부 세분화와 500m 격자 내 위치도 재현하지 않는다.
+- C6 기존 행렬에는 관측 구간 합성이 포함된다. C7은 OSM/OSRM 경로를 쓰지만 다중경유 요금은 기존 C6 보정 모델을 유지해 새 포천 단독요금과의 모델 차이가 남는다. Kakao 미래 견적도 실제 미터 결제가 아니다.
+- 검증 79 OD에서 시간 MAPE 32.71%→22.69%, 거리 11.93%, 요금 18.52%다. 전역 보정은 30km 이상에서 시간 MAPE를 19.31%→27.20%로 악화시켰다. 검증 자료로 재조정하지 않았다.
 - 노쇼 조사·회수 실패·운행 경로 단축·결제 상태 머신 전체는 미모형화다. 회차 탐색의 벽시계 제한 때문에 기계 부하에 따라 결과가 달라질 수 있다.
 
 ## TIMS 시군구 배정과 공간 커버리지
 
 원본 tims_2025.zip의 12개 월별 CSV 헤더를 모두 확인했으며 행정구역 열은 없다. tims_regions.py는 TIMS 격자 ID의 한글 두 자리(100km)와 숫자 각 세 자리(500m 인덱스 000~199)에서 EPSG:5179 UTM-K/GRS80 중심점을 계산한다. 기준은 E=700000,N=1300000이고 중심점은 좌하단에 250m를 더한다. 기존 120개 비허브 점은 격자 안에서 난수 추출된 점이며, 역투영 좌표가 자기 격자 안에 들어가는지도 검증한다.
 
-시군구 경계는 국가데이터처 SGIS의 공식 2025년 2분기 자료(data.go.kr 15129688, BASE_DATE=20250630)를 쓴다. 공식 PRJ는 ESRI:102080 명칭을 사용하므로 EPSG 코드 이름을 단정하지 않고 GRS80 UTM-K 투영 파라미터 일치와 pyproj 변환을 검증한다. 격자 중심점과 공식 폴리곤을 공간 결합하며 최근접 캐시 점·최근접 폴리곤으로 보충하지 않는다. 경계 밖과 다중 소속 격자는 미배정으로 기록하고, 캐시 목적지 격자가 미배정이면 실행을 중단한다. SGIS 코드와 행정안전부 코드는 다르므로 공식 시도명+시군구명과 기존 Kakao 행정구역명의 유일 일치로 필요한 지역만 교차표를 만든다. 코드 숫자 모양으로 추측하지 않는다.
+시군구 경계는 국가데이터처 SGIS의 공식 2025년 2분기 자료(data.go.kr 15129688, BASE_DATE=20250630)를 쓴다. 공식 PRJ는 ESRI:102080 명칭을 사용하므로 EPSG 코드 이름을 단정하지 않고 GRS80 UTM-K 투영 파라미터 일치와 pyproj 변환을 검증한다. 격자 중심점과 공식 폴리곤을 공간 결합하며 최근접 캐시 점·최근접 폴리곤으로 보충하지 않는다. 경계 밖과 다중 소속 격자는 미배정으로 기록하고, 캐시 목적지 격자가 미배정이면 실행을 중단한다. 기존 tims_regions.py의 8개 지역 교차표는 역사적 캐시 검사용이다. C7은 sgis_mois_crosswalk.py의 전체 교차표와 개편 그룹을 사용하며 코드 숫자 모양으로 추측하지 않는다.
 
-출처: 국가데이터처(통계청) SGIS, 2025년 2분기 센서스용 행정구역 경계. 원본 ZIP은 .cache/kr-public에만 저장한다. 배정 규칙·PRJ·원본 및 사용 멤버 SHA256·전국 미배정 건수·영업건수는 reports/tims-region-MANIFEST.json, 시군구별 흐름·커버리지·대표 비중·유실 비중은 c7-detailed-sim.json의 demand.region_coverage에 있다. 캐시 점이 전혀 없는 지역은 대표 흐름이 0이므로 전체 흐름을 유실로 집계한다.
+출처: 국가데이터처(통계청) SGIS, 2025년 2분기 센서스용 행정구역 경계. 원본 ZIP은 .cache/kr-public에만 저장한다. 배정 규칙·PRJ·원본 및 사용 멤버 SHA256·전국 미배정 건수·영업건수는 reports/tims-region-MANIFEST.json, 시군구별 흐름·커버리지·대표 비중·유실 비중은 c7-detailed-sim.json의 demand.region_coverage에 있다. C7은 캐시 점 존재 여부로 지역을 제외하지 않는다. 서비스 범위와 누적 선택 꼬리만 별도 집계한다.
 
-포천의 4개 사용 목적지(7,12,47,64)는 모두 소흘읍이다. 커버리지 보정은 이 4점에 포천 전체 귀가 흐름을 몰아주는 문제를 줄이지만, 지역 안 귀가 수요가 TIMS 택시 승차 분포를 따른다는 가정은 남는다. 중심점으로 경계를 넘는 격자를 한 곳에 배정하는 오차, SGIS 센서스 경계와 실제 행정 경계의 차이, 한 시점의 경계를 연간 통계에 적용한 차이도 남는다. 커버리지 밖으로 버려진 흐름의 실제 합승 성과는 모의실험으로 알 수 없다. 기본 하루 100건은 대표된 목적지를 조건으로 한 가정이며 시 전체 이동량의 추정이 아니다.
+C7은 포천 전체의 양수 TIMS 격자를 후보로 삼는다. 지역 귀가 수요가 TIMS 택시 승차 분포를 따른다는 가정, 경계에 걸친 격자를 중심점 한 곳에 배정하는 오차, SGIS 센서스 경계와 실제 행정 경계 차이, 한 시점의 경계를 연간 통계에 적용한 차이가 남는다. 기본 하루 100건은 선택된 목적지 분포를 조건으로 한 가정이며 시 전체 이용량의 추정이 아니다.
 
 exclude_intra_pocheon 민감도는 포천 목적지 확률을 0으로 하고 나머지를 재정규화한다. 하루 100건과 귀가 시간 분포·오차는 유지한다. 이는 같은 요청 수에서 목적지 구성을 바꾼 비교이며 외부 통학 이용자 수 추정이 아니다. C6의 고정 일행·TIMS 잔차·생산 Java 입력이 같으면 C6 수치를 다시 계산하지 않고 해시 불변 여부만 검증한다.
 
 참고: [TIMS 원본](https://www.data.go.kr/data/15165682/fileData.do), [공식 2025Q2 경계](https://www.data.go.kr/data/15129688/fileData.do), [한국교통연구원 격자체계 분석](https://www.ktdb.go.kr/DATA/pblcte/20230613101540605.pdf).
+
+## 최신 실행 결과 (2026-11-20)
+
+24조건×30일, 105,000요청을 실행했다. 정산 합계 오류·경로 불가·탐색시간 경고는 모두 0이다. C6 60사례와 1,000회 민감도는 기존 결과와 동일했다. pytest 61개와 9 subtests가 통과했다.
+
+- [전체 결과](reports/c7-detailed-sim.md), [기존 118점 대비 핵심 표](reports/c7-grid-comparison.md)
+- [지역별 범위·유실](reports/c7-osrm-region-coverage.csv), [snap >300m](reports/c7-osrm-snaps-over300.csv), [보정 검증](reports/c7-osrm-calibration.json)
+- [실행 명령·해시·한계·절대 경로 인계서](reports/osrm-step1-handoff.md)
+
+목적지·경로·시간·단독요금 변경이 동시에 반영된 비교다. 차이를 어느 한 변경의 인과효과로 해석하지 않는다. sample은 기존 파일에 다시 실행하지 않고 query로 재개한다. 새 자료/표본은 별도 --output 경로와 detailed.py --routing-cache를 사용한다. API 키는 저장소 .env의 KAKAO_REST_KEY에서 읽으며 보고서에 기록하지 않는다.

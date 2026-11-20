@@ -1,0 +1,3643 @@
+{
+  "source_sha256": "18f9907b4489227cdcd09ffaf00f901fe82452d7d2363ff5a53747b0d82091eb",
+  "candidate_points": 118,
+  "days_per_condition": 30,
+  "scenarios": [
+    {
+      "parameters": {
+        "name": "base",
+        "requests": 100,
+        "delay": 15,
+        "saving": 0.1,
+        "instant": 0.3,
+        "noshow": 0,
+        "unpaid": 0,
+        "empirical": true,
+        "axis": "기본",
+        "error_scale": 1,
+        "exclude_intra_pocheon": false
+      },
+      "days": 30,
+      "metrics": {
+        "matching_rate": {
+          "mean": 0.616,
+          "ci95_low": 0.5946666666666667,
+          "ci95_high": 0.6376666666666666,
+          "valid_days": 30
+        },
+        "boarded_rate": {
+          "mean": 0.616,
+          "ci95_low": 0.5946666666666667,
+          "ci95_high": 0.6376666666666666,
+          "valid_days": 30
+        },
+        "expired_rate": {
+          "mean": 0.384,
+          "ci95_low": 0.3623333333333333,
+          "ci95_high": 0.4053333333333333,
+          "valid_days": 30
+        },
+        "unpaid_rate": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "matched": {
+          "mean": 61.6,
+          "ci95_low": 59.46666666666667,
+          "ci95_high": 63.766666666666666,
+          "valid_days": 30
+        },
+        "boarded": {
+          "mean": 61.6,
+          "ci95_low": 59.46666666666667,
+          "ci95_high": 63.766666666666666,
+          "valid_days": 30
+        },
+        "groups": {
+          "mean": 28.2,
+          "ci95_low": 27.133333333333333,
+          "ci95_high": 29.266666666666666,
+          "valid_days": 30
+        },
+        "noshow_rate_matched": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "mean_delay_minutes": {
+          "mean": 3.867168162912038,
+          "ci95_low": 3.7307738487557947,
+          "ci95_high": 4.002640394100544,
+          "valid_days": 30
+        },
+        "p90_delay_minutes": {
+          "mean": 13.446055555555557,
+          "ci95_low": 13.11793888888889,
+          "ci95_high": 13.722000000000001,
+          "valid_days": 30
+        },
+        "mean_wait_minutes": {
+          "mean": 8.396662915589202,
+          "ci95_low": 8.213582047392293,
+          "ci95_high": 8.580356852960527,
+          "valid_days": 30
+        },
+        "p90_wait_minutes": {
+          "mean": 14.575277777777778,
+          "ci95_low": 14.318976388888888,
+          "ci95_high": 14.837779166666666,
+          "valid_days": 30
+        },
+        "conservation_errors": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "budget_warning_rounds": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "max_round_ms": {
+          "mean": 4.055813333333333,
+          "ci95_low": 1.136277,
+          "ci95_high": 9.427950583333335,
+          "valid_days": 30
+        },
+        "verification_unavailable": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "groups_all_absent": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "mean_bill_gap_krw": {
+          "mean": 2207.218725289653,
+          "ci95_low": 1893.3768715301167,
+          "ci95_high": 2515.7559402048305,
+          "valid_days": 30
+        },
+        "mean_abs_bill_gap_krw": {
+          "mean": 3786.7608448736946,
+          "ci95_low": 3583.9215467819786,
+          "ci95_high": 3984.414765492094,
+          "valid_days": 30
+        },
+        "groups_2_count": {
+          "mean": 23.833333333333332,
+          "ci95_low": 22.566666666666666,
+          "ci95_high": 25.066666666666666,
+          "valid_days": 30
+        },
+        "groups_2_rate": {
+          "mean": 0.842745170660078,
+          "ci95_low": 0.8210744694157588,
+          "ci95_high": 0.8629600255587733,
+          "valid_days": 30
+        },
+        "groups_3_count": {
+          "mean": 3.533333333333333,
+          "ci95_low": 3,
+          "ci95_high": 4.1,
+          "valid_days": 30
+        },
+        "groups_3_rate": {
+          "mean": 0.12655436528057856,
+          "ci95_low": 0.10641281078227571,
+          "ci95_high": 0.14818411622143826,
+          "valid_days": 30
+        },
+        "groups_4_count": {
+          "mean": 0.8333333333333334,
+          "ci95_low": 0.5333333333333333,
+          "ci95_high": 1.1666666666666667,
+          "valid_days": 30
+        },
+        "groups_4_rate": {
+          "mean": 0.030700464059343444,
+          "ci95_low": 0.019081108506734664,
+          "ci95_high": 0.043267851803238506,
+          "valid_days": 30
+        },
+        "mean_ratio_saving": {
+          "mean": 0.49553370943879244,
+          "ci95_low": 0.48794651123100463,
+          "ci95_high": 0.5030573660552834,
+          "valid_days": 30
+        },
+        "p90_ratio_saving": {
+          "mean": 0.6668774968868266,
+          "ci95_low": 0.6522224967135704,
+          "ci95_high": 0.6819904186178771,
+          "valid_days": 30
+        },
+        "mean_ratio_saving_all": {
+          "mean": 0.3052672522824596,
+          "ci95_low": 0.2937618283786905,
+          "ci95_high": 0.3167715531992233,
+          "valid_days": 30
+        },
+        "mean_expected_ratio_saving": {
+          "mean": 0.5029627829990214,
+          "ci95_low": 0.49655928414428147,
+          "ci95_high": 0.5094663148240922,
+          "valid_days": 30
+        },
+        "ratio_harmed_rate": {
+          "mean": 0.002718382953332077,
+          "ci95_low": 0.000546448087431694,
+          "ci95_high": 0.00581511839708561,
+          "valid_days": 30
+        },
+        "ratio_additional_rate": {
+          "mean": 0.23622614315278206,
+          "ci95_low": 0.20754650584756626,
+          "ci95_high": 0.2647921728033893,
+          "valid_days": 30
+        },
+        "mean_ratio_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "p90_ratio_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_ratio_noshow_expected_burden_change": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_ratio_compensation_credit_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_ratio_noshow_charge_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "p90_ratio_noshow_charge_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "ratio_noshow_charge_total_krw": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "ratio_noshow_charged_rate": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_ratio_noshow_cap_used": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "raw_mean_ratio_saving": {
+          "mean": 0.49553370943879244,
+          "ci95_low": 0.48794651123100463,
+          "ci95_high": 0.5030573660552834,
+          "valid_days": 30
+        },
+        "raw_p90_ratio_saving": {
+          "mean": 0.6668774968868266,
+          "ci95_low": 0.6522224967135704,
+          "ci95_high": 0.6819904186178771,
+          "valid_days": 30
+        },
+        "raw_ratio_harmed_rate": {
+          "mean": 0.002718382953332077,
+          "ci95_low": 0.000546448087431694,
+          "ci95_high": 0.00581511839708561,
+          "valid_days": 30
+        },
+        "raw_ratio_additional_rate": {
+          "mean": 0.23622614315278206,
+          "ci95_low": 0.20754650584756626,
+          "ci95_high": 0.2647921728033893,
+          "valid_days": 30
+        },
+        "raw_mean_ratio_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "raw_p90_ratio_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_equal_saving": {
+          "mean": 0.46246097616626364,
+          "ci95_low": 0.45299578797114276,
+          "ci95_high": 0.4720265660479661,
+          "valid_days": 30
+        },
+        "p90_equal_saving": {
+          "mean": 0.67929678498642,
+          "ci95_low": 0.6656737574958349,
+          "ci95_high": 0.6935430882498416,
+          "valid_days": 30
+        },
+        "mean_equal_saving_all": {
+          "mean": 0.28505214898743014,
+          "ci95_low": 0.27310387753688153,
+          "ci95_high": 0.29695042373874986,
+          "valid_days": 30
+        },
+        "mean_expected_equal_saving": {
+          "mean": 0.47090112599873746,
+          "ci95_low": 0.46294211570112853,
+          "ci95_high": 0.47937644733096063,
+          "valid_days": 30
+        },
+        "equal_harmed_rate": {
+          "mean": 0.061288061633241644,
+          "ci95_low": 0.051052334775778405,
+          "ci95_high": 0.07153049564526438,
+          "valid_days": 30
+        },
+        "equal_additional_rate": {
+          "mean": 0.23622614315278206,
+          "ci95_low": 0.20754650584756626,
+          "ci95_high": 0.2647921728033893,
+          "valid_days": 30
+        },
+        "mean_equal_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "p90_equal_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_equal_noshow_expected_burden_change": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_equal_compensation_credit_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_equal_noshow_charge_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "p90_equal_noshow_charge_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "equal_noshow_charge_total_krw": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "equal_noshow_charged_rate": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_equal_noshow_cap_used": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "raw_mean_equal_saving": {
+          "mean": 0.46246097616626364,
+          "ci95_low": 0.45299578797114276,
+          "ci95_high": 0.4720265660479661,
+          "valid_days": 30
+        },
+        "raw_p90_equal_saving": {
+          "mean": 0.67929678498642,
+          "ci95_low": 0.6656737574958349,
+          "ci95_high": 0.6935430882498416,
+          "valid_days": 30
+        },
+        "raw_equal_harmed_rate": {
+          "mean": 0.061288061633241644,
+          "ci95_low": 0.051052334775778405,
+          "ci95_high": 0.07153049564526438,
+          "valid_days": 30
+        },
+        "raw_equal_additional_rate": {
+          "mean": 0.23622614315278206,
+          "ci95_low": 0.20754650584756626,
+          "ci95_high": 0.2647921728033893,
+          "valid_days": 30
+        },
+        "raw_mean_equal_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "raw_p90_equal_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "noshow_affected_survivors": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "hour_12_requests": {
+          "mean": 5.466666666666667,
+          "ci95_low": 4.7,
+          "ci95_high": 6.233333333333333,
+          "valid_days": 30
+        },
+        "hour_12_matched": {
+          "mean": 2.6666666666666665,
+          "ci95_low": 2,
+          "ci95_high": 3.3666666666666667,
+          "valid_days": 30
+        },
+        "hour_12_matching_rate": {
+          "mean": 0.45375661375661375,
+          "ci95_low": 0.36383531746031744,
+          "ci95_high": 0.5393154761904762,
+          "valid_days": 30
+        },
+        "hour_13_requests": {
+          "mean": 6.033333333333333,
+          "ci95_low": 5.3,
+          "ci95_high": 6.766666666666667,
+          "valid_days": 30
+        },
+        "hour_13_matched": {
+          "mean": 3.066666666666667,
+          "ci95_low": 2.3333333333333335,
+          "ci95_high": 3.8333333333333335,
+          "valid_days": 30
+        },
+        "hour_13_matching_rate": {
+          "mean": 0.48907407407407405,
+          "ci95_low": 0.38588128306878305,
+          "ci95_high": 0.5913366402116401,
+          "valid_days": 30
+        },
+        "hour_14_requests": {
+          "mean": 7.5,
+          "ci95_low": 6.6,
+          "ci95_high": 8.334166666666656,
+          "valid_days": 30
+        },
+        "hour_14_matched": {
+          "mean": 3.7333333333333334,
+          "ci95_low": 2.933333333333333,
+          "ci95_high": 4.533333333333333,
+          "valid_days": 30
+        },
+        "hour_14_matching_rate": {
+          "mean": 0.4632202982202982,
+          "ci95_low": 0.3712549302549303,
+          "ci95_high": 0.556660113035113,
+          "valid_days": 30
+        },
+        "hour_15_requests": {
+          "mean": 11.466666666666667,
+          "ci95_low": 10.233333333333333,
+          "ci95_high": 12.733333333333333,
+          "valid_days": 30
+        },
+        "hour_15_matched": {
+          "mean": 7.6,
+          "ci95_low": 6.533333333333333,
+          "ci95_high": 8.733333333333333,
+          "valid_days": 30
+        },
+        "hour_15_matching_rate": {
+          "mean": 0.6539132218543983,
+          "ci95_low": 0.610503004484622,
+          "ci95_high": 0.6959344300851653,
+          "valid_days": 30
+        },
+        "hour_16_requests": {
+          "mean": 14.133333333333333,
+          "ci95_low": 13.333333333333334,
+          "ci95_high": 14.933333333333334,
+          "valid_days": 30
+        },
+        "hour_16_matched": {
+          "mean": 9.833333333333334,
+          "ci95_low": 8.833333333333334,
+          "ci95_high": 10.833333333333334,
+          "valid_days": 30
+        },
+        "hour_16_matching_rate": {
+          "mean": 0.6896433349645424,
+          "ci95_low": 0.6397628336575705,
+          "ci95_high": 0.7366077729209501,
+          "valid_days": 30
+        },
+        "hour_17_requests": {
+          "mean": 17.666666666666668,
+          "ci95_low": 16.433333333333334,
+          "ci95_high": 19,
+          "valid_days": 30
+        },
+        "hour_17_matched": {
+          "mean": 12.933333333333334,
+          "ci95_low": 11.8,
+          "ci95_high": 14.133333333333333,
+          "valid_days": 30
+        },
+        "hour_17_matching_rate": {
+          "mean": 0.7277238938736673,
+          "ci95_low": 0.7034044725453226,
+          "ci95_high": 0.7520696228027351,
+          "valid_days": 30
+        },
+        "hour_18_requests": {
+          "mean": 15.466666666666667,
+          "ci95_low": 14.3,
+          "ci95_high": 16.666666666666668,
+          "valid_days": 30
+        },
+        "hour_18_matched": {
+          "mean": 9.733333333333333,
+          "ci95_low": 8.466666666666667,
+          "ci95_high": 11,
+          "valid_days": 30
+        },
+        "hour_18_matching_rate": {
+          "mean": 0.6179100222302537,
+          "ci95_low": 0.5608652270782268,
+          "ci95_high": 0.6673462609496564,
+          "valid_days": 30
+        },
+        "hour_19_requests": {
+          "mean": 8.966666666666667,
+          "ci95_low": 8.066666666666666,
+          "ci95_high": 9.833333333333334,
+          "valid_days": 30
+        },
+        "hour_19_matched": {
+          "mean": 5.333333333333333,
+          "ci95_low": 4.6,
+          "ci95_high": 6.034166666666654,
+          "valid_days": 30
+        },
+        "hour_19_matching_rate": {
+          "mean": 0.5755320605320605,
+          "ci95_low": 0.5119424903799904,
+          "ci95_high": 0.6339996970621972,
+          "valid_days": 30
+        },
+        "hour_20_requests": {
+          "mean": 7.766666666666667,
+          "ci95_low": 6.8,
+          "ci95_high": 8.7,
+          "valid_days": 30
+        },
+        "hour_20_matched": {
+          "mean": 4.366666666666666,
+          "ci95_low": 3.433333333333333,
+          "ci95_high": 5.3,
+          "valid_days": 30
+        },
+        "hour_20_matching_rate": {
+          "mean": 0.5151623376623377,
+          "ci95_low": 0.4210661976911977,
+          "ci95_high": 0.605491432178932,
+          "valid_days": 30
+        },
+        "hour_21_requests": {
+          "mean": 5.533333333333333,
+          "ci95_low": 4.833333333333333,
+          "ci95_high": 6.233333333333333,
+          "valid_days": 30
+        },
+        "hour_21_matched": {
+          "mean": 2.3333333333333335,
+          "ci95_low": 1.7666666666666666,
+          "ci95_high": 2.9,
+          "valid_days": 30
+        },
+        "hour_21_matching_rate": {
+          "mean": 0.42428571428571427,
+          "ci95_low": 0.3211875,
+          "ci95_high": 0.5269057539682539,
+          "valid_days": 30
+        }
+      }
+    },
+    {
+      "parameters": {
+        "name": "n50_d15",
+        "requests": 50,
+        "delay": 15,
+        "saving": 0.1,
+        "instant": 0.3,
+        "noshow": 0,
+        "unpaid": 0,
+        "empirical": true,
+        "axis": "요청수×지연",
+        "error_scale": 1,
+        "exclude_intra_pocheon": false
+      },
+      "days": 30,
+      "metrics": {
+        "matching_rate": {
+          "mean": 0.45466666666666666,
+          "ci95_low": 0.42,
+          "ci95_high": 0.48933333333333334,
+          "valid_days": 30
+        },
+        "boarded_rate": {
+          "mean": 0.45466666666666666,
+          "ci95_low": 0.42,
+          "ci95_high": 0.48933333333333334,
+          "valid_days": 30
+        },
+        "expired_rate": {
+          "mean": 0.5453333333333333,
+          "ci95_low": 0.5106666666666667,
+          "ci95_high": 0.5800000000000001,
+          "valid_days": 30
+        },
+        "unpaid_rate": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "matched": {
+          "mean": 22.733333333333334,
+          "ci95_low": 21,
+          "ci95_high": 24.466666666666665,
+          "valid_days": 30
+        },
+        "boarded": {
+          "mean": 22.733333333333334,
+          "ci95_low": 21,
+          "ci95_high": 24.466666666666665,
+          "valid_days": 30
+        },
+        "groups": {
+          "mean": 10.7,
+          "ci95_low": 9.9,
+          "ci95_high": 11.5,
+          "valid_days": 30
+        },
+        "noshow_rate_matched": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "mean_delay_minutes": {
+          "mean": 3.76167146422529,
+          "ci95_low": 3.513882845241198,
+          "ci95_high": 4.0190661870476765,
+          "valid_days": 30
+        },
+        "p90_delay_minutes": {
+          "mean": 12.675500000000001,
+          "ci95_low": 12.067776388888891,
+          "ci95_high": 13.223177777777778,
+          "valid_days": 30
+        },
+        "mean_wait_minutes": {
+          "mean": 8.706602306732249,
+          "ci95_low": 8.413131145411132,
+          "ci95_high": 8.992987506836071,
+          "valid_days": 30
+        },
+        "p90_wait_minutes": {
+          "mean": 15.135166666666667,
+          "ci95_low": 14.660738888888888,
+          "ci95_high": 15.627447222222225,
+          "valid_days": 30
+        },
+        "conservation_errors": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "budget_warning_rounds": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "max_round_ms": {
+          "mean": 0.32381,
+          "ci95_low": 0.20816991666666668,
+          "ci95_high": 0.4619565833333333,
+          "valid_days": 30
+        },
+        "verification_unavailable": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "groups_all_absent": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "mean_bill_gap_krw": {
+          "mean": 1929.4028432678433,
+          "ci95_low": 1403.8166012598513,
+          "ci95_high": 2424.5781468600835,
+          "valid_days": 30
+        },
+        "mean_abs_bill_gap_krw": {
+          "mean": 3931.3826423576425,
+          "ci95_low": 3594.044208781959,
+          "ci95_high": 4271.324832697394,
+          "valid_days": 30
+        },
+        "groups_2_count": {
+          "mean": 9.5,
+          "ci95_low": 8.666666666666666,
+          "ci95_high": 10.333333333333334,
+          "valid_days": 30
+        },
+        "groups_2_rate": {
+          "mean": 0.8853416028416028,
+          "ci95_low": 0.8517916273541273,
+          "ci95_high": 0.9177714970214971,
+          "valid_days": 30
+        },
+        "groups_3_count": {
+          "mean": 1.0666666666666667,
+          "ci95_low": 0.7333333333333333,
+          "ci95_high": 1.4,
+          "valid_days": 30
+        },
+        "groups_3_rate": {
+          "mean": 0.10304223554223554,
+          "ci95_low": 0.07277045177045177,
+          "ci95_high": 0.13480946368446367,
+          "valid_days": 30
+        },
+        "groups_4_count": {
+          "mean": 0.13333333333333333,
+          "ci95_low": 0,
+          "ci95_high": 0.3,
+          "valid_days": 30
+        },
+        "groups_4_rate": {
+          "mean": 0.011616161616161616,
+          "ci95_low": 0,
+          "ci95_high": 0.02707070707070707,
+          "valid_days": 30
+        },
+        "mean_ratio_saving": {
+          "mean": 0.49041607224595984,
+          "ci95_low": 0.4763637868868655,
+          "ci95_high": 0.5041443659900398,
+          "valid_days": 30
+        },
+        "p90_ratio_saving": {
+          "mean": 0.6451535117052802,
+          "ci95_low": 0.6222856971739422,
+          "ci95_high": 0.6686952267357944,
+          "valid_days": 30
+        },
+        "mean_ratio_saving_all": {
+          "mean": 0.2227313307934973,
+          "ci95_low": 0.20512954118897886,
+          "ci95_high": 0.24035507221559488,
+          "valid_days": 30
+        },
+        "mean_expected_ratio_saving": {
+          "mean": 0.4936082679852236,
+          "ci95_low": 0.48392898388541317,
+          "ci95_high": 0.5042233298805587,
+          "valid_days": 30
+        },
+        "ratio_harmed_rate": {
+          "mean": 0.0027056277056277055,
+          "ci95_low": 0,
+          "ci95_high": 0.0069264069264069255,
+          "valid_days": 30
+        },
+        "ratio_additional_rate": {
+          "mean": 0.235501813001813,
+          "ci95_low": 0.18007786195286196,
+          "ci95_high": 0.2913120074370074,
+          "valid_days": 30
+        },
+        "mean_ratio_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "p90_ratio_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_ratio_noshow_expected_burden_change": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_ratio_compensation_credit_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_ratio_noshow_charge_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "p90_ratio_noshow_charge_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "ratio_noshow_charge_total_krw": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "ratio_noshow_charged_rate": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_ratio_noshow_cap_used": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "raw_mean_ratio_saving": {
+          "mean": 0.49041607224595984,
+          "ci95_low": 0.4763637868868655,
+          "ci95_high": 0.5041443659900398,
+          "valid_days": 30
+        },
+        "raw_p90_ratio_saving": {
+          "mean": 0.6451535117052802,
+          "ci95_low": 0.6222856971739422,
+          "ci95_high": 0.6686952267357944,
+          "valid_days": 30
+        },
+        "raw_ratio_harmed_rate": {
+          "mean": 0.0027056277056277055,
+          "ci95_low": 0,
+          "ci95_high": 0.0069264069264069255,
+          "valid_days": 30
+        },
+        "raw_ratio_additional_rate": {
+          "mean": 0.235501813001813,
+          "ci95_low": 0.18007786195286196,
+          "ci95_high": 0.2913120074370074,
+          "valid_days": 30
+        },
+        "raw_mean_ratio_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "raw_p90_ratio_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_equal_saving": {
+          "mean": 0.4558835790096058,
+          "ci95_low": 0.4377395758685336,
+          "ci95_high": 0.4729188709358706,
+          "valid_days": 30
+        },
+        "p90_equal_saving": {
+          "mean": 0.6641165707882078,
+          "ci95_low": 0.6461565044896415,
+          "ci95_high": 0.6822483234170794,
+          "valid_days": 30
+        },
+        "mean_equal_saving_all": {
+          "mean": 0.20710903053053958,
+          "ci95_low": 0.18978354778074535,
+          "ci95_high": 0.22434060670350542,
+          "valid_days": 30
+        },
+        "mean_expected_equal_saving": {
+          "mean": 0.46047677726259023,
+          "ci95_low": 0.4480786071331973,
+          "ci95_high": 0.4737630626413055,
+          "valid_days": 30
+        },
+        "equal_harmed_rate": {
+          "mean": 0.05536490960355266,
+          "ci95_low": 0.037144374062840144,
+          "ci95_high": 0.07520919276257426,
+          "valid_days": 30
+        },
+        "equal_additional_rate": {
+          "mean": 0.235501813001813,
+          "ci95_low": 0.18007786195286196,
+          "ci95_high": 0.2913120074370074,
+          "valid_days": 30
+        },
+        "mean_equal_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "p90_equal_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_equal_noshow_expected_burden_change": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_equal_compensation_credit_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_equal_noshow_charge_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "p90_equal_noshow_charge_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "equal_noshow_charge_total_krw": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "equal_noshow_charged_rate": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_equal_noshow_cap_used": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "raw_mean_equal_saving": {
+          "mean": 0.4558835790096058,
+          "ci95_low": 0.4377395758685336,
+          "ci95_high": 0.4729188709358706,
+          "valid_days": 30
+        },
+        "raw_p90_equal_saving": {
+          "mean": 0.6641165707882078,
+          "ci95_low": 0.6461565044896415,
+          "ci95_high": 0.6822483234170794,
+          "valid_days": 30
+        },
+        "raw_equal_harmed_rate": {
+          "mean": 0.05536490960355266,
+          "ci95_low": 0.037144374062840144,
+          "ci95_high": 0.07520919276257426,
+          "valid_days": 30
+        },
+        "raw_equal_additional_rate": {
+          "mean": 0.235501813001813,
+          "ci95_low": 0.18007786195286196,
+          "ci95_high": 0.2913120074370074,
+          "valid_days": 30
+        },
+        "raw_mean_equal_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "raw_p90_equal_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "noshow_affected_survivors": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "hour_12_requests": {
+          "mean": 2.8333333333333335,
+          "ci95_low": 2.3,
+          "ci95_high": 3.4,
+          "valid_days": 30
+        },
+        "hour_12_matched": {
+          "mean": 0.7666666666666667,
+          "ci95_low": 0.3,
+          "ci95_high": 1.2666666666666666,
+          "valid_days": 30
+        },
+        "hour_12_matching_rate": {
+          "mean": 0.16149425287356323,
+          "ci95_low": 0.067816091954023,
+          "ci95_high": 0.26666666666666666,
+          "valid_days": 29
+        },
+        "hour_13_requests": {
+          "mean": 3.2666666666666666,
+          "ci95_low": 2.7333333333333334,
+          "ci95_high": 3.7666666666666666,
+          "valid_days": 30
+        },
+        "hour_13_matched": {
+          "mean": 1.0333333333333334,
+          "ci95_low": 0.6,
+          "ci95_high": 1.5,
+          "valid_days": 30
+        },
+        "hour_13_matching_rate": {
+          "mean": 0.2904761904761905,
+          "ci95_low": 0.1773809523809524,
+          "ci95_high": 0.41011904761904766,
+          "valid_days": 28
+        },
+        "hour_14_requests": {
+          "mean": 3.3,
+          "ci95_low": 2.8,
+          "ci95_high": 3.8333333333333335,
+          "valid_days": 30
+        },
+        "hour_14_matched": {
+          "mean": 1.2333333333333334,
+          "ci95_low": 0.8333333333333334,
+          "ci95_high": 1.6333333333333333,
+          "valid_days": 30
+        },
+        "hour_14_matching_rate": {
+          "mean": 0.35333333333333333,
+          "ci95_low": 0.23666666666666666,
+          "ci95_high": 0.4738888888888889,
+          "valid_days": 30
+        },
+        "hour_15_requests": {
+          "mean": 5.533333333333333,
+          "ci95_low": 4.699166666666668,
+          "ci95_high": 6.366666666666666,
+          "valid_days": 30
+        },
+        "hour_15_matched": {
+          "mean": 2.7,
+          "ci95_low": 2.033333333333333,
+          "ci95_high": 3.4,
+          "valid_days": 30
+        },
+        "hour_15_matching_rate": {
+          "mean": 0.43175925925925923,
+          "ci95_low": 0.339218253968254,
+          "ci95_high": 0.5228187830687829,
+          "valid_days": 30
+        },
+        "hour_16_requests": {
+          "mean": 7.033333333333333,
+          "ci95_low": 6.366666666666666,
+          "ci95_high": 7.733333333333333,
+          "valid_days": 30
+        },
+        "hour_16_matched": {
+          "mean": 3.533333333333333,
+          "ci95_low": 2.6666666666666665,
+          "ci95_high": 4.4,
+          "valid_days": 30
+        },
+        "hour_16_matching_rate": {
+          "mean": 0.4755122655122655,
+          "ci95_low": 0.3706968795093795,
+          "ci95_high": 0.5759463383838384,
+          "valid_days": 30
+        },
+        "hour_17_requests": {
+          "mean": 9.033333333333333,
+          "ci95_low": 8.133333333333333,
+          "ci95_high": 9.933333333333334,
+          "valid_days": 30
+        },
+        "hour_17_matched": {
+          "mean": 5.566666666666666,
+          "ci95_low": 4.8,
+          "ci95_high": 6.366666666666666,
+          "valid_days": 30
+        },
+        "hour_17_matching_rate": {
+          "mean": 0.6148157398157398,
+          "ci95_low": 0.5511735787360786,
+          "ci95_high": 0.681975795038295,
+          "valid_days": 30
+        },
+        "hour_18_requests": {
+          "mean": 8.266666666666667,
+          "ci95_low": 7.4,
+          "ci95_high": 9.2,
+          "valid_days": 30
+        },
+        "hour_18_matched": {
+          "mean": 4.166666666666667,
+          "ci95_low": 3.5,
+          "ci95_high": 4.833333333333333,
+          "valid_days": 30
+        },
+        "hour_18_matching_rate": {
+          "mean": 0.5112861212861213,
+          "ci95_low": 0.4401580687830688,
+          "ci95_high": 0.5832315577940577,
+          "valid_days": 30
+        },
+        "hour_19_requests": {
+          "mean": 4.333333333333333,
+          "ci95_low": 3.7666666666666666,
+          "ci95_high": 4.866666666666666,
+          "valid_days": 30
+        },
+        "hour_19_matched": {
+          "mean": 1.8,
+          "ci95_low": 1.2333333333333334,
+          "ci95_high": 2.4,
+          "valid_days": 30
+        },
+        "hour_19_matching_rate": {
+          "mean": 0.3839080459770115,
+          "ci95_low": 0.26954022988505744,
+          "ci95_high": 0.49942528735632186,
+          "valid_days": 29
+        },
+        "hour_20_requests": {
+          "mean": 3.6666666666666665,
+          "ci95_low": 3.1333333333333333,
+          "ci95_high": 4.166666666666667,
+          "valid_days": 30
+        },
+        "hour_20_matched": {
+          "mean": 1.3333333333333333,
+          "ci95_low": 0.8333333333333334,
+          "ci95_high": 1.8666666666666667,
+          "valid_days": 30
+        },
+        "hour_20_matching_rate": {
+          "mean": 0.3310344827586207,
+          "ci95_low": 0.2189655172413793,
+          "ci95_high": 0.44599137931034466,
+          "valid_days": 29
+        },
+        "hour_21_requests": {
+          "mean": 2.7333333333333334,
+          "ci95_low": 2.2666666666666666,
+          "ci95_high": 3.2,
+          "valid_days": 30
+        },
+        "hour_21_matched": {
+          "mean": 0.6,
+          "ci95_low": 0.26666666666666666,
+          "ci95_high": 0.9666666666666667,
+          "valid_days": 30
+        },
+        "hour_21_matching_rate": {
+          "mean": 0.18850574712643678,
+          "ci95_low": 0.07758620689655173,
+          "ci95_high": 0.3172413793103448,
+          "valid_days": 29
+        }
+      }
+    },
+    {
+      "parameters": {
+        "name": "participation150",
+        "requests": 150,
+        "delay": 15,
+        "saving": 0.1,
+        "instant": 0.3,
+        "noshow": 0,
+        "unpaid": 0,
+        "empirical": true,
+        "axis": "참여율",
+        "error_scale": 1,
+        "exclude_intra_pocheon": false
+      },
+      "days": 30,
+      "metrics": {
+        "matching_rate": {
+          "mean": 0.6822222222222222,
+          "ci95_low": 0.6702222222222222,
+          "ci95_high": 0.6946722222222221,
+          "valid_days": 30
+        },
+        "boarded_rate": {
+          "mean": 0.6822222222222222,
+          "ci95_low": 0.6702222222222222,
+          "ci95_high": 0.6946722222222221,
+          "valid_days": 30
+        },
+        "expired_rate": {
+          "mean": 0.31777777777777777,
+          "ci95_low": 0.3053277777777778,
+          "ci95_high": 0.3297777777777778,
+          "valid_days": 30
+        },
+        "unpaid_rate": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "matched": {
+          "mean": 102.33333333333333,
+          "ci95_low": 100.53333333333333,
+          "ci95_high": 104.20083333333332,
+          "valid_days": 30
+        },
+        "boarded": {
+          "mean": 102.33333333333333,
+          "ci95_low": 100.53333333333333,
+          "ci95_high": 104.20083333333332,
+          "valid_days": 30
+        },
+        "groups": {
+          "mean": 44.56666666666667,
+          "ci95_low": 43.53333333333333,
+          "ci95_high": 45.63333333333333,
+          "valid_days": 30
+        },
+        "noshow_rate_matched": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "mean_delay_minutes": {
+          "mean": 3.7535941985402843,
+          "ci95_low": 3.6566775921159036,
+          "ci95_high": 3.8513978452890623,
+          "valid_days": 30
+        },
+        "p90_delay_minutes": {
+          "mean": 13.440166666666666,
+          "ci95_low": 13.201995833333333,
+          "ci95_high": 13.656283333333333,
+          "valid_days": 30
+        },
+        "mean_wait_minutes": {
+          "mean": 7.834094829121316,
+          "ci95_low": 7.6824141776732215,
+          "ci95_high": 7.987008428659437,
+          "valid_days": 30
+        },
+        "p90_wait_minutes": {
+          "mean": 14.455833333333334,
+          "ci95_low": 14.297831944444445,
+          "ci95_high": 14.635558333333334,
+          "valid_days": 30
+        },
+        "conservation_errors": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "budget_warning_rounds": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "max_round_ms": {
+          "mean": 0.39459666666666665,
+          "ci95_low": 0.31770975,
+          "ci95_high": 0.4849468333333333,
+          "valid_days": 30
+        },
+        "verification_unavailable": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "groups_all_absent": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "mean_bill_gap_krw": {
+          "mean": 2078.0998216460002,
+          "ci95_low": 1904.7317549267125,
+          "ci95_high": 2248.5566789151276,
+          "valid_days": 30
+        },
+        "mean_abs_bill_gap_krw": {
+          "mean": 3740.1612392375014,
+          "ci95_low": 3587.876336058032,
+          "ci95_high": 3889.8092999181918,
+          "valid_days": 30
+        },
+        "groups_2_count": {
+          "mean": 34.46666666666667,
+          "ci95_low": 32.96666666666667,
+          "ci95_high": 36,
+          "valid_days": 30
+        },
+        "groups_2_rate": {
+          "mean": 0.7713743231278389,
+          "ci95_low": 0.7505706663586913,
+          "ci95_high": 0.7916195791744404,
+          "valid_days": 30
+        },
+        "groups_3_count": {
+          "mean": 7,
+          "ci95_low": 6.233333333333333,
+          "ci95_high": 7.8,
+          "valid_days": 30
+        },
+        "groups_3_rate": {
+          "mean": 0.1571807598476403,
+          "ci95_low": 0.14013763834302367,
+          "ci95_high": 0.17491630565373986,
+          "valid_days": 30
+        },
+        "groups_4_count": {
+          "mean": 3.1,
+          "ci95_low": 2.5,
+          "ci95_high": 3.7666666666666666,
+          "valid_days": 30
+        },
+        "groups_4_rate": {
+          "mean": 0.07144491702452081,
+          "ci95_low": 0.05612788291355247,
+          "ci95_high": 0.08853282157235363,
+          "valid_days": 30
+        },
+        "mean_ratio_saving": {
+          "mean": 0.5241523190657112,
+          "ci95_low": 0.5167714607278777,
+          "ci95_high": 0.532207458179535,
+          "valid_days": 30
+        },
+        "p90_ratio_saving": {
+          "mean": 0.6916344170608191,
+          "ci95_low": 0.6810359610099475,
+          "ci95_high": 0.702046188024078,
+          "valid_days": 30
+        },
+        "mean_ratio_saving_all": {
+          "mean": 0.3574457068281628,
+          "ci95_low": 0.35017086526928914,
+          "ci95_high": 0.36523228647440453,
+          "valid_days": 30
+        },
+        "mean_expected_ratio_saving": {
+          "mean": 0.5296936941374981,
+          "ci95_low": 0.5231188230871706,
+          "ci95_high": 0.5366567109744096,
+          "valid_days": 30
+        },
+        "ratio_harmed_rate": {
+          "mean": 0.001652989674834335,
+          "ci95_low": 0,
+          "ci95_high": 0.003736323008167668,
+          "valid_days": 30
+        },
+        "ratio_additional_rate": {
+          "mean": 0.24820421735006332,
+          "ci95_low": 0.22062395168139481,
+          "ci95_high": 0.2745434134012566,
+          "valid_days": 30
+        },
+        "mean_ratio_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "p90_ratio_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_ratio_noshow_expected_burden_change": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_ratio_compensation_credit_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_ratio_noshow_charge_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "p90_ratio_noshow_charge_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "ratio_noshow_charge_total_krw": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "ratio_noshow_charged_rate": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_ratio_noshow_cap_used": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "raw_mean_ratio_saving": {
+          "mean": 0.5241523190657112,
+          "ci95_low": 0.5167714607278777,
+          "ci95_high": 0.532207458179535,
+          "valid_days": 30
+        },
+        "raw_p90_ratio_saving": {
+          "mean": 0.6916344170608191,
+          "ci95_low": 0.6810359610099475,
+          "ci95_high": 0.702046188024078,
+          "valid_days": 30
+        },
+        "raw_ratio_harmed_rate": {
+          "mean": 0.001652989674834335,
+          "ci95_low": 0,
+          "ci95_high": 0.003736323008167668,
+          "valid_days": 30
+        },
+        "raw_ratio_additional_rate": {
+          "mean": 0.24820421735006332,
+          "ci95_low": 0.22062395168139481,
+          "ci95_high": 0.2745434134012566,
+          "valid_days": 30
+        },
+        "raw_mean_ratio_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "raw_p90_ratio_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_equal_saving": {
+          "mean": 0.4965192695407779,
+          "ci95_low": 0.48763314171052075,
+          "ci95_high": 0.5059874915224495,
+          "valid_days": 30
+        },
+        "p90_equal_saving": {
+          "mean": 0.7093414383513141,
+          "ci95_low": 0.7001520049514592,
+          "ci95_high": 0.7183809906024554,
+          "valid_days": 30
+        },
+        "mean_equal_saving_all": {
+          "mean": 0.3386109400390816,
+          "ci95_low": 0.3308004988940567,
+          "ci95_high": 0.3470677765153292,
+          "valid_days": 30
+        },
+        "mean_expected_equal_saving": {
+          "mean": 0.5026660296626736,
+          "ci95_low": 0.4949112474223056,
+          "ci95_high": 0.5107936059660995,
+          "valid_days": 30
+        },
+        "equal_harmed_rate": {
+          "mean": 0.04207152782472194,
+          "ci95_low": 0.03589629053671803,
+          "ci95_high": 0.048398480906365476,
+          "valid_days": 30
+        },
+        "equal_additional_rate": {
+          "mean": 0.24820421735006332,
+          "ci95_low": 0.22062395168139481,
+          "ci95_high": 0.2745434134012566,
+          "valid_days": 30
+        },
+        "mean_equal_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "p90_equal_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_equal_noshow_expected_burden_change": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_equal_compensation_credit_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_equal_noshow_charge_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "p90_equal_noshow_charge_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "equal_noshow_charge_total_krw": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "equal_noshow_charged_rate": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_equal_noshow_cap_used": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "raw_mean_equal_saving": {
+          "mean": 0.4965192695407779,
+          "ci95_low": 0.48763314171052075,
+          "ci95_high": 0.5059874915224495,
+          "valid_days": 30
+        },
+        "raw_p90_equal_saving": {
+          "mean": 0.7093414383513141,
+          "ci95_low": 0.7001520049514592,
+          "ci95_high": 0.7183809906024554,
+          "valid_days": 30
+        },
+        "raw_equal_harmed_rate": {
+          "mean": 0.04207152782472194,
+          "ci95_low": 0.03589629053671803,
+          "ci95_high": 0.048398480906365476,
+          "valid_days": 30
+        },
+        "raw_equal_additional_rate": {
+          "mean": 0.24820421735006332,
+          "ci95_low": 0.22062395168139481,
+          "ci95_high": 0.2745434134012566,
+          "valid_days": 30
+        },
+        "raw_mean_equal_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "raw_p90_equal_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "noshow_affected_survivors": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "hour_12_requests": {
+          "mean": 8.033333333333333,
+          "ci95_low": 7.066666666666666,
+          "ci95_high": 9.033333333333333,
+          "valid_days": 30
+        },
+        "hour_12_matched": {
+          "mean": 4.466666666666667,
+          "ci95_low": 3.6333333333333333,
+          "ci95_high": 5.3,
+          "valid_days": 30
+        },
+        "hour_12_matching_rate": {
+          "mean": 0.5425946275946276,
+          "ci95_low": 0.47812215099715105,
+          "ci95_high": 0.5991055148555147,
+          "valid_days": 30
+        },
+        "hour_13_requests": {
+          "mean": 9.133333333333333,
+          "ci95_low": 8.4,
+          "ci95_high": 9.866666666666667,
+          "valid_days": 30
+        },
+        "hour_13_matched": {
+          "mean": 5.366666666666666,
+          "ci95_low": 4.5,
+          "ci95_high": 6.233333333333333,
+          "valid_days": 30
+        },
+        "hour_13_matching_rate": {
+          "mean": 0.5739311614311614,
+          "ci95_low": 0.5037786010286011,
+          "ci95_high": 0.6427599321974322,
+          "valid_days": 30
+        },
+        "hour_14_requests": {
+          "mean": 11,
+          "ci95_low": 9.966666666666667,
+          "ci95_high": 11.966666666666667,
+          "valid_days": 30
+        },
+        "hour_14_matched": {
+          "mean": 6.533333333333333,
+          "ci95_low": 5.533333333333333,
+          "ci95_high": 7.466666666666667,
+          "valid_days": 30
+        },
+        "hour_14_matching_rate": {
+          "mean": 0.5734102934102934,
+          "ci95_low": 0.5089578615828615,
+          "ci95_high": 0.6328508806008807,
+          "valid_days": 30
+        },
+        "hour_15_requests": {
+          "mean": 16.533333333333335,
+          "ci95_low": 15,
+          "ci95_high": 18.133333333333333,
+          "valid_days": 30
+        },
+        "hour_15_matched": {
+          "mean": 11.433333333333334,
+          "ci95_low": 10.066666666666666,
+          "ci95_high": 12.866666666666667,
+          "valid_days": 30
+        },
+        "hour_15_matching_rate": {
+          "mean": 0.6867645344851228,
+          "ci95_low": 0.6448967635713959,
+          "ci95_high": 0.7264388228873523,
+          "valid_days": 30
+        },
+        "hour_16_requests": {
+          "mean": 21.766666666666666,
+          "ci95_low": 20.6,
+          "ci95_high": 23.066666666666666,
+          "valid_days": 30
+        },
+        "hour_16_matched": {
+          "mean": 16.233333333333334,
+          "ci95_low": 15.133333333333333,
+          "ci95_high": 17.266666666666666,
+          "valid_days": 30
+        },
+        "hour_16_matching_rate": {
+          "mean": 0.7459095860420247,
+          "ci95_low": 0.7154960028523295,
+          "ci95_high": 0.7736067634643559,
+          "valid_days": 30
+        },
+        "hour_17_requests": {
+          "mean": 27.233333333333334,
+          "ci95_low": 25.533333333333335,
+          "ci95_high": 29,
+          "valid_days": 30
+        },
+        "hour_17_matched": {
+          "mean": 21.133333333333333,
+          "ci95_low": 19.4,
+          "ci95_high": 22.933333333333334,
+          "valid_days": 30
+        },
+        "hour_17_matching_rate": {
+          "mean": 0.76975493433881,
+          "ci95_low": 0.7466915676918129,
+          "ci95_high": 0.7913525828390844,
+          "valid_days": 30
+        },
+        "hour_18_requests": {
+          "mean": 23.2,
+          "ci95_low": 21.8,
+          "ci95_high": 24.633333333333333,
+          "valid_days": 30
+        },
+        "hour_18_matched": {
+          "mean": 16.3,
+          "ci95_low": 14.933333333333334,
+          "ci95_high": 17.766666666666666,
+          "valid_days": 30
+        },
+        "hour_18_matching_rate": {
+          "mean": 0.6975420788654769,
+          "ci95_low": 0.6667944383025762,
+          "ci95_high": 0.7299387342285225,
+          "valid_days": 30
+        },
+        "hour_19_requests": {
+          "mean": 13.933333333333334,
+          "ci95_low": 12.9,
+          "ci95_high": 15,
+          "valid_days": 30
+        },
+        "hour_19_matched": {
+          "mean": 9.333333333333334,
+          "ci95_low": 8.366666666666667,
+          "ci95_high": 10.4,
+          "valid_days": 30
+        },
+        "hour_19_matching_rate": {
+          "mean": 0.664858591843886,
+          "ci95_low": 0.6218714561582208,
+          "ci95_high": 0.7072771540142864,
+          "valid_days": 30
+        },
+        "hour_20_requests": {
+          "mean": 11.4,
+          "ci95_low": 10.4,
+          "ci95_high": 12.4,
+          "valid_days": 30
+        },
+        "hour_20_matched": {
+          "mean": 7.233333333333333,
+          "ci95_low": 6.1,
+          "ci95_high": 8.366666666666667,
+          "valid_days": 30
+        },
+        "hour_20_matching_rate": {
+          "mean": 0.6095011306776013,
+          "ci95_low": 0.5448342822754587,
+          "ci95_high": 0.6729710801181389,
+          "valid_days": 30
+        },
+        "hour_21_requests": {
+          "mean": 7.766666666666667,
+          "ci95_low": 6.966666666666667,
+          "ci95_high": 8.566666666666666,
+          "valid_days": 30
+        },
+        "hour_21_matched": {
+          "mean": 4.3,
+          "ci95_low": 3.5,
+          "ci95_high": 5.133333333333334,
+          "valid_days": 30
+        },
+        "hour_21_matching_rate": {
+          "mean": 0.5309211159211159,
+          "ci95_low": 0.45039983164983166,
+          "ci95_high": 0.6092315416065416,
+          "valid_days": 30
+        }
+      }
+    },
+    {
+      "parameters": {
+        "name": "error_x1_5",
+        "requests": 100,
+        "delay": 15,
+        "saving": 0.1,
+        "instant": 0.3,
+        "noshow": 0,
+        "unpaid": 0,
+        "empirical": true,
+        "axis": "오차배수",
+        "error_scale": 1.5,
+        "exclude_intra_pocheon": false
+      },
+      "days": 30,
+      "metrics": {
+        "matching_rate": {
+          "mean": 0.616,
+          "ci95_low": 0.5946666666666667,
+          "ci95_high": 0.6376666666666666,
+          "valid_days": 30
+        },
+        "boarded_rate": {
+          "mean": 0.616,
+          "ci95_low": 0.5946666666666667,
+          "ci95_high": 0.6376666666666666,
+          "valid_days": 30
+        },
+        "expired_rate": {
+          "mean": 0.384,
+          "ci95_low": 0.3623333333333333,
+          "ci95_high": 0.4053333333333333,
+          "valid_days": 30
+        },
+        "unpaid_rate": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "matched": {
+          "mean": 61.6,
+          "ci95_low": 59.46666666666667,
+          "ci95_high": 63.766666666666666,
+          "valid_days": 30
+        },
+        "boarded": {
+          "mean": 61.6,
+          "ci95_low": 59.46666666666667,
+          "ci95_high": 63.766666666666666,
+          "valid_days": 30
+        },
+        "groups": {
+          "mean": 28.2,
+          "ci95_low": 27.133333333333333,
+          "ci95_high": 29.266666666666666,
+          "valid_days": 30
+        },
+        "noshow_rate_matched": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "mean_delay_minutes": {
+          "mean": 3.867168162912038,
+          "ci95_low": 3.7307738487557947,
+          "ci95_high": 4.002640394100544,
+          "valid_days": 30
+        },
+        "p90_delay_minutes": {
+          "mean": 13.446055555555557,
+          "ci95_low": 13.11793888888889,
+          "ci95_high": 13.722000000000001,
+          "valid_days": 30
+        },
+        "mean_wait_minutes": {
+          "mean": 8.396662915589202,
+          "ci95_low": 8.213582047392293,
+          "ci95_high": 8.580356852960527,
+          "valid_days": 30
+        },
+        "p90_wait_minutes": {
+          "mean": 14.575277777777778,
+          "ci95_low": 14.318976388888888,
+          "ci95_high": 14.837779166666666,
+          "valid_days": 30
+        },
+        "conservation_errors": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "budget_warning_rounds": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "max_round_ms": {
+          "mean": 4.055813333333333,
+          "ci95_low": 1.136277,
+          "ci95_high": 9.427950583333335,
+          "valid_days": 30
+        },
+        "verification_unavailable": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "groups_all_absent": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "mean_bill_gap_krw": {
+          "mean": 2341.6054357190683,
+          "ci95_low": 1789.819648764958,
+          "ci95_high": 2909.5591826598675,
+          "valid_days": 30
+        },
+        "mean_abs_bill_gap_krw": {
+          "mean": 5396.639478920463,
+          "ci95_low": 5055.177455644073,
+          "ci95_high": 5807.026032633686,
+          "valid_days": 30
+        },
+        "groups_2_count": {
+          "mean": 23.833333333333332,
+          "ci95_low": 22.566666666666666,
+          "ci95_high": 25.066666666666666,
+          "valid_days": 30
+        },
+        "groups_2_rate": {
+          "mean": 0.842745170660078,
+          "ci95_low": 0.8210744694157588,
+          "ci95_high": 0.8629600255587733,
+          "valid_days": 30
+        },
+        "groups_3_count": {
+          "mean": 3.533333333333333,
+          "ci95_low": 3,
+          "ci95_high": 4.1,
+          "valid_days": 30
+        },
+        "groups_3_rate": {
+          "mean": 0.12655436528057856,
+          "ci95_low": 0.10641281078227571,
+          "ci95_high": 0.14818411622143826,
+          "valid_days": 30
+        },
+        "groups_4_count": {
+          "mean": 0.8333333333333334,
+          "ci95_low": 0.5333333333333333,
+          "ci95_high": 1.1666666666666667,
+          "valid_days": 30
+        },
+        "groups_4_rate": {
+          "mean": 0.030700464059343444,
+          "ci95_low": 0.019081108506734664,
+          "ci95_high": 0.043267851803238506,
+          "valid_days": 30
+        },
+        "mean_ratio_saving": {
+          "mean": 0.47090514072200884,
+          "ci95_low": 0.4485628539205834,
+          "ci95_high": 0.48799017951401386,
+          "valid_days": 30
+        },
+        "p90_ratio_saving": {
+          "mean": 0.6863372584376172,
+          "ci95_low": 0.6735790052570954,
+          "ci95_high": 0.6991582882309736,
+          "valid_days": 30
+        },
+        "mean_ratio_saving_all": {
+          "mean": 0.290369478925105,
+          "ci95_low": 0.2730427362940443,
+          "ci95_high": 0.30684135298803566,
+          "valid_days": 30
+        },
+        "mean_expected_ratio_saving": {
+          "mean": 0.5029627829990214,
+          "ci95_low": 0.49655928414428147,
+          "ci95_high": 0.5094663148240922,
+          "valid_days": 30
+        },
+        "ratio_harmed_rate": {
+          "mean": 0.024683714469910783,
+          "ci95_low": 0.018705124785414248,
+          "ci95_high": 0.030833599439641986,
+          "valid_days": 30
+        },
+        "ratio_additional_rate": {
+          "mean": 0.3154699848680678,
+          "ci95_low": 0.28271488447079646,
+          "ci95_high": 0.34921840463372983,
+          "valid_days": 30
+        },
+        "mean_ratio_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "p90_ratio_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_ratio_noshow_expected_burden_change": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_ratio_compensation_credit_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_ratio_noshow_charge_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "p90_ratio_noshow_charge_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "ratio_noshow_charge_total_krw": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "ratio_noshow_charged_rate": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_ratio_noshow_cap_used": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "raw_mean_ratio_saving": {
+          "mean": 0.47090514072200884,
+          "ci95_low": 0.4485628539205834,
+          "ci95_high": 0.48799017951401386,
+          "valid_days": 30
+        },
+        "raw_p90_ratio_saving": {
+          "mean": 0.6863372584376172,
+          "ci95_low": 0.6735790052570954,
+          "ci95_high": 0.6991582882309736,
+          "valid_days": 30
+        },
+        "raw_ratio_harmed_rate": {
+          "mean": 0.024683714469910783,
+          "ci95_low": 0.018705124785414248,
+          "ci95_high": 0.030833599439641986,
+          "valid_days": 30
+        },
+        "raw_ratio_additional_rate": {
+          "mean": 0.3154699848680678,
+          "ci95_low": 0.28271488447079646,
+          "ci95_high": 0.34921840463372983,
+          "valid_days": 30
+        },
+        "raw_mean_ratio_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "raw_p90_ratio_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_equal_saving": {
+          "mean": 0.43249691596410367,
+          "ci95_low": 0.39932017248009155,
+          "ci95_high": 0.45562695771449047,
+          "valid_days": 30
+        },
+        "p90_equal_saving": {
+          "mean": 0.7044487281732773,
+          "ci95_low": 0.6919356038784766,
+          "ci95_high": 0.7167392881378171,
+          "valid_days": 30
+        },
+        "mean_equal_saving_all": {
+          "mean": 0.26678434952175645,
+          "ci95_low": 0.24324003223392332,
+          "ci95_high": 0.28654722270056027,
+          "valid_days": 30
+        },
+        "mean_expected_equal_saving": {
+          "mean": 0.47090112599873746,
+          "ci95_low": 0.46294211570112853,
+          "ci95_high": 0.47937644733096063,
+          "valid_days": 30
+        },
+        "equal_harmed_rate": {
+          "mean": 0.07144498140901606,
+          "ci95_low": 0.05755971180983177,
+          "ci95_high": 0.08640664339304167,
+          "valid_days": 30
+        },
+        "equal_additional_rate": {
+          "mean": 0.3154699848680678,
+          "ci95_low": 0.28271488447079646,
+          "ci95_high": 0.34921840463372983,
+          "valid_days": 30
+        },
+        "mean_equal_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "p90_equal_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_equal_noshow_expected_burden_change": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_equal_compensation_credit_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_equal_noshow_charge_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "p90_equal_noshow_charge_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "equal_noshow_charge_total_krw": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "equal_noshow_charged_rate": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_equal_noshow_cap_used": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "raw_mean_equal_saving": {
+          "mean": 0.43249691596410367,
+          "ci95_low": 0.39932017248009155,
+          "ci95_high": 0.45562695771449047,
+          "valid_days": 30
+        },
+        "raw_p90_equal_saving": {
+          "mean": 0.7044487281732773,
+          "ci95_low": 0.6919356038784766,
+          "ci95_high": 0.7167392881378171,
+          "valid_days": 30
+        },
+        "raw_equal_harmed_rate": {
+          "mean": 0.07144498140901606,
+          "ci95_low": 0.05755971180983177,
+          "ci95_high": 0.08640664339304167,
+          "valid_days": 30
+        },
+        "raw_equal_additional_rate": {
+          "mean": 0.3154699848680678,
+          "ci95_low": 0.28271488447079646,
+          "ci95_high": 0.34921840463372983,
+          "valid_days": 30
+        },
+        "raw_mean_equal_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "raw_p90_equal_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "noshow_affected_survivors": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "hour_12_requests": {
+          "mean": 5.466666666666667,
+          "ci95_low": 4.7,
+          "ci95_high": 6.233333333333333,
+          "valid_days": 30
+        },
+        "hour_12_matched": {
+          "mean": 2.6666666666666665,
+          "ci95_low": 2,
+          "ci95_high": 3.3666666666666667,
+          "valid_days": 30
+        },
+        "hour_12_matching_rate": {
+          "mean": 0.45375661375661375,
+          "ci95_low": 0.36383531746031744,
+          "ci95_high": 0.5393154761904762,
+          "valid_days": 30
+        },
+        "hour_13_requests": {
+          "mean": 6.033333333333333,
+          "ci95_low": 5.3,
+          "ci95_high": 6.766666666666667,
+          "valid_days": 30
+        },
+        "hour_13_matched": {
+          "mean": 3.066666666666667,
+          "ci95_low": 2.3333333333333335,
+          "ci95_high": 3.8333333333333335,
+          "valid_days": 30
+        },
+        "hour_13_matching_rate": {
+          "mean": 0.48907407407407405,
+          "ci95_low": 0.38588128306878305,
+          "ci95_high": 0.5913366402116401,
+          "valid_days": 30
+        },
+        "hour_14_requests": {
+          "mean": 7.5,
+          "ci95_low": 6.6,
+          "ci95_high": 8.334166666666656,
+          "valid_days": 30
+        },
+        "hour_14_matched": {
+          "mean": 3.7333333333333334,
+          "ci95_low": 2.933333333333333,
+          "ci95_high": 4.533333333333333,
+          "valid_days": 30
+        },
+        "hour_14_matching_rate": {
+          "mean": 0.4632202982202982,
+          "ci95_low": 0.3712549302549303,
+          "ci95_high": 0.556660113035113,
+          "valid_days": 30
+        },
+        "hour_15_requests": {
+          "mean": 11.466666666666667,
+          "ci95_low": 10.233333333333333,
+          "ci95_high": 12.733333333333333,
+          "valid_days": 30
+        },
+        "hour_15_matched": {
+          "mean": 7.6,
+          "ci95_low": 6.533333333333333,
+          "ci95_high": 8.733333333333333,
+          "valid_days": 30
+        },
+        "hour_15_matching_rate": {
+          "mean": 0.6539132218543983,
+          "ci95_low": 0.610503004484622,
+          "ci95_high": 0.6959344300851653,
+          "valid_days": 30
+        },
+        "hour_16_requests": {
+          "mean": 14.133333333333333,
+          "ci95_low": 13.333333333333334,
+          "ci95_high": 14.933333333333334,
+          "valid_days": 30
+        },
+        "hour_16_matched": {
+          "mean": 9.833333333333334,
+          "ci95_low": 8.833333333333334,
+          "ci95_high": 10.833333333333334,
+          "valid_days": 30
+        },
+        "hour_16_matching_rate": {
+          "mean": 0.6896433349645424,
+          "ci95_low": 0.6397628336575705,
+          "ci95_high": 0.7366077729209501,
+          "valid_days": 30
+        },
+        "hour_17_requests": {
+          "mean": 17.666666666666668,
+          "ci95_low": 16.433333333333334,
+          "ci95_high": 19,
+          "valid_days": 30
+        },
+        "hour_17_matched": {
+          "mean": 12.933333333333334,
+          "ci95_low": 11.8,
+          "ci95_high": 14.133333333333333,
+          "valid_days": 30
+        },
+        "hour_17_matching_rate": {
+          "mean": 0.7277238938736673,
+          "ci95_low": 0.7034044725453226,
+          "ci95_high": 0.7520696228027351,
+          "valid_days": 30
+        },
+        "hour_18_requests": {
+          "mean": 15.466666666666667,
+          "ci95_low": 14.3,
+          "ci95_high": 16.666666666666668,
+          "valid_days": 30
+        },
+        "hour_18_matched": {
+          "mean": 9.733333333333333,
+          "ci95_low": 8.466666666666667,
+          "ci95_high": 11,
+          "valid_days": 30
+        },
+        "hour_18_matching_rate": {
+          "mean": 0.6179100222302537,
+          "ci95_low": 0.5608652270782268,
+          "ci95_high": 0.6673462609496564,
+          "valid_days": 30
+        },
+        "hour_19_requests": {
+          "mean": 8.966666666666667,
+          "ci95_low": 8.066666666666666,
+          "ci95_high": 9.833333333333334,
+          "valid_days": 30
+        },
+        "hour_19_matched": {
+          "mean": 5.333333333333333,
+          "ci95_low": 4.6,
+          "ci95_high": 6.034166666666654,
+          "valid_days": 30
+        },
+        "hour_19_matching_rate": {
+          "mean": 0.5755320605320605,
+          "ci95_low": 0.5119424903799904,
+          "ci95_high": 0.6339996970621972,
+          "valid_days": 30
+        },
+        "hour_20_requests": {
+          "mean": 7.766666666666667,
+          "ci95_low": 6.8,
+          "ci95_high": 8.7,
+          "valid_days": 30
+        },
+        "hour_20_matched": {
+          "mean": 4.366666666666666,
+          "ci95_low": 3.433333333333333,
+          "ci95_high": 5.3,
+          "valid_days": 30
+        },
+        "hour_20_matching_rate": {
+          "mean": 0.5151623376623377,
+          "ci95_low": 0.4210661976911977,
+          "ci95_high": 0.605491432178932,
+          "valid_days": 30
+        },
+        "hour_21_requests": {
+          "mean": 5.533333333333333,
+          "ci95_low": 4.833333333333333,
+          "ci95_high": 6.233333333333333,
+          "valid_days": 30
+        },
+        "hour_21_matched": {
+          "mean": 2.3333333333333335,
+          "ci95_low": 1.7666666666666666,
+          "ci95_high": 2.9,
+          "valid_days": 30
+        },
+        "hour_21_matching_rate": {
+          "mean": 0.42428571428571427,
+          "ci95_low": 0.3211875,
+          "ci95_high": 0.5269057539682539,
+          "valid_days": 30
+        }
+      }
+    },
+    {
+      "parameters": {
+        "name": "error_x2",
+        "requests": 100,
+        "delay": 15,
+        "saving": 0.1,
+        "instant": 0.3,
+        "noshow": 0,
+        "unpaid": 0,
+        "empirical": true,
+        "axis": "오차배수",
+        "error_scale": 2,
+        "exclude_intra_pocheon": false
+      },
+      "days": 30,
+      "metrics": {
+        "matching_rate": {
+          "mean": 0.616,
+          "ci95_low": 0.5946666666666667,
+          "ci95_high": 0.6376666666666666,
+          "valid_days": 30
+        },
+        "boarded_rate": {
+          "mean": 0.616,
+          "ci95_low": 0.5946666666666667,
+          "ci95_high": 0.6376666666666666,
+          "valid_days": 30
+        },
+        "expired_rate": {
+          "mean": 0.384,
+          "ci95_low": 0.3623333333333333,
+          "ci95_high": 0.4053333333333333,
+          "valid_days": 30
+        },
+        "unpaid_rate": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "matched": {
+          "mean": 61.6,
+          "ci95_low": 59.46666666666667,
+          "ci95_high": 63.766666666666666,
+          "valid_days": 30
+        },
+        "boarded": {
+          "mean": 61.6,
+          "ci95_low": 59.46666666666667,
+          "ci95_high": 63.766666666666666,
+          "valid_days": 30
+        },
+        "groups": {
+          "mean": 28.2,
+          "ci95_low": 27.133333333333333,
+          "ci95_high": 29.266666666666666,
+          "valid_days": 30
+        },
+        "noshow_rate_matched": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "mean_delay_minutes": {
+          "mean": 3.867168162912038,
+          "ci95_low": 3.7307738487557947,
+          "ci95_high": 4.002640394100544,
+          "valid_days": 30
+        },
+        "p90_delay_minutes": {
+          "mean": 13.446055555555557,
+          "ci95_low": 13.11793888888889,
+          "ci95_high": 13.722000000000001,
+          "valid_days": 30
+        },
+        "mean_wait_minutes": {
+          "mean": 8.396662915589202,
+          "ci95_low": 8.213582047392293,
+          "ci95_high": 8.580356852960527,
+          "valid_days": 30
+        },
+        "p90_wait_minutes": {
+          "mean": 14.575277777777778,
+          "ci95_low": 14.318976388888888,
+          "ci95_high": 14.837779166666666,
+          "valid_days": 30
+        },
+        "conservation_errors": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "budget_warning_rounds": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "max_round_ms": {
+          "mean": 4.055813333333333,
+          "ci95_low": 1.136277,
+          "ci95_high": 9.427950583333335,
+          "valid_days": 30
+        },
+        "verification_unavailable": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "groups_all_absent": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "mean_bill_gap_krw": {
+          "mean": 1399.037334390402,
+          "ci95_low": 715.6504160907836,
+          "ci95_high": 2072.6886082764117,
+          "valid_days": 30
+        },
+        "mean_abs_bill_gap_krw": {
+          "mean": 6740.618841302334,
+          "ci95_low": 6347.356289668282,
+          "ci95_high": 7127.422704175628,
+          "valid_days": 30
+        },
+        "groups_2_count": {
+          "mean": 23.833333333333332,
+          "ci95_low": 22.566666666666666,
+          "ci95_high": 25.066666666666666,
+          "valid_days": 30
+        },
+        "groups_2_rate": {
+          "mean": 0.842745170660078,
+          "ci95_low": 0.8210744694157588,
+          "ci95_high": 0.8629600255587733,
+          "valid_days": 30
+        },
+        "groups_3_count": {
+          "mean": 3.533333333333333,
+          "ci95_low": 3,
+          "ci95_high": 4.1,
+          "valid_days": 30
+        },
+        "groups_3_rate": {
+          "mean": 0.12655436528057856,
+          "ci95_low": 0.10641281078227571,
+          "ci95_high": 0.14818411622143826,
+          "valid_days": 30
+        },
+        "groups_4_count": {
+          "mean": 0.8333333333333334,
+          "ci95_low": 0.5333333333333333,
+          "ci95_high": 1.1666666666666667,
+          "valid_days": 30
+        },
+        "groups_4_rate": {
+          "mean": 0.030700464059343444,
+          "ci95_low": 0.019081108506734664,
+          "ci95_high": 0.043267851803238506,
+          "valid_days": 30
+        },
+        "mean_ratio_saving": {
+          "mean": 0.477290429583679,
+          "ci95_low": 0.4642574005829878,
+          "ci95_high": 0.4900554890206334,
+          "valid_days": 30
+        },
+        "p90_ratio_saving": {
+          "mean": 0.7232986958502766,
+          "ci95_low": 0.7109467675057245,
+          "ci95_high": 0.7358084093176155,
+          "valid_days": 30
+        },
+        "mean_ratio_saving_all": {
+          "mean": 0.29404979257609287,
+          "ci95_low": 0.28110150914562276,
+          "ci95_high": 0.3066406528996957,
+          "valid_days": 30
+        },
+        "mean_expected_ratio_saving": {
+          "mean": 0.5029627829990214,
+          "ci95_low": 0.49655928414428147,
+          "ci95_high": 0.5094663148240922,
+          "valid_days": 30
+        },
+        "ratio_harmed_rate": {
+          "mean": 0.04161311057450298,
+          "ci95_low": 0.03263751386225355,
+          "ci95_high": 0.050615036738658796,
+          "valid_days": 30
+        },
+        "ratio_additional_rate": {
+          "mean": 0.33082101580326956,
+          "ci95_low": 0.29615942679435653,
+          "ci95_high": 0.36653117350888204,
+          "valid_days": 30
+        },
+        "mean_ratio_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "p90_ratio_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_ratio_noshow_expected_burden_change": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_ratio_compensation_credit_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_ratio_noshow_charge_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "p90_ratio_noshow_charge_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "ratio_noshow_charge_total_krw": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "ratio_noshow_charged_rate": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_ratio_noshow_cap_used": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "raw_mean_ratio_saving": {
+          "mean": 0.477290429583679,
+          "ci95_low": 0.4642574005829878,
+          "ci95_high": 0.4900554890206334,
+          "valid_days": 30
+        },
+        "raw_p90_ratio_saving": {
+          "mean": 0.7232986958502766,
+          "ci95_low": 0.7109467675057245,
+          "ci95_high": 0.7358084093176155,
+          "valid_days": 30
+        },
+        "raw_ratio_harmed_rate": {
+          "mean": 0.04161311057450298,
+          "ci95_low": 0.03263751386225355,
+          "ci95_high": 0.050615036738658796,
+          "valid_days": 30
+        },
+        "raw_ratio_additional_rate": {
+          "mean": 0.33082101580326956,
+          "ci95_low": 0.29615942679435653,
+          "ci95_high": 0.36653117350888204,
+          "valid_days": 30
+        },
+        "raw_mean_ratio_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "raw_p90_ratio_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_equal_saving": {
+          "mean": 0.44449261201050844,
+          "ci95_low": 0.4308073108608136,
+          "ci95_high": 0.45815969963896247,
+          "valid_days": 30
+        },
+        "p90_equal_saving": {
+          "mean": 0.7342970017851349,
+          "ci95_low": 0.7207319794698809,
+          "ci95_high": 0.7483622744594651,
+          "valid_days": 30
+        },
+        "mean_equal_saving_all": {
+          "mean": 0.27406875361185706,
+          "ci95_low": 0.2607656627419986,
+          "ci95_high": 0.2868205834405208,
+          "valid_days": 30
+        },
+        "mean_expected_equal_saving": {
+          "mean": 0.47090112599873746,
+          "ci95_low": 0.46294211570112853,
+          "ci95_high": 0.47937644733096063,
+          "valid_days": 30
+        },
+        "equal_harmed_rate": {
+          "mean": 0.0789501577637613,
+          "ci95_low": 0.06795925761098949,
+          "ci95_high": 0.08995973044757802,
+          "valid_days": 30
+        },
+        "equal_additional_rate": {
+          "mean": 0.33082101580326956,
+          "ci95_low": 0.29615942679435653,
+          "ci95_high": 0.36653117350888204,
+          "valid_days": 30
+        },
+        "mean_equal_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "p90_equal_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_equal_noshow_expected_burden_change": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_equal_compensation_credit_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_equal_noshow_charge_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "p90_equal_noshow_charge_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "equal_noshow_charge_total_krw": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "equal_noshow_charged_rate": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_equal_noshow_cap_used": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "raw_mean_equal_saving": {
+          "mean": 0.44449261201050844,
+          "ci95_low": 0.4308073108608136,
+          "ci95_high": 0.45815969963896247,
+          "valid_days": 30
+        },
+        "raw_p90_equal_saving": {
+          "mean": 0.7342970017851349,
+          "ci95_low": 0.7207319794698809,
+          "ci95_high": 0.7483622744594651,
+          "valid_days": 30
+        },
+        "raw_equal_harmed_rate": {
+          "mean": 0.0789501577637613,
+          "ci95_low": 0.06795925761098949,
+          "ci95_high": 0.08995973044757802,
+          "valid_days": 30
+        },
+        "raw_equal_additional_rate": {
+          "mean": 0.33082101580326956,
+          "ci95_low": 0.29615942679435653,
+          "ci95_high": 0.36653117350888204,
+          "valid_days": 30
+        },
+        "raw_mean_equal_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "raw_p90_equal_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "noshow_affected_survivors": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "hour_12_requests": {
+          "mean": 5.466666666666667,
+          "ci95_low": 4.7,
+          "ci95_high": 6.233333333333333,
+          "valid_days": 30
+        },
+        "hour_12_matched": {
+          "mean": 2.6666666666666665,
+          "ci95_low": 2,
+          "ci95_high": 3.3666666666666667,
+          "valid_days": 30
+        },
+        "hour_12_matching_rate": {
+          "mean": 0.45375661375661375,
+          "ci95_low": 0.36383531746031744,
+          "ci95_high": 0.5393154761904762,
+          "valid_days": 30
+        },
+        "hour_13_requests": {
+          "mean": 6.033333333333333,
+          "ci95_low": 5.3,
+          "ci95_high": 6.766666666666667,
+          "valid_days": 30
+        },
+        "hour_13_matched": {
+          "mean": 3.066666666666667,
+          "ci95_low": 2.3333333333333335,
+          "ci95_high": 3.8333333333333335,
+          "valid_days": 30
+        },
+        "hour_13_matching_rate": {
+          "mean": 0.48907407407407405,
+          "ci95_low": 0.38588128306878305,
+          "ci95_high": 0.5913366402116401,
+          "valid_days": 30
+        },
+        "hour_14_requests": {
+          "mean": 7.5,
+          "ci95_low": 6.6,
+          "ci95_high": 8.334166666666656,
+          "valid_days": 30
+        },
+        "hour_14_matched": {
+          "mean": 3.7333333333333334,
+          "ci95_low": 2.933333333333333,
+          "ci95_high": 4.533333333333333,
+          "valid_days": 30
+        },
+        "hour_14_matching_rate": {
+          "mean": 0.4632202982202982,
+          "ci95_low": 0.3712549302549303,
+          "ci95_high": 0.556660113035113,
+          "valid_days": 30
+        },
+        "hour_15_requests": {
+          "mean": 11.466666666666667,
+          "ci95_low": 10.233333333333333,
+          "ci95_high": 12.733333333333333,
+          "valid_days": 30
+        },
+        "hour_15_matched": {
+          "mean": 7.6,
+          "ci95_low": 6.533333333333333,
+          "ci95_high": 8.733333333333333,
+          "valid_days": 30
+        },
+        "hour_15_matching_rate": {
+          "mean": 0.6539132218543983,
+          "ci95_low": 0.610503004484622,
+          "ci95_high": 0.6959344300851653,
+          "valid_days": 30
+        },
+        "hour_16_requests": {
+          "mean": 14.133333333333333,
+          "ci95_low": 13.333333333333334,
+          "ci95_high": 14.933333333333334,
+          "valid_days": 30
+        },
+        "hour_16_matched": {
+          "mean": 9.833333333333334,
+          "ci95_low": 8.833333333333334,
+          "ci95_high": 10.833333333333334,
+          "valid_days": 30
+        },
+        "hour_16_matching_rate": {
+          "mean": 0.6896433349645424,
+          "ci95_low": 0.6397628336575705,
+          "ci95_high": 0.7366077729209501,
+          "valid_days": 30
+        },
+        "hour_17_requests": {
+          "mean": 17.666666666666668,
+          "ci95_low": 16.433333333333334,
+          "ci95_high": 19,
+          "valid_days": 30
+        },
+        "hour_17_matched": {
+          "mean": 12.933333333333334,
+          "ci95_low": 11.8,
+          "ci95_high": 14.133333333333333,
+          "valid_days": 30
+        },
+        "hour_17_matching_rate": {
+          "mean": 0.7277238938736673,
+          "ci95_low": 0.7034044725453226,
+          "ci95_high": 0.7520696228027351,
+          "valid_days": 30
+        },
+        "hour_18_requests": {
+          "mean": 15.466666666666667,
+          "ci95_low": 14.3,
+          "ci95_high": 16.666666666666668,
+          "valid_days": 30
+        },
+        "hour_18_matched": {
+          "mean": 9.733333333333333,
+          "ci95_low": 8.466666666666667,
+          "ci95_high": 11,
+          "valid_days": 30
+        },
+        "hour_18_matching_rate": {
+          "mean": 0.6179100222302537,
+          "ci95_low": 0.5608652270782268,
+          "ci95_high": 0.6673462609496564,
+          "valid_days": 30
+        },
+        "hour_19_requests": {
+          "mean": 8.966666666666667,
+          "ci95_low": 8.066666666666666,
+          "ci95_high": 9.833333333333334,
+          "valid_days": 30
+        },
+        "hour_19_matched": {
+          "mean": 5.333333333333333,
+          "ci95_low": 4.6,
+          "ci95_high": 6.034166666666654,
+          "valid_days": 30
+        },
+        "hour_19_matching_rate": {
+          "mean": 0.5755320605320605,
+          "ci95_low": 0.5119424903799904,
+          "ci95_high": 0.6339996970621972,
+          "valid_days": 30
+        },
+        "hour_20_requests": {
+          "mean": 7.766666666666667,
+          "ci95_low": 6.8,
+          "ci95_high": 8.7,
+          "valid_days": 30
+        },
+        "hour_20_matched": {
+          "mean": 4.366666666666666,
+          "ci95_low": 3.433333333333333,
+          "ci95_high": 5.3,
+          "valid_days": 30
+        },
+        "hour_20_matching_rate": {
+          "mean": 0.5151623376623377,
+          "ci95_low": 0.4210661976911977,
+          "ci95_high": 0.605491432178932,
+          "valid_days": 30
+        },
+        "hour_21_requests": {
+          "mean": 5.533333333333333,
+          "ci95_low": 4.833333333333333,
+          "ci95_high": 6.233333333333333,
+          "valid_days": 30
+        },
+        "hour_21_matched": {
+          "mean": 2.3333333333333335,
+          "ci95_low": 1.7666666666666666,
+          "ci95_high": 2.9,
+          "valid_days": 30
+        },
+        "hour_21_matching_rate": {
+          "mean": 0.42428571428571427,
+          "ci95_low": 0.3211875,
+          "ci95_high": 0.5269057539682539,
+          "valid_days": 30
+        }
+      }
+    },
+    {
+      "parameters": {
+        "name": "exclude_intra_pocheon",
+        "requests": 100,
+        "delay": 15,
+        "saving": 0.1,
+        "instant": 0.3,
+        "noshow": 0,
+        "unpaid": 0,
+        "empirical": true,
+        "axis": "시내이동",
+        "error_scale": 1,
+        "exclude_intra_pocheon": true
+      },
+      "days": 30,
+      "metrics": {
+        "matching_rate": {
+          "mean": 0.516,
+          "ci95_low": 0.4986666666666667,
+          "ci95_high": 0.5333333333333333,
+          "valid_days": 30
+        },
+        "boarded_rate": {
+          "mean": 0.516,
+          "ci95_low": 0.4986666666666667,
+          "ci95_high": 0.5333333333333333,
+          "valid_days": 30
+        },
+        "expired_rate": {
+          "mean": 0.484,
+          "ci95_low": 0.4666666666666667,
+          "ci95_high": 0.5013333333333333,
+          "valid_days": 30
+        },
+        "unpaid_rate": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "matched": {
+          "mean": 51.6,
+          "ci95_low": 49.86666666666667,
+          "ci95_high": 53.333333333333336,
+          "valid_days": 30
+        },
+        "boarded": {
+          "mean": 51.6,
+          "ci95_low": 49.86666666666667,
+          "ci95_high": 53.333333333333336,
+          "valid_days": 30
+        },
+        "groups": {
+          "mean": 24.1,
+          "ci95_low": 23.266666666666666,
+          "ci95_high": 24.933333333333334,
+          "valid_days": 30
+        },
+        "noshow_rate_matched": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "mean_delay_minutes": {
+          "mean": 3.8219125442660347,
+          "ci95_low": 3.6697019103326856,
+          "ci95_high": 3.98111719984633,
+          "valid_days": 30
+        },
+        "p90_delay_minutes": {
+          "mean": 11.51838888888889,
+          "ci95_low": 11.128326388888889,
+          "ci95_high": 11.891725000000001,
+          "valid_days": 30
+        },
+        "mean_wait_minutes": {
+          "mean": 8.606655711029468,
+          "ci95_low": 8.447314338084636,
+          "ci95_high": 8.753913906671745,
+          "valid_days": 30
+        },
+        "p90_wait_minutes": {
+          "mean": 15.369111111111112,
+          "ci95_low": 15.087330555555555,
+          "ci95_high": 15.655618055555555,
+          "valid_days": 30
+        },
+        "conservation_errors": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "budget_warning_rounds": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "max_round_ms": {
+          "mean": 0.18690333333333334,
+          "ci95_low": 0.14718975,
+          "ci95_high": 0.23231408333333334,
+          "valid_days": 30
+        },
+        "verification_unavailable": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "groups_all_absent": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "mean_bill_gap_krw": {
+          "mean": 2677.096533280777,
+          "ci95_low": 2311.2455645877185,
+          "ci95_high": 3056.0698483886836,
+          "valid_days": 30
+        },
+        "mean_abs_bill_gap_krw": {
+          "mean": 4398.679316983175,
+          "ci95_low": 4152.650485383062,
+          "ci95_high": 4651.963764423734,
+          "valid_days": 30
+        },
+        "groups_2_count": {
+          "mean": 21.1,
+          "ci95_low": 20.033333333333335,
+          "ci95_high": 22.2,
+          "valid_days": 30
+        },
+        "groups_2_rate": {
+          "mean": 0.8739361505799339,
+          "ci95_low": 0.8480572586339558,
+          "ci95_high": 0.900007822152845,
+          "valid_days": 30
+        },
+        "groups_3_count": {
+          "mean": 2.6,
+          "ci95_low": 1.9666666666666666,
+          "ci95_high": 3.2333333333333334,
+          "valid_days": 30
+        },
+        "groups_3_rate": {
+          "mean": 0.10904267844199195,
+          "ci95_low": 0.08306203332962488,
+          "ci95_high": 0.13529972618490924,
+          "valid_days": 30
+        },
+        "groups_4_count": {
+          "mean": 0.4,
+          "ci95_low": 0.2,
+          "ci95_high": 0.6,
+          "valid_days": 30
+        },
+        "groups_4_rate": {
+          "mean": 0.017021170978074106,
+          "ci95_low": 0.008929114893073702,
+          "ci95_high": 0.0258412570228455,
+          "valid_days": 30
+        },
+        "mean_ratio_saving": {
+          "mean": 0.5426158162390871,
+          "ci95_low": 0.5336310691275715,
+          "ci95_high": 0.5509962864577599,
+          "valid_days": 30
+        },
+        "p90_ratio_saving": {
+          "mean": 0.6859533509445832,
+          "ci95_low": 0.6715751895544072,
+          "ci95_high": 0.6995826111569344,
+          "valid_days": 30
+        },
+        "mean_ratio_saving_all": {
+          "mean": 0.2802664512505996,
+          "ci95_low": 0.26900984332236744,
+          "ci95_high": 0.2911539837975453,
+          "valid_days": 30
+        },
+        "mean_expected_ratio_saving": {
+          "mean": 0.5502470541034251,
+          "ci95_low": 0.5433094140190066,
+          "ci95_high": 0.5569531876788327,
+          "valid_days": 30
+        },
+        "ratio_harmed_rate": {
+          "mean": 0.0011965811965811966,
+          "ci95_low": 0,
+          "ci95_high": 0.0030341880341880345,
+          "valid_days": 30
+        },
+        "ratio_additional_rate": {
+          "mean": 0.23886743670699476,
+          "ci95_low": 0.2063628911775822,
+          "ci95_high": 0.2733426564537973,
+          "valid_days": 30
+        },
+        "mean_ratio_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "p90_ratio_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_ratio_noshow_expected_burden_change": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_ratio_compensation_credit_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_ratio_noshow_charge_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "p90_ratio_noshow_charge_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "ratio_noshow_charge_total_krw": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "ratio_noshow_charged_rate": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_ratio_noshow_cap_used": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "raw_mean_ratio_saving": {
+          "mean": 0.5426158162390871,
+          "ci95_low": 0.5336310691275715,
+          "ci95_high": 0.5509962864577599,
+          "valid_days": 30
+        },
+        "raw_p90_ratio_saving": {
+          "mean": 0.6859533509445832,
+          "ci95_low": 0.6715751895544072,
+          "ci95_high": 0.6995826111569344,
+          "valid_days": 30
+        },
+        "raw_ratio_harmed_rate": {
+          "mean": 0.0011965811965811966,
+          "ci95_low": 0,
+          "ci95_high": 0.0030341880341880345,
+          "valid_days": 30
+        },
+        "raw_ratio_additional_rate": {
+          "mean": 0.23886743670699476,
+          "ci95_low": 0.2063628911775822,
+          "ci95_high": 0.2733426564537973,
+          "valid_days": 30
+        },
+        "raw_mean_ratio_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "raw_p90_ratio_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_equal_saving": {
+          "mean": 0.5386861246600886,
+          "ci95_low": 0.5296164307734853,
+          "ci95_high": 0.5471614161842616,
+          "valid_days": 30
+        },
+        "p90_equal_saving": {
+          "mean": 0.6888676221605299,
+          "ci95_low": 0.675690119914541,
+          "ci95_high": 0.7014145899053073,
+          "valid_days": 30
+        },
+        "mean_equal_saving_all": {
+          "mean": 0.2782159204929961,
+          "ci95_low": 0.26709287130055304,
+          "ci95_high": 0.2890419308922069,
+          "valid_days": 30
+        },
+        "mean_expected_equal_saving": {
+          "mean": 0.5462670909000313,
+          "ci95_low": 0.5391984007341601,
+          "ci95_high": 0.5531995725932695,
+          "valid_days": 30
+        },
+        "equal_harmed_rate": {
+          "mean": 0.0011965811965811966,
+          "ci95_low": 0,
+          "ci95_high": 0.0030341880341880345,
+          "valid_days": 30
+        },
+        "equal_additional_rate": {
+          "mean": 0.23886743670699476,
+          "ci95_low": 0.2063628911775822,
+          "ci95_high": 0.2733426564537973,
+          "valid_days": 30
+        },
+        "mean_equal_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "p90_equal_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_equal_noshow_expected_burden_change": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_equal_compensation_credit_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_equal_noshow_charge_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "p90_equal_noshow_charge_krw": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "equal_noshow_charge_total_krw": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "equal_noshow_charged_rate": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "mean_equal_noshow_cap_used": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "raw_mean_equal_saving": {
+          "mean": 0.5386861246600886,
+          "ci95_low": 0.5296164307734853,
+          "ci95_high": 0.5471614161842616,
+          "valid_days": 30
+        },
+        "raw_p90_equal_saving": {
+          "mean": 0.6888676221605299,
+          "ci95_low": 0.675690119914541,
+          "ci95_high": 0.7014145899053073,
+          "valid_days": 30
+        },
+        "raw_equal_harmed_rate": {
+          "mean": 0.0011965811965811966,
+          "ci95_low": 0,
+          "ci95_high": 0.0030341880341880345,
+          "valid_days": 30
+        },
+        "raw_equal_additional_rate": {
+          "mean": 0.23886743670699476,
+          "ci95_low": 0.2063628911775822,
+          "ci95_high": 0.2733426564537973,
+          "valid_days": 30
+        },
+        "raw_mean_equal_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "raw_p90_equal_noshow_burden_increase": {
+          "mean": null,
+          "ci95_low": null,
+          "ci95_high": null,
+          "valid_days": 0
+        },
+        "noshow_affected_survivors": {
+          "mean": 0,
+          "ci95_low": 0,
+          "ci95_high": 0,
+          "valid_days": 30
+        },
+        "hour_12_requests": {
+          "mean": 5.466666666666667,
+          "ci95_low": 4.7,
+          "ci95_high": 6.233333333333333,
+          "valid_days": 30
+        },
+        "hour_12_matched": {
+          "mean": 1.8666666666666667,
+          "ci95_low": 1.2333333333333334,
+          "ci95_high": 2.533333333333333,
+          "valid_days": 30
+        },
+        "hour_12_matching_rate": {
+          "mean": 0.30164021164021165,
+          "ci95_low": 0.2038835978835979,
+          "ci95_high": 0.399765873015873,
+          "valid_days": 30
+        },
+        "hour_13_requests": {
+          "mean": 6.033333333333333,
+          "ci95_low": 5.3,
+          "ci95_high": 6.766666666666667,
+          "valid_days": 30
+        },
+        "hour_13_matched": {
+          "mean": 2.433333333333333,
+          "ci95_low": 1.8333333333333333,
+          "ci95_high": 3.066666666666667,
+          "valid_days": 30
+        },
+        "hour_13_matching_rate": {
+          "mean": 0.3871428571428571,
+          "ci95_low": 0.3041521164021164,
+          "ci95_high": 0.47173379629629625,
+          "valid_days": 30
+        },
+        "hour_14_requests": {
+          "mean": 7.5,
+          "ci95_low": 6.6,
+          "ci95_high": 8.334166666666656,
+          "valid_days": 30
+        },
+        "hour_14_matched": {
+          "mean": 2.8333333333333335,
+          "ci95_low": 2.1333333333333333,
+          "ci95_high": 3.566666666666667,
+          "valid_days": 30
+        },
+        "hour_14_matching_rate": {
+          "mean": 0.3504978354978355,
+          "ci95_low": 0.27199702380952384,
+          "ci95_high": 0.42859517797017793,
+          "valid_days": 30
+        },
+        "hour_15_requests": {
+          "mean": 11.466666666666667,
+          "ci95_low": 10.233333333333333,
+          "ci95_high": 12.733333333333333,
+          "valid_days": 30
+        },
+        "hour_15_matched": {
+          "mean": 5.866666666666666,
+          "ci95_low": 4.7,
+          "ci95_high": 7.066666666666666,
+          "valid_days": 30
+        },
+        "hour_15_matching_rate": {
+          "mean": 0.5029422728687435,
+          "ci95_low": 0.4189663582604759,
+          "ci95_high": 0.5828172012491866,
+          "valid_days": 30
+        },
+        "hour_16_requests": {
+          "mean": 14.133333333333333,
+          "ci95_low": 13.333333333333334,
+          "ci95_high": 14.933333333333334,
+          "valid_days": 30
+        },
+        "hour_16_matched": {
+          "mean": 8.2,
+          "ci95_low": 7.366666666666666,
+          "ci95_high": 8.966666666666667,
+          "valid_days": 30
+        },
+        "hour_16_matching_rate": {
+          "mean": 0.5839974884363429,
+          "ci95_low": 0.5264667585274203,
+          "ci95_high": 0.6377342968957713,
+          "valid_days": 30
+        },
+        "hour_17_requests": {
+          "mean": 17.666666666666668,
+          "ci95_low": 16.433333333333334,
+          "ci95_high": 19,
+          "valid_days": 30
+        },
+        "hour_17_matched": {
+          "mean": 10.633333333333333,
+          "ci95_low": 9.7,
+          "ci95_high": 11.566666666666666,
+          "valid_days": 30
+        },
+        "hour_17_matching_rate": {
+          "mean": 0.6025287878989589,
+          "ci95_low": 0.5675656268582976,
+          "ci95_high": 0.635633560659439,
+          "valid_days": 30
+        },
+        "hour_18_requests": {
+          "mean": 15.466666666666667,
+          "ci95_low": 14.3,
+          "ci95_high": 16.666666666666668,
+          "valid_days": 30
+        },
+        "hour_18_matched": {
+          "mean": 8.966666666666667,
+          "ci95_low": 7.833333333333333,
+          "ci95_high": 10.233333333333333,
+          "valid_days": 30
+        },
+        "hour_18_matching_rate": {
+          "mean": 0.5716235865944777,
+          "ci95_low": 0.52464846048055,
+          "ci95_high": 0.617057948016939,
+          "valid_days": 30
+        },
+        "hour_19_requests": {
+          "mean": 8.966666666666667,
+          "ci95_low": 8.066666666666666,
+          "ci95_high": 9.833333333333334,
+          "valid_days": 30
+        },
+        "hour_19_matched": {
+          "mean": 5.166666666666667,
+          "ci95_low": 4.366666666666666,
+          "ci95_high": 5.966666666666667,
+          "valid_days": 30
+        },
+        "hour_19_matching_rate": {
+          "mean": 0.5635002960002959,
+          "ci95_low": 0.507013498075998,
+          "ci95_high": 0.6221253306878307,
+          "valid_days": 30
+        },
+        "hour_20_requests": {
+          "mean": 7.766666666666667,
+          "ci95_low": 6.8,
+          "ci95_high": 8.7,
+          "valid_days": 30
+        },
+        "hour_20_matched": {
+          "mean": 3.6,
+          "ci95_low": 2.8,
+          "ci95_high": 4.433333333333334,
+          "valid_days": 30
+        },
+        "hour_20_matching_rate": {
+          "mean": 0.42214766714766716,
+          "ci95_low": 0.34665933140933136,
+          "ci95_high": 0.4938902717652717,
+          "valid_days": 30
+        },
+        "hour_21_requests": {
+          "mean": 5.533333333333333,
+          "ci95_low": 4.833333333333333,
+          "ci95_high": 6.233333333333333,
+          "valid_days": 30
+        },
+        "hour_21_matched": {
+          "mean": 2.033333333333333,
+          "ci95_low": 1.5,
+          "ci95_high": 2.6,
+          "valid_days": 30
+        },
+        "hour_21_matching_rate": {
+          "mean": 0.3473015873015873,
+          "ci95_low": 0.2551984126984127,
+          "ci95_high": 0.43964285714285717,
+          "valid_days": 30
+        }
+      }
+    }
+  ]
+}

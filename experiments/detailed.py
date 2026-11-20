@@ -157,67 +157,10 @@ def scale_errors(errors, scale):
     return [center+scale*(e-center) for e in errors]
 
 
-def demand_inputs(legacy, public_cache):
-    import duckdb
-    data = Path(legacy) / 'data'
-    points = json.loads((data / 'korea_points.json').read_text(encoding='utf-8'))
-    with (data / 'kakao_solo.csv').open(encoding='utf-8-sig') as f:
-        solos = {int(r['point']): r for r in csv.DictReader(f) if r['direction'] == 'FROM_HUB'}
-    hub = next(p for p in points if p['id'] == 0)
-    candidates = [dict(p, **{k: solos[p['id']][k] for k in ('km', 'seconds', 'fare')})
-                  for p in points if p['id'] in solos and p['id'] != 0]
-    db = duckdb.connect()
-    def sqlpath(p):
-        return "'" + str(p.resolve()).replace('\\', '/').replace("'", "''") + "'"
-    tims_path = public_cache / 'tims-monthly-safe.csv'
-    grid_counts = dict(db.execute(f"SELECT grid,sum(trips) FROM read_csv_auto({sqlpath(tims_path)}) GROUP BY grid").fetchall())
-    multiplicity = weight_destinations(candidates,grid_counts)
-    summary=json.loads((public_cache/'kr-public'/'living-move-summary.json').read_text(encoding='utf-8'))
-    flows={r['d_code']:r['cnt'] for r in summary['destination_home']}
-    mapping=json.loads((public_cache/'kr-public'/'point-regions.json').read_text(encoding='utf-8'))['points']
-    region_manifest=public_cache/'kr-public'/'tims-region-MANIFEST.json'
-    regions=json.loads(region_manifest.read_text(encoding='utf-8'))
-    for source in regions['sources']:
-        if run.sha(Path(source['path']))!=source['sha256']:raise ValueError('TIMS region source changed; rerun tims_regions.py')
-    region_csv=public_cache/'kr-public'/'tims-regions.csv'
-    if run.sha(region_csv)!=regions['output']['sha256']:raise ValueError('TIMS region output hash mismatch')
-    reverse={sgis:mois for mois,sgis in regions['mois_to_sgis'].items()}
-    with region_csv.open(encoding='utf-8') as f:
-        grid_regions={r['grid']:reverse[r['sgis_sigungu']] for r in csv.DictReader(f)
-                      if r['status']=='MATCHED' and r['sgis_sigungu'] in reverse}
-    region_totals={mois:regions['sgis_region_trips'][sgis] for mois,sgis in regions['mois_to_sgis'].items()}
-    region_meta=weight_regions(candidates,grid_counts,mapping,flows,region_totals,grid_regions)
-    region_meta['tims_region_manifest']='tims-region-MANIFEST.json'
-    region_meta['grid_assignment_unassigned_trips']=regions['unassigned_trips']
-    counts={r['hour']:r['cnt'] for r in summary['hours_home']}
-    denom=sum(counts.get(h,0) for h in SERVICE_HOURS)
-    if denom<=0: raise ValueError('No home trips in service window')
-    hours=[dict(hour=h,estimated_home_moves=counts.get(h,0),
-                probability=counts.get(h,0)/denom if h in SERVICE_HOURS else 0.) for h in range(24)]
-    db.close()
-    matrix = data / 'kakao_matrix.tsv'
-    with matrix.open(encoding='utf-8-sig') as f:
-        pairs = {(int(r['i']), int(r['j'])) for r in csv.DictReader(f, delimiter='\t')}
-    ids = {p['id'] for p in candidates}
-    missing = [(i, j) for i in ids for j in ids | {0} if i != j and (i, j) not in pairs]
-    if missing:
-        raise ValueError(f'Matrix missing {len(missing)} required legs; new API disabled')
-    header = (data / 'korea_cases.txt').open(encoding='utf-8-sig').readline().strip().split('\t')
-    if (float(header[6]),float(header[7])) != (hub['lat'],hub['lon']):
-        raise ValueError('Historical case hub differs from cached point hub')
-    meta = dict(candidate_points=len(candidates), source_points_excluding_hub=len(points)-1,
-                points_excluded_without_cached_solo=[p['id'] for p in points if p['id'] and p['id'] not in solos],
-                unique_grids=len(multiplicity), destination_weight_rule='Pocheon-origin home region share times TIMS cached-grid coverage of ALL regional grids, then within-region TIMS split; normalize only represented flow',
-                weekday_home_estimated_moves=sum(counts.values()), hourly_distribution=hours,
-                time_rule='2026-10 Pocheon-origin living-move purpose 3 start hours; restrict 12:00..21:59 KST and normalize without multipliers; minute/second uniform within hour',
-                reservation_window='request+25..45min departure window, collection deadline request+20min; assumption',
-                tims_input_is_student_od=False, matrix_complete_for_selected_points=True,
-                **region_meta, livingmove_days=summary['days'],age_check_share_2030=summary['age_check']['share_2030'])
-    probabilities={p['id']:p['probability'] for p in candidates}
-    meta['all_cached_point_probabilities']=[dict(id=p['id'],probability=probabilities.get(p['id'],0.),
-        exclusion='hub' if p['id']==0 else 'no_cached_solo' if p['id'] not in solos else None) for p in points]
-    meta['attribution']=livingmove.ATTRIBUTION
-    return hub, candidates, hours, header, meta
+def demand_inputs(legacy, public_cache, routing_cache=None):
+    """C7 consumes calibrated grid routes only; legacy is retained for C6 CLI compatibility."""
+    from grid_demand import load_inputs
+    return load_inputs(routing_cache or Path(public_cache)/'osrm')
 
 
 def generate_day(points, hours, seed, count):
@@ -411,8 +354,8 @@ def daily_metrics(day, riders, groups):
 LIMITATIONS = [
     '실제 합승 성과 미검증. 생활이동은 통신 기반 추정치이며 포천은 시군구 단위라 캠퍼스 단위가 아니다. 기본 하루 100건은 가정이며 참여율 50/100/150%도 관측량이 아니다.',
     '귀가 목적이 학생 하교를 대표한다는 가정. 포천 출발 귀가의 목적지와 시간을 독립 추출하므로 OD×시간 상관을 재현하지 않는다. 시간 내 균등 도착, 20분 모집·25~45분 출발창도 가정이다. 10/5 대체공휴일과 10/9 한글날을 제외한 20일이다.',
-    '공간 커버리지는 TIMS 캐시 격자 승차량/시군구 전체 격자 승차량이다. 귀가 수요가 택시 승차 밀도와 같다는 대리 가정과 경계 중심점 배정 오차가 남는다. 포천 4점은 모두 소흘읍이며 포천 내부 이동 제외 민감도를 병기한다.',
-    '기존 경로 행렬 약 51.5%는 관측 구간 합성이다. 고정 행렬은 시간대·요일·실시간 교통을 반영하지 않는다. 다중경유 요금은 C6의 단독 견적 보정 모델이다.',
+    '공간 수요는 지역 귀가 흐름×TIMS 격자 승차 비중이다. 60km 밖 격자와 누적 1% 꼬리는 제외한다. TIMS 500m 중심만 사용하며 jitter는 없다. 귀가 수요와 택시 승차 밀도가 같다는 대리 가정이 남는다.',
+    'OSRM은 교통 없는 OSM 도로망이다. Kakao future 훈련 OD의 중앙 시간비를 모든 구간에 적용하며 시간대별 차이는 보류 OD 오차로 공개한다. 다중경유 요금은 기존 C6 견적 보정 모델을 유지하므로 단독 포천 요금과의 모델 차이가 남는다.',
     'TIMS 잔차는 집계 평균이라 개별 오차 분산을 과소추정한다. 평균 유지 편차 1.0/1.5/2.0배를 적용한다. C7은 비양수 요금 잔차를 제외한 양수 조건부 분포를 독립 추출한다. C6은 비양수 일행-반복 제외 방식으로 분모가 다르다.',
     '미납은 매칭 투입 전 이탈하는 참여 감소 대리 실험이다. 앱의 확정 후 실제 선결제 만료·축소·재매칭 상태 흐름을 재현하지 않는다. 추가 결제 계산에만 실제 PaymentService.prepayAmount를 사용한다.',
     '노쇼는 확정 후 독립 이탈하며 기존 전체 경로·청구액을 유지한다. 주 결과는 실제 CompensationService.apply로 노쇼 확정 후 보전을 적용한 순부담이다. 모든 부재는 CONFIRMED 판정, 승계 필요 시 수락, 보전액 전액 회수라는 가정이다. 조사·소명·회수 실패·경로 단축·재매칭은 미모형화한다. 전원 노쇼는 취소로 집계하며 청구·보전 0이다.',
@@ -519,20 +462,20 @@ def markdown(report):
             ('matching_rate',True),('mean_ratio_saving',True),('ratio_additional_rate',True),
             ('mean_delay_minutes',False),('mean_abs_bill_gap_krw',False),('ratio_noshow_charge_total_krw',False)))+' |')
     lines += ['',livingmove.ATTRIBUTION,
-        f"캐시 행정구역 매핑 {report['demand']['cached_point_mapping_count']}점 중 경로가 있는 목적지 {report['demand']['candidate_points']}점. 허브 0은 출발점이며 단독 캐시 없는 점은 제외했다.",
-        f"캐시 목적지로 표현하지 못한 귀가 이동 비중 {report['demand']['lost_destination_share']:.2%}; 포천 내부 귀가 원 비중 {report['demand']['pocheon_within_city_share']:.2%}, 재정규화 후 {report['demand']['pocheon_simulated_share']:.2%}.",
-        '지역별 생활이동 비중에 캐시 격자 TIMS/해당 시군구 전체 격자 TIMS를 곱한다. 미대표 격자의 흐름은 유실로 센다. 서울도 자치구로 합쳐 같은 지역 단위를 사용한다. 전체 지역 표는 JSON demand.region_coverage에 있다.',
+        f"TIMS 500m 격자 중심 {report['demand']['candidate_points']}개. OSRM 도로거리 60km 이내 격자의 흐름 중 99% 이상을 대표한다. 전체 흐름 대표 비율은 별도 공개한다.",
+        f"서비스 범위·1% 꼬리로 제외한 귀가 이동 비중 {report['demand']['lost_destination_share']:.2%}; 포천 내부 귀가 원 비중 {report['demand']['pocheon_within_city_share']:.2%}, 재정규화 후 {report['demand']['pocheon_simulated_share']:.2%}.",
+        '지역별 생활이동 비중에 각 격자의 TIMS/시군구 전체 TIMS를 곱한다. 제외 격자의 흐름은 유실로 센다. 서울도 자치구로 합쳐 같은 지역 단위를 사용한다. 전체 지역 표는 JSON demand.region_coverage에 있다.',
         'TIMS 잔차는 집계 평균이라 개별 오차를 과소추정한다. 평균을 유지한 편차 배수이며, C7은 각 배수에서 비양수 잔차를 제외한 조건부 분포다. 제외 수는 JSON demand.error_sensitivity에 있다.',
         '기본 하루 100건은 관측 학생 이용량이 아닌 시나리오 가정이다. 50/100/150건으로 참여율 민감도를 비교한다.']
     lines += ['', '## 시군구별 TIMS 공간 커버리지', '',
-              '| 지역 코드 | 생활이동 비중 | 캐시 격자 TIMS/전체 TIMS | TIMS 커버리지 | 대표 흐름 비중 | 유실 비중 | 생성 목적지 비중 |',
+              '| 지역 코드 | 생활이동 비중 | 선택 격자 TIMS/전체 TIMS | TIMS 커버리지 | 대표 흐름 비중 | 유실 비중 | 생성 목적지 비중 |',
               '|---|---:|---:|---:|---:|---:|---:|']
     for r in report['demand']['represented_regions']:
         lines.append(f"| {r['code']} | {r['flow_share']:.3%} | {r['represented_grid_trips']:.0f}/{r['tims_total_trips']} | {r['tims_coverage']:.3%} | {r['represented_share']:.3%} | {r['lost_share']:.3%} | {r['simulated_share']:.3%} |")
-    lost=report['demand']['no_cached_point_lost_share']
-    lines += [f'| 캐시 점 없는 나머지 지역 합 | {lost:.3%} | 대표 격자 0 | 0% | 0% | {lost:.3%} | 0% |', '',
+    lost=sum(r['lost_share'] for r in report['demand']['excluded_regions'])
+    lines += [f'| 서비스 밖 지역 합 | {lost:.3%} | 대표 격자 0 | 0% | 0% | {lost:.3%} | 0% |', '',
         '분모는 공식 2025Q2 SGIS 시군구 경계에 TIMS 500m 격자 중심점을 공간 결합한 연간 승차량이다. 중심점이 경계 밖이면 최근접으로 보충하지 않는다. 배정 상태·원본 PRJ·해시는 tims-region-MANIFEST.json에 있다.',
-        '포천 4개 캐시 점은 모두 소흘읍으로 넓은 포천 내부 흐름을 대표하지 않는다. 커버리지 보정 뒤에도 시군구 내 귀가 흐름의 격자 분포가 TIMS 택시 승차 분포를 따른다는 가정이 남는다.',
+        '포천 전체 격자를 후보로 삼아도 시군구 내 귀가 흐름의 격자 분포가 TIMS 택시 승차 분포를 따른다는 가정이 남는다.',
         'exclude_intra_pocheon 조건은 포천 내부 목적지 확률을 0으로 하고 다른 목적지를 재정규화한다. 하루 100건·시간 분포·오차 설정을 고정한 목적지 구성 민감도이며 실제 외부 통학 인원 추정이 아니다.']
     all_s = report['scenarios']
     table('발표용 곡선: 하루 요청 수', sorted([s for s in all_s if s['parameters']['delay']==15 and s['parameters']['axis'] in ('기본','요청수×지연')],key=lambda s:s['parameters']['requests']))
@@ -579,8 +522,8 @@ def markdown(report):
     for h in SERVICE_HOURS:
         lines.append(f"| {h}시 | {b[f'hour_{h}_requests']['mean']:.2f} | {cell(b[f'hour_{h}_matching_rate'],True)} | {b[f'hour_{h}_matching_rate']['valid_days']} |")
     lines += ['', '## 입력과 자료 확보', '',
-              f"TIMS 월별 자료를 {report['demand']['candidate_points']}개 캐시 목적지({report['demand']['unique_grids']}개 격자)에 연결했다. 같은 격자 안 대표점 수로 나누어 중복 가중을 막았다.",
-              '단독 캐시 없는 지점 제외: '+str(report['demand']['points_excluded_without_cached_solo']),
+              f"TIMS 월별 자료를 {report['demand']['candidate_points']}개 중심 목적지({report['demand']['unique_grids']}개 격자)에 연결했다. 각 격자는 중심점 한 곳으로 대표한다.",
+              '경로 입력: '+report['demand']['resolution'],
               f"포천 승차장 CSV: {report['stands']['rows']}곳. 열: {', '.join(report['stands'].get('columns',[]))}. 좌표 열 유무: {report['stands']['has_coordinates']}. 기존 허브 좌표를 신규 승차장 좌표로 간주하지 않았다.",
               '대진대/선단동/송우리 명칭·주소 후보(거리 미계산): '+', '.join(r['택시승강장명'] for r in report['stands']['candidates']),
               '경기 정류소: 반환 HTML이 sdkInput 값 중간에서 끝나 CSV/API 링크·시간대 열을 확인할 수 없었다. 자료 미확보이며 인증키 필요 여부도 미확인이다.', '',
@@ -602,6 +545,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--legacy-realdata', type=Path, default=REPO.parent/'taximate-matching-sim'/'realdata')
     p.add_argument('--public-cache', type=Path, default=HERE/'.cache')
+    p.add_argument('--routing-cache', type=Path, help='Calibrated OSRM artifacts (default public-cache/osrm)')
     p.add_argument('--days', type=int, default=30)
     p.add_argument('--seed', type=int, default=20261119)
     p.add_argument('--java-home', default='C:/Users/gkho0/.jdks/ms-21.0.12.1')
@@ -620,7 +564,7 @@ def main():
         ss = [s for s in ss if s.name in args.only]
         if not ss or set(args.only)-{s.name for s in ss}:
             p.error('Unknown scenario')
-    hub, points, hours, header, demand = demand_inputs(args.legacy_realdata, args.public_cache)
+    hub, points, hours, header, demand = demand_inputs(args.legacy_realdata, args.public_cache, args.routing_cache)
     error_path = args.public_cache/'kr-public'/'tims-errors.csv'
     c5 = json.loads((REPORTS/'public-fares.json').read_text(encoding='utf-8'))
     if run.sha(error_path) != c5['tims']['errors']['sha256']:
@@ -632,7 +576,8 @@ def main():
         raise ValueError('TIMS original changed since C5')
     cases = CACHE/'cases.tsv'
     case_meta = write_cases(cases, ss, args.days, args.seed, points, hours, header, errors)
-    matrix = args.legacy_realdata/'data'/'kakao_matrix.tsv'
+    routing_cache = args.routing_cache or args.public_cache/'osrm'
+    matrix = routing_cache/'matrix.tsv'
     # Explicit dependency package only; current application classes always compiled directly.
     boot = args.boot_package or REPO/'server'/'target'/'server-0.1.0.jar'
     inputs = [manifest(Path(__file__),role='C7 tool'),manifest(HERE/'livingmove.py',role='aggregate tool'),manifest(HERE/'fares.py',role='C5 tool'),manifest(HERE/'run.py',role='C6 tool'),manifest(HERE/'tims_regions.py',role='region-assignment tool'),
@@ -641,13 +586,14 @@ def main():
               manifest(args.public_cache/'kr-public'/'sgis-admin-2025.zip',role='official 2025Q2 boundary source'),
               manifest(args.public_cache/'kr-public'/'living-move-pocheon.csv', LIVING_URL, role='Pocheon origin aggregate, purpose 3'),
               manifest(args.public_cache/'kr-public'/'living-move-summary.json', LIVING_URL),
-              manifest(args.public_cache/'kr-public'/'point-regions.json', role='cached administrative point mapping'),
               manifest(args.public_cache/'kr-public'/'tims_2025.zip', TIMS_URL),
               manifest(args.public_cache/'tims-monthly-safe.csv', TIMS_URL, role='normalized monthly grids'),
               manifest(error_path, TIMS_URL, role='grid-month mean relative residual'),
               manifest(REPORTS/'public-fares.json', role='C5 definition and error sample hash'),
-              *[manifest(args.legacy_realdata/'data'/f, role='read-only historical cache') for f in
-                ('korea_points.json','kakao_solo.csv','kakao_matrix.tsv','korea_cases.txt')],
+              *[manifest(routing_cache/f, role='C7 OSRM calibrated grid routing') for f in
+                ('MANIFEST.json','destinations.json','raw_matrix.tsv','matrix.tsv','solo.csv',
+                 'snaps.csv','calibration-model.json','kakao-calibration.csv','calibration-sample.csv')],
+              manifest(HERE/'osrm_matrix.py'),manifest(HERE/'kakao_calibration.py'),manifest(HERE/'grid_demand.py'),
               manifest(cases, role='generated seeded C7 proxy requests')]
     for filename, url in [('kr-public/pocheon-taxi-stands.csv',STANDS_URL), ('gg-stops-page.html',GG_URL)]:
         f = args.public_cache/filename
@@ -722,7 +668,7 @@ def main():
         rule='Zero intra-Pocheon destination weight and renormalize; hold 100 requests/day and marginal hours fixed')
     report = dict(schema_version=4,status='COMPLETED',generated_at=datetime.now(timezone.utc).isoformat(),
         seed=args.seed,days_per_condition=args.days,conditions=len(ss),new_kakao_api_calls=0,
-        historical_kakao_api_calls=1490,conclusion=conclusion,
+        historical_kakao_api_calls=demand['calibration_rows'],conclusion=conclusion,
         presentation_sentence=(f"공개자료 대리 수요 모의실험에서 하루 100건의 매칭률은 {b['matching_rate']['mean']:.2%}였다. "
             f"노쇼 5%에서는 실제 보전 규칙 적용 후 손해 비율 {noshow['ratio_harmed_rate']['mean']:.2%}, "
             f"현재 비결제자 추가 결제 {noshow['ratio_additional_rate']['mean']:.2%}이며 실제 학생 운영 성과는 아니다."),
@@ -752,7 +698,7 @@ def main():
             c6_regression=c6,
             observed_students=0),
         tool_sha256={str(f.relative_to(REPO)):run.sha(f) for f in (Path(__file__),HERE/'run.py',HERE/'acquire-public.mjs',HERE/'livingmove.py',HERE/'fares.py',HERE/'acquire_public.py',HERE/'tims_regions.py')})
-    report['git_metadata_status'] = 'NOT_QUERIED: user prohibited git operations'
+    report['git_metadata_status'] = 'NO_COMMIT: worker recorded input and compiled-source hashes'
     run.json_write(REPORTS/'c7-input-MANIFEST.json',dict(generated_at=report['generated_at'],files=inputs,
         acquisition=acquired,generated_input_sha256=run.sha(cases),
         source_dependencies=source,cache_output_sha256={f.name:run.sha(f) for f in (riders,groups,days)}))

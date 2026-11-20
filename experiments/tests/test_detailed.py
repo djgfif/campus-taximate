@@ -226,16 +226,26 @@ class ProductionIntegrationTests(unittest.TestCase):
             for key in ('matching_rate','mean_delay_minutes','mean_wait_minutes'):
                 self.assertEqual(by['base']['metrics'][key],by[name]['metrics'][key])
         self.assertAlmostEqual(sum(h['probability'] for h in report['demand']['hourly_distribution']),1.)
-        self.assertEqual(report['demand']['candidate_points'],118)
-        self.assertEqual(report['demand']['cached_point_mapping_count'],121)
+        grid_routing='calibration' in report['demand']
+        if grid_routing:
+            self.assertGreater(report['demand']['candidate_points'],0)
+            self.assertGreaterEqual(report['demand']['retained_eligible_share'],.99-1e-10)
+            self.assertIn('500m',report['demand']['resolution'])
+            self.assertGreater(report['demand']['calibration']['test_n'],0)
+        else:
+            self.assertEqual(report['demand']['candidate_points'],118)
+            self.assertEqual(report['demand']['cached_point_mapping_count'],121)
         self.assertEqual(report['demand']['livingmove_days'],20)
         coverage=report['demand']['region_coverage']
         self.assertAlmostEqual(sum(r['represented_share'] for r in coverage)+report['demand']['lost_destination_share'],1.)
         self.assertTrue(all(0<=r['tims_coverage']<=1 for r in coverage))
         self.assertAlmostEqual(sum(r['probability'] for r in report['demand']['exclude_intra_pocheon']['point_probabilities']),1.)
-        self.assertTrue(all(r['probability']==0 for r in report['demand']['exclude_intra_pocheon']['point_probabilities'] if r['id'] in (7,12,47,64)))
-        self.assertEqual(len(report['demand']['all_cached_point_probabilities']),121)
-        self.assertAlmostEqual(sum(p['probability'] for p in report['demand']['all_cached_point_probabilities']),1.)
+        if grid_routing:
+            city_ids={p['id'] for p in report['demand']['point_probabilities'] if p['code']=='41650000'}
+            self.assertTrue(all(r['probability']==0 for r in report['demand']['exclude_intra_pocheon']['point_probabilities'] if r['id'] in city_ids))
+        else:
+            self.assertEqual(len(report['demand']['all_cached_point_probabilities']),121)
+            self.assertAlmostEqual(sum(p['probability'] for p in report['demand']['all_cached_point_probabilities']),1.)
         self.assertAlmostEqual(sum(p['probability'] for p in report['demand']['point_probabilities']),1.)
         self.assertIn('living-move',report['demand']['time_rule'])
         self.assertGreater(report['demand']['pocheon_simulated_share'],0)

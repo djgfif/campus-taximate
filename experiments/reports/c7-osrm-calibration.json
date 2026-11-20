@@ -1,0 +1,136 @@
+{
+  "model": "training OD median Kakao / OSRM duration multiplier",
+  "duration_ratio": 1.5670221551940824,
+  "train_n": 321,
+  "test_n": 79,
+  "held_out": {
+    "n": 79,
+    "duration_mape": 0.22686891664540473,
+    "raw_duration_mape": 0.3270688823267714,
+    "median_ratio": 1.4174918937866972,
+    "fare_mape": 0.18522732807517353,
+    "distance_mape": 0.11932230196056606
+  },
+  "held_out_by_hour": {
+    "12": {
+      "n": 5,
+      "duration_mape": 0.2924403676081664,
+      "raw_duration_mape": 0.2269183639862078,
+      "median_ratio": 1.2423375561912546,
+      "fare_mape": 0.21867490127174488,
+      "distance_mape": 0.10998274324010585
+    },
+    "13": {
+      "n": 4,
+      "duration_mape": 0.24701166395887136,
+      "raw_duration_mape": 0.4136949408940479,
+      "median_ratio": 1.8288795037754446,
+      "fare_mape": 0.211805489667929,
+      "distance_mape": 0.12183717743171349
+    },
+    "14": {
+      "n": 3,
+      "duration_mape": 0.16317011283070296,
+      "raw_duration_mape": 0.2577194208931657,
+      "median_ratio": 1.3135988955211761,
+      "fare_mape": 0.11657203143128385,
+      "distance_mape": 0.14766497740799026
+    },
+    "15": {
+      "n": 9,
+      "duration_mape": 0.23560456810922395,
+      "raw_duration_mape": 0.26285383747867513,
+      "median_ratio": 1.2272321662904835,
+      "fare_mape": 0.188412657019387,
+      "distance_mape": 0.13616388619239464
+    },
+    "16": {
+      "n": 11,
+      "duration_mape": 0.17539968973911002,
+      "raw_duration_mape": 0.33824394051459483,
+      "median_ratio": 1.5007536741615375,
+      "fare_mape": 0.1939809014881652,
+      "distance_mape": 0.10936129048233538
+    },
+    "17": {
+      "n": 19,
+      "duration_mape": 0.23945963212782936,
+      "raw_duration_mape": 0.3844363102735545,
+      "median_ratio": 1.6887013595874356,
+      "fare_mape": 0.20048502827488737,
+      "distance_mape": 0.1322200095895836
+    },
+    "18": {
+      "n": 10,
+      "duration_mape": 0.2628082179594278,
+      "raw_duration_mape": 0.45982640895442994,
+      "median_ratio": 2.067782137612437,
+      "fare_mape": 0.17220916916641887,
+      "distance_mape": 0.11578250426156728
+    },
+    "19": {
+      "n": 10,
+      "duration_mape": 0.2348117489284946,
+      "raw_duration_mape": 0.2120010908361676,
+      "median_ratio": 1.3102312558827598,
+      "fare_mape": 0.2092301113338359,
+      "distance_mape": 0.1335232301406568
+    },
+    "20": {
+      "n": 4,
+      "duration_mape": 0.26019369087209426,
+      "raw_duration_mape": 0.21115389209234597,
+      "median_ratio": 1.2295555868769874,
+      "fare_mape": 0.15871631411355422,
+      "distance_mape": 0.09790967687344071
+    },
+    "21": {
+      "n": 4,
+      "duration_mape": 0.09158510992724078,
+      "raw_duration_mape": 0.3305908782966739,
+      "median_ratio": 1.5016021489567644,
+      "fare_mape": 0.06366723259762308,
+      "distance_mape": 0.030219772994508124
+    }
+  },
+  "held_out_by_band": {
+    "0-5": {
+      "n": 13,
+      "duration_mape": 0.24550755474088667,
+      "raw_duration_mape": 0.5016219097300458,
+      "median_ratio": 1.8753260302556078,
+      "fare_mape": 0.11060587172083902,
+      "distance_mape": 0.06377473674889404
+    },
+    "15-30": {
+      "n": 16,
+      "duration_mape": 0.1557525406681918,
+      "raw_duration_mape": 0.3539254728848364,
+      "median_ratio": 1.5475746266523904,
+      "fare_mape": 0.2057284159984552,
+      "distance_mape": 0.1390172625687097
+    },
+    "30+": {
+      "n": 33,
+      "duration_mape": 0.27198202982475955,
+      "raw_duration_mape": 0.1931438690827785,
+      "median_ratio": 1.2423375561912546,
+      "fare_mape": 0.22267072447196534,
+      "distance_mape": 0.1353202996190876
+    },
+    "5-15": {
+      "n": 17,
+      "duration_mape": 0.1919763863792538,
+      "raw_duration_mape": 0.42828244890795697,
+      "median_ratio": 1.6980876169808763,
+      "fare_mape": 0.15031141305986248,
+      "distance_mape": 0.1122084816835207
+    }
+  },
+  "limitations": [
+    "Future API estimates are not observed meter receipts.",
+    "Single robust global multiplier applied to every ordered leg; hourly validation is descriptive, no traffic clock in matcher.",
+    "Distance unchanged. Toll/border/instantaneous slow-speed clocks not reconstructed.",
+    "Origin Pocheon uses Pocheon proxy; all other sample origins use existing Seoul proxy, not a full national tariff catalogue."
+  ]
+}

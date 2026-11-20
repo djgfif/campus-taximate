@@ -1,11 +1,11 @@
 {
-  "generated_at": "2026-11-20T05:55:06.232866+00:00",
+  "generated_at": "2026-11-20T06:51:07.123156+00:00",
   "files": [
     {
       "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\detailed.py",
       "url": null,
-      "bytes": 60081,
-      "sha256": "12441b50c772b1f62ada3240a7611737080b470e74746f28fbafb12b6b4f0707",
+      "bytes": 55750,
+      "sha256": "7fc61b375eeb47c0b8d4e3be3de3e0492e3139ce07680fcdd20076e9bc25653f",
       "role": "C7 tool"
     },
     {
@@ -71,13 +71,6 @@
       "sha256": "90fa40030351e77e98bbc4ec1765acfdd56120fb13f09fc06bee5a512eb21e9d"
     },
     {
-      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\point-regions.json",
-      "url": null,
-      "bytes": 27036,
-      "sha256": "66660bbd9da3e62d234a903a7b0c099560f0b0bd5bc8f374c82e1d38dabc4230",
-      "role": "cached administrative point mapping"
-    },
-    {
       "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\tims_2025.zip",
       "url": "https://www.data.go.kr/data/15165682/fileData.do",
       "bytes": 25212642,
@@ -105,38 +98,91 @@
       "role": "C5 definition and error sample hash"
     },
     {
-      "path": "C:\\work\\01_Projects\\Team\\taximate-matching-sim\\realdata\\data\\korea_points.json",
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\osrm\\MANIFEST.json",
       "url": null,
-      "bytes": 18146,
-      "sha256": "bce192096b01e7dc045ca601e1aef0bb1187d5a8e3ce0d25ab4c6f9a055530cb",
-      "role": "read-only historical cache"
+      "bytes": 718446,
+      "sha256": "f51775d93f5ba7e421603fc18367b5160399b7499e6fc7119a63e5986946cbca",
+      "role": "C7 OSRM calibrated grid routing"
     },
     {
-      "path": "C:\\work\\01_Projects\\Team\\taximate-matching-sim\\realdata\\data\\kakao_solo.csv",
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\osrm\\destinations.json",
       "url": null,
-      "bytes": 14384,
-      "sha256": "a766870f47ae5b4d184489d9c20c8bc92b1eaaa4c1f998944c02823d235acbb6",
-      "role": "read-only historical cache"
+      "bytes": 4575031,
+      "sha256": "d7e3fd70cfea91976d5ee581319b2903af6250efc707806a4f9a9923c167fce1",
+      "role": "C7 OSRM calibrated grid routing"
     },
     {
-      "path": "C:\\work\\01_Projects\\Team\\taximate-matching-sim\\realdata\\data\\kakao_matrix.tsv",
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\osrm\\raw_matrix.tsv",
       "url": null,
-      "bytes": 342537,
-      "sha256": "22e4b52b6bf5635abb7e9c1bf489f1ffc00f6050a8fb57290d282031cffbc3c8",
-      "role": "read-only historical cache"
+      "bytes": 566003794,
+      "sha256": "3eaabb0dbec380b20e9762622fa9819b2dd6eb24dc9164c086f4bd49cdcfb044",
+      "role": "C7 OSRM calibrated grid routing"
     },
     {
-      "path": "C:\\work\\01_Projects\\Team\\taximate-matching-sim\\realdata\\data\\korea_cases.txt",
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\osrm\\matrix.tsv",
       "url": null,
-      "bytes": 5585690,
-      "sha256": "b4963ec60551cef1e3aaa552b1d197ecc38aa94c0cbfa7bbedf37f6cdca8cf1e",
-      "role": "read-only historical cache"
+      "bytes": 533831400,
+      "sha256": "dd6a48296379181256895b7b032bde11a021ce9278c3ce06d1a559fd3a9aec65",
+      "role": "C7 OSRM calibrated grid routing"
+    },
+    {
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\osrm\\solo.csv",
+      "url": null,
+      "bytes": 162113,
+      "sha256": "b3b2fb4c84648be447029afa4c2a35c36ec871e177869f22673b8981453f1d0c",
+      "role": "C7 OSRM calibrated grid routing"
+    },
+    {
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\osrm\\snaps.csv",
+      "url": null,
+      "bytes": 167749,
+      "sha256": "6df70270d38d1bfcbd377e408f63cf51ead5522d6347fc656f7e1cab393a9952",
+      "role": "C7 OSRM calibrated grid routing"
+    },
+    {
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\osrm\\calibration-model.json",
+      "url": null,
+      "bytes": 4501,
+      "sha256": "8b771b61c593517fed409a878f0db7a77b781ceeb8ec738620c0bd37ab3086b4",
+      "role": "C7 OSRM calibrated grid routing"
+    },
+    {
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\osrm\\kakao-calibration.csv",
+      "url": null,
+      "bytes": 68749,
+      "sha256": "9bd62fff18c6287f9b5ba68c0a660f1ac59f01c827caf9b99467a3156b30d6aa",
+      "role": "C7 OSRM calibrated grid routing"
+    },
+    {
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\osrm\\calibration-sample.csv",
+      "url": null,
+      "bytes": 60245,
+      "sha256": "aafb6c7a19a6b9e22f8fc8d1ea5534b668ec88872ad5e8a28f3335361d84291b",
+      "role": "C7 OSRM calibrated grid routing"
+    },
+    {
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\osrm_matrix.py",
+      "url": null,
+      "bytes": 14272,
+      "sha256": "ccb207caac61527ee2f9339e53c679f3a63647cd446cefbc1a2697098e25a80a"
+    },
+    {
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\kakao_calibration.py",
+      "url": null,
+      "bytes": 13331,
+      "sha256": "f6ea156f92fd669713f8ae454a47fb190821e29e01462c9cf225a1d20d80f4a5"
+    },
+    {
+      "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\grid_demand.py",
+      "url": null,
+      "bytes": 3289,
+      "sha256": "7fabc33c61875910e4061eb7a514e0eacc79b112648720fc0ef2a2347c35810f"
     },
     {
       "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\c7\\cases.tsv",
       "url": null,
-      "bytes": 10677743,
-      "sha256": "28b8fff160ac6059e4f8cd84b448697393ecc284341c5376ca4fd99a613aaaee",
+      "bytes": 11290183,
+      "sha256": "dac8afb3bb55a7453368fc5f747fa372dcbd846140f94347555a49c4bb039707",
       "role": "generated seeded C7 proxy requests"
     }
   ],
@@ -505,7 +551,7 @@
     ],
     "raw_policy": "원본은 .cache 안에만 저장. 공개 결과에는 SHA256와 비식별 집계만 포함."
   },
-  "generated_input_sha256": "28b8fff160ac6059e4f8cd84b448697393ecc284341c5376ca4fd99a613aaaee",
+  "generated_input_sha256": "dac8afb3bb55a7453368fc5f747fa372dcbd846140f94347555a49c4bb039707",
   "source_dependencies": {
     "source_sha256": {
       "matching-engine/src/main/java/com/campustaximate/matching/Candidate.java": "73e7e8d176fd976f1a92970605c4c55e52a3aeb4c6036fba881bfb79870b4019",
@@ -704,7 +750,8 @@
       "server/src/main/java/com/campustaximate/server/web/RequestLogFilter.java": "56207cc8a9dc4d9db5f5dc3e0933894945162164419087eeb420b33eef2c0875",
       "server/src/main/java/com/campustaximate/server/web/SecurityHeadersFilter.java": "78bc069e682079c97b5877268b6de86ec4486706cb98c15221a5498c4e5d5659",
       "server/src/main/java/com/campustaximate/server/web/WebConfig.java": "b149dc1823e4bebe4049282ce2e84bfc31e20fdd419ccfca225e67d6ab454512",
-      "experiments/java/com/campustaximate/server/service/DetailedSimulation.java": "450a0c6760ae2df5c00463ad280a76838a56331c85c99aecfa3ec5cc05fc05c7",
+      "experiments/java/com/campustaximate/server/service/C7RoadMatrix.java": "82b108c1d794dc2394fa2df4b024c74698dfe268cd8bceeaf1ad42edea843323",
+      "experiments/java/com/campustaximate/server/service/DetailedSimulation.java": "860b71be91b7b1633c06a9ba2cdb0426e38fcb881a1a9aa68ccb36eab7082f03",
       "experiments/java/com/campustaximate/server/service/ExperimentRunner.java": "b864bcb5e7db04a1f57a80d14d0174e9bbb2f426e35ade6ada8eb185e089a1bf",
       "experiments/java/com/campustaximate/server/service/SimulationCompensation.java": "36d594cf13f24335af5dfa8ead1344aead2c6a6780bce287231ee49e80ce0a78"
     },
@@ -905,7 +952,8 @@
       "server/src/main/java/com/campustaximate/server/web/RequestLogFilter.java": "56207cc8a9dc4d9db5f5dc3e0933894945162164419087eeb420b33eef2c0875",
       "server/src/main/java/com/campustaximate/server/web/SecurityHeadersFilter.java": "78bc069e682079c97b5877268b6de86ec4486706cb98c15221a5498c4e5d5659",
       "server/src/main/java/com/campustaximate/server/web/WebConfig.java": "b149dc1823e4bebe4049282ce2e84bfc31e20fdd419ccfca225e67d6ab454512",
-      "experiments/java/com/campustaximate/server/service/DetailedSimulation.java": "450a0c6760ae2df5c00463ad280a76838a56331c85c99aecfa3ec5cc05fc05c7",
+      "experiments/java/com/campustaximate/server/service/C7RoadMatrix.java": "82b108c1d794dc2394fa2df4b024c74698dfe268cd8bceeaf1ad42edea843323",
+      "experiments/java/com/campustaximate/server/service/DetailedSimulation.java": "860b71be91b7b1633c06a9ba2cdb0426e38fcb881a1a9aa68ccb36eab7082f03",
       "experiments/java/com/campustaximate/server/service/ExperimentRunner.java": "b864bcb5e7db04a1f57a80d14d0174e9bbb2f426e35ade6ada8eb185e089a1bf",
       "experiments/java/com/campustaximate/server/service/SimulationCompensation.java": "36d594cf13f24335af5dfa8ead1344aead2c6a6780bce287231ee49e80ce0a78"
     },
@@ -1035,8 +1083,8 @@
     "jdk_major": 21
   },
   "cache_output_sha256": {
-    "riders.csv": "1358fb772b2c9658f8a26a7c8c60332a29c21a235c9e52d90957d58f5c5a3fc6",
-    "groups.csv": "bfd29541fd51c52dacdadc5a15a3a7f91e9ea37d560eb85cdbde16f4d66a99bb",
-    "days.csv": "78a5779494cf1aa7706dd6a2572874ce461cbf78b8561e0e633ea3aa88ac55ea"
+    "riders.csv": "e86acd5b794e7ab85701744e762215f8d2c7c8d48aef8f5e4cf543b4e63fb4a7",
+    "groups.csv": "1d2ffc4dd1e0990dda62f0ae10dc9a1e35a44bf5b7635259566793f601225256",
+    "days.csv": "2c65dc186aab2fb1008ef87772bbc9eb6b8c86d4f5efe56608c1a877a84f6432"
   }
 }

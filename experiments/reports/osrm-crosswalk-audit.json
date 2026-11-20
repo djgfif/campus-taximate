@@ -1,0 +1,17 @@
+{
+  "regions": 250,
+  "resolved_regions": 250,
+  "resolved_flow_share": 1.0,
+  "missing_regions": 0,
+  "merged_regions": 244,
+  "crosswalk": {
+    "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\kr-public\\livingmove-sgis-crosswalk.csv",
+    "sha256": "9fa4f7d453b1e5253c218ae5e0c172caac7471edd8fc3cde623cb4579a910931",
+    "bytes": 20484
+  },
+  "generator": {
+    "path": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\sgis_mois_crosswalk.py",
+    "sha256": "f1be4a1a79824add32f72523693c0f87615f5cf42fac738138448740e5fa1a5b",
+    "bytes": 4611
+  }
+}
