@@ -136,3 +136,20 @@ hash-verified Java export. Production-state round regret is separate from
 independent-policy day gaps, which include subsequent queue feedback. Hindsight
 relaxes round confirmation while retaining common departure windows; its matched
 rider count is an upper bound within this simulated model.
+
+
+## C9: 하차 설계와 사전예약 비교
+
+C7의 동일한 90개 수요일(50/100/150명, 각 30일)에서 문 앞 하차, K=5/10/20 실제 교통 허브 하차, 마지막 기회 혼합 제안(보행만/보행·택시), 15/30분 사전예약을 비교한다. 사전예약은 즉시요청의 유효 출발창을 예약창으로 표현하므로 0분 전환 대조군 D0도 함께 실행한다.
+
+```powershell
+./experiments/.cache/venv/python.exe experiments/dropoff_hubs.py
+./experiments/.cache/venv/python.exe experiments/dropoff_designs.py
+./experiments/.cache/venv/python.exe -m pytest experiments/tests
+# 해시를 확인한 기존 결과에서 보고서만 재생성:
+./experiments/.cache/venv/python.exe experiments/dropoff_designs.py --reuse
+```
+
+Kakao REST 키는 기존 .env에서 읽고 출력하지 않는다. OSRM car 서버는 http://127.0.0.1:5000 에 있어야 한다. 보행은 대권거리×1.3, 4.5km/h의 가정이며 1.2km를 넘으면 같은 C7 요금모형의 라스트마일 택시를 이용한다. 허브는 수요가중 네트워크 p-median 국소해로 선정하며, 기본 K는 K20 목적함수의 1.25배 이내인 가장 작은 K다. 수용 판단은 예상 견적 기준이고, 사후 harmed는 C7과 같은 TIMS 잔차를 적용한 별도 결과다. 실제 승객 수용은 검증하지 않았다.
+
+[한국어 결과·허브 이름/좌표/배정 수요](reports/c9-dropoff-designs.md), [모든 95% CI·A 대비 대응 차이·해시](reports/c9-dropoff-designs.json). 검색 응답·응답 해시·K별 배정·양방향 OSRM 표는 .cache/hubs, 승객별 정산·일별 결과·생산 소스 해시·실행/테스트 로그는 .cache/c9에 있다. 생산 matching-engine/ 및 server/ 파일은 변경하지 않는다.
