@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { ChevronLeft, MapPin } from 'lucide-react'
-import { Btn } from './ui.jsx'
+import { Btn, useDialog } from './ui.jsx'
 
 const APP_KEY = import.meta.env.VITE_KAKAO_JS_KEY
 const INITIAL_LEVEL = 6
@@ -8,21 +8,35 @@ const LOAD_TIMEOUT_MS = 8000
 
 let sdk = null
 
-/** 카카오맵 SDK를 한 번만 불러온다. */
-export function loadKakaoMaps() {
+/** 카카오맵 SDK를 한 번만 불러오며, 일시적 오류로 실패한 로드는 다음 시도에서 다시 불러올 수 있다. */
+export function loadKakaoMaps(key = APP_KEY) {
+  if (typeof window !== 'undefined' && window.kakao?.maps?.Map) return Promise.resolve(window.kakao.maps)
   if (!sdk) {
     sdk = new Promise((resolve, reject) => {
       const script = document.createElement('script')
-      script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${APP_KEY}&libraries=services&autoload=false`
-      // 스크립트가 막히면 load 콜백이 오지 않는다. 기다리지 않고 지도 없는 화면으로 넘어간다.
-      const timer = setTimeout(() => reject(new Error('카카오맵을 불러오지 못했습니다.')), LOAD_TIMEOUT_MS)
-      script.onload = () => window.kakao.maps.load(() => {
+      script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${key}&libraries=services&autoload=false`
+      let settled = false
+      const fail = () => {
+        if (settled) return
+        settled = true
         clearTimeout(timer)
-        resolve(window.kakao.maps)
-      })
-      script.onerror = () => reject(new Error('카카오맵을 불러오지 못했습니다.'))
+        script.remove()
+        reject(new Error('카카오맵을 불러오지 못했습니다.'))
+      }
+      // 스크립트가 막히면 load 콜백이 오지 않는다. 기다리지 않고 지도 없는 화면으로 넘어간다.
+      const timer = setTimeout(fail, LOAD_TIMEOUT_MS)
+      script.onload = () => {
+        if (typeof window.kakao?.maps?.load !== 'function') { fail(); return }
+        window.kakao.maps.load(() => {
+          if (settled) return
+          settled = true
+          clearTimeout(timer)
+          resolve(window.kakao.maps)
+        })
+      }
+      script.onerror = fail
       document.head.appendChild(script)
-    })
+    }).catch((e) => { sdk = null; throw e })
   }
   return sdk
 }
@@ -44,8 +58,10 @@ function addressOf(maps, lat, lon) {
 /** 지도를 움직여 가운데 핀으로 고른다. 터치 기기에서도 지도 클릭에 기대지 않는다. */
 export default function MapPicker({ center: origin, value, title, onPick, onClose, embedded }) {
   const container = useRef(null)
+  const dialog = useRef(null)
   const [error, setError] = useState(APP_KEY ? '' : '지도 키가 없어 지도를 표시할 수 없습니다. 주소 검색을 이용해 주세요.')
   const [spot, setSpot] = useState(null)
+  useDialog(dialog, onClose, !embedded)
 
   useEffect(() => {
     if (!origin || !APP_KEY) return undefined
@@ -92,7 +108,7 @@ export default function MapPicker({ center: origin, value, title, onPick, onClos
   }
 
   return (
-    <div className="mapsheet" role="dialog" aria-modal="true" aria-label={title}>
+    <div ref={dialog} tabIndex={-1} className="mapsheet" role="dialog" aria-modal="true" aria-label={title}>
       <header className="bar back">
         <div className="bar-left">
           <button type="button" className="icon-btn" aria-label="닫기" onClick={onClose}><ChevronLeft size={26} /></button>

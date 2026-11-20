@@ -15,9 +15,10 @@ beforeEach(() => {
 })
 afterEach(() => { cleanup(); vi.restoreAllMocks() })
 const run = async (action) => action()
+const FUTURE = { v7_startTransition: true, v7_relativeSplatPath: true }
 async function panel(parties = [], status = progress) {
   api.demoStatus.mockResolvedValue(status)
-  render(<MemoryRouter><DemoBar now={progress.now} run={run} parties={parties} /></MemoryRouter>)
+  render(<MemoryRouter future={FUTURE}><DemoBar now={progress.now} run={run} parties={parties} /></MemoryRouter>)
   fireEvent.click(screen.getByRole('button', { name: '시연', exact: true }))
   await screen.findByText(/^장면 \d \/ 7/)
 }
@@ -69,7 +70,7 @@ describe('시연 패널', () => {
     expect(screen.queryByText(/회원 4/)).toBeNull()
   })
   it('계정 바꾸기는 시연 창 안에 있다', async () => {
-    render(<MemoryRouter><DemoBar now={progress.now} run={run} accounts={<DemoAccounts onLogin={vi.fn()} />} /></MemoryRouter>)
+    render(<MemoryRouter future={FUTURE}><DemoBar now={progress.now} run={run} accounts={<DemoAccounts onLogin={vi.fn()} />} /></MemoryRouter>)
     fireEvent.click(screen.getByRole('button', { name: '시연', exact: true }))
     expect(await screen.findByText('계정 바꾸기')).toBeTruthy()
     expect(screen.getByRole('region', { name: '시연 계정 빠른 전환' })).toBeTruthy()

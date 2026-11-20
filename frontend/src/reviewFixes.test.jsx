@@ -6,6 +6,8 @@ import { BoardSection } from './Board.jsx'
 import Home from './Home.jsx'
 import PaymentCard from './PaymentCard.jsx'
 import { FairnessNote } from './ui.jsx'
+import { DriverView } from './PartyScreens.jsx'
+import MapPicker from './MapPicker.jsx'
 
 // 처음 쓰는 학생·교수 관점 후기에서 나온 문제를 고친 동작.
 const now = '2026-11-12T00:00:00Z'
@@ -81,5 +83,22 @@ describe('지금 할 일 안의 선결제', () => {
     expect(screen.getByText('승인 완료')).toBeTruthy()
     expect(screen.queryByText(/기한/)).toBeNull()
     expect(screen.queryByText('주문 금액')).toBeNull()
+  })
+})
+
+describe('다이얼로그 접근성', () => {
+  it('기사님 화면과 지도 선택창은 열릴 때 포커스를 옮기고 Escape로 닫힌다', () => {
+    const closeDriver = vi.fn()
+    const view = render(<DriverView party={{ direction: 'FROM_HUB', anchorName: '정문', payerId: 1, members: [{ requestId: 1, memberId: 1, rideOrder: 1, pointName: '역전' }] }} onClose={closeDriver} />)
+    expect(document.activeElement).toBe(screen.getByRole('dialog', { name: '기사님께 보여 줄 화면' }))
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(closeDriver).toHaveBeenCalledOnce()
+    view.unmount()
+
+    const closeMap = vi.fn()
+    render(<MapPicker center={{ lat: 37.5, lon: 127.0 }} title="출발지 고르기" onPick={vi.fn()} onClose={closeMap} />)
+    expect(document.activeElement).toBe(screen.getByRole('dialog', { name: '출발지 고르기' }))
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(closeMap).toHaveBeenCalledOnce()
   })
 })

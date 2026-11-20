@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { api } from './api.js'
 import { startPayment } from './payments.js'
 import { formatDateTime, remaining, won } from './format.js'
@@ -20,17 +20,20 @@ export default function PaymentCard({ partyId, purpose = 'PREPAY', myId, now, co
   const [loaded, setLoaded] = useState({})
   const [reload, setReload] = useState(0)
   const [actionError, setActionError] = useState('')
+  const onOrderRef = useRef(onOrder)
+  useEffect(() => { onOrderRef.current = onOrder }, [onOrder])
+  // now(5초 폴링 시계)가 바뀔 때마다 POST /payments/orders를 반복 호출하지 않는다.
   useEffect(() => {
     if (knownOrder) return undefined
     let closed = false
     api.paymentOrder(partyId, purpose).then((order) => !closed && setLoaded({ key, order }))
       .catch((e) => !closed && setLoaded({ key, error: e.message }))
     return () => { closed = true }
-  }, [key, partyId, purpose, now, reload, knownOrder])
+  }, [key, partyId, purpose, reload, knownOrder])
   const order = knownOrder || (loaded.key === key ? loaded.order : null)
   const error = actionError || (loaded.key === key ? loaded.error : '')
   // 부모(지금 할 일 카드)가 내 주문 상태에 맞춰 제목을 바꿀 수 있게 알려 준다.
-  useEffect(() => { if (order) onOrder?.(order) }, [order, onOrder])
+  useEffect(() => { if (order) onOrderRef.current?.(order) }, [order])
   const extra = purpose === 'ADDITIONAL'
   const late = order && now && new Date(order.deadlineAt) <= new Date(now)
   const payable = order && ['REQUIRED', 'OVERDUE'].includes(order.status) && (extra || !late) && !readOnly

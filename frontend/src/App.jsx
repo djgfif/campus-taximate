@@ -1,11 +1,10 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from './api.js'
 import AuthScreen from './AuthScreen.jsx'
 import ProfileScreen from './ProfileScreen.jsx'
 import PasswordScreen from './PasswordScreen.jsx'
 import History from './History.jsx'
-import DemoBar, { DemoPresenter } from './DemoBar.jsx'
 import DemoAccounts from './DemoAccounts.jsx'
 import Home from './Home.jsx'
 import { HomeRequest, SchoolRequest } from './RequestFlow.jsx'
@@ -14,7 +13,11 @@ import { ProfileSheet } from './People.jsx'
 import { PartyDetail, PartyScreen } from './PartyScreens.jsx'
 import { PayerInput, SettlementScreen } from './SettleScreens.jsx'
 import PaymentResult from './PaymentScreens.jsx'
-import { AdminScreen, BoardingCasesScreen } from './ReviewScreens.jsx'
+import { BoardingCasesScreen } from './ReviewScreens.jsx'
+
+const AdminScreen = lazy(() => import('./ReviewScreens.jsx').then((m) => ({ default: m.AdminScreen })))
+const DemoBar = lazy(() => import('./DemoBar.jsx'))
+const DemoPresenter = lazy(() => import('./DemoBar.jsx').then((m) => ({ default: m.DemoPresenter })))
 import { isPaymentParty } from './format.js'
 import { NoShow, Unmatched, Waiting } from './RequestStatus.jsx'
 import { Avatar, Brand, Btn, Confirm, Empty, Item, LoadingScreen, Say, Screen, Sheet, TabBar, Toaster, toast, useWide } from './ui.jsx'
@@ -56,8 +59,9 @@ export default function App() {
   const [menu, setMenu] = useState(false)
   const [leaving, setLeaving] = useState(false)
   const [editingProfile, setEditingProfile] = useState(false)
-  // 내 정보의 "같이 타서 덜 낸 돈". 정산이 끝난 내역에서만 계산하고, 탭을 옮길 때마다 새로 읽는다.
+  // 내 정보의 "같이 타서 덜 낸 돈". 내 정보 화면·메뉴를 열 때만 읽고, 닫거나 다른 탭으로 갈 때는 불필요하게 다시 부르지 않는다.
   const [saved, setSaved] = useState(0)
+  const [school, setSchool] = useState(undefined)
 
   const session = useRef(0)
   const latestRead = useRef(0)
@@ -149,7 +153,15 @@ export default function App() {
   )
 
   useEffect(() => {
+    if (!me || me.needsProfile || me.needsPassword) { setSchool(undefined); return undefined }
+    let closed = false
+    api.school().then((data) => !closed && setSchool(data)).catch(() => !closed && setSchool(null))
+    return () => { closed = true }
+  }, [me])
+
+  useEffect(() => {
     if (!me || me.needsProfile || me.needsPassword) return undefined
+    if (tab !== 'me' && !menu) return undefined
     let closed = false
     api.history().then((items) => !closed && setSaved(savedTotal(items))).catch(() => !closed && setSaved(0))
     return () => { closed = true }
@@ -201,7 +213,7 @@ export default function App() {
     </div>
   </>
   const demoAccounts = config?.demo ? <DemoAccounts onLogin={async () => { session.current += 1; setState(null); setResetting(false); setMenu(false); navigate('/'); setMe(await api.me()) }} /> : null
-  const demo = config?.demo && me ? <DemoBar now={state?.now} run={run} refresh={refresh} parties={state?.parties || []} accounts={demoAccounts} wide={wide} /> : null
+  const demo = config?.demo && me ? <Suspense fallback={null}><DemoBar now={state?.now} run={run} refresh={refresh} parties={state?.parties || []} accounts={demoAccounts} wide={wide} /></Suspense> : null
   const presenter = config?.demo && location.pathname === '/presenter'
 
   return (
@@ -220,7 +232,9 @@ export default function App() {
       {me && (me.needsPassword || resetting) && <PasswordScreen onDone={() => { setResetting(false); return api.me().then(setMe) }} />}
       {me && !me.needsPassword && !resetting && me.needsProfile && <ProfileScreen onDone={() => api.me().then(setMe)} />}
       {me && !me.needsPassword && !resetting && !me.needsProfile && presenter && (
-        <DemoPresenter now={state?.now} run={run} parties={state?.parties || []} accounts={demoAccounts} />
+        <Suspense fallback={<LoadingScreen />}>
+          <DemoPresenter now={state?.now} run={run} parties={state?.parties || []} accounts={demoAccounts} />
+        </Suspense>
       )}
       {me && !me.needsPassword && !resetting && !me.needsProfile && !presenter && (
         <>
@@ -234,10 +248,10 @@ export default function App() {
           {!paymentReturn && tab === 'me' && <Screen><header className="bar"><h1 className="bar-title">내 정보</h1></header><div className="pad me-page">{meMenu(() => {})}</div>{tabBar}</Screen>}
           {!paymentReturn && tab === 'history' && tabBar}
           {!paymentReturn && tab === 'boarding-cases' && <BoardingCasesScreen now={state?.now} onBack={() => setTab('home')} />}
-          {!paymentReturn && tab === 'admin' && <AdminScreen allowed={me.admin} onBack={() => setTab('home')} />}
+          {!paymentReturn && tab === 'admin' && <Suspense fallback={<LoadingScreen />}><AdminScreen allowed={me.admin} onBack={() => setTab('home')} /></Suspense>}
           {!paymentReturn && tab === 'home' && !state && <LoadingScreen />}
           {!paymentReturn && tab === 'home' && state && (
-            <Flow state={state} config={config} myId={me.id} run={run} refresh={refresh} onMenu={openMenu} onPush={togglePush} pushOn={pushOn} onHistory={() => setTab('history')} tabBar={tabBar} />
+            <Flow state={state} config={config} school={school} myId={me.id} run={run} refresh={refresh} onMenu={openMenu} onPush={togglePush} pushOn={pushOn} onHistory={() => setTab('history')} tabBar={tabBar} />
           )}
           {demo}
           {menu && (
@@ -259,7 +273,7 @@ export default function App() {
 }
 
 /** 상태 이름을 화면에 노출하지 않고, 현재 서버가 허용한 동작만 연결한다. */
-function Flow({ state, config, myId, run, refresh, onMenu, onHistory, onPush, pushOn, tabBar }) {
+function Flow({ state, config, school, myId, run, refresh, onMenu, onHistory, onPush, pushOn, tabBar }) {
   const location = useLocation()
   const navigate = useNavigate()
   const [seenRequest, setSeenRequest] = useState(null)
@@ -310,7 +324,7 @@ function Flow({ state, config, myId, run, refresh, onMenu, onHistory, onPush, pu
       setSeenRequest(latest.id); startRequest({ direction: latest.direction, initial: latest })
     }} />
   }
-  return <Home state={state} myId={myId} config={config} onChanged={refresh} onStart={startRequest} onHistory={onHistory} tabBar={tabBar}
+  return <Home state={state} myId={myId} config={config} school={school} onChanged={refresh} onStart={startRequest} onHistory={onHistory} tabBar={tabBar}
     onReopen={(id) => navigate('/parties/' + id)} />
 }
 

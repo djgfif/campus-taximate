@@ -78,16 +78,21 @@ function HomeMap({ school, board, direction }) {
   return <MapView points={points} edge={56} fallback={fallback} />
 }
 
-export default function Home({ state, myId, config, onStart, onReopen, onChanged, tabBar }) {
+export default function Home({ state, myId, config, school: knownSchool, onStart, onReopen, onChanged, tabBar }) {
   const [history, setHistory] = useState([])
-  const [school, setSchool] = useState(null)
+  const [loadedSchool, setLoadedSchool] = useState(null)
   const [board, setBoard] = useState(null)
   const [direction, setDirection] = useState(() => defaultDirection(state.now))
   const wide = useWide()
+  const school = knownSchool !== undefined ? knownSchool : loadedSchool
   useEffect(() => {
-    api.history().then(setHistory).catch(() => setHistory([]))
-    api.school().then(setSchool).catch(() => setSchool(null))
-  }, [])
+    let closed = false
+    api.history().then((items) => !closed && setHistory(items)).catch(() => !closed && setHistory([]))
+    if (knownSchool === undefined) {
+      api.school().then((data) => !closed && setLoadedSchool(data)).catch(() => !closed && setLoadedSchool(null))
+    }
+    return () => { closed = true }
+  }, [knownSchool])
   const toSchool = direction === 'TO_SCHOOL'
   const recent = recentRoutes(history, school).filter((item) => item.displayDirection === direction).slice(0, 3)
   const blocked = state.restricted

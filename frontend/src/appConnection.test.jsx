@@ -15,7 +15,7 @@ describe('서버 연결 실패', () => {
     const down = Object.assign(new Error('연결 실패'), { status: undefined })
     vi.spyOn(api, 'config').mockRejectedValue(down)
     vi.spyOn(api, 'me').mockRejectedValue(down)
-    render(<MemoryRouter><App /></MemoryRouter>)
+    render(<MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><App /></MemoryRouter>)
     expect(await screen.findByText('서버에 연결하지 못했습니다')).toBeTruthy()
     expect(screen.queryByText(/잠시 뒤 다시 열어 주세요/)).toBeNull()
     expect(document.querySelectorAll('.toast')).toHaveLength(0)
