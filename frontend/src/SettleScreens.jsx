@@ -115,19 +115,21 @@ export function SettlementScreen({ party, myId, now, config, onUpdated, onMenu, 
   return <>
     <PartyShell party={party} now={now} onMenu={onMenu} onHome={onHome} firstTab="정산"
       header={<div className="pad party-head"><h1 className="head">{partyLabel(party.status)}</h1></div>}
-      progress={<div className="pad">
+      action={<>
         {settlement?.warning && <Say tone="stop-tone">실제 금액이 예상과 {Math.abs(settlement.differencePercent)}% 달라요. 영수증을 확인해 주세요.</Say>}
         {open && <Say title={'요금 이의 기간 ' + remaining(deadline, now) + ' 남음'}>{formatDateTime(deadline)}까지 이의를 낼 수 있어요. {party.status === 'REVIEW_PENDING' ? '접수된 이의는 관리자 검토를 기다려요.' : '이의가 없으면 정산을 확정해요.'}</Say>}
         {party.status === 'REVIEW_PENDING' && <Say>{financialHold ? '운행 판정은 저장됐어요. 관리자가 결제 기록을 확인할 때까지 정산을 보류해요.'
           : party.reviewReason === 'RIDE_DISPUTE' ? '운행 여부를 관리자 검토 중이에요. 환불과 추가 결제를 보류해요.'
             : '요금 이의가 있어 관리자 검토 중이에요. 환불과 추가 결제, 받을 돈의 정산을 보류해요.'}</Say>}
         <RideConfirmationCard party={party} onUpdated={onUpdated} />
-        <FinancialDetails party={party} />
-        <PraiseSection partyId={party.id} now={now} />
         {open && <Btn className="line" onClick={() => setAsking(true)}>요금 이의</Btn>}
         {settlement?.canCorrect && onCorrect && <Btn className="line" onClick={onCorrect}>금액 고치기</Btn>}
         {settlement?.finalizedAt && settlement.payments?.filter((o) => o.purpose === 'ADDITIONAL').map((order) =>
           <PaymentCard key={order.orderId} knownOrder={order} partyId={party.id} purpose="ADDITIONAL" myId={myId} now={now} config={config} onUpdated={onUpdated} />)}
+      </>}
+      progress={<div className="pad">
+        <FinancialDetails party={party} />
+        <PraiseSection partyId={party.id} now={now} />
       </div>}
       info={<div className="pad">
         {settlement && <ReceiptPaper party={party} />}

@@ -40,8 +40,9 @@ describe('학생 안내', () => {
   it('고정 영역에는 주요 버튼 하나만 있고 보조 동작은 본문에 있다', () => {
     const view = render(<PartyScreen party={party} now={now} myId={1} run={vi.fn()} onHome={vi.fn()} />)
     expect(view.container.querySelectorAll('.foot button')).toHaveLength(1)
-    // 홈은 위쪽 뒤로 버튼, 취소는 정보 탭 맨 아래
+    // 홈은 위쪽 뒤로 버튼, 취소는 일행 정보 맨 아래(휴대폰은 '자세히' 창)
     expect(within(view.container.querySelector('.bar')).getByRole('button', { name: '홈으로' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '일행 정보 열기' }))
     const secondary = screen.getByRole('region', { name: '일행 보조 메뉴', hidden: true })
     expect(within(secondary).getByRole('button', { name: '내 탑승 취소', hidden: true })).toBeTruthy()
     expect(screen.getByText(/결제자는 선결제가 없어요/)).toBeTruthy()

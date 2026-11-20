@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { ImagePlus, RotateCw, Send, X } from 'lucide-react'
+import { ImagePlus, Plus, RotateCw, Send, X } from 'lucide-react'
 import { api } from './api.js'
 import { ReportSheet } from './MemberSafety.jsx'
 import { formatTime } from './format.js'
@@ -36,7 +36,9 @@ function mergeById(current, incoming) {
  * 보낸 메시지는 바로 보이게 하고(보내는 중/실패 다시 보내기), 맨 아래를 보고 있으면 읽음을 알린다.
  * 이용 내역처럼 now가 없으면 5초마다 읽는다.
  */
-export function PartyChat({ partyId, now, status, active = true, full = false }) {
+/** tools: 입력창 옆 + 메뉴에 사진 보내기와 함께 넣을 항목 [{ label, onClick }]. 비어 있으면 사진 단추만 둔다. */
+export function PartyChat({ partyId, now, status, active = true, full = false, tools = [] }) {
+  const [toolsOpen, setToolsOpen] = useState(false)
   const [items, setItems] = useState([])
   const [pending, setPending] = useState([])
   const [meta, setMeta] = useState(null)
@@ -295,9 +297,17 @@ export function PartyChat({ partyId, now, status, active = true, full = false })
             }}>{phrase === '저는 ' ? '내 옷차림 알리기' : phrase}</Btn>)}
           </div>
           <div className="chat-compose">
-            <button type="button" className="chat-attach" aria-label="사진 보내기" onClick={() => fileInput.current?.click()}>
+            {tools.length > 0 ? <>
+              <button type="button" className={toolsOpen ? 'chat-attach on' : 'chat-attach'} aria-label="더 보기" aria-expanded={toolsOpen} onClick={() => setToolsOpen((v) => !v)}>
+                <Plus size={22} aria-hidden="true" />
+              </button>
+              {toolsOpen && <ul className="chat-tools" role="menu" aria-label="일행 도구">
+                <li><button type="button" role="menuitem" onClick={() => { setToolsOpen(false); fileInput.current?.click() }}><ImagePlus size={18} aria-hidden="true" />사진 보내기</button></li>
+                {tools.map((tool) => <li key={tool.label}><button type="button" role="menuitem" onClick={() => { setToolsOpen(false); tool.onClick() }}>{tool.label}</button></li>)}
+              </ul>}
+            </> : <button type="button" className="chat-attach" aria-label="사진 보내기" onClick={() => fileInput.current?.click()}>
               <ImagePlus size={20} aria-hidden="true" />
-            </button>
+            </button>}
             <input ref={fileInput} type="file" accept={IMAGE_TYPES.join(',')} hidden aria-hidden="true" tabIndex={-1}
               onChange={(e) => { sendImage(e.target.files?.[0]); e.target.value = '' }} />
             <textarea ref={input} rows={1} maxLength={200} value={text}

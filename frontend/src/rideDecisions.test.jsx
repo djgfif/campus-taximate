@@ -57,6 +57,7 @@ describe('운행 확인과 변경 이탈',()=>{
     const party={id:11,status:'PREPAYING',instant:true,prepayDeadlineAt:'2026-11-11T00:05:00Z',departureAt:'2026-11-11T00:11:00Z',payer:true,payerId:3,myRequestId:33,myShare:8000,members:[{requestId:33,memberId:3,nickname:'다',rideOrder:1,pointName:'역',arrived:false,nearby:false}],canArrive:true,canCall:false,callReady:false,notReadyReasons:['아직 표시하지 않은 일행이 있어요.']}
     const view=render(<PartyScreen party={party} now="2026-11-11T00:02:00Z" run={run} myId={3} />)
     expect(screen.getByText('출발(예상)')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '일행 정보 열기' }))
     expect(screen.getByText('예상 출발')).toBeTruthy()
     expect(screen.getByText(/확정 즉시 승차 지점으로 출발해 주세요/)).toBeTruthy()
     expect(screen.queryByText(/선결제 기한은 확정 뒤 3분/)).toBeNull()

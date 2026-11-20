@@ -17,8 +17,9 @@ import PaymentResult from './PaymentScreens.jsx'
 import { AdminScreen, BoardingCasesScreen } from './ReviewScreens.jsx'
 import { isPaymentParty } from './format.js'
 import { NoShow, Unmatched, Waiting } from './RequestStatus.jsx'
-import { Avatar, Brand, Btn, Confirm, Item, LoadingScreen, Say, Sheet, Toaster, toast, useWide } from './ui.jsx'
-import { User } from 'lucide-react'
+import { Avatar, Brand, Btn, Confirm, Item, LoadingScreen, Say, Screen, Sheet, TabBar, Toaster, toast, useWide } from './ui.jsx'
+import { formatTime, partyLabel, routeLabel } from './format.js'
+import { ChevronRight, User } from 'lucide-react'
 import { disablePush, enablePush, pushGranted, pushSupported } from './push.js'
 
 const POLL_MS = 5000
@@ -54,7 +55,7 @@ export default function App() {
   const session = useRef(0)
   const latestRead = useRef(0)
   const wide = useWide()
-  const tab = ({ '/history': 'history', '/admin': 'admin', '/boarding-cases': 'boarding-cases' })[location.pathname] || 'home'
+  const tab = ({ '/history': 'history', '/rides': 'rides', '/me': 'me', '/admin': 'admin', '/boarding-cases': 'boarding-cases' })[location.pathname] || 'home'
   const paymentReturn = ['success', 'fail'].includes(new URLSearchParams(location.search).get('payment'))
   const setTab = useCallback((next) => navigate(next === 'home' ? '/' : `/${next}`), [navigate])
 
@@ -140,6 +141,9 @@ export default function App() {
   )
 
   const openMenu = useCallback(() => setMenu(true), [])
+  // 휴대폰 탭바: 내 정보는 탭 화면, 넓은 화면은 오른쪽 위 팝업이다.
+  const unread = (state?.parties || []).reduce((sum, p) => sum + (p.unreadChat || 0), 0)
+  const tabBar = <TabBar current={tab} onTab={setTab} unread={unread} />
   const [pushOn, setPushOn] = useState(false)
 
   // 이미 허용한 기기는 다시 묻지 않고 등록을 맞춘다. 시연 서버는 실행마다 키가 바뀐다.
@@ -164,6 +168,21 @@ export default function App() {
     }
   }
 
+  /** 내 정보 목록. 넓은 화면은 팝업, 휴대폰은 '내 정보' 탭 화면에서 같은 목록을 쓴다. close는 항목을 누른 뒤 팝업을 닫는다. */
+  const meMenu = (close) => <>
+    <div className="me-head"><Avatar name={me.nickname} size={44} /><div><b>{me.nickname}</b><small>{me.email}</small></div></div>
+    <div className="list">
+      <Item title="내 프로필" detail="학과·학번을 같이 타는 사람에게 보여 줘요" onClick={() => { close(); setEditingProfile(true) }} />
+      <Item title="이용 내역" onClick={() => { close(); setTab('history') }} />
+      <Item title="내 탑승 확인·소명" detail="탑승 조사와 소명 기한을 확인해요" onClick={() => { close(); setTab('boarding-cases') }} />
+      {me.admin && <Item title="관리자" detail="노쇼·요금 검토, 신고·제한과 승차 지점 관리" onClick={() => { close(); setTab('admin') }} />}
+      {pushSupported() && <Item title={pushOn ? '알림 끄기' : '알림 받기'} detail="앱을 닫아도 확정과 승차 안내를 받아요" onClick={togglePush} />}
+      <Item title="로그아웃" onClick={() => signOut(api.logout)} />
+      <Item title="모든 기기에서 로그아웃" danger onClick={() => setLeaving(true)} />
+    </div>
+    {config?.demo && <DemoAccounts onLogin={async () => { session.current += 1; setState(null); setResetting(false); close(); navigate('/'); setMe(await api.me()) }} />}
+  </>
+
   return (
     <main className="app">
       <Toaster />
@@ -187,26 +206,19 @@ export default function App() {
           {paymentReturn && <PaymentResult key={me.id + location.search} search={location.search} myId={me.id} onUpdated={refresh}
             onReturn={(id) => navigate(id ? `/parties/${id}` : '/', { replace: true })} />}
           {!paymentReturn && tab === 'history' && <History admin={me.admin} onBack={() => setTab('home')} onBoardingCases={() => setTab('boarding-cases')} />}
+          {!paymentReturn && tab === 'rides' && <Rides state={state} onOpen={(id) => navigate('/parties/' + id)} onHome={() => setTab('home')} tabBar={tabBar} />}
+          {!paymentReturn && tab === 'me' && <Screen><header className="bar"><h1 className="bar-title">내 정보</h1></header><div className="pad me-page">{meMenu(() => {})}</div>{tabBar}</Screen>}
+          {!paymentReturn && tab === 'history' && tabBar}
           {!paymentReturn && tab === 'boarding-cases' && <BoardingCasesScreen now={state?.now} onBack={() => setTab('home')} />}
           {!paymentReturn && tab === 'admin' && <AdminScreen allowed={me.admin} onBack={() => setTab('home')} />}
           {!paymentReturn && tab === 'home' && !state && <LoadingScreen />}
           {!paymentReturn && tab === 'home' && state && (
-            <Flow state={state} config={config} myId={me.id} run={run} refresh={refresh} onMenu={openMenu} onPush={togglePush} pushOn={pushOn} onHistory={() => setTab('history')} />
+            <Flow state={state} config={config} myId={me.id} run={run} refresh={refresh} onMenu={openMenu} onPush={togglePush} pushOn={pushOn} onHistory={() => setTab('history')} tabBar={tabBar} />
           )}
           {config?.demo && <DemoBar now={state?.now} run={run} />}
           {menu && (
             <Sheet title={me.nickname} className="pop menu" onClose={() => setMenu(false)}>
-              <div className="me-head"><Avatar name={me.nickname} size={44} /><div><b>{me.nickname}</b><small>{me.email}</small></div></div>
-              <div className="list">
-                <Item title="내 프로필" detail="학과·학번을 같이 타는 사람에게 보여 줘요" onClick={() => { setMenu(false); setEditingProfile(true) }} />
-                <Item title="이용 내역" onClick={() => { setMenu(false); setTab('history') }} />
-                <Item title="내 탑승 확인·소명" detail="탑승 조사와 소명 기한을 확인해요" onClick={() => { setMenu(false); setTab('boarding-cases') }} />
-                {me.admin && <Item title="관리자" detail="노쇼·요금 검토, 신고·제한과 승차 지점 관리" onClick={() => { setMenu(false); setTab('admin') }} />}
-                {pushSupported() && <Item title={pushOn ? '알림 끄기' : '알림 받기'} detail="앱을 닫아도 확정과 승차 안내를 받아요" onClick={togglePush} />}
-                <Item title="로그아웃" onClick={() => signOut(api.logout)} />
-                <Item title="모든 기기에서 로그아웃" danger onClick={() => setLeaving(true)} />
-              </div>
-              {config?.demo && <DemoAccounts onLogin={async () => { session.current += 1; setState(null); setResetting(false); setMenu(false); navigate('/'); setMe(await api.me()) }} />}
+              {meMenu(() => setMenu(false))}
             </Sheet>
           )}
           {editingProfile && <ProfileSheet onClose={() => setEditingProfile(false)} />}
@@ -223,7 +235,7 @@ export default function App() {
 }
 
 /** 상태 이름을 화면에 노출하지 않고, 현재 서버가 허용한 동작만 연결한다. */
-function Flow({ state, config, myId, run, refresh, onMenu, onHistory, onPush, pushOn }) {
+function Flow({ state, config, myId, run, refresh, onMenu, onHistory, onPush, pushOn, tabBar }) {
   const location = useLocation()
   const navigate = useNavigate()
   const [hidden, setHidden] = useState([])
@@ -273,6 +285,42 @@ function Flow({ state, config, myId, run, refresh, onMenu, onHistory, onPush, pu
       setSeenRequest(latest.id); startRequest({ direction: latest.direction, initial: latest })
     }} />
   }
-  return <Home state={state} myId={myId} config={config} onChanged={refresh} onStart={startRequest} onHistory={onHistory} onMenu={onMenu}
+  return <Home state={state} myId={myId} config={config} onChanged={refresh} onStart={startRequest} onHistory={onHistory} onMenu={onMenu} tabBar={tabBar}
     onReopen={(id) => { setHidden((old) => old.filter((p) => p !== id)); navigate('/parties/' + id) }} />
+}
+
+/** 내 일행: 진행 중인 일행과 최근 정산 일행. 누르면 그 일행의 채팅방으로 간다. */
+function Rides({ state, onOpen, onHome, tabBar }) {
+  if (!state) return <LoadingScreen />
+  const parties = state.parties || []
+  return (
+    <Screen>
+      <header className="bar"><h1 className="bar-title">내 일행</h1></header>
+      <div className="pad">
+        {parties.length === 0 && !state.settledParty && (
+          <div className="empty">
+            <b>진행 중인 일행이 없어요</b>
+            <p>홈에서 가는 길을 올리면 같은 방향 학생과 이어 드려요.</p>
+            <Btn className="line" onClick={onHome}>일행 찾으러 가기</Btn>
+          </div>
+        )}
+        <ul className="ride-list">
+          {parties.map((party) => (
+            <li key={party.id}>
+              <button type="button" className="ride-row" onClick={() => onOpen(party.id)}>
+                <span className="ride-main">
+                  <b>{routeLabel({ direction: party.direction, anchorName: party.anchorName, pointName: party.meetingPoint })}</b>
+                  <small>{party.departureAt ? `${formatTime(party.departureAt)} 출발, ` : ''}{partyLabel(party.status)}</small>
+                </span>
+                {party.unreadChat > 0 && <span className="unread-badge" aria-label={`안 읽은 메시지 ${party.unreadChat}개`}>{party.unreadChat > 99 ? '99+' : party.unreadChat}</span>}
+                <ChevronRight size={18} aria-hidden="true" />
+              </button>
+            </li>
+          ))}
+        </ul>
+        {state.settledParty && <Item title="최근 정산 내역 보기" onClick={() => onOpen(state.settledParty.id)} />}
+      </div>
+      {tabBar}
+    </Screen>
+  )
 }

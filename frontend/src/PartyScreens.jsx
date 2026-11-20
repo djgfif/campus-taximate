@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, ChevronLeft, Copy, MessageCircle, X } from 'lucide-react'
+import { Check, ChevronLeft, Copy, MoreHorizontal, X } from 'lucide-react'
 import RouteComparison, { figures, PartyMiniMap, RouteSide } from './RouteComparison.jsx'
 import { api } from './api.js'
 import { MemberActions } from './MemberSafety.jsx'
@@ -78,8 +78,8 @@ export function DriverView({ party, onClose }) {
   )
 }
 
-/** 휴대폰에서 채팅을 화면 전체로 연다. 뒤로·Esc로 닫는다. */
-function ChatSheet({ unread, onClose, children }) {
+/** 휴대폰에서 일행 정보(진행 단계 아래 내용·규칙·취소)를 화면 전체로 연다. 뒤로·Esc로 닫는다. */
+function RoomSheet({ title, onClose, children }) {
   const box = useRef(null)
   useEffect(() => {
     const key = (event) => event.key === 'Escape' && onClose()
@@ -89,50 +89,79 @@ function ChatSheet({ unread, onClose, children }) {
     return () => { window.removeEventListener('keydown', key); before?.focus?.() }
   }, [onClose])
   return (
-    <div ref={box} tabIndex={-1} className="chat-sheet" role="dialog" aria-modal="true" aria-label="일행 채팅">
+    <div ref={box} tabIndex={-1} className="room-sheet" role="dialog" aria-modal="true" aria-label={title}>
       <header className="bar back">
         <div className="bar-left">
-          <button type="button" className="icon-btn" aria-label="채팅 닫기" onClick={onClose}><ChevronLeft size={26} /></button>
-          <span className="bar-title">일행 채팅</span>
+          <button type="button" className="icon-btn" aria-label="닫기" onClick={onClose}><ChevronLeft size={26} /></button>
+          <span className="bar-title">{title}</span>
         </div>
       </header>
-      {children}
+      <div className="room-sheet-body">{children}</div>
     </div>
   )
 }
 
+const roomTitle = (party) => `${party.direction === 'TO_SCHOOL' ? '등교' : '하교'}${party.departureAt ? ' · ' + formatTime(party.departureAt) + ' 출발' : ''}`
+
 /**
- * 모든 일행 화면의 뼈대. 머리(시각·모이는 곳·역할) 아래로 지금 할 일과 일행 정보를 한 화면에 이어 둔다.
- * 채팅은 탭이 아니다. 휴대폰은 위쪽 채팅 버튼으로 화면 전체를 덮어 열고, 넓은 화면은 지도 오른쪽에 늘 열어 둔다.
+ * 모든 일행 화면의 뼈대. 일행은 채팅방이다.
+ * 휴대폰: 위쪽 고정 카드(지금 상태 + 할 일 버튼)를 두고 그 아래를 채팅으로 채운다.
+ *   입력창 옆 + 메뉴에 결제자 도구·일행 정보를 모으고, 진행 단계 아래 내용과 일행 정보는 '자세히' 창으로 연다.
+ * 넓은 화면: 왼쪽에 지금 할 일과 일행 정보, 가운데 지도, 오른쪽에 채팅을 늘 열어 둔다.
+ * action은 지금 할 일(고정 카드), progress는 그 아래 내용, info는 일행 정보, tools는 + 메뉴의 추가 항목이다.
  */
-export function PartyShell({ party, now, onUpdated, onMenu, onHome, header, progress, info, foot, aside, firstTab = '진행' }) {
+export function PartyShell({ party, now, onMenu, onHome, header, action, progress, info, foot, aside, tools = [], firstTab = '진행' }) {
   const wide = useWide()
-  const [chatOpen, setChatOpen] = useState(false)
-  const closeChat = useCallback(() => setChatOpen(false), [])
-  const unread = party.unreadChat || 0
-  // 탑승 번호는 지금 할 일에 있다. 넓은 화면에서 채팅이 늘 열려 있으므로 채팅 창에는 되풀이하지 않는다.
+  const [details, setDetails] = useState(false)
+  const [folded, setFolded] = useState(false)
+  const openDetails = useCallback(() => setDetails(true), [])
+  const closeDetails = useCallback(() => setDetails(false), [])
+  const menu = [...tools, { label: '일행 정보·규칙', onClick: openDetails }]
   const chat = (
     <section className="chat-pane" aria-label="채팅 창">
-      <PartyChat key={party.id} partyId={party.id} now={now} status={party.status} active={wide || chatOpen} full />
+      <PartyChat key={party.id} partyId={party.id} now={now} status={party.status} active full tools={wide ? tools : menu} />
     </section>
   )
-  const chatButton = !wide && (
-    <button type="button" className="icon-btn chat-open" onClick={() => setChatOpen(true)} aria-label="일행 채팅 열기">
-      <MessageCircle size={22} aria-hidden="true" />
-      {unread > 0 && <span className="unread-badge" aria-label={`안 읽은 메시지 ${unread}개`}>{unread > 99 ? '99+' : unread}</span>}
-    </button>
-  )
-  return <Screen aside={aside} chat={wide ? chat : undefined} foot={foot}>
-    <TopBar onMenu={onMenu} onHome={onHome} actions={chatButton} />
-    {header}
-    <section className="party-panel" aria-label={firstTab}>{progress}</section>
+  const more = <>
+    {progress && <section className="party-panel" aria-label={firstTab}>{progress}</section>}
     <section className="party-panel party-info" aria-label="일행 정보">
       <h2 className="section-title">일행 정보</h2>
       {info}
       <BoardingPanel party={party} now={now} />
     </section>
-    {!wide && chatOpen && <ChatSheet unread={unread} onClose={closeChat}>{chat}</ChatSheet>}
-  </Screen>
+  </>
+  if (wide) {
+    return <Screen aside={aside} chat={chat} foot={foot}>
+      <TopBar onMenu={onMenu} onHome={onHome} />
+      {header}
+      {action && <section className="block party-top" aria-label="지금 상태">{action}</section>}
+      {more}
+    </Screen>
+  }
+  return (
+    <div className="room">
+      <header className="bar back room-bar">
+        <div className="bar-left">
+          <button type="button" className="icon-btn" aria-label="홈으로" onClick={onHome}><ChevronLeft size={26} /></button>
+          <span className="bar-title">{roomTitle(party)}</span>
+        </div>
+        <button type="button" className="icon-btn" aria-label="일행 정보 열기" onClick={openDetails}><MoreHorizontal size={22} /></button>
+      </header>
+      <section className={folded ? 'pinned folded' : 'pinned'} aria-label="지금 상태">
+        {header}
+        {!folded && <div className="pinned-body">
+          {action}
+          {foot && <div className="foot">{foot}</div>}
+          <button type="button" className="pinned-more" onClick={openDetails}>아끼는 돈·같이 타는 사람·규칙 보기</button>
+        </div>}
+        <button type="button" className="pinned-fold" aria-expanded={!folded} onClick={() => setFolded((v) => !v)}>
+          {folded ? '펼치기' : '접기'}
+        </button>
+      </section>
+      {chat}
+      {details && <RoomSheet title="일행 정보" onClose={closeDetails}>{more}</RoomSheet>}
+    </div>
+  )
 }
 
 const shareRows = (party) => [
@@ -152,10 +181,10 @@ function HomeParty({ party, now, myId, run, onDetail, onHome, onMenu }) {
   return <>
     <PartyShell party={party} now={now} onMenu={onMenu} onHome={onHome} foot={primary}
       aside={mine ? <RouteSide party={party} mine={mine} /> : null}
+      tools={party.payer ? [{ label: '기사님께 보여 주기', onClick: () => setDriver(true) }] : []}
       header={<Meter compact label="출발까지" value={remaining(party.departureAt, now)}
         detail={`${formatTime(party.departureAt)} 출발, ${meetPlace(party)}`} tag={roleTag(party)} />}
-      progress={<div className="block">
-        {leaving ? (
+      action={leaving ? (
           <Say title="이동 중이에요">
             {party.payer ? '도착해서 결제하면 금액을 입력해 주세요.' : `${party.payerNickname}님이 결제 금액을 입력하면 보낼 돈을 알려 드려요.`}
           </Say>
@@ -164,6 +193,7 @@ function HomeParty({ party, now, myId, run, onDetail, onHome, onMenu }) {
         ) : (
           <Say title={mine?.arrived ? '도착을 표시했어요' : '시간에 맞춰 정류장으로 가세요'}>택시는 {party.payerNickname}님이 잡습니다.</Say>
         )}
+      progress={<div className="block">
         <h2 className="block-title">{party.payer ? '기사님께 알려 줄 하차 순서' : '하차 순서'}</h2>
         <Rail items={party.members.map((m) => ({
           key: m.requestId,
@@ -211,14 +241,15 @@ function SchoolPayer({ party, now, myId, run, onDetail, onHome, onMenu }) {
     <PartyShell party={party} now={now} onMenu={onMenu} onHome={onHome} foot={primary}
       aside={mine ? <RouteSide party={party} mine={mine} /> : null}
       header={<Meter compact label="내 승차 시각" value={formatTime(party.myBoardAt)} detail={meetPlace(party)} tag="내가 결제자" />}
-      progress={<div className="block">
-        {boarded ? (
+      tools={[{ label: '기사님께 보여 주기', onClick: () => setDriver(true) }]}
+      action={boarded ? (
           <Say title="순서대로 들러 주세요">기사님께 아래 지점을 차례로 안내해 주세요. 학교에 도착해 결제하면 금액을 입력합니다.</Say>
         ) : (
           <Say title={callNow ? '지금 택시를 호출해 주세요' : `${formatTime(party.callAt)}쯤 택시를 호출해 주세요`}>
             {handedOver ? '앞 승차자가 오지 않아 내가 결제자가 됐습니다.' : '첫 승차자가 결제자입니다.'} {REAL_NAME}
           </Say>
         )}
+      progress={<div className="block">
         <Rail items={stops} />
         <div className="list"><Item title="기사님께 보여 줄 화면" detail="들를 곳을 큰 글씨로 보여 드려요" onClick={() => setDriver(true)} /></div>
       </div>}
@@ -246,8 +277,7 @@ function SchoolRider({ party, now, run, onDetail, onHome, onMenu }) {
       aside={<RouteSide party={party} mine={mine} />}
       header={<Meter compact label={boarded ? '택시 도착까지' : '내 승차 시각까지'} value={remaining(party.myBoardAt, now)}
         detail={`${formatTime(party.myBoardAt)} 탑승, ${meetPlace(party)}`} tag={roleTag(party)} />}
-      progress={<div className="block">
-        {missed ? (
+      action={missed ? (
           <Say tone="stop-tone" title="승차 시간이 지났어요">도착 표시가 없어 이번 일행에서 빠지고 노쇼로 기록됩니다.</Say>
         ) : mine.arrived && !party.canCancel ? (
           <Say title="이동 중이에요">{party.payerNickname}님이 결제 금액을 입력하면 보낼 돈을 알려 드려요.</Say>
@@ -260,6 +290,7 @@ function SchoolRider({ party, now, run, onDetail, onHome, onMenu }) {
         ) : (
           <Say title="승차 시각에 맞춰 나와 주세요">{party.payerNickname}님이 택시를 타면 남은 시간을 알려 드려요.</Say>
         )}
+      progress={<div className="block">
         <Rows items={[['내 예상 분담금', won(party.myShare), 'big'], ['학교 도착', formatTime(party.arrivalAt)]]} />
       </div>}
       info={<div className="block">
@@ -493,8 +524,8 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
     <PartyShell party={party} now={now} onUpdated={onUpdated} onMenu={onMenu} onHome={onHome} foot={primary}
       aside={mine ? <RouteSide party={party} mine={mine} /> : null}
       header={<Meter compact label={!knownPartyStatus(party.status) ? partyLabel(party.status) : party.instant ? '출발(예상)' : '출발'} value={formatTime(party.departureAt)} detail={meetPlace(party)} tag={roleTag(party)} />}
-      progress={<>
-        <div className="block party-top">
+      tools={party.payer ? [{ label: '기사님께 보여 주기', onClick: () => setDriver(true) }] : []}
+      action={<>
           <PartyStepper party={party} />
           <NextAction party={party} now={now} myId={myId} mine={mine} config={config} run={run} onUpdated={onUpdated} onDriver={() => setDriver(true)} />
           {['READY', 'RIDE_UNCONFIRMED', 'AWAITING_FARE'].includes(party.status) && <BoardingCodePanel party={party} now={now} onUpdated={onUpdated} />}
@@ -502,8 +533,8 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
             <Btn className="line" onClick={() => setLeavingChange(true)}>변경돼서 빠지기</Btn></Say>}
           {waiting && party.instant && !mine?.arrived && !owesPrepay && <Btn className="line" disabled={mine?.nearby}
             onClick={() => run(() => api.prepareParty(party.id, 'NEARBY'), '2분 안 도착으로 표시했어요')}>{mine?.nearby ? '2분 안 도착 표시 완료' : '2분 안 도착'}</Btn>}
-        </div>
-        <div className="band" />
+      </>}
+      progress={<>
         <div className="block">
           {/* 서비스의 핵심 숫자. 정보 탭 두 단계 아래에만 있던 것을 진행 탭 첫 화면에도 보인다. */}
           {/* 넓은 화면은 오른쪽 지도 패널이 요금 비교와 경로를 크게 보여 주므로 왼쪽에서 되풀이하지 않는다. */}

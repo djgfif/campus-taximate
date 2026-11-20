@@ -13,8 +13,26 @@ async function login(page, id, { activeParty = false } = {}) {
   await page.getByLabel('학교 메일').fill(`${id}@daejin.ac.kr`)
   await page.getByLabel('비밀번호').fill('demo1234')
   await page.getByRole('button', { name: '로그인', exact: true }).click()
-  if (activeParty) await expect(page.getByRole('region', { name: '일행 정보' })).toBeVisible({ timeout: 15000 })
+  if (activeParty) await expect(page.getByRole('region', { name: '지금 상태' })).toBeVisible({ timeout: 15000 })
   else await expect(homeDirections(page)).toBeVisible({ timeout: 15000 })
+}
+
+/** 일행 정보. 휴대폰은 채팅방 위 … 단추로 창을 열고, 넓은 화면은 왼쪽에 늘 보인다. 확인이 끝나면 창을 닫는다. */
+async function withDetails(page, check) {
+  const open = page.getByRole('button', { name: '일행 정보 열기' })
+  const phone = await open.isVisible()
+  if (phone) await open.click()
+  await check(page.getByRole('region', { name: '일행 정보' }))
+  if (phone) await page.getByRole('dialog', { name: '일행 정보' }).getByRole('button', { name: '닫기' }).click()
+}
+
+/** 결제자의 기사님 화면. 휴대폰은 채팅 + 메뉴에, 넓은 화면은 일행 정보 목록에 있다. */
+async function openDriver(page) {
+  const more = page.getByRole('button', { name: '더 보기' })
+  if (await more.isVisible()) {
+    await more.click()
+    await page.getByRole('menuitem', { name: '기사님께 보여 주기' }).click()
+  } else await page.getByRole('button', { name: '기사님께 보여 줄 화면' }).click()
 }
 
 /** 홈의 등교·하교 전환. 홈이 떠 있는지 이것으로 확인한다. */
@@ -90,11 +108,11 @@ test('승차 지점 요청부터 이의 기간과 정산 완료까지 화면으�
 
   await demo(page, '일행 만들기')
   await expect(page.getByText('내가 결제자')).toBeVisible()
-  // 일행 화면은 지금 할 일 아래로 일행 정보가 이어진다. 마감 시각은 일행 정보에 있다.
-  await expect(page.getByRole('region', { name: '일행 정보' }).getByText('무료 취소 마감', { exact: true })).toBeVisible()
+  // 마감 시각은 일행 정보에 있다.
+  await withDetails(page, (details) => expect(details.getByText('무료 취소 마감', { exact: true })).toBeVisible())
   // 샘플 회원의 선결제와 도착을 실제 회원과 같은 API로 처리한다.
   await demo(page, '샘플 일행 행동')
-  await page.getByRole('button', { name: '기사님께 보여 줄 화면' }).click()
+  await openDriver(page)
   await expect(page.getByRole('dialog', { name: '기사님께 보여 줄 화면' })).toBeVisible()
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: '도착했어요', exact: true }).click()

@@ -24,6 +24,7 @@ describe('새 정산 화면', () => {
     ]
     render(<SettlementScreen party={{ ...party, payer: true, status: 'SETTLED', settlement: { ...party.settlement, finalizedAt: now, payments, mockPayoutAmount: 8800 } }} myId={3} now={now} config={{ demo: true }} />)
     expect(screen.getByRole('heading', { name: '정산 확정' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '일행 정보 열기' }))
     expect(within(screen.getByRole('region', { name: '선결제 기록' })).getByText('480원')).toBeTruthy()
     expect(screen.getByText('환불은 카드 반영까지 3~4영업일 정도 걸려요.')).toBeTruthy()
     expect(screen.getByRole('heading', { name: '추가 결제 892원' })).toBeTruthy()
@@ -91,13 +92,13 @@ describe('일행 상태', () => {
   it('무료 취소 마감과 전액 환불 안내를 보이고 모르는 상태에도 안전하다', async () => {
     const waiting = { ...party, settlement: null, payer: true, status: 'READY', departureAt: '2026-11-11T01:00:00Z', freeCancelUntil: '2026-11-11T00:30:00Z', canCancel: true }
     const view = render(<PartyScreen party={waiting} now={now} myId={3} />)
+    fireEvent.click(screen.getByRole('button', { name: '일행 정보 열기' }))
     expect(screen.getByText('무료 취소 마감')).toBeTruthy()
     expect(screen.getByText('무료 취소 마감 전 취소하면 승인된 선결제를 전액 환불해요.')).toBeTruthy()
     expect(screen.getByText('같이 타는 사람')).toBeTruthy()
     view.rerender(<PartyScreen party={{ ...waiting, status: 'FUTURE_STATUS' }} now={now} myId={3} />)
     expect(screen.getByText('일행 상태 확인 중')).toBeTruthy()
     expect(screen.queryByText('FUTURE_STATUS')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: /일행 채팅 열기/ }))
     await screen.findByText('일행 채팅은 읽기만 가능해요.')
   })
 })

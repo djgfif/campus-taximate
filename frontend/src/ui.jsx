@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Check, ChevronLeft, ChevronRight, Info, User } from 'lucide-react'
+import { AlertTriangle, Check, ChevronLeft, ChevronRight, Home as HomeIcon, Info, MessageCircle, Receipt, User } from 'lucide-react'
 
 const WIDE = '(min-width: 1024px)'
 
@@ -75,6 +75,31 @@ export function TopBar({ onMenu, onHome, floating, actions }) {
         {onMenu && <button type="button" className="icon-btn" aria-label="내 정보" onClick={onMenu}><User size={22} /></button>}
       </div>
     </header>
+  )
+}
+
+const TABS = [
+  ['home', '홈', HomeIcon],
+  ['rides', '내 일행', MessageCircle],
+  ['history', '이용 내역', Receipt],
+  ['me', '내 정보', User],
+]
+
+/** 휴대폰 아래 탭바. 넓은 화면은 위쪽 메뉴(.nav)가 같은 일을 한다. unread는 내 일행의 안 읽은 메시지 수다. */
+export function TabBar({ current, onTab, unread = 0 }) {
+  const wide = useWide()
+  if (wide) return null
+  return (
+    <nav className="tabbar" aria-label="주요 메뉴">
+      {TABS.map(([id, label, Icon]) => (
+        <button key={id} type="button" className={current === id ? 'on' : ''} aria-current={current === id ? 'page' : undefined} onClick={() => onTab(id)}>
+          <span className="tab-icon"><Icon size={22} aria-hidden="true" />
+            {id === 'rides' && unread > 0 && <span className="unread-badge" aria-label={`안 읽은 메시지 ${unread}개`}>{unread > 99 ? '99+' : unread}</span>}
+          </span>
+          {label}
+        </button>
+      ))}
+    </nav>
   )
 }
 

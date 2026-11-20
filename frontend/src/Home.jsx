@@ -46,7 +46,7 @@ function HomeMap({ school, board, direction }) {
   return <MapView points={points} edge={56} fallback={fallback} />
 }
 
-export default function Home({ state, myId, config, onStart, onReopen, onHistory, onMenu, onChanged }) {
+export default function Home({ state, myId, config, onStart, onReopen, onHistory, onMenu, onChanged, tabBar }) {
   const [history, setHistory] = useState([])
   const [school, setSchool] = useState(null)
   const [board, setBoard] = useState(null)
@@ -64,7 +64,7 @@ export default function Home({ state, myId, config, onStart, onReopen, onHistory
 
   return (
     <Screen aside={map}>
-      {!wide && <div className="home-map">{map}<TopBar onMenu={onMenu} floating /></div>}
+      {!wide && <div className="home-map">{map}<TopBar floating /></div>}
       <div className="home-sheet">
         {state.parties.length > 0 && (
           <ul className="live-rides" aria-label="진행 중">
@@ -116,12 +116,13 @@ export default function Home({ state, myId, config, onStart, onReopen, onHistory
         <BoardSection now={state.now} config={config} onJoined={onChanged} disabled={blocked} onLoaded={setBoard} direction={direction}
           onSwitch={() => setDirection(toSchool ? 'FROM_HUB' : 'TO_SCHOOL')} />
 
-        {!wide && (
+        {!wide && saved > 0 && (
           <button type="button" className="text-row" onClick={onHistory}>
-            이용 내역{saved > 0 && <span className="text-row-value">{won(saved)} 아꼈어요</span>}<ChevronRight size={18} aria-hidden="true" />
+            지금까지 아낀 돈<span className="text-row-value">{won(saved)}</span><ChevronRight size={18} aria-hidden="true" />
           </button>
         )}
       </div>
+      {tabBar}
     </Screen>
   )
 }
