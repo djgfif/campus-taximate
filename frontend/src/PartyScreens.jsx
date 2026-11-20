@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react'
-import { Check, Copy, X } from 'lucide-react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { Check, ChevronLeft, Copy, MessageCircle, X } from 'lucide-react'
 import RouteComparison, { figures, PartyMiniMap, RouteSide } from './RouteComparison.jsx'
 import { api } from './api.js'
 import { MemberActions } from './MemberSafety.jsx'
@@ -78,41 +78,60 @@ export function DriverView({ party, onClose }) {
   )
 }
 
-const TABS = [['progress', '진행'], ['chat', '채팅'], ['info', '정보']]
-const inTest = () => typeof navigator !== 'undefined' && /jsdom/i.test(navigator.userAgent)
+/** 휴대폰에서 채팅을 화면 전체로 연다. 뒤로·Esc로 닫는다. */
+function ChatSheet({ unread, onClose, children }) {
+  const box = useRef(null)
+  useEffect(() => {
+    const key = (event) => event.key === 'Escape' && onClose()
+    window.addEventListener('keydown', key)
+    const before = document.activeElement
+    box.current?.focus()
+    return () => { window.removeEventListener('keydown', key); before?.focus?.() }
+  }, [onClose])
+  return (
+    <div ref={box} tabIndex={-1} className="chat-sheet" role="dialog" aria-modal="true" aria-label="일행 채팅">
+      <header className="bar back">
+        <div className="bar-left">
+          <button type="button" className="icon-btn" aria-label="채팅 닫기" onClick={onClose}><ChevronLeft size={26} /></button>
+          <span className="bar-title">일행 채팅</span>
+        </div>
+      </header>
+      {children}
+    </div>
+  )
+}
 
 /**
- * 모든 일행 화면의 뼈대. 짧은 머리(시각·모이는 곳·역할) 바로 아래에 탭(진행·채팅·정보)을 붙이고,
- * 탭을 바꾸면 탭이 화면 위에 오도록 올린다. 채팅은 탭 아래 남은 화면을 모두 쓰는 대화방으로 열고,
- * 하단 고정 버튼은 채팅 탭에서는 숨긴다.
+ * 모든 일행 화면의 뼈대. 머리(시각·모이는 곳·역할) 아래로 지금 할 일과 일행 정보를 한 화면에 이어 둔다.
+ * 채팅은 탭이 아니다. 휴대폰은 위쪽 채팅 버튼으로 화면 전체를 덮어 열고, 넓은 화면은 지도 오른쪽에 늘 열어 둔다.
  */
 export function PartyShell({ party, now, onUpdated, onMenu, onHome, header, progress, info, foot, aside, firstTab = '진행' }) {
-  const [tab, setTab] = useState('progress')
-  const tabs = useRef(null)
-  const choose = (next) => {
-    setTab(next)
-    if (inTest() || !tabs.current) return
-    const bar = document.querySelector('.bar')?.offsetHeight || 56
-    const top = next === 'progress' ? 0 : tabs.current.getBoundingClientRect().top + window.scrollY - bar
-    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
-  }
+  const wide = useWide()
+  const [chatOpen, setChatOpen] = useState(false)
+  const closeChat = useCallback(() => setChatOpen(false), [])
   const unread = party.unreadChat || 0
-  return <Screen aside={aside} foot={tab === 'chat' ? null : foot}>
-    <TopBar onMenu={onMenu} onHome={onHome} />
-    {header}
-    <div ref={tabs} className="party-tabs" role="tablist" aria-label="일행 화면">
-      {TABS.map(([id, label]) => <button key={id} type="button" role="tab" id={`tab-${id}`} aria-controls={`panel-${id}`}
-        aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => choose(id)}>
-        {id === 'progress' ? firstTab : label}
-        {id === 'chat' && unread > 0 && tab !== 'chat' && <span className="unread-badge" aria-label={`안 읽은 메시지 ${unread}개`}>{unread > 99 ? '99+' : unread}</span>}
-      </button>)}
-    </div>
-    <section id="panel-progress" role="tabpanel" aria-labelledby="tab-progress" hidden={tab !== 'progress'} className="party-panel">{progress}</section>
-    <section id="panel-chat" role="tabpanel" aria-labelledby="tab-chat" hidden={tab !== 'chat'}>
-      {tab === 'chat' && isPaymentParty(party) && ['READY', 'RIDE_UNCONFIRMED', 'AWAITING_FARE'].includes(party.status) && <BoardingCodePanel party={party} now={now} onUpdated={onUpdated} allowCall />}
-      <PartyChat key={party.id} partyId={party.id} now={now} status={party.status} active={tab === 'chat'} full />
+  // 탑승 번호는 지금 할 일에 있다. 넓은 화면에서 채팅이 늘 열려 있으므로 채팅 창에는 되풀이하지 않는다.
+  const chat = (
+    <section className="chat-pane" aria-label="채팅 창">
+      <PartyChat key={party.id} partyId={party.id} now={now} status={party.status} active={wide || chatOpen} full />
     </section>
-    <section id="panel-info" role="tabpanel" aria-labelledby="tab-info" hidden={tab !== 'info'} className="party-panel">{info}{tab === 'info' && <BoardingPanel party={party} now={now} />}</section>
+  )
+  const chatButton = !wide && (
+    <button type="button" className="icon-btn chat-open" onClick={() => setChatOpen(true)} aria-label="일행 채팅 열기">
+      <MessageCircle size={22} aria-hidden="true" />
+      {unread > 0 && <span className="unread-badge" aria-label={`안 읽은 메시지 ${unread}개`}>{unread > 99 ? '99+' : unread}</span>}
+    </button>
+  )
+  return <Screen aside={aside} chat={wide ? chat : undefined} foot={foot}>
+    <TopBar onMenu={onMenu} onHome={onHome} actions={chatButton} />
+    {header}
+    <section className="party-panel" aria-label={firstTab}>{progress}</section>
+    <section className="party-panel party-info" aria-label="일행 정보">
+      <h2 className="section-title">일행 정보</h2>
+      {info}
+      <BoardingPanel party={party} now={now} />
+    </section>
+    {!wide && chatOpen && <ChatSheet unread={unread} onClose={closeChat}>{chat}</ChatSheet>}
   </Screen>
 }
 

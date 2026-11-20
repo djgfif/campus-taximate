@@ -39,7 +39,8 @@ export default function MapView({ points = [], lines = [], edge = 48, right = 0,
         for (const point of points) {
           const position = new maps.LatLng(point.lat, point.lon)
           bounds.extend(position)
-          drawn.push(new maps.CustomOverlay({ map, position, content: `<span class="mk ${point.tone || ''}">${point.label}</span>` }))
+          // 핀 끝이 지점을 가리키도록 아래쪽을 좌표에 맞춘다. 원이 지점 위를 덮으면 지도의 장소 이름이 가려진다.
+          drawn.push(new maps.CustomOverlay({ map, position, yAnchor: 1, content: `<span class="mk-pin"><span class="mk ${point.tone || ''}">${point.label}</span></span>` }))
         }
         // 지점 하나만 있으면 범위 맞추기가 건물 단위까지 확대하므로 동네가 보이는 높이로 둔다.
         const single = points.length === 1 && lines.length === 0

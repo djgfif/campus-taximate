@@ -16,15 +16,17 @@ export function useWide() {
 }
 
 /** 위는 내용, 아래는 지금 할 행동을 고정한다. aside는 넓은 화면의 오른쪽 패널이다. */
-export function Screen({ children, foot, aside }) {
+export function Screen({ children, foot, aside, chat }) {
   const wide = useWide()
+  const kind = aside === undefined ? 'screen solo' : chat ? 'screen with-chat' : 'screen'
   return (
-    <div className={aside === undefined ? 'screen solo' : 'screen'}>
+    <div className={kind}>
       <div className="pane">
         <div className="body">{children}</div>
         {foot && <div className="foot">{foot}</div>}
       </div>
       {wide && aside !== undefined && <aside className="aside">{aside}</aside>}
+      {wide && chat && <aside className="chat-col" aria-label="일행 채팅"><h2 className="chat-col-title">일행 채팅</h2>{chat}</aside>}
     </div>
   )
 }
@@ -61,14 +63,17 @@ export function Brand() {
   return <span className="brand"><Mark />택시메이트</span>
 }
 
-export function TopBar({ onMenu, onHome, floating }) {
+export function TopBar({ onMenu, onHome, floating, actions }) {
   return (
     <header className={floating ? 'bar floating' : 'bar'}>
       {onHome ? <div className="bar-left">
         <button type="button" className="icon-btn home-btn" aria-label="홈으로" onClick={onHome}><ChevronLeft size={26} /></button>
         <Brand />
       </div> : <Brand />}
-      {onMenu && <button type="button" className="icon-btn" aria-label="내 정보" onClick={onMenu}><User size={22} /></button>}
+      <div className="bar-right">
+        {actions}
+        {onMenu && <button type="button" className="icon-btn" aria-label="내 정보" onClick={onMenu}><User size={22} /></button>}
+      </div>
     </header>
   )
 }

@@ -97,6 +97,7 @@ describe('일행 상태', () => {
     view.rerender(<PartyScreen party={{ ...waiting, status: 'FUTURE_STATUS' }} now={now} myId={3} />)
     expect(screen.getByText('일행 상태 확인 중')).toBeTruthy()
     expect(screen.queryByText('FUTURE_STATUS')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /일행 채팅 열기/ }))
     await screen.findByText('일행 채팅은 읽기만 가능해요.')
   })
 })

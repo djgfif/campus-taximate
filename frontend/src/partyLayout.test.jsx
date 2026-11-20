@@ -52,30 +52,36 @@ describe('일행 화면 구성', () => {
     expect(foot[0].textContent).toBe('도착했어요')
   })
 
-  it('탭으로 진행·채팅·정보를 나누고 채팅 탭에 안 읽은 수를 보여 준다', () => {
+  it('한 화면에 진행과 일행 정보를 잇고, 채팅은 위쪽 버튼에 안 읽은 수를 보여 준다', () => {
     render(<PartyScreen party={{ ...base, status: 'READY' }} now={now} myId={1} run={vi.fn()} />)
-    const chatTab = screen.getByRole('tab', { name: /채팅/ })
-    expect(within(chatTab).getByLabelText('안 읽은 메시지 2개')).toBeTruthy()
-    expect(screen.getByRole('tabpanel', { name: '진행' })).toBeTruthy()
-    fireEvent.click(chatTab)
-    expect(screen.getByRole('tab', { name: /채팅/ }).getAttribute('aria-selected')).toBe('true')
-    expect(screen.getByRole('tabpanel', { name: /채팅/ })).toBeTruthy()
-    fireEvent.click(screen.getByRole('tab', { name: '정보' }))
+    expect(screen.queryAllByRole('tab')).toHaveLength(0)
+    expect(screen.getByRole('region', { name: '진행' })).toBeTruthy()
+    expect(screen.getByRole('region', { name: '일행 정보' })).toBeTruthy()
     expect(screen.getByText('규칙 자세히')).toBeTruthy()
     expect(screen.getByRole('button', { name: '내 탑승 취소' })).toBeTruthy()
+    const open = screen.getByRole('button', { name: /일행 채팅 열기/ })
+    expect(within(open).getByLabelText('안 읽은 메시지 2개')).toBeTruthy()
   })
 
-  it('채팅 탭은 대화방만 보여 주고 하단 고정 버튼을 숨긴다', () => {
+  it('휴대폰에서 채팅은 화면 전체 창으로 열고 닫는다', () => {
     const view = render(<PartyScreen party={{ ...base, status: 'READY' }} now={now} myId={1} run={vi.fn()} />)
-    expect(view.container.querySelectorAll('.foot button')).toHaveLength(1)
-    fireEvent.click(screen.getByRole('tab', { name: /채팅/ }))
-    expect(view.container.querySelectorAll('.foot button')).toHaveLength(0)
-    expect(view.container.querySelector('.party-chat.full')).toBeTruthy()
+    expect(view.container.querySelector('.party-chat')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /일행 채팅 열기/ }))
+    const sheet = screen.getByRole('dialog', { name: '일행 채팅' })
+    expect(sheet.querySelector('.party-chat.full')).toBeTruthy()
+    fireEvent.click(within(sheet).getByRole('button', { name: '채팅 닫기' }))
+    expect(screen.queryByRole('dialog', { name: '일행 채팅' })).toBeNull()
   })
 
-  it('모이는 곳 이름은 머리·지금 할 일·정보 탭에서 똑같다', () => {
+  it('넓은 화면에서는 채팅을 오른쪽 열에 늘 열어 둔다', () => {
+    window.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} })
     render(<PartyScreen party={{ ...base, status: 'READY' }} now={now} myId={1} run={vi.fn()} />)
-    fireEvent.click(screen.getByRole('tab', { name: '정보' }))
+    expect(screen.queryByRole('button', { name: /일행 채팅 열기/ })).toBeNull()
+    expect(screen.getByRole('complementary', { name: '일행 채팅' }).querySelector('.party-chat.full')).toBeTruthy()
+  })
+
+  it('모이는 곳 이름은 머리·지금 할 일·일행 정보에서 똑같다', () => {
+    render(<PartyScreen party={{ ...base, status: 'READY' }} now={now} myId={1} run={vi.fn()} />)
     expect(screen.getAllByText('정문 앞 (학교 정문)', { exact: true }).length).toBeGreaterThanOrEqual(2)
     expect(screen.queryByText('학교 정문', { exact: true })).toBeNull()
   })

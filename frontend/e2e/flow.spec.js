@@ -13,7 +13,7 @@ async function login(page, id, { activeParty = false } = {}) {
   await page.getByLabel('학교 메일').fill(`${id}@daejin.ac.kr`)
   await page.getByLabel('비밀번호').fill('demo1234')
   await page.getByRole('button', { name: '로그인', exact: true }).click()
-  if (activeParty) await expect(page.getByRole('tab', { name: '진행', exact: true })).toBeVisible({ timeout: 15000 })
+  if (activeParty) await expect(page.getByRole('region', { name: '일행 정보' })).toBeVisible({ timeout: 15000 })
   else await expect(homeDirections(page)).toBeVisible({ timeout: 15000 })
 }
 
@@ -90,10 +90,8 @@ test('승차 지점 요청부터 이의 기간과 정산 완료까지 화면으�
 
   await demo(page, '일행 만들기')
   await expect(page.getByText('내가 결제자')).toBeVisible()
-  // 일행 화면은 진행·채팅·정보 탭으로 나뉜다. 마감 시각은 정보 탭에 있다.
-  await page.getByRole('tab', { name: '정보' }).click()
-  await expect(page.getByText('무료 취소 마감', { exact: true })).toBeVisible()
-  await page.getByRole('tab', { name: '진행' }).click()
+  // 일행 화면은 지금 할 일 아래로 일행 정보가 이어진다. 마감 시각은 일행 정보에 있다.
+  await expect(page.getByRole('region', { name: '일행 정보' }).getByText('무료 취소 마감', { exact: true })).toBeVisible()
   // 샘플 회원의 선결제와 도착을 실제 회원과 같은 API로 처리한다.
   await demo(page, '샘플 일행 행동')
   await page.getByRole('button', { name: '기사님께 보여 줄 화면' }).click()
@@ -193,9 +191,7 @@ test('서로 다른 사용자 화면에서 번호 공개·탑승 인증·명시�
 
     // 독립된 세션에는 번호 원문이 전달되지 않으며 결제자 화면을 보고 직접 입력해야 한다.
     await rider.reload()
-    await rider.getByRole('tab', { name: /^채팅/ }).click()
-    const riderPanel = rider.getByRole('tabpanel', { name: '채팅', exact: true })
-      .getByRole('region', { name: '탑승 코드 확인' })
+    const riderPanel = rider.getByRole('region', { name: '탑승 코드 확인' }).filter({ visible: true })
     await expect(riderPanel.getByLabel('6자리 탑승 코드', { exact: true })).toBeVisible()
     const hiddenCode = await boardingState(rider, party.id)
     expect(hiddenCode.code).toBeNull()
@@ -212,7 +208,7 @@ test('서로 다른 사용자 화면에서 번호 공개·탑승 인증·명시�
     await expect(riderPanel.getByText('탑승 확인 완료', { exact: true })).toBeVisible()
     expect((await boardingState(rider, party.id)).confirmed).toBe(true)
     expect((await currentParty(rider)).startedAt).toBeNull()
-    await evidence(rider, info.project.name, '03-rider-confirmed-in-chat', info)
+    await evidence(rider, info.project.name, '03-rider-confirmed', info)
 
     // 남은 샘플만 준비한 뒤 출발 버튼은 결제자가 직접 누른다.
     await demo(page, '샘플 일행 행동')
