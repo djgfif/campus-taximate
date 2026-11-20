@@ -13,7 +13,11 @@ async function login(page, id, { activeParty = false } = {}) {
   await page.getByLabel('학교 메일').fill(`${id}@daejin.ac.kr`)
   await page.getByLabel('비밀번호').fill('demo1234')
   await page.getByRole('button', { name: '로그인', exact: true }).click()
-  if (activeParty) await expect(page.getByRole('region', { name: '채팅 창' })).toBeVisible({ timeout: 15000 })
+  // 홈은 늘 홈이다. 진행 중 일행은 홈 맨 위 '내 일행' 줄을 눌러 들어간다.
+  if (activeParty) {
+    await page.getByRole('list', { name: '내 일행' }).getByRole('button').first().click({ timeout: 15000 })
+    await expect(page.getByRole('region', { name: '채팅 창' })).toBeVisible({ timeout: 15000 })
+  }
   else await expect(homeDirections(page)).toBeVisible({ timeout: 15000 })
 }
 
@@ -45,7 +49,10 @@ async function startHomeRequest(page) {
 }
 
 async function demo(page, action) {
-  await page.getByRole('button', { name: '시연', exact: true }).click()
+  // 휴대폰은 '시연' 단추, 넓은 화면은 단추 없이 D 키로 연다.
+  const fab = page.getByRole('button', { name: '시연', exact: true })
+  if (await fab.isVisible()) await fab.click()
+  else await page.keyboard.press('d')
   const sheet = page.getByRole('dialog', { name: '시연' })
   const button = sheet.getByRole('button', { name: action, exact: true })
   // 다른 일행 움직이기와 시각 이동은 '시간 넘기기', 갈래 장면은 '다른 장면 체험' 접힘 안에 있다.
@@ -56,12 +63,17 @@ async function demo(page, action) {
   const response = page.waitForResponse((r) => r.url().includes('/api/demo/') && r.request().method() === 'POST', { timeout: 60000 })
   await button.click()
   expect((await response).status(), `${action} 응답`).toBeLessThan(400)
-  // 시연 창은 진행 상태를 보여 주려고 열린 채로 남는다. 처리가 끝나 버튼이 다시 켜지면 직접 닫는다.
+  // 장면을 바꾸는 동작은 끝나면 창이 저절로 닫히고 그 일행방으로 간다(자막이 뜬다).
+  // 시간 넘기기 같은 보조 동작은 창이 열린 채로 남으므로, 처리가 끝나 버튼이 다시 켜지면 직접 닫는다.
   // 2~3명은 모집 마감까지 슬롯을 돌리므로 CI에서는 몇 초 넘게 걸릴 수 있다.
-  await expect(button).toBeEnabled({ timeout: 60000 })
-  await expect(sheet.getByRole('alert')).toHaveCount(0)
-  await page.keyboard.press('Escape')
-  await expect(sheet).toBeHidden()
+  await expect(async () => {
+    if (await sheet.isVisible()) {
+      await expect(button).toBeEnabled()
+      await expect(sheet.getByRole('alert')).toHaveCount(0)
+      await page.keyboard.press('Escape')
+    }
+    await expect(sheet).toBeHidden()
+  }).toPass({ timeout: 60000 })
 }
 
 async function currentParty(page) {

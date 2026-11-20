@@ -34,7 +34,7 @@ export function BoardSection({ now, config, onJoined, disabled, onLoaded, direct
   }
   return (
     <section className="board" aria-label="지금 모집 중">
-      <h2 className="section-title">지금 모집 중{board && <span className="live" aria-hidden="true" />}</h2>
+      <h2 className="section-title">지금 모집 중</h2>
       {!board && <p className="note" role="status">불러오는 중…</p>}
       {board && parties.length === 0 && (
         <p className="board-empty">아직 모인 일행이 없어요. 먼저 가는 길을 올리면 같은 방향 학생과 이어 드려요.</p>

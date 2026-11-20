@@ -88,6 +88,14 @@ describe('일행 화면 구성', () => {
     })
   })
 
+  it('선결제 중에는 머리 둘째 줄에 결제자를 뺀 사람 중 몇 명이 냈는지 보인다', () => {
+    const members = base.members.map((m) => ({ ...m, prepaid: false }))
+    const view = render(<PartyScreen party={{ ...base, members }} now={now} myId={1} run={vi.fn()} />)
+    expect(within(view.container.querySelector('.room-head')).getByText('2명, 선결제 0/1명 완료')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '일행 정보 열기' }))
+    expect(screen.getByText('결제 전')).toBeTruthy()
+  })
+
   it('넓은 화면에서는 같은 채팅방이 왼쪽 판에 들어가고 오른쪽은 지도 자리다', () => {
     window.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} })
     vi.spyOn(api, 'partyRoutes').mockReturnValue(new Promise(() => {}))

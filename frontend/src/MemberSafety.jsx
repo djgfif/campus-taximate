@@ -25,7 +25,7 @@ export function ReportSheet({ partyId, member, onClose, onSaved }) {
     }
   }
   return (
-    <Sheet title={`${member.nickname}님 신고·다시 매칭 안 함`} onClose={onClose}>
+    <Sheet title={`${member.nickname}님 신고와 다시 매칭 안 하기`} onClose={onClose}>
       <p className="note">신고하면 다시 매칭하지 않도록 함께 지정돼요. 다시 매칭 안 함은 상대에게 알리지 않아요.</p>
       <form className="report-form" onSubmit={(e) => {
         e.preventDefault()
@@ -85,16 +85,16 @@ export function MemberActions({ partyId, onlyAvoid = false, onSaved }) {
   }
   return (
     <section className="block" aria-label="일행원 신고와 매칭 설정">
-      <h2 className="block-title">{onlyAvoid ? '다시 매칭하지 않을 상대를 골라 주세요' : '일행원 신고·다시 매칭 안 함'}</h2>
+      <h2 className="block-title">{onlyAvoid ? '다시 매칭하지 않을 상대를 골라 주세요' : '일행원 신고와 다시 매칭 안 하기'}</h2>
       {!peers && !error && <p role="status">일행원을 불러오고 있어요</p>}
       <div className="list">
         {peers?.map((member) => (
           <div className="item" key={member.memberId}>
             <b>{member.nickname}</b>
             <Btn className="small line" disabled={busy || (onlyAvoid && member.avoided)}
-              aria-label={`${member.nickname}님 ${member.avoided && !onlyAvoid ? '다시 매칭 안 함 해제' : onlyAvoid ? '다시 매칭하지 않기' : '신고·다시 매칭 안 함'}`}
+              aria-label={`${member.nickname}님 ${member.avoided && !onlyAvoid ? '다시 매칭 안 함 해제' : onlyAvoid ? '다시 매칭하지 않기' : '신고하거나 다시 안 만나기'}`}
               onClick={() => onlyAvoid ? avoid(member) : setSelected(member)}>
-              {member.avoided ? (onlyAvoid ? '이미 지정했어요' : '다시 매칭 안 함 해제') : onlyAvoid ? '다시 매칭하지 않기' : '신고·다시 매칭 안 함'}
+              {member.avoided ? (onlyAvoid ? '이미 지정했어요' : '다시 매칭 안 함 해제') : onlyAvoid ? '다시 매칭하지 않기' : '신고하거나 다시 안 만나기'}
             </Btn>
           </div>
         ))}
@@ -109,7 +109,7 @@ export function HistoryMemberActions({ partyId }) {
   const [open, setOpen] = useState(false)
   return (
     <div>
-      <Btn className="small quiet" aria-expanded={open} onClick={() => setOpen((value) => !value)}>일행원 신고·다시 매칭 안 함</Btn>
+      <Btn className="small quiet" aria-expanded={open} onClick={() => setOpen((value) => !value)}>일행원 신고와 다시 매칭 안 하기</Btn>
       {open && <MemberActions partyId={partyId} />}
     </div>
   )

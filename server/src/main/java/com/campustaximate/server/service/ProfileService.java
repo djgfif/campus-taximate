@@ -43,13 +43,13 @@ public class ProfileService {
     private final RideReviewRepository reviews;
     private final AppClock clock;
 
-    /** 일행에게 보이는 한 줄: "컴퓨터공학과 · 22학번". 공개하지 않으면 빈 문자열이다. */
+    /** 일행에게 보이는 한 줄: "컴퓨터공학과 22학번". 공개하지 않으면 빈 문자열이다. */
     public String publicLine(Member member) {
         if (!member.isShowProfile()) return "";
         String department = member.getDepartment() == null ? "" : member.getDepartment().strip();
         String year = member.getAdmissionYear() == null ? "" : String.format("%02d학번", member.getAdmissionYear());
         if (department.isEmpty()) return year;
-        return year.isEmpty() ? department : department + " · " + year;
+        return year.isEmpty() ? department : department + " " + year;
     }
 
     @Transactional(readOnly = true)

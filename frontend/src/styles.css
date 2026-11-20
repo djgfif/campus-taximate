@@ -148,6 +148,14 @@ summary::-webkit-details-marker { display: none; }
 .demo-more[open] summary::after { transform: translateY(2px) rotate(-135deg); }
 .demo-more[open] { display: flex; flex-direction: column; gap: 8px; }
 .demo-more .demo-login { margin: 0; padding: 0; border: 0; }
+/* 장면이 바뀔 때 잠깐 뜨는 자막 */
+.demo-caption { position: fixed; z-index: 75; top: calc(14px + var(--safe-t)); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; max-width: calc(100% - 24px); margin: 0; padding: 10px 16px; border-radius: var(--r-m); background: var(--ink); color: #fff; font-size: 15px; font-weight: 600; white-space: nowrap; animation: caption 0.36s var(--ease); }
+@keyframes caption { from { opacity: 0; transform: translate(-50%, -12px); } }
+.demo-caption b { font-size: 12px; font-weight: 600; color: var(--amber); }
+/* 발표자 창 */
+.presenter { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 520px; margin: 0 auto; padding: 24px var(--gutter) 40px; }
+.presenter-head h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+.presenter-last { padding: 10px 12px; border-radius: var(--r-s); background: var(--mist); font-size: 13px; color: var(--ink-2); }
 
 @media (min-width: 1024px) {
   :root { --gutter: 24px; }
@@ -393,8 +401,9 @@ button.item:active { opacity: 0.6; }
 .auth-links { display: flex; justify-content: center; gap: 4px; }
 .auth-links button { min-height: 44px; padding: 0 10px; font-size: 14px; font-weight: 500; color: var(--road); }
 .auth-links button + button::before { content: ''; display: inline-block; width: 1px; height: 12px; margin-right: 14px; vertical-align: -1px; background: var(--line); }
-.demo-login { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; padding-top: 18px; border-top: 1px solid var(--line); }
-.demo-login h2 { font-size: 13px; font-weight: 600; color: var(--road); }
+.demo-entry { margin-top: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+.demo-entry summary { display: inline-flex; align-items: center; min-height: 40px; font-size: 13px; font-weight: 600; color: var(--road); }
+.demo-login { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
 .demo-login .demo-accounts { display: flex; flex-wrap: wrap; gap: 6px; }
 .demo-login button { height: 32px; padding: 0 12px; border-radius: 999px; background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); font-size: 13px; font-weight: 600; color: var(--ink-2); }
 .demo-login button:disabled { opacity: 0.5; }
@@ -423,7 +432,6 @@ button.item:active { opacity: 0.6; }
 .text-row-value + svg { margin-left: 0; }
 /* 모집 중 */
 .board { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; }
-.board .live { width: 7px; height: 7px; border-radius: 50%; background: var(--save); animation: live 1.6s ease-in-out infinite; }
 .board-empty { padding: 8px 0 4px; font-size: 14px; color: var(--road); }
 .board-other { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 48px; margin-top: 4px; padding: 0 14px; border-radius: var(--r-m); background: var(--mist); text-align: left; font-size: 14px; font-weight: 600; color: var(--ink-2); }
 .board-other span { font-weight: 700; color: var(--ink); }
@@ -611,7 +619,11 @@ button.item:active { opacity: 0.6; }
 .task-card .next-action h2 { font-size: 16px; }
 .task-card .next-action p { font-size: 13px; }
 .task-card .payment-card { padding: 0; box-shadow: none; }
-.task-card .payment-card.compact h2 { font-size: 22px; }
+.task-card .payment-card.compact h2 { margin-top: 0; font-size: 18px; letter-spacing: -0.02em; }
+.task-card .payment-card .btn { min-height: 46px; }
+.btn-note { margin-left: 6px; padding: 1px 6px; border-radius: 6px; background: rgba(26, 28, 32, 0.08); font-size: 11px; font-weight: 600; }
+/* 일행 정보 창 맨 위의 출발 시각은 방 머리와 겹치므로 작게 */
+.room-sheet .meter > strong { font-size: 24px; }
 .task-card .say b { font-size: 15px; }
 .task-foot { display: flex; flex-direction: column; gap: 6px; }
 /* 일행 정보 창(휴대폰) */
@@ -706,6 +718,7 @@ button.item:active { opacity: 0.6; }
 .empty p { font-size: 14px; color: var(--road); }
 .empty .btn { margin-top: 14px; }
 .history-open { display: flex; flex-direction: column; gap: 12px; padding: 4px 0 16px; }
+.history-group { margin-top: 16px; color: var(--road); font-size: 13px; }
 
 /* 6-9 내 정보 메뉴 */
 .me-page { gap: 8px; }

@@ -87,7 +87,7 @@ class PeopleBoardFlowTest {
     @Test void profileLineRespectsPrivacyAndPraiseNeedsARide() {
         profiles.update(me, new ProfileService.ProfileView("컴퓨터공학과", 22, true));
         var member = members.findById(me).orElseThrow();
-        assertThat(profiles.publicLine(member)).isEqualTo("컴퓨터공학과 · 22학번");
+        assertThat(profiles.publicLine(member)).isEqualTo("컴퓨터공학과 22학번");
         profiles.update(me, new ProfileService.ProfileView("컴퓨터공학과", 22, false));
         assertThat(profiles.publicLine(members.findById(me).orElseThrow())).isEmpty();
 
