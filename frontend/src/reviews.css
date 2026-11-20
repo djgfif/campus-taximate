@@ -6,7 +6,7 @@
 .review-actions, .review-nav { display: flex; flex-wrap: wrap; gap: 8px; }
 .review-actions > .btn { flex: 1 1 140px; }
 .review-nav { border-bottom: 1px solid var(--line); padding-bottom: 12px; }
-.review-nav button { padding: 10px 14px; border-radius: var(--r-s); background: var(--mist); }
+.review-nav button { min-height: 40px; padding: 0 14px; border-radius: var(--r-s); background: var(--mist); font-size: 14px; font-weight: 600; color: var(--ink-2); transition: background 0.12s, color 0.12s; }
 .review-nav button[aria-current="page"] { background: var(--ink); color: #fff; }
 .review-action-form { display: flex; flex-direction: column; gap: 12px; }
 .review-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
@@ -16,3 +16,10 @@
 .review-card summary { cursor: pointer; padding: 10px 0; }
 .review-chat { max-height: 320px; overflow: auto; }
 .review-chat li { border-top: 1px solid var(--line); padding: 10px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+@media (hover: hover) and (pointer: fine) {
+  .review-nav button:not([aria-current="page"]):hover { background: var(--mist-2); color: var(--ink); }
+}
+@media (max-width: 520px) {
+  .review-grid { grid-template-columns: 1fr; }
+}

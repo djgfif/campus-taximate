@@ -121,4 +121,13 @@ describe('일행 화면 구성', () => {
     expect(screen.getByText('일행이 바뀌었어요')).toBeTruthy()
     expect(screen.getByRole('button', { name: '변경돼서 빠지기' })).toBeTruthy()
   })
+
+  it('채팅 공간을 넓히기 위해 할 일 카드를 접었다 펼칠 수 있고 상태가 바뀌면 자동으로 펼친다', () => {
+    const view = render(<PartyScreen party={base} now={now} myId={1} run={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: '할 일 접기' }))
+    expect(screen.queryByRole('region', { name: '지금 할 일' })).toBeNull()
+    expect(screen.getByRole('button', { name: '지금 할 일 펼치기' })).toBeTruthy()
+    view.rerender(<PartyScreen party={{ ...base, status: 'READY' }} now={now} myId={1} run={vi.fn()} />)
+    expect(screen.getByRole('region', { name: '지금 할 일' })).toBeTruthy()
+  })
 })
