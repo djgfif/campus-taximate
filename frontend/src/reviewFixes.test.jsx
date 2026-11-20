@@ -123,7 +123,7 @@ describe('실사용 점검 후 개선', () => {
   it('탑승 번호 마감 전 AWAITING_FARE에서는 결제자에게 5분 대기 이유를 알려 준다', () => {
     vi.spyOn(api, 'partyMessages').mockResolvedValue({ closed: false, messages: [] })
     vi.spyOn(api, 'partyMembers').mockResolvedValue([])
-    vi.spyOn(api, 'boardingCode').mockResolvedValue({ code: '123456', expiresAt: '2026-11-12T00:05:00Z', entered: [], remainingSeconds: 300 })
+    vi.spyOn(api, 'boardingState').mockResolvedValue({ code: '123456', expiresAt: '2026-11-12T00:05:00Z', entered: [], remainingSeconds: 300 })
     render(<PartyScreen party={party({
       status: 'AWAITING_FARE',
       payer: true,
