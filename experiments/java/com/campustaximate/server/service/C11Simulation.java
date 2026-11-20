@@ -15,6 +15,8 @@ public final class C11Simulation {
     static final double[] MARGINS={0,.005,.01,.02,.03,.05};
     static final Map<String,Double> rates=new HashMap<>(),gains=new HashMap<>();
     static double bias;
+    /** C12: 지금 서비스 그대로(마감 확정 = 운영 기본 earlyConfirmMinutes, 확정 분담금 여유분). */
+    static double currentMargin=.01;
     static MatchingSettings settings(int early) {
         var s=MatchingSettings.everyMinute();return new MatchingSettings(s.maxDelayMinutes(),s.minSavingRate(),s.maxCandidates(),
             s.maxGroupSize(),s.maxVerifications(),s.leadMinutes(),s.slotMinutes(),s.reservationSlotMinutes(),early,s.searchMillis(),
@@ -60,8 +62,9 @@ public final class C11Simulation {
     static String join(Collection<?> x){return String.join(";",x.stream().map(Object::toString).toList());}
     static void day(ExperimentRunner.Case c,DetailedSimulation.Config cfg,Map<ExperimentRunner.Pair,RoadLeg> matrix,
                     double[] errors,String policy,PrintWriter out,PrintWriter days) {
-        boolean markup=policy.startsWith("MARKUP");double margin=markup?Double.parseDouble(policy.substring(6)):0;
-        int early=policy.startsWith("EARLY")?Integer.parseInt(policy.substring(5)):
+        boolean current=policy.equals("CURRENT");
+        boolean markup=policy.startsWith("MARKUP")||current;double margin=current?currentMargin:markup?Double.parseDouble(policy.substring(6)):0;
+        int early=current?MatchingSettings.everyMinute().earlyConfirmMinutes():policy.startsWith("EARLY")?Integer.parseInt(policy.substring(5)):
             policy.equals("WAIT-TO-DEADLINE")||policy.equals("FORECAST-AWARE")?0:10;
         var s=settings(early);var plan=TripPlan.of(Direction.FROM_HUB,s);
         var all=c.requests.stream().map(r->DetailedSimulation.request(c,r,cfg,s)).toList();
@@ -155,7 +158,8 @@ public final class C11Simulation {
             out.println("case_id	policy	group_id	ids	confirm	departure	finish	raw_quote	quote	bill	error_index	units	solo_errors	actual	expected	solos	delays	waits");
             days.println("case_id,policy,requests,matched,expired,groups,rounds,budget_warnings,production_parity_groups");
             for(var c:cases){List<String> policies=new ArrayList<>(List.of("PROD"));
-                if(!args[5].equals("-")){policies.addAll(List.of("WAIT-TO-DEADLINE","EARLY0","EARLY5","EARLY10","EARLY15","EARLY20","FORECAST-AWARE"));
+                if(args.length>7){policies=new ArrayList<>(List.of(args[7].split(",")));if(args.length>8)currentMargin=Double.parseDouble(args[8]);}
+                else if(!args[5].equals("-")){policies.addAll(List.of("WAIT-TO-DEADLINE","EARLY0","EARLY5","EARLY10","EARLY15","EARLY20","FORECAST-AWARE"));
                     for(double margin:MARGINS)policies.add("MARKUP"+margin);}
                 for(String policy:policies)day(c,cfg.get(c.id),matrix,errors,policy,out,days);
             }

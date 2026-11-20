@@ -27,7 +27,7 @@ public final class C11Finance {
                     long quote=Math.round(raw*(1+b+margin)),zero=Math.round(raw*(1+b));
                     // Expected solo cost carries the same quote bias b; the min-saving baseline and ratio units use it.
                     var expectedSolo=units.stream().map(u->Math.max(1,Math.round(u*(1+b)))).toList();
-                    for(double spread:new double[]{.5,1,1.5}) {
+                    for(double spread:new double[]{.5,1,1.5,2}) {
                         long meter=actual(raw,mean+spread*(errors[ei]-mean));boolean exceptional=meter>raw*1.5;
                         var f=fixed(quote,meter,expectedSolo,units.size()-1,exceptional);var current=SettlementCalculator.shares(meter,units,units.size()-1);
                         int violations=0,hq=0,ha=0;double sq=0,sa=0,cs=0;long sk=0,ck=0;
@@ -36,7 +36,7 @@ public final class C11Finance {
                             sq+=1-cost/(double)es;sa+=1-cost/(double)solo;cs+=1-current.get(i)/(double)solo;
                             sk+=solo-cost;ck+=solo-current.get(i);
                         }
-                        if(p[0].equals("PRECHECK")&&violations!=0)throw new AssertionError("marked price saving guard");
+                        if((p[0].equals("PRECHECK")||p[0].equals("CURRENT"))&&violations!=0)throw new AssertionError("marked price saving guard");
                         out.printf(Locale.ROOT,"%s,%s,%s,%s,%s,%s,%.3f,%.1f,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%.15f,%.15f,%.15f,%d,%d,%d,0,0,0%n",
                             p[0],p[1],p[2],p[3],p[4],p[5],margin,spread,raw,quote,zero,meter,units.size(),exceptional?1:0,
                             f.reserveDelta(),f.objectionDelta(),violations,hq,ha,sq,sa,cs,sk,ck,f.netPayerTransfer());
