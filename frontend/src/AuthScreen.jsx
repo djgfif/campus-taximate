@@ -1,14 +1,14 @@
 import React, { useState } from 'react'
 import DemoAccounts from './DemoAccounts.jsx'
+import { CarTaxiFront } from 'lucide-react'
 import { api } from './api.js'
-import { Brand, Btn, Say, Screen, toast } from './ui.jsx'
+import { Btn, Say, Screen, toast } from './ui.jsx'
 
-/** 첫 화면의 얼굴: 어두운 띠 위에 학교에서 출발해 차례로 내리는 노선. */
+/** 첫 화면: 흰 바탕에 택시 표시, 큰 제목, 이 서비스가 하는 일 한 줄. */
 function AuthHero({ title }) {
   return <section className="auth-hero">
-    <Brand />
+    <span className="auth-mark" aria-hidden="true"><CarTaxiFront size={30} strokeWidth={2.2} /></span>
     <h1 className="head">{title}</h1>
-    <ol className="auth-route" aria-hidden="true"><li>학교</li><li>1</li><li>2</li><li>3</li></ol>
     <p>같은 방향 학생과 타고, 혼자 탈 때 요금 비율로 나눠요</p>
   </section>
 }

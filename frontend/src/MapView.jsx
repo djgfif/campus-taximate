@@ -41,9 +41,14 @@ export default function MapView({ points = [], lines = [], edge = 48, right = 0,
           bounds.extend(position)
           drawn.push(new maps.CustomOverlay({ map, position, content: `<span class="mk ${point.tone || ''}">${point.label}</span>` }))
         }
+        // 지점 하나만 있으면 범위 맞추기가 건물 단위까지 확대하므로 동네가 보이는 높이로 둔다.
+        const single = points.length === 1 && lines.length === 0
         const fit = () => {
           map.relayout()
-          map.setBounds(bounds, edge, edge + right, edge, edge)
+          if (single) {
+            map.setLevel(6)
+            map.setCenter(new maps.LatLng(points[0].lat, points[0].lon))
+          } else map.setBounds(bounds, edge, edge + right, edge, edge)
         }
         fit()
         observer = new ResizeObserver(fit)

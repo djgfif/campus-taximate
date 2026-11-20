@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react'
+import { House, School } from 'lucide-react'
 import { api } from './api.js'
 import { SettledFeedback } from './MemberSafety.jsx'
 import { BoardSection } from './Board.jsx'
+import MapView from './MapView.jsx'
 import { formatTime, partyLabel, routeLabel, savedTotal, won } from './format.js'
 import { Item, Paper, Say, Screen, SideEmpty, SidePlain, TopBar, useWide } from './ui.jsx'
 
@@ -19,9 +21,13 @@ function recentRoutes(history) {
 export default function Home({ state, myId, config, onStart, onReopen, onHistory, onMenu, onChanged }) {
   const [history, setHistory] = useState([])
   const wide = useWide()
+  const [school, setSchool] = useState(null)
   useEffect(() => {
     api.history().then(setHistory).catch(() => setHistory([]))
   }, [])
+  useEffect(() => {
+    if (wide) api.school().then(setSchool).catch(() => setSchool(null))
+  }, [wide])
   const recent = recentRoutes(history)
   const saved = savedTotal(history)
   const routes = recent.map((item) => (
@@ -30,8 +36,12 @@ export default function Home({ state, myId, config, onStart, onReopen, onHistory
       onClick={() => onStart({ direction: item.direction, initial: item })} />
   ))
   const blocked = state.restricted
+  const empty = <SideEmpty title="첫 요청을 만들어 보세요">이용한 경로와 아낀 금액이 여기에 쌓입니다.</SideEmpty>
   const aside = recent.length === 0
-    ? <SideEmpty title="첫 요청을 만들어 보세요">이용한 경로와 아낀 금액이 여기에 쌓입니다.</SideEmpty>
+    ? (school ? <>
+      <MapView points={[{ lat: school.lat, lon: school.lon, label: '학', tone: 'end' }]} fallback={empty} />
+      <div className="floater"><div className="addr"><b>첫 요청을 만들어 보세요</b><small>{school.name}을 오가는 같은 방향 학생과 이어 드려요. 이용한 경로와 아낀 금액은 여기에 쌓여요.</small></div></div>
+    </> : empty)
     : (
       <SidePlain>
         {saved > 0 && <Paper><span className="k">지금까지 아낀 금액</span><strong className="saved">{won(saved)}</strong></Paper>}
@@ -49,7 +59,7 @@ export default function Home({ state, myId, config, onStart, onReopen, onHistory
         <div className="pad">
           {state.restriction && <Say tone="stop-tone" title="신고 누적으로 이용이 제한됐어요">{state.restriction.message}</Say>}
           {(state.transferRestricted || (blocked && !state.restriction)) && <Say tone="stop-tone" title="미납 내역이 있어요">결제 또는 이전 미정산 내역을 확인해 주세요. 해결하면 새 요청을 할 수 있어요.</Say>}
-          <div className="list">
+          <div className="list ongoing">
             {state.parties.map((party) => (
               <Item key={party.id} title={<>{party.settlement || party.canSettle ? '진행 중인 정산' : '진행 중인 일행'}
                 {party.unreadChat > 0 && <span className="unread-badge" aria-label={`안 읽은 메시지 ${party.unreadChat}개`}>{party.unreadChat > 99 ? '99+' : party.unreadChat}</span>}</>}
@@ -63,12 +73,12 @@ export default function Home({ state, myId, config, onStart, onReopen, onHistory
       {state.settledParty && <SettledFeedback key={`feedback-${state.settledParty.id}`} party={state.settledParty} myId={myId} />}
       <div className="ways">
         <button type="button" className="way" disabled={blocked} onClick={() => onStart({ direction: 'TO_SCHOOL' })}>
-          <b>등교</b>
-          <span className="trip">집 앞<i aria-hidden="true" />학교</span>
+          <span className="way-icon" aria-hidden="true"><School size={24} /></span>
+          <span><b>등교</b><span className="trip">집 앞 → 학교</span></span>
         </button>
-        <button type="button" className="way night" disabled={blocked} onClick={() => onStart({ direction: 'FROM_HUB' })}>
-          <b>하교</b>
-          <span className="trip">학교<i aria-hidden="true" />집 앞</span>
+        <button type="button" className="way" disabled={blocked} onClick={() => onStart({ direction: 'FROM_HUB' })}>
+          <span className="way-icon" aria-hidden="true"><House size={24} /></span>
+          <span><b>하교</b><span className="trip">학교 → 집 앞</span></span>
         </button>
       </div>
       <BoardSection now={state.now} config={config} onJoined={onChanged} disabled={blocked} />

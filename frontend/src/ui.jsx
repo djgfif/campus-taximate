@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Check, ChevronLeft, ChevronRight, Info, User } from 'lucide-react'
+import { AlertTriangle, CarTaxiFront, Check, ChevronLeft, ChevronRight, Info, User } from 'lucide-react'
 
 const WIDE = '(min-width: 1024px)'
 
@@ -46,7 +46,7 @@ export function SideEmpty({ title, children }) {
 }
 
 export function Brand() {
-  return <span className="brand"><i aria-hidden="true" />택시메이트</span>
+  return <span className="brand"><i aria-hidden="true"><CarTaxiFront size={16} strokeWidth={2.4} /></i>택시메이트</span>
 }
 
 export function TopBar({ dark, onMenu, onHome }) {
