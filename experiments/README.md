@@ -199,3 +199,12 @@ C5~C11은 커밋 `2c7aeaf`의 서비스 코드(조기 확정 10분, 선결제 11
 ```
 
 대학알리미 재적 학생 현황 2026(공공데이터포털 15164558)으로 4년제 대학 목록과 재학생 수를 만들고, 카카오 로컬 검색으로 캠퍼스 좌표를 붙인 뒤 TIMS 2025 택시 승차를 캠퍼스 반경 약 1.5km에서 센다. 도심 캠퍼스는 역·상권 승차가 섞이므로 같은 시군구 전체의 학기/방학 변화를 빼서 "학기에만 늘어난 승차"를 학생(학사일정) 효과로 본다. 결과는 [reports/c13-campus-survey.md](reports/c13-campus-survey.md).
+
+## C13 2층: 수도권 대학 실제 이동 자료 축소 모의실험
+
+```powershell
+.\experiments\.cache\venv\python.exe experiments\metro_campuses.py
+.\experiments\.cache\venv\python.exe experiments\metro_report.py
+```
+
+1층의 수도권 캠퍼스 79곳마다 캠퍼스 좌표를 출발점으로, 생활이동 귀가 흐름(서울은 행정동, 경기·인천은 시군구 출발)과 TIMS 격자로 목적지를 만들고, 로컬 OSRM 경로와 지역 요금표로 지금 서비스 코드를 10일씩 돌린다(하루 35·70·140건과 그 학교의 학생 수준). 결과는 [reports/c13-metro-campuses.md](reports/c13-metro-campuses.md). C7~C12의 출발점(37.874, 127.205)은 포천 시내라 캠퍼스(37.8707, 127.1561)와 약 4.4km 다르다는 것을 여기서 발견했고, 2층의 대진대 값은 캠퍼스 좌표로 다시 계산한 것이다.
