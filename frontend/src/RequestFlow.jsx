@@ -135,7 +135,7 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
   // 모의실험(C9): 같은 출발 시각이라도 15분 일찍 요청하면 매칭률이 올랐다. 최소 준비 25분 + 15분 = 40분 미만이면 알려 준다.
   const leadMinutes = chosenStart ? Math.round((new Date(chosenStart) - new Date(now)) / 60000) : null
   const shortLead = !instant && basis === 'DEPART' && leadMinutes !== null && leadMinutes < 40
-  // 모의실험(C13, 수도권 79곳): 출발 가능 범위를 넓힐수록 모든 학교에서 매칭률이 올랐다(하루 35건 중앙값 10분 31%, 20분 54%, 30분 67%).
+  // 모의실험(C13, 수도권 79곳): 출발 가능 범위를 넓힐수록 모든 학교에서 매칭률이 올랐다(하루 35건 중앙값 10분 26%, 20분 48%, 30분 60%).
   // 더 넓힐 수 있는데 30분보다 좁게 고르면 알려 준다.
   const narrowWindow = !instant && basis === 'DEPART' && chosenStart && chosenLength < 30 && maxWindow >= 30
   const minSaving = config?.rules?.minSavingRate ?? 0.1
