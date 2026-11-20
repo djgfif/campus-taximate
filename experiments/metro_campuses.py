@@ -7,6 +7,7 @@
    고르지 않은 격자의 흐름은 같은 시군구의 가까운 격자로 옮겨 시군구별 흐름을 지킨다.
 4. 경로: 로컬 OSRM(캠퍼스 좌표 → 격자, 격자 ↔ 격자), 시간은 C7 카카오 보정 배수. 혼자 요금은 지역 요금표.
 5. 서비스: 현재 운영 코드(마감 확정 + 확정 분담금)를 C12와 같은 방식으로 10일씩.
+6. 성별: 운영은 같은 성별끼리만 묶는다. 요청마다 그 캠퍼스의 재학생 남성 비율(대학알리미 2026)로 성별을 뽑는다.
 """
 from __future__ import annotations
 import csv, hashlib, io, json, math, statistics, subprocess, sys, time, zipfile
@@ -185,6 +186,12 @@ def fit_tariff(points, kind):
 def build_campus(c, info, dest, hours, days, client, ratio, crosswalk):
     out = CACHE / campus_id(c); out.mkdir(parents=True, exist_ok=True)
     hub = dict(id=0, lat=c['lat'], lon=c['lon'], region_code=info['origin'])
+    cached = out / 'destinations.json'
+    if cached.exists() and (out / 'matrix.tsv').exists():
+        data = json.loads(cached.read_text(encoding='utf-8'))
+        # 같은 캠퍼스 좌표·같은 목적지 방식(시군구 대표 격자, 'represented_regions')으로 만든 경로면 OSRM을 다시 부르지 않는다.
+        if (data['hub']['lat'], data['hub']['lon']) == (hub['lat'], hub['lon']) and 'represented_regions' in data['coverage']                 and len(data['points']) <= MAX_GRIDS:
+            return out, data
     flows = dest[info['origin']]
     if sum(flows.values()) <= 0:
         raise ValueError('No home flow for ' + c['name'])
@@ -211,14 +218,14 @@ def build_campus(c, info, dest, hours, days, client, ratio, crosswalk):
     return out, data
 
 
-def cases_for(out, data, errors, levels):
+def cases_for(out, data, errors, levels, male_share=None):
     hub = data['hub']; points = data['points']; t = data['tariff']
     denom = sum(r['cnt'] for r in data['hours'] if 12 <= r['hour'] <= 21)
     hours = [dict(hour=r['hour'], probability=r['cnt'] / denom if 12 <= r['hour'] <= 21 and denom else 0) for r in data['hours']]
     header = ['CASE', 'C13_METRO', 'grid', 'timeline', 'FROM_HUB', '0', str(hub['lat']), str(hub['lon']),
               '1.3', '24', 'KAKAO', str(t['a']), str(t['b']), str(t['c']), '100', '4800', 'CACHE_MATRIX', 'KRW']
     errs = errors
-    ss = [replace(c7.Scenario(), name=f'n{n}', requests=n) for n in levels]
+    ss = [replace(c7.Scenario(), name=f'n{n}', requests=n, male_share=male_share) for n in levels]
     c7.write_cases(out / 'cases.tsv', ss, DAYS, SEED, points, hours, header, errs)
 
 
@@ -267,12 +274,16 @@ def main():
     errors = [float(x) for x in (HERE / '.cache/kr-public/tims-errors.csv').read_text().splitlines() if x.strip()]
     bias, margin = c12.fare_config()
     command, provenance = c12.compile_current()
+    shares = c13.male_shares()
     results = []
     for c in cs:
         cid = campus_id(c); info = origins[cid]
         res_path = CACHE / cid / 'result.json'
+        male = shares.get((c['name'], c['branch']))
         if res_path.exists():
-            results.append(json.loads(res_path.read_text(encoding='utf-8'))); continue
+            old = json.loads(res_path.read_text(encoding='utf-8'))
+            if old.get('male_share') == male:  # 성비가 바뀌면(성별 없는 옛 결과 포함) 다시 돌린다
+                results.append(old); continue
         if sum(dest.get(info['origin'], {}).values()) <= 0:
             results.append(dict(campus=c['name'], branch=c['branch'], region=c['region'], skipped='출발지 귀가 흐름 없음')); continue
         t0 = time.time()
@@ -280,12 +291,12 @@ def main():
             out, data = build_campus(c, info, dest, hours, agg['days'], client, ratio, crosswalk)
             observed = max(10, min(600, round(c['student_excess_per_day']))) if c.get('student_excess_per_day') is not None else None
             levels = tuple(sorted(set(LEVELS) | ({observed} if observed else set())))
-            cases_for(out, data, errors, levels)
+            cases_for(out, data, errors, levels, male)
             res = simulate(command, out, bias, margin)
         except Exception as e:  # 한 학교 실패가 전체를 멈추지 않게 이유를 남긴다
             results.append(dict(campus=c['name'], branch=c['branch'], region=c['region'], skipped=f'{type(e).__name__}: {e}'[:200])); continue
         r = dict(campus=c['name'], branch=c['branch'], region=c['region'], enrolled=c['enrolled'], lon=c['lon'], lat=c['lat'],
-                 origin=info, observed_level=observed, student_excess_per_day=c.get('student_excess_per_day'),
+                 origin=info, observed_level=observed, male_share=male, student_excess_per_day=c.get('student_excess_per_day'),
                  semester_taxi_per_day=c['semester_per_day'], coverage=data['coverage'],
                  mean_solo_km=sum(p['probability'] * p['solo_km'] for p in data['points']),
                  home_flow_per_day=sum(dest[info['origin']].values()) / len(agg['days']),

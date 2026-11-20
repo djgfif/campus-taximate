@@ -131,7 +131,9 @@ def ensure_routing():
 def cases():
     hub, points, hours, header, demand = c7.demand_inputs(None, HERE / '.cache', ROUTING)
     errors = [float(x) for x in (HERE / '.cache/kr-public/tims-errors.csv').read_text().splitlines() if x.strip()]
-    ss = [replace(c7.Scenario(), name=f'n{n}', requests=n) for n in LEVELS]
+    # 운영은 같은 성별끼리만 묶는다. 요청마다 대진대 재학생 남성 비율(대학알리미 2026)로 성별을 뽑는다.
+    import campus_survey as c13
+    ss = [replace(c7.Scenario(), name=f'n{n}', requests=n, male_share=c13.male_shares()[('대진대학교', '본교')]) for n in LEVELS]
     meta = c7.write_cases(CACHE / 'cases.tsv', ss, DAYS, SEED, points, hours, header, errors)
     run.json_write(CACHE / 'case-meta.json', meta)
     return demand
@@ -217,19 +219,22 @@ def report(levels, observed, bias, margin, provenance):
          f'운영 코드 {provenance["git_head"][:7]}{" (작업 중 변경 있음)" if provenance["production_dirty"] else ""}를 그대로 컴파일했다. '
          f'매칭은 모집 마감까지 모아 확정(S42), 요금은 확정 분담금(S43, 견적 보정 {100 * bias:.2f}% + 여유 {100 * margin:.0f}%).', '',
          '출발점은 대진대 정문(37.8707, 127.1561)이다. 11/20 이전 C7~C12 값은 포천 시내(37.874, 127.205)에서 출발한 값이라 이 결과로 대체한다.', '',
+         f"운영은 같은 성별끼리만 묶는다. 요청자 성별은 대진대 재학생 남성 비율 {100 * __import__('campus_survey').male_shares()[('대진대학교', '본교')]:.1f}%(대학알리미 2026)로 뽑았다. "
+         '11/21 이전 C7~C13은 전원 남성으로 계산해 매칭률이 높게 나왔다.', '',
          '## 학교 앞 실제 택시 이용량 (관측)', '',
          f'TIMS 2025 영업건수, 정문 반경 약 1.5km 격자 9칸: 학기 중 하루 {observed["semester_per_day"]:.1f}건, '
          f'방학 하루 {observed["vacation_per_day"]:.1f}건, 연평균 {observed["year_per_day"]:.1f}건.', '',
          observed['meaning'], '',
          '## 수요에 따른 결과 (오차 1배, 30일 평균, 괄호는 95% CI)', '',
-         '| 하루 요청 | 매칭률 | 1인 절약 | 1인 절약액 | 평균 지연(분) | 확정까지(분) | 더 낸 사람 | 환불 |', '|---:|---:|---:|---:|---:|---:|---:|---:|']
+         '| 하루 요청 | 매칭률 | 1인 절약(매칭된 사람) | 1인 절약(요청자 전체) | 1인 절약액(매칭된 사람) | 평균 지연(분) | 확정까지(분) | 더 낸 사람 | 환불 |',
+         '|---:|---:|---:|---:|---:|---:|---:|---:|---:|']
     for lv in levels:
         m = lv['matching']; f = lv['money']['1.0']
         L.append(f"| {lv['requests']} | {pct(m['match_rate']['mean'])} [{pct(m['match_rate']['ci95_low'])}, {pct(m['match_rate']['ci95_high'])}] | "
-                 f"{pct(f['saving']['mean'])} | {f['saving_krw']['mean']:,.0f}원 | {m['mean_delay']['mean']:.1f} | {m['mean_wait']['mean']:.1f} | "
-                 f"{f['extra_total']} | {f['refund_total']} |")
+                 f"{pct(f['saving']['mean'])} | {pct(m['match_rate']['mean'] * f['saving']['mean'])} | {f['saving_krw']['mean']:,.0f}원 | "
+                 f"{m['mean_delay']['mean']:.1f} | {m['mean_wait']['mean']:.1f} | {f['extra_total']} | {f['refund_total']} |")
     L += ['', '- 더 낸 사람·환불은 일행 전체에서 센 건수다. 확정 분담금이라 0이어야 한다.',
-          '- 1인 절약은 실제 미터 요금이 붙은 혼자 탈 때 요금과 비교한 값이다.', '',
+          '- 1인 절약은 실제 미터 요금이 붙은 혼자 탈 때 요금과 비교한 값이다. 요청자 전체는 매칭되지 못한 사람(절약 0)까지 넣은 평균(매칭률 × 매칭된 사람 절약)이다.', '',
           '## 정산 적립금 (한 학기 80일, 2,000경로)', '',
           '| 하루 요청 | 오차 배수 | 학기 말 평균 | 99% 초기 기금 | 95% 초기 기금 | 확정 금액 1.5배 초과(관리자 확인) |', '|---:|---:|---:|---:|---:|---:|']
     for lv in levels:

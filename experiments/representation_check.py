@@ -21,7 +21,8 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True); shutil.copy(src / 'matrix.tsv', OUT / 'matrix.tsv')
     data = json.loads((src / 'destinations.json').read_text(encoding='utf-8'))
     errors = [float(x) for x in (HERE / '.cache/kr-public/tims-errors.csv').read_text().splitlines() if x.strip()]
-    m.DAYS = c12.DAYS; m.cases_for(OUT.resolve(), data, errors, c12.LEVELS)
+    import campus_survey as c13
+    m.DAYS = c12.DAYS; m.cases_for(OUT.resolve(), data, errors, c12.LEVELS, c13.male_shares()[('대진대학교', '본교')])
     bias, margin = c12.fare_config(); command, _ = c12.compile_current()
     reduced = m.simulate(command, OUT.resolve(), bias, margin)
     full = {str(l['requests']): l['matching']['match_rate'] for l in

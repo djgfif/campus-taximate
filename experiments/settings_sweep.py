@@ -119,7 +119,7 @@ def report(rs):
                 L.append(f'- {title}, 범위 {w}분: 경계 위(지금 설정보다 모든 면에서 나은 설정 없음).')
             else:
                 b = max(better, key=lambda q: pts[q]['requester_saving']); c = parse(b); x, y = pts[p], pts[b]
-                L.append(f"- {title}, 범위 {w}분: 경계 밖. 지연 {c['delay']}분·절약 {c['saving']}%·범위 {c['width']}분이 절약 {pct(x['requester_saving'])}→{pct(y['requester_saving'])}, "
+                L.append(f"- {title}, 범위 {w}분: 경계 밖. 지연 {c['delay']}분·절약 {c['saving']}%·범위 {c['width']}분이 절약 {100 * x['requester_saving']:.1f}%→{100 * y['requester_saving']:.1f}%, "
                          f"지연 {x['mean_delay']:.1f}→{y['mean_delay']:.1f}분, 밀린 시간 {x['mean_shift']:.1f}→{y['mean_shift']:.1f}분.")
     same_w = {}
     for w in WIDTHS:

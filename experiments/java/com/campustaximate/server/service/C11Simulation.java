@@ -62,15 +62,15 @@ public final class C11Simulation {
         public boolean simulated(){return true;}
     }
     /** 출발 편: 출발 가능 구간을 [편 시각, 편 시각 + 5분]으로 좁힌다. 요청 시각은 그대로라 모집·마감 규칙은 운영과 같다. */
-    static MatchRequest slotted(ExperimentRunner.Case c,ExperimentRunner.Input r,MatchingSettings s,int slotMinutes){
+    static MatchRequest slotted(ExperimentRunner.Case c,ExperimentRunner.Input r,DetailedSimulation.Config cfg,MatchingSettings s,int slotMinutes){
         long earliest=(long)r.arrival()+s.leadMinutes()*60L, step=slotMinutes*60L, t=((earliest+step-1)/step)*step;
-        return window(c,r,t,t+300);
+        return window(c,r,cfg,t,t+300);
     }
-    static MatchRequest flexible(ExperimentRunner.Case c,ExperimentRunner.Input r,MatchingSettings s,int flexMinutes){
-        long earliest=(long)r.arrival()+s.leadMinutes()*60L;return window(c,r,earliest,earliest+flexMinutes*60L);
+    static MatchRequest flexible(ExperimentRunner.Case c,ExperimentRunner.Input r,DetailedSimulation.Config cfg,MatchingSettings s,int flexMinutes){
+        long earliest=(long)r.arrival()+s.leadMinutes()*60L;return window(c,r,cfg,earliest,earliest+flexMinutes*60L);
     }
-    static MatchRequest window(ExperimentRunner.Case c,ExperimentRunner.Input r,long from,long to){
-        return new MatchRequest(r.id(),r.id(),Direction.FROM_HUB,1,c.hub,Gender.MALE,BASE.plusSeconds(from),BASE.plusSeconds(to),null,null,
+    static MatchRequest window(ExperimentRunner.Case c,ExperimentRunner.Input r,DetailedSimulation.Config cfg,long from,long to){
+        return new MatchRequest(r.id(),r.id(),Direction.FROM_HUB,1,c.hub,cfg.flags().get(r.id()).gender(),BASE.plusSeconds(from),BASE.plusSeconds(to),null,null,
             r.own(),r.km(),r.seconds()).requested(BASE.plusSeconds((long)r.arrival()),false);
     }
     static String join(Collection<?> x){return String.join(";",x.stream().map(Object::toString).toList());}
@@ -91,7 +91,7 @@ public final class C11Simulation {
             policy.equals("WAIT-TO-DEADLINE")||policy.equals("FORECAST-AWARE")?0:10;
         var s=settings(early,delay,saving/100.);var plan=TripPlan.of(Direction.FROM_HUB,s);
         var all=c.requests.stream().map(r->cfg.flags().get(r.id()).instant()?DetailedSimulation.request(c,r,cfg,s)
-            :slotMinutes>0?slotted(c,r,s,slotMinutes):flex>0?flexible(c,r,s,flex):DetailedSimulation.request(c,r,cfg,s)).toList();
+            :slotMinutes>0?slotted(c,r,cfg,s,slotMinutes):flex>0?flexible(c,r,cfg,s,flex):DetailedSimulation.request(c,r,cfg,s)).toList();
         var model=new ExperimentRunner.Model(c,matrix);var routes=new MarkedRoute(model,margin,markup);
         Map<Long,Long> fares=new HashMap<>();c.requests.forEach(r->fares.put(r.id(),r.fare()));
         Map<Long,Long> shown=new HashMap<>();fares.forEach((id,f)->shown.put(id,markup?markedSolo(f):f));
