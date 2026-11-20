@@ -88,6 +88,7 @@ public class ApiController {
     private final MailService mail;
     private final MemberRepository members;
     private final HubRepository hubs;
+    private final com.campustaximate.server.common.DemoDropoffConfiguration dropoffs;
     private final com.campustaximate.server.repository.SchoolRepository schools;
     private final RideRequestRepository requests;
     private final RouteClient routes;
@@ -197,7 +198,7 @@ public class ApiController {
         var schoolList = schools.findAll().stream().sorted(java.util.Comparator.comparing(School::getId))
                 .map(s -> Map.of("name", s.getName(), "emailDomain", s.getEmailDomain())).toList();
         return Map.of("demo", demo.enabled(), "simulatedRoute", routes.simulated(), "now", clock.now(), "schools", schoolList,
-                "mailEnabled", mail.enabled(), "sampleDropoffs", DataSeeder.SAMPLE_DROPOFFS,"instantMatching",Map.of(
+                "mailEnabled", mail.enabled(), "sampleDropoffs", dropoffs.getDropoffs(),"instantMatching",Map.of(
                     "matchMinutes",instantSettings.getInstantMatchMinutes(),"prepMinutes",instantSettings.getInstantPrepMinutes(),
                     "dispatchMinutes",instantSettings.getInstantDispatchMinutes(),"maxWalkSeconds",instantSettings.getInstantMaxWalkSeconds()));
     }

@@ -24,6 +24,7 @@ public class DemoScenarioService {
     private final RideRequestRepository requests;
     private final MemberRepository members;
     private final HubRepository hubs;
+    private final com.campustaximate.server.common.DemoDropoffConfiguration dropoffs;
     private final PaymentService payments;
     private final PaymentOrderRepository orders;
     private final PartyReadinessService readiness;
@@ -173,7 +174,7 @@ public class DemoScenarioService {
         }
         var me=members.findById(actor).orElseThrow(ApiException::unauthorized);
         var hub=hubs.findBySchool(me.getSchool().getId()).stream().filter(h->h.isActive()&&h.isFieldChecked()).findFirst().orElseThrow(()->ApiException.conflict("DEMO_NO_HUB","확인된 승차 지점이 필요해요."));
-        var stop=DataSeeder.SAMPLE_DROPOFFS.get(1);
+        var stop=dropoffs.at(1);
         var start=AppClock.nextSlotAfter(clock.now()).plusSeconds(3600);
         rideRequests.create(actor,new RideRequestService.NewRequest(Direction.FROM_HUB,hub.getId(),instant?null:start,instant?null:start.plusSeconds(3600),null,
                 stop.name(),stop.lat(),stop.lon(),"시연 사용자",instant?RequestMode.INSTANT:RequestMode.RESERVATION,TimeBasis.DEPART,null,null,10));

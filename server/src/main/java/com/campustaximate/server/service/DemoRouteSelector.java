@@ -7,7 +7,7 @@ import java.time.Instant;import java.util.*;import lombok.RequiredArgsConstructo
 /** 직선 점뿐 아니라 등록 샘플·도로 형상·같은 하차지까지 시험한 뒤 샘플을 저장한다. */
 @Component @RequiredArgsConstructor
 public class DemoRouteSelector {
-    private final RouteClient routes;private final MatchingSettings settings;private final AppClock clock;
+    private final RouteClient routes;private final MatchingSettings settings;private final AppClock clock;private final DemoDropoffConfiguration dropoffs;
     public boolean realRoutes(){return !routes.simulated();}
     public List<GeoPoint> select(MatchRequest mine,long soloFare,GeoPoint origin,List<Long> memberIds){
         return select(mine,soloFare,origin,memberIds,false);
@@ -18,7 +18,7 @@ public class DemoRouteSelector {
         if(!initial.ok())throw ApiException.conflict("DEMO_ROUTE_NOT_FOUND","요청 시간에 맞는 시연 경로를 찾지 못했어요.");
         Instant at=initial.departure();List<GeoPoint> choices=new ArrayList<>();
         for(double ratio:new double[]{0.45,0.72,0.3})choices.add(new GeoPoint(mine.anchor().lat()+(mine.own().lat()-mine.anchor().lat())*ratio,mine.anchor().lon()+(mine.own().lon()-mine.anchor().lon())*ratio));
-        DataSeeder.SAMPLE_DROPOFFS.forEach(p->choices.add(new GeoPoint(p.lat(),p.lon())));
+        dropoffs.getDropoffs().forEach(p->choices.add(new GeoPoint(p.lat(),p.lon())));
         try{var road=routes.routeAt(mine.anchor(),List.of(mine.own()),at).coordinates();for(double ratio:new double[]{0.45,0.72})if(!road.isEmpty())choices.add(road.get(Math.min(road.size()-1,(int)(road.size()*ratio))));}
         catch(RouteClient.RouteUnavailableException ignored){}
         choices.add(mine.own());
@@ -28,7 +28,7 @@ public class DemoRouteSelector {
             boolean found=false;
             List<GeoPoint> points=new ArrayList<>();
             if(passenger && index==0) {
-                DataSeeder.SAMPLE_DROPOFFS.forEach(p->points.add(new GeoPoint(p.lat(),p.lon())));
+                dropoffs.getDropoffs().forEach(p->points.add(new GeoPoint(p.lat(),p.lon())));
                 for(double ratio:new double[]{1.12,1.25,1.5}) points.add(new GeoPoint(mine.anchor().lat()+(mine.own().lat()-mine.anchor().lat())*ratio,mine.anchor().lon()+(mine.own().lon()-mine.anchor().lon())*ratio));
                 points.removeIf(p->mine.anchor().distanceKm(p)<=mine.anchor().distanceKm(mine.own())+0.05);
             } else points.addAll(choices);

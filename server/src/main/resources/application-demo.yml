@@ -33,6 +33,12 @@ app:
   account-key: demo-only-account-key
   demo:
     enabled: true
+    # 시연 계정이 내릴 곳. 시연 학교 주변 실제 장소를 학교에서 가까운 순서로 4곳 이상 넣는다.
+    dropoffs:
+      - { name: 사거리 편의점 앞, lat: 37.8430, lon: 127.1500 }
+      - { name: 시장 입구, lat: 37.8330, lon: 127.1460 }
+      - { name: 주공아파트 앞 정류장, lat: 37.8240, lon: 127.1425 }
+      - { name: 역전 버스 정류장, lat: 37.8150, lon: 127.1390 }
   # 시연 계정을 자주 바꾸므로 인증 상한을 높인다.
   # 노트북 한 대에서 여러 시연 계정·탭이 같은 IP로 채팅·상태를 폴링하므로 API 상한도 높인다.
   rate-limit:

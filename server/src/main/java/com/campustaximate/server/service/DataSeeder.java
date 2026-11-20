@@ -33,15 +33,6 @@ public class DataSeeder implements ApplicationRunner {
     /** 예전 시드 이름. 이미 만들어진 시연 계정도 새 이름으로 바꾼다. */
     private static final List<String> OLD_NICKNAMES = List.of("하늘", "바다", "구름", "별", "산", "강", "숲", "들");
 
-    public record Dropoff(String name, double lat, double lon) {
-    }
-
-    public static final List<Dropoff> SAMPLE_DROPOFFS = List.of(
-            new Dropoff("사거리 편의점 앞", 37.8430, 127.1500),
-            new Dropoff("시장 입구", 37.8330, 127.1460),
-            new Dropoff("주공아파트 앞 정류장", 37.8240, 127.1425),
-            new Dropoff("역전 버스 정류장", 37.8150, 127.1390));
-
     /** 시드가 만든 시연 계정인지 메일로 판단한다. 시연 계정은 시연 프로필에서만 만들어진다. */
     public static boolean isSeededDemo(String email) {
         return email.matches("demo-[fm][1-" + DEMO_MEMBERS_PER_GENDER + "]@[^@]+");

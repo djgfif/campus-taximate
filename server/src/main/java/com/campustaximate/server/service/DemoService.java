@@ -39,6 +39,7 @@ public class DemoService {
     private final com.campustaximate.server.repository.PaymentOrderRepository paymentOrders;
     private final WaitingInsightService insights;
     private final DemoRouteSelector demoRoutes;
+    private final com.campustaximate.server.common.DemoDropoffConfiguration dropoffs;
     private final DemoChat chat;
     private final org.springframework.core.env.Environment environment;
 
@@ -125,7 +126,7 @@ public class DemoService {
         Hub hub = hubs.findBySchool(viewer.getSchool().getId()).stream().filter(h -> h.isActive() && h.isFieldChecked()).findFirst()
                 .orElseThrow(() -> ApiException.conflict("DEMO_NO_HUB", "확인된 승차 지점이 필요해요."));
         Instant start = AppClock.nextSlotAfter(clock.now()).plusSeconds(60 * 60L);
-        DataSeeder.Dropoff stop = DataSeeder.SAMPLE_DROPOFFS.get(3);
+        var stop = dropoffs.at(3);
         RideRequest hostRequest = rideRequests.create(host.getId(), new RideRequestService.NewRequest(Direction.FROM_HUB, hub.getId(), start,
                 start.plusSeconds(60 * 60L), null, stop.name(), stop.lat(), stop.lon(), SAMPLE_MEMOS.get(2)));
         addSamples(host.getId(), 1, Role.PAYER, java.util.Set.of(viewerId));
@@ -172,7 +173,7 @@ public class DemoService {
                 ?demoRoutes.select(SlotService.toEngine(mine).stream().filter(m->m.anchorId()==mine.getHub().getId()).findFirst().orElseThrow(),
                     mine.getSoloFare(),mine.origin(),samples.stream().map(Member::getId).toList(),role==Role.PASSENGER):List.of();
         for (int i = 0; i < samples.size(); i++) {
-            DataSeeder.Dropoff dropoff = DataSeeder.SAMPLE_DROPOFFS.get(i % DataSeeder.SAMPLE_DROPOFFS.size());
+            var dropoff = dropoffs.at(i);
             String memo = SAMPLE_MEMOS.get(i % SAMPLE_MEMOS.size());
             GeoPoint onTheWay = checked.isEmpty()?onTheWay(mine, hub, SAMPLE_RATIOS.get(i % SAMPLE_RATIOS.size())):checked.get(i);
             long id = samples.get(i).getId();
