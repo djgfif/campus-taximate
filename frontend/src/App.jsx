@@ -285,7 +285,7 @@ function Flow({ state, config, myId, run, refresh, onMenu, onHistory, onPush, pu
       setSeenRequest(latest.id); startRequest({ direction: latest.direction, initial: latest })
     }} />
   }
-  return <Home state={state} myId={myId} config={config} onChanged={refresh} onStart={startRequest} onHistory={onHistory} onMenu={onMenu} tabBar={tabBar}
+  return <Home state={state} myId={myId} config={config} onChanged={refresh} onStart={startRequest} onHistory={onHistory} tabBar={tabBar}
     onReopen={(id) => { setHidden((old) => old.filter((p) => p !== id)); navigate('/parties/' + id) }} />
 }
 

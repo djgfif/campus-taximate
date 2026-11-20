@@ -46,7 +46,7 @@ function HomeMap({ school, board, direction }) {
   return <MapView points={points} edge={56} fallback={fallback} />
 }
 
-export default function Home({ state, myId, config, onStart, onReopen, onHistory, onMenu, onChanged, tabBar }) {
+export default function Home({ state, myId, config, onStart, onReopen, onHistory, onChanged, tabBar }) {
   const [history, setHistory] = useState([])
   const [school, setSchool] = useState(null)
   const [board, setBoard] = useState(null)
