@@ -130,7 +130,7 @@ summary::-webkit-details-marker { display: none; }
 .tab-icon { position: relative; display: grid; place-items: center; height: 26px; }
 .tab-icon .unread-badge { position: absolute; top: -4px; left: 14px; margin: 0; }
 
-.brand { display: flex; align-items: center; gap: 7px; font-size: 17px; font-weight: 700; letter-spacing: -0.04em; }
+.brand { display: flex; align-items: center; gap: 7px; font-size: 17px; font-weight: 700; letter-spacing: -0.04em; color: inherit; text-decoration: none; cursor: pointer; }
 .mark { flex: none; display: block; }
 
 /* 시연 안내와 시연 단추. 휴대폰은 위쪽 오른쪽 끝의 작은 글자 단추, 넓은 화면은 위쪽 메뉴 안(.demo-nav). */
