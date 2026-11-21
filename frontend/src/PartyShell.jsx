@@ -125,7 +125,7 @@ export function PartyShell({ party, now, onHome, header, action, progress, info,
         <div className="room-line">
           <button type="button" className="icon-btn" aria-label="홈으로" onClick={onHome}><ChevronLeft size={26} /></button>
           <h1 className="room-title">{roomTitle(party, time ?? party.departureAt)}</h1>
-          <button type="button" className="room-info-btn" aria-label="일행 정보 열기" onClick={openDetails}><Info size={16} aria-hidden="true" /><span>정보</span></button>
+          <button type="button" className="icon-btn" aria-label="일행 정보 열기" onClick={openDetails}><Info size={22} /></button>
         </div>
         <div className="room-sub">
           <button type="button" className="room-meta-btn" onClick={openDetails}>

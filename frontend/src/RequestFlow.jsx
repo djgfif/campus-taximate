@@ -216,11 +216,9 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
         </fieldset>
       </section>
 
-      {!instant && <section className="form-step when-card" aria-labelledby="step-when">
-        <div className="when-head">
-          <h2 id="step-when">언제</h2>
-          {timeSummary && <span className="when-summary">{timeSummary}</span>}
-        </div>
+      {/* 기본값이 무난하니 한 줄 요약만 보이고, 누르면 펼친다(요청 버튼까지의 길이를 짧게). */}
+      {!instant && <details className="form-step when">
+        <summary><h2 id="step-when">언제</h2><b>{timeSummary}</b><em>바꾸기</em></summary>
         <Chips label="시간 기준" value={basis} onChange={setBasis} options={[{ value: 'DEPART', label: '출발 기준' }, { value: 'ARRIVE', label: '도착 기준' }]} />
         {basis === 'DEPART' ? <>
           <RequestTimePicker label="출발 가능 시작" options={options} value={chosenStart} now={now} onChange={setStart} waiting={waiting} waitingLabel={waitingLabel} />
@@ -241,7 +239,7 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
           <RequestTimePicker label="늦어도 도착 시각" options={arrivals} value={chosenArrival} now={now} onChange={setArrival} waiting={waiting} waitingLabel={waitingLabel} />
           <Chips label="일찍 도착 허용" value={early} onChange={setEarly} options={[0, 5, 10, 15].map((m) => ({ value: m, label: m + '분' }))} />
         </>}
-      </section>}
+      </details>}
       {/* 같은 이유(같이 탈 사람이 적다)의 안내는 한 문장으로 묶는다. */}
       {(shortLead || narrowWindow) && <p className="note lead-note">{shortLead && narrowWindow
         ? `출발까지 ${leadMinutes}분, 출발 가능 범위 ${chosenLength}분이라 같이 탈 학생을 찾기 어려워요. 40분 넘게 여유를 두고 범위를 30분 넘게 잡으면 일행이 생기기 쉬워요.`

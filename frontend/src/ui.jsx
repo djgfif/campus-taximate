@@ -137,9 +137,8 @@ export function BackBar({ onBack, title, step, total }) {
 export function FareCompare({ solo, share }) {
   const won = (n) => `${Number(n).toLocaleString()}원`
   const ratio = solo > 0 ? Math.max(0.06, Math.min(1, share / solo)) : 1
-  const savePct = solo > 0 ? Math.round(((solo - share) / solo) * 100) : 0
   return <section className="fare-compare" aria-label="아끼는 돈">
-    <p className="fc-save"><b>{won(solo - share)}</b> 아껴요{savePct > 0 && <span className="fc-pct">-{savePct}%</span>}</p>
+    <p className="fc-save"><b>{won(solo - share)}</b> 아껴요</p>
     <div className="fc-row"><span>혼자 타면</span><i className="fc-bar solo" /><em>{won(solo)}</em></div>
     <div className="fc-row"><span>같이 타면</span><i className="fc-bar shared" style={{ '--w': `${Math.round(ratio * 100)}%` }} /><em>{won(share)}</em></div>
   </section>

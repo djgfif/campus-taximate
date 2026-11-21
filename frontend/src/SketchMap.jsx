@@ -11,7 +11,7 @@ const shortName = (text) => {
 
 /**
  * 지도 키가 없거나 지도를 못 불러올 때 쓰는 약도. 좌표를 화면 비율에 맞게 펴서 경로선과 지점·지명을 그린다.
- * 도로 격자와 흰색 경로 테두리를 깔아 실제 지도 약도처럼 한눈에 읽히게 한다.
+ * 실제 길 정보가 없으므로 도로처럼 보이는 선은 그리지 않는다. 옅은 격자와 경로선·지명만 그린다.
  */
 export default function SketchMap({ points = [], lines = [], label = '약도' }) {
   const gridId = useId()
@@ -38,9 +38,6 @@ export default function SketchMap({ points = [], lines = [], label = '약도' })
       </defs>
       <rect width={W} height={H} fill="#eef1ec" />
       <rect width={W} height={H} fill={`url(#${gridId})`} />
-      <path d="M -10 152 Q 95 126 196 144 T 370 112" fill="none" stroke="#ffffff" strokeWidth="10" strokeOpacity="0.65" />
-      <path d="M 52 -10 Q 92 86 78 206" fill="none" stroke="#ffffff" strokeWidth="8" strokeOpacity="0.55" />
-      <path d="M 254 -10 Q 238 92 272 206" fill="none" stroke="#ffffff" strokeWidth="7" strokeOpacity="0.5" />
       {lines.map((line, i) => {
         const pts = line.path.map((p) => at(p).join(',')).join(' ')
         const solid = line.style === 'solid'

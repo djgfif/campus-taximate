@@ -50,7 +50,7 @@ describe('디자인·편의성 근본 개선 검증', () => {
     expect(onClose).toHaveBeenCalledOnce()
   })
 
-  it('요청 화면에서 장소 지우기(X), 펼쳐진 시간 카드, 출발 범위 빠른 칩이 동작한다', async () => {
+  it('요청 화면에서 장소 지우기(X), 접힌 시간 요약, 출발 범위 빠른 칩이 동작한다', async () => {
     vi.spyOn(api, 'hubs').mockResolvedValue([{ id: 1, name: '정문', lat: 37.8, lon: 127.1 }])
     vi.spyOn(api, 'school').mockResolvedValue({ name: '학교', lat: 37.8, lon: 127.1 })
     vi.spyOn(api, 'nearbyPoints').mockResolvedValue([{ id: 1, name: '정문 앞', walkSeconds: 60, walkEstimated: true }])
@@ -61,7 +61,10 @@ describe('디자인·편의성 근본 개선 검증', () => {
     fireEvent.change(origin, { target: { value: '정문' } })
     fireEvent.click(screen.getByRole('button', { name: '출발지 지우기' }))
     expect(origin.value).toBe('')
-    // 시간 카드가 기본으로 열려 있어 빠른 선택 버튼이 바로 보인다.
+    // '언제'는 한 줄 요약으로 접혀 있고, 펼치면 빠른 선택이 맨 위에 있다.
+    const when = document.querySelector('details.form-step.when')
+    expect(when.open).toBe(false)
+    fireEvent.click(when.querySelector('summary'))
     expect(screen.getByRole('button', { name: '30분 뒤' })).toBeTruthy()
     // 범위는 칩 한 줄로만 고르고, 5분 단위 목록은 '직접'을 누를 때만 나온다.
     expect(screen.queryByLabelText('출발 가능 범위 직접 고르기')).toBeNull()
