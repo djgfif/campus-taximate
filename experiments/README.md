@@ -252,3 +252,12 @@ C5~C11은 커밋 `2c7aeaf`의 서비스 코드(조기 확정 10분, 선결제 11
 
 - [reports/c14-sex-sensitivity.md](reports/c14-sex-sensitivity.md): 대진대에서 요청자 남성 비율을 30~70%로 바꾸면 35건 매칭률 23~26%, 전원 한 성별이면 38%. 크게 바꾸는 것은 성비가 아니라 성별로 나뉜다는 사실이다.
 - [reports/c14-fare-risk.md](reports/c14-fare-risk.md): 견적 보정 6.57%는 요금표 견적과 실제 요금의 차이라 카카오 견적에 맞는다는 근거가 없다. 실제가 견적보다 평균 0~15% 높은 경우를 C12 일행으로 다시 계산해, 이용자 전체가 실제 요금보다 더 낸 비율과 적립금(운영자 부담)의 적자 확률·초기 기금·최악 손실을 본다. 지금 가정(6.57%)은 C12 적립금 값을 그대로 재현한다.
+
+## C15 등교 모의 운영
+
+```powershell
+.\experiments\.cache\venv\python.exe experiments\to_campus_hours.py
+.\experiments\.cache\venv\python.exe experiments\to_campus.py
+```
+
+C7~C14는 하교만 봤다. 지금 서비스의 등교는 순차 승차(`TO_SCHOOL`, 엔진 주석상 옛 형태)가 아니라 사는 곳 근처 승차 지점에 모여 학교로 가는 도착 기준 요청(`MatchRequest.arriving`)이다. `ToCampusSimulation`은 이 요청을 운영 `MatchingRound`·`RouteGroupVerifier`로 돌리고, 모집 마감은 서버 `arrivalDeadline`과 같은 식을 쓴다. 사는 곳은 2층의 귀가 목적지 격자, 경로는 격자 → 캠퍼스 OSRM, 도착 시각은 생활이동 등교 이동(목적 코드 2, 시간 분포로 추정)의 7~18시 분포, 성별은 재학생 성비다. 승차 지점은 자기 500m 격자 / 1km 칸(걸어서 10분) / 시군구 거점 하나(상한) 세 가지로 본다. 결과는 [reports/c15-to-campus.md](reports/c15-to-campus.md): 하루 35건 매칭률 중앙값 1% / 2% / 18%, 하교는 33%. 등교는 출발 쪽이 흩어져 같은 지점·같은 성별·비슷한 도착 시각이 맞기 어렵고, 묶이면 같은 경로라 1인 절약은 크다(매칭된 사람 50%). 등교를 살리는 열쇠는 매칭 규칙이 아니라 역·정류장 같은 큰 승차 거점을 정하는 것이다.
