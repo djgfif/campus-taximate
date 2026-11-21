@@ -23,7 +23,7 @@ public class RequestLogFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !request.getRequestURI().startsWith("/api/");
+        return !StrictPathFilter.normalizedPath(request).startsWith("/api/");
     }
 
     @Override

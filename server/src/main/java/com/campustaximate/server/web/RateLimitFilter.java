@@ -38,13 +38,14 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !enabled || !request.getRequestURI().startsWith("/api/");
+        return !enabled || !StrictPathFilter.normalizedPath(request).startsWith("/api/");
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        boolean auth = request.getRequestURI().startsWith("/api/auth/") || request.getRequestURI().equals("/api/demo/login");
+        String path = StrictPathFilter.normalizedPath(request);
+        boolean auth = path.startsWith("/api/auth/") || path.equals("/api/demo/login");
         String key = (auth ? "auth:" : "api:") + request.getRemoteAddr();
         if (!allow(key, auth ? authLimit : apiLimit, System.currentTimeMillis() / 60_000)) {
             response.setStatus(429);

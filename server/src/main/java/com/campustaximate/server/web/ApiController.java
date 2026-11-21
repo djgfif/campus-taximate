@@ -218,6 +218,7 @@ public class ApiController {
     @PostMapping("/auth/login")
     public void login(@Valid @RequestBody LoginBody body, HttpServletRequest request, HttpServletResponse response) {
         startSession(auth.login(body.email(), body.code()), request, response);
+        request.getSession().setAttribute("otpVerified", Boolean.TRUE);
     }
 
     @PostMapping("/auth/signin")
@@ -226,14 +227,24 @@ public class ApiController {
     }
 
     @PostMapping("/auth/password")
-    public void password(@Valid @RequestBody PasswordBody body, HttpSession session) {
-        auth.setPassword(memberId(session), body.password());
+    public void password(@Valid @RequestBody PasswordBody body, HttpServletRequest request, HttpServletResponse response, HttpSession session) {
+        long id = memberId(session);
+        Member member = members.findById(id).orElseThrow(ApiException::unauthorized);
+        if (member.hasPassword() && !Boolean.TRUE.equals(session.getAttribute("otpVerified"))) {
+            throw ApiException.forbidden("비밀번호를 바꾸려면 메일 코드로 다시 인증해 주세요.");
+        }
+        auth.setPassword(id, body.password());
+        tokens.revokeAll(id);
+        startSession(id, request, response);
+        request.getSession().removeAttribute("otpVerified");
     }
 
     private void startSession(long id, HttpServletRequest request, HttpServletResponse response) {
+        LoginTokenFilter.tokenOf(request).ifPresent(tokens::revoke);
         HttpSession session = request.getSession();
         request.changeSessionId();
         session.setAttribute(SESSION_KEY, id);
+        session.removeAttribute("otpVerified");
         String token = tokens.issue(id);
         session.setAttribute(LoginTokenFilter.TOKEN_KEY, token);
         response.addHeader(HttpHeaders.SET_COOKIE, loginCookie(token, LoginTokenService.VALID).toString());
@@ -284,7 +295,7 @@ public class ApiController {
         return changes.subscribe(memberId(session));
     }
 
-    public record PushBody(@NotBlank @Size(max = 500) String endpoint, @NotNull PushKeys keys) {
+    public record PushBody(@NotBlank @Size(max = 500) String endpoint, @NotNull @Valid PushKeys keys) {
     }
 
     public record PushKeys(@NotBlank @Size(max = 200) String p256dh, @NotBlank @Size(max = 100) String auth) {
@@ -502,13 +513,14 @@ public class ApiController {
     @GetMapping("/parties/{id}/receipt")
     public ResponseEntity<Resource> receipt(@PathVariable long id, HttpSession session) {
         Settlement settlement = parties.receiptOf(memberId(session), id);
-        if (settlement.getReceiptPath() == null) {
+        if (!settlements.receiptAvailable(settlement)) {
             throw ApiException.notFound("보관 기간이 지나 사진이 삭제됐습니다.");
         }
+        String contentType = settlement.getReceiptContentType() == null ? MediaType.APPLICATION_OCTET_STREAM_VALUE : settlement.getReceiptContentType();
         return ResponseEntity.ok()
                 .header("X-Content-Type-Options", "nosniff")
                 .header("Cache-Control", "no-store")
-                .contentType(MediaType.parseMediaType(settlement.getReceiptContentType()))
+                .contentType(MediaType.parseMediaType(contentType))
                 .body(new FileSystemResource(Path.of(settlement.getReceiptPath())));
     }
 

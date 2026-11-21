@@ -41,6 +41,7 @@ public class PushService {
 
     static final List<String> PUSH_HOSTS = List.of("fcm.googleapis.com", "updates.push.services.mozilla.com",
             ".notify.windows.com", ".push.apple.com");
+    private static final int MAX_SUBSCRIPTIONS_PER_MEMBER = 10;
 
     private final PushSubscriptionRepository subscriptions;
     private final MemberRepository members;
@@ -108,6 +109,14 @@ public class PushService {
         row.setP256dh(p256dh);
         row.setAuth(auth);
         subscriptions.save(row);
+        List<PushSubscription> existing = subscriptions.findByMemberId(memberId).stream()
+                .sorted(java.util.Comparator.comparing(PushSubscription::getCreatedAt).thenComparing(PushSubscription::getId))
+                .toList();
+        if (existing.size() > MAX_SUBSCRIPTIONS_PER_MEMBER) {
+            for (int i = 0; i < existing.size() - MAX_SUBSCRIPTIONS_PER_MEMBER; i++) {
+                subscriptions.delete(existing.get(i));
+            }
+        }
     }
 
     @Transactional

@@ -51,6 +51,7 @@ public class AdminController {
         org.springframework.core.io.Resource file=new org.springframework.core.io.FileSystemResource(settlement.getReceiptPath());
         if(!file.exists())throw ApiException.notFound("보관 중인 영수증이 없습니다.");
         return org.springframework.http.ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
+            .header("X-Content-Type-Options","nosniff")
             .contentType(org.springframework.http.MediaType.parseMediaType(settlement.getReceiptContentType()==null?"application/octet-stream":settlement.getReceiptContentType())).body(file);
     }
     @GetMapping("/audits") public List<AdminAudit> audits(HttpSession s){return admin.auditLog(actor(s));}

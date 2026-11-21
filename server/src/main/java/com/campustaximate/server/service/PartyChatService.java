@@ -36,8 +36,8 @@ public class PartyChatService {
     private final ChangeBus changes;
     private final PushService push;
     private final MemberRepository members;
-
     private final MediaFiles media;
+    private final org.springframework.transaction.PlatformTransactionManager transactionManager;
 
     /** memberId는 시스템 알림이면 null. unread는 보낸 사람을 뺀 현재 일행원 중 아직 안 읽은 사람 수. clientId는 내 메시지에만. */
     public record MessageView(long id, Long memberId, String nickname, String text, Instant createdAt, boolean mine,
@@ -192,15 +192,20 @@ public class PartyChatService {
         system(party, String.format(template, name));
     }
 
-    @Transactional
     public void purgeMessages() {
-        for (long partyId : messages.findPartyIdsWithMessages()) {
-            Party party = lock(partyId);
-            if (expired(party)) {
-                messages.findImagePaths(partyId).forEach(media::deleteAfterCommit);
-                messages.deleteForParty(partyId);
-                reads.deleteForParty(partyId);
-            }
+        List<Long> ids = messages.findPartyIdsWithMessages().stream().distinct().sorted().toList();
+        var tx = new com.campustaximate.server.common.RetryingTransactionTemplate(transactionManager);
+        for (long partyId : ids) {
+            Party candidate = parties.findById(partyId).orElse(null);
+            if (candidate == null || !expired(candidate)) continue;
+            tx.executeWithoutResult(status -> {
+                Party party = parties.findByIdForUpdate(partyId).orElse(null);
+                if (party != null && expired(party)) {
+                    messages.findImagePaths(partyId).forEach(media::deleteAfterCommit);
+                    messages.deleteForParty(partyId);
+                    reads.deleteForParty(partyId);
+                }
+            });
         }
     }
 

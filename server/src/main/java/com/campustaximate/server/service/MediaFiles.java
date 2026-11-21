@@ -31,6 +31,7 @@ public class MediaFiles {
     private final Path root;
     private final TransactionTemplate transaction;
     private final TransactionTemplate outsideTransaction;
+    private final java.util.concurrent.atomic.AtomicBoolean draining = new java.util.concurrent.atomic.AtomicBoolean(false);
 
     public MediaFiles(FileDeleteJobRepository jobs, AppClock clock, PlatformTransactionManager manager,
                       @Value("${app.upload-dir}") String uploadDir) {
@@ -114,19 +115,24 @@ public class MediaFiles {
     /** One bounded batch. Replaying a job after a crash is safe even if the file is already gone. */
     @Scheduled(fixedDelay = 30000)
     public void retryDue() {
-        outsideTransaction.executeWithoutResult(status -> {
-            for (FileDeleteJob job : jobs.findTop40ByNextAttemptAtLessThanEqualOrderByNextAttemptAtAscIdAsc(clock.now())) {
-                try {
-                    delete(job.getPath());
-                } catch (IOException | RuntimeException failure) {
-                    long delay = Math.min(3600, 30L << Math.min(job.getAttempts(), 7));
-                    log.warn("Upload deletion pending: job={}, failure={}", job.getId(), failure.getClass().getSimpleName());
-                    transaction.executeWithoutResult(tx -> jobs.defer(job.getId(), clock.now().plusSeconds(delay).truncatedTo(ChronoUnit.MICROS)));
-                    continue;
+        if (!draining.compareAndSet(false, true)) return;
+        try {
+            outsideTransaction.executeWithoutResult(status -> {
+                for (FileDeleteJob job : jobs.findTop40ByNextAttemptAtLessThanEqualOrderByNextAttemptAtAscIdAsc(clock.now())) {
+                    try {
+                        delete(job.getPath());
+                    } catch (IOException | RuntimeException failure) {
+                        long delay = Math.min(3600, 30L << Math.min(job.getAttempts(), 7));
+                        log.warn("Upload deletion pending: job={}, failure={}", job.getId(), failure.getClass().getSimpleName());
+                        transaction.executeWithoutResult(tx -> jobs.defer(job.getId(), clock.now().plusSeconds(delay).truncatedTo(ChronoUnit.MICROS)));
+                        continue;
+                    }
+                    transaction.executeWithoutResult(tx -> jobs.deleteById(job.getId()));
                 }
-                transaction.executeWithoutResult(tx -> jobs.deleteById(job.getId()));
-            }
-        });
+            });
+        } finally {
+            draining.set(false);
+        }
     }
 
     private void tryDrain() {

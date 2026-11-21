@@ -19,16 +19,21 @@ public class AccessInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
-        if (PUBLIC_PATHS.contains(request.getRequestURI())) {
+        String path = StrictPathFilter.normalizedPath(request);
+        if (PUBLIC_PATHS.contains(path)) {
             return true;
         }
-        if(request.getRequestURI().equals("/api/demo/login") && handler instanceof org.springframework.web.method.HandlerMethod method
-                && method.getBeanType()==DemoController.class) return true;
+        if (path.equals("/api/demo/login") && handler instanceof org.springframework.web.method.HandlerMethod method
+                && method.getBeanType() == DemoController.class) return true;
         HttpSession session = request.getSession(false);
         if (session == null || session.getAttribute(LoginTokenFilter.SESSION_KEY) == null) {
             throw ApiException.unauthorized();
         }
-        if((request.getRequestURI().equals("/api/admin") || request.getRequestURI().startsWith("/api/admin/")) && (!(session.getAttribute(LoginTokenFilter.SESSION_KEY) instanceof Long actor) || !members.findById(actor).map(com.campustaximate.server.domain.Member::isAdmin).orElse(false))) throw ApiException.forbidden("관리자만 이용할 수 있어요.");
+        boolean adminTarget = path.equals("/api/admin") || path.startsWith("/api/admin/")
+                || (handler instanceof org.springframework.web.method.HandlerMethod method && method.getBeanType() == AdminController.class);
+        if (adminTarget && (!(session.getAttribute(LoginTokenFilter.SESSION_KEY) instanceof Long actor) || !members.findById(actor).map(com.campustaximate.server.domain.Member::isAdmin).orElse(false))) {
+            throw ApiException.forbidden("관리자만 이용할 수 있어요.");
+        }
         return true;
     }
 }

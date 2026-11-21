@@ -22,7 +22,8 @@ class PartyChatSystemMessageTest {
     final ChangeBus changes = mock(ChangeBus.class);
     final AppClock clock = mock(AppClock.class);
     final PartyChatService chat = new PartyChatService(mock(PartyRepository.class), requests, messages,
-            mock(PartyChatReadRepository.class), clock, changes, mock(PushService.class), mock(MemberRepository.class), mock(MediaFiles.class));
+            mock(PartyChatReadRepository.class), clock, changes, mock(PushService.class), mock(MemberRepository.class),
+            mock(MediaFiles.class), mock(org.springframework.transaction.PlatformTransactionManager.class));
     final Party party = mock(Party.class);
 
     PartyChatSystemMessageTest() {

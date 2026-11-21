@@ -44,6 +44,9 @@ public class AuthService {
     @Value("${app.account-key}")
     private String secret;
 
+    @Value("${app.demo.enabled:false}")
+    private boolean demoEnabled;
+
     /** 코드를 만들어 메일로 보내고 코드를 돌려준다. 호출하는 쪽은 시연 계정에만 이 값을 내보낸다. */
     @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public String requestCode(String rawEmail) {
@@ -56,7 +59,7 @@ public class AuthService {
         Instant now = clock.now();
         boolean tooSoon = member.getLoginCodeSentAt() != null
                 && now.isBefore(member.getLoginCodeSentAt().plus(RESEND_WAIT));
-        if (tooSoon && !DataSeeder.isSeededDemo(email)) {
+        if (tooSoon && !(demoEnabled && DataSeeder.isSeededDemo(email))) {
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "TOO_SOON", "코드는 1분에 한 번만 받을 수 있습니다.");
         }
         requireNotLocked(member, now);

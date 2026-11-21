@@ -71,6 +71,7 @@ public class MemberSafetyService {
     @Transactional
     public void avoid(long actor, long target) {
         requireOther(actor, target);
+        requireFormerParty(actor, target);
         lockMembers(List.of(actor, target));
         requireFormerParty(actor, target);
         addAvoid(actor, target);
@@ -79,6 +80,7 @@ public class MemberSafetyService {
     @Transactional
     public void unavoid(long actor, long target) {
         requireOther(actor, target);
+        requireFormerParty(actor, target);
         lockMembers(List.of(actor, target));
         requireFormerParty(actor, target);
         avoids.deleteByMemberIdAndAvoidedMemberId(actor, target);
@@ -100,6 +102,8 @@ public class MemberSafetyService {
         if (reason == null || (memo != null && memo.length() > 200)) {
             throw ApiException.badRequest("INVALID_REPORT", "신고 사유와 200자 이하의 메모를 입력해 주세요.");
         }
+        requirePartyMember(partyId, actor);
+        requirePartyMember(partyId, target);
         lockMembers(List.of(actor, target));
         requirePartyMember(partyId, actor);
         requirePartyMember(partyId, target);
@@ -117,14 +121,20 @@ public class MemberSafetyService {
         reports.saveAndFlush(report);
         addAvoid(actor, target);
         long after = reports.countReportedParties(target);
-        if (after > before && after >= ReportPolicy.PARTY_THRESHOLD && activeRestriction(target) == null) {
-            MemberRestriction restriction = new MemberRestriction();
-            restriction.setMemberId(target);
-            restriction.setReason("REPORT_ACCUMULATION");
+        if (after > before && after >= ReportPolicy.PARTY_THRESHOLD) {
             Instant now = clock.now();
-            restriction.setCreatedAt(now);
-            restriction.setExpiresAt(now.plus(ReportPolicy.RESTRICTION_DURATION));
-            restrictions.save(restriction);
+            Instant until = now.plus(ReportPolicy.RESTRICTION_DURATION);
+            boolean covered = restrictions.findFirstByMemberIdAndExpiresAtGreaterThanOrderByExpiresAtDesc(target, now)
+                    .map(r -> !r.getExpiresAt().isBefore(until))
+                    .orElse(false);
+            if (!covered) {
+                MemberRestriction restriction = new MemberRestriction();
+                restriction.setMemberId(target);
+                restriction.setReason("REPORT_ACCUMULATION");
+                restriction.setCreatedAt(now);
+                restriction.setExpiresAt(until);
+                restrictions.save(restriction);
+            }
         }
     }
 
