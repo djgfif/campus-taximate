@@ -51,6 +51,7 @@ public class PartyService {
     private final com.campustaximate.server.repository.PartyChatReadRepository chatReads;
     private final PartyChatService chatLog;
     private final BoardingCodeService boardingCodes;
+    private final MediaFiles media;
 
     public record MemberView(long requestId, long memberId, String nickname, String memo, int rideOrder,
                              String pointName, long expectedShare, boolean arrived, boolean noShow,
@@ -240,8 +241,8 @@ public class PartyService {
                 toSchool && payer && party.getBoardedAt() == null && canMarkBoarding(mine),
                 mine.canCancelAt(clock.now()),
                 payer && settlement == null && (party.getBoardingDeadlineAt()==null || !clock.now().isBefore(party.getBoardingDeadlineAt())) && (party.paymentFlow()
-                    ? List.of(PartyStatus.AWAITING_FARE,PartyStatus.RIDE_UNCONFIRMED).contains(party.getStatus())
-                        && clock.now().isBefore((party.getFareRecoveryAt()!=null?party.getFareRecoveryAt():party.getStartedAt()==null?party.getDepartureAt():party.getStartedAt()).plusSeconds(24*3600))
+                    ? party.getStartedAt() != null && List.of(PartyStatus.AWAITING_FARE,PartyStatus.RIDE_UNCONFIRMED).contains(party.getStatus())
+                        && clock.now().isBefore((party.getFareRecoveryAt()!=null?party.getFareRecoveryAt():party.getStartedAt()).plusSeconds(24*3600))
                     : boarded), mine.getId(), mine.getExpectedShare(), mine.getSoloFare(),
                 members, settlement, party.getPrepayDeadlineAt(), party.freeCancelUntil(), party.getStartedAt(),
                 party.getGroupVersion(),party.getReviewReason(),party.isAdminReviewRequired(),
@@ -271,7 +272,8 @@ public class PartyService {
                         t.getAmount(), t.getStatus()))
                 .toList();
         return new SettlementView(settlement.getPaidAmount(), settlement.getRevision(), warning, percent, canCorrect,
-                settlement.getReceiptPath() != null, settlement.getBankName(), settlement.getAccountNumber(), views,
+                !MediaRetention.receiptExpired(settlement, clock.now()) && media.readable(settlement.getReceiptPath()),
+                settlement.getBankName(), settlement.getAccountNumber(), views,
                 settlement.getObjectionDeadlineAt(), settlement.getFinalizedAt(),
                 allocations.findBySettlementIdOrderByRideOrder(settlement.getId()).stream().map(a ->
                         new SettlementService.ShareView(a.getMemberId(), "", a.getAmount(), a.isPayer())).toList(),

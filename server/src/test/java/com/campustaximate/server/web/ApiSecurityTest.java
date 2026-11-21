@@ -136,4 +136,53 @@ class ApiSecurityTest {
         mvc.perform(get("/api/state").session(session).cookie(new jakarta.servlet.http.Cookie(LoginTokenFilter.COOKIE, "invalid")))
                 .andExpect(status().isUnauthorized());
     }
+
+    @Test void suspiciousPathParametersAndEncodedAsciiAreRejected() throws Exception {
+        mvc.perform(get("/api;x=1/config")).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("BAD_PATH"));
+        mvc.perform(get("/%61pi/config")).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("BAD_PATH"));
+        mvc.perform(get("/api/admin;x=1/audits")).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("BAD_PATH"));
+    }
+
+    @Test void crossPortSameHostOriginIsRejected() throws Exception {
+        mvc.perform(post("/api/auth/code").header("Origin", "http://localhost:9999").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"demo-f1@daejin.ac.kr\"}"))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("BAD_ORIGIN"));
+    }
+
+    @Test void passwordChangeRequiresOtpReauthAndRevokesOtherDeviceTokens() throws Exception {
+        var existing = new org.springframework.mock.web.MockHttpSession();
+        mvc.perform(post("/api/auth/signin").session(existing).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"demo-f2@daejin.ac.kr\",\"password\":\"demo1234\"}"))
+                .andExpect(status().isOk());
+        // 비밀번호 로그인 세션만으로는 기존 비밀번호를 덮어쓸 수 없다.
+        mvc.perform(post("/api/auth/password").session(existing).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"password\":\"new-pass-99\"}"))
+                .andExpect(status().isForbidden());
+        // 메일 코드로 재인증하면 비밀번호 변경이 허용되고, 다른 기기의 기존 토큰은 즉시 폐기된다.
+        var reset = new org.springframework.mock.web.MockHttpSession();
+        String codeRes = mvc.perform(post("/api/auth/code").session(reset).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"demo-f2@daejin.ac.kr\"}"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String code = new com.fasterxml.jackson.databind.ObjectMapper().readTree(codeRes).get("demoCode").asText();
+        mvc.perform(post("/api/auth/login").session(reset).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"demo-f2@daejin.ac.kr\",\"code\":\"" + code + "\"}"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/auth/password").session(reset).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"password\":\"demo1234\"}"))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/state").session(existing)).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/state").session(reset)).andExpect(status().isOk());
+    }
+
+    @Test void pushSubscriptionValidatesNestedKeys() throws Exception {
+        long id = members.findByEmail("demo-f3@daejin.ac.kr").orElseThrow().getId();
+        var session = new org.springframework.mock.web.MockHttpSession();
+        com.campustaximate.server.AuthenticatedTestSession.authenticate(session, id, tokens);
+        mvc.perform(post("/api/push/subscription").session(session).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"endpoint\":\"https://fcm.googleapis.com/fcm/send/abc\",\"keys\":{\"p256dh\":\"\",\"auth\":\"\"}}"))
+                .andExpect(status().isBadRequest());
+    }
 }

@@ -67,15 +67,24 @@ final class FromHubPlan implements TripPlan {
         return !slot.isAfter(deadline(request));
     }
 
-    /** 다음 회차(예약 5분, 즉시 1분)가 마감을 넘기면 이번이 마지막이다. */
+    /** 다음 정렬 회차(예약 5분, 즉시 1분)가 마감을 넘기면 이번이 마지막이다. */
+    private Instant nextRound(MatchRequest request, Instant slot) {
+        long step = stepSeconds(request);
+        long s = slot.getEpochSecond();
+        return Instant.ofEpochSecond(s - Math.floorMod(s, step) + step);
+    }
+
     @Override
     public boolean lastChance(MatchRequest request, Instant slot) {
-        return slot.plusSeconds(stepSeconds(request)).isAfter(deadline(request));
+        return nextRound(request, slot).isAfter(deadline(request));
     }
 
     /** 예약 요청은 예약 회차(5분)에만 실패 처리한다. 사이 회차에서 즉시 일행에 들어갈 수 있다. */
     @Override
     public boolean expired(MatchRequest request, Instant slot) {
+        if (request.requestedAt() != null && request.requestedAt().isAfter(slot)) {
+            return false;
+        }
         return lastChance(request, slot) && (request.instant() || reservationRound(slot));
     }
 

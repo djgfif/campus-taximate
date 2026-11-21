@@ -16,6 +16,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 public class PartyJoinService {
     private final PartyRepository parties;private final RideRequestRepository requests;
     private final PartyJoinRepository joins;private final PartyJoinMemberRepository joinMembers;private final PaymentOrderRepository orders;
+    private final PartyMemberTermRepository terms;
     private final RoadLegStore legs;private final RouteClient routes;private final RoutePathStore paths;
     private final PaymentService payments;private final MemberSafetyService safety;private final AppClock clock;
     private final MatchingSettings settings;private final PlatformTransactionManager manager;
@@ -35,7 +36,8 @@ public class PartyJoinService {
         if(r.getMember().getId()!=actor)throw ApiException.forbidden("본인 요청만 합류할 수 있어요.");
         if(r.getStatus()!=RequestStatus.WAITING)throw ApiException.conflict("JOIN_REQUEST_CHANGED","대기 중인 요청만 합류할 수 있어요.");
         var current=requests.findByPartyOrderByRideOrder(p);if(current.size()>=settings.maxGroupSize())throw ApiException.conflict("JOIN_FULL","일행이 가득 찼어요.");
-        if(orders.findByPartyIdAndMemberIdAndPurpose(partyId,actor,PaymentPurpose.PREPAY).isPresent())throw ApiException.conflict("JOIN_ALREADY_ATTEMPTED","이 일행의 합류 주문은 이미 처리되었어요.");
+        if(orders.findByPartyIdAndMemberIdAndPurpose(partyId,actor,PaymentPurpose.PREPAY).isPresent()
+                || terms.existsByPartyIdAndMemberId(partyId,actor))throw ApiException.conflict("JOIN_ALREADY_ATTEMPTED","이 일행의 합류 주문은 이미 처리되었어요.");
         List<MatchRequest> input=new ArrayList<>();Map<Long,Long> expected=new HashMap<>(),fares=new HashMap<>();Map<Long,GeoPoint> origins=new HashMap<>();
         for(var rider:current){
             input.add(SlotService.toEngine(rider).stream().filter(m->m.anchorId()==p.getHub().getId()).findFirst().orElseThrow());
@@ -72,6 +74,8 @@ public class PartyJoinService {
             int walk=p.input().stream().filter(m->m.id()==requestId).findFirst().orElseThrow().walkSeconds();
             if(clock.now().plusSeconds(walk).isAfter(party.getDepartureAt()))throw ApiException.conflict("JOIN_TIME","기존 출발 시각까지 승차 지점에 도착할 수 없어요.");
             if(party.getPendingJoinId()!=null||party.getGroupVersion()!=p.groupVersion()||party.getPayer().getId()!=p.payerId())throw ApiException.conflict("JOIN_CHANGED","일행이나 남은 자리가 바뀌었어요.");
+            if(orders.findByPartyIdAndMemberIdAndPurpose(partyId,actor,PaymentPurpose.PREPAY).isPresent()
+                || terms.existsByPartyIdAndMemberId(partyId,actor))throw ApiException.conflict("JOIN_ALREADY_ATTEMPTED","이 일행의 합류 주문은 이미 처리되었어요.");
             var newcomer=requests.findById(requestId).orElseThrow();var current=requests.findByPartyOrderByRideOrder(party);
             if(newcomer.getStatus()!=RequestStatus.WAITING||newcomer.getVersion()!=p.requestVersion()||current.size()>=settings.maxGroupSize()
                 ||!current.stream().map(RideRequest::getId).collect(java.util.stream.Collectors.toSet()).equals(p.expected().keySet()))throw ApiException.conflict("JOIN_CHANGED","요청이나 일행이 바뀌었어요.");

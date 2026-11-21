@@ -47,7 +47,7 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
         response.setHeader("X-Content-Type-Options", "nosniff");
         response.setHeader("X-Frame-Options", "DENY");
         response.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-        String path = request.getRequestURI();
+        String path = StrictPathFilter.normalizedPath(request);
         if (!path.startsWith("/swagger-ui") && !path.startsWith("/v3/api-docs")) {
             response.setHeader("Content-Security-Policy", CONTENT_POLICY);
         }
@@ -62,20 +62,42 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
         chain.doFilter(request, response);
     }
 
-    /** 브라우저가 Origin을 보내지 않는 요청은 SameSite 쿠키에 맡긴다. */
+    /** 브라우저가 Origin을 보내지 않는 요청은 SameSite 쿠키에 맡긴다. 스킴·호스트·포트를 함께 대조한다. */
     private boolean allowed(String origin, HttpServletRequest request) {
         if (origin == null) {
             return true;
         }
-        String host = hostOf(origin);
-        return host != null && (host.equalsIgnoreCase(request.getServerName()) || host.equalsIgnoreCase(hostOf(publicUrl)));
+        String normalized = originOf(origin);
+        if (normalized == null) {
+            return false;
+        }
+        String configured = originOf(publicUrl);
+        if (configured != null && normalized.equals(configured)) {
+            return true;
+        }
+        String scheme = request.getScheme() == null ? "http" : request.getScheme().toLowerCase(java.util.Locale.ROOT);
+        String host = request.getServerName() == null ? "" : request.getServerName().toLowerCase(java.util.Locale.ROOT);
+        int port = effectivePort(scheme, request.getServerPort());
+        return !host.isEmpty() && normalized.equals(scheme + "://" + host + ":" + port);
     }
 
-    private static String hostOf(String url) {
+    private static String originOf(String url) {
         try {
-            return URI.create(url).getHost();
+            URI uri = URI.create(url);
+            String scheme = uri.getScheme();
+            String host = uri.getHost();
+            if (scheme == null || host == null) {
+                return null;
+            }
+            String s = scheme.toLowerCase(java.util.Locale.ROOT);
+            return s + "://" + host.toLowerCase(java.util.Locale.ROOT) + ":" + effectivePort(s, uri.getPort());
         } catch (IllegalArgumentException e) {
             return null;
         }
+    }
+
+    private static int effectivePort(String scheme, int port) {
+        if (port > 0) return port;
+        return "https".equals(scheme) ? 443 : 80;
     }
 }

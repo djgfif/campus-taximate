@@ -7,4 +7,5 @@ public interface PartyMemberTermRepository extends JpaRepository<PartyMemberTerm
     List<PartyMemberTerm> findByRequestIdOrderById(Long requestId);
     Optional<PartyMemberTerm> findByPartyIdAndRequestId(Long partyId,Long requestId);
     Optional<PartyMemberTerm> findByPartyIdAndMemberId(Long partyId,Long memberId);
+    boolean existsByPartyIdAndMemberId(Long partyId,Long memberId);
 }

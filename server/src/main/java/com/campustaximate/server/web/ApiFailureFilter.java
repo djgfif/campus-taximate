@@ -16,7 +16,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Component @Order(Ordered.HIGHEST_PRECEDENCE+1) @RequiredArgsConstructor
 public class ApiFailureFilter extends OncePerRequestFilter {
     private final ObjectMapper json;
-    @Override protected boolean shouldNotFilter(HttpServletRequest r){return !r.getRequestURI().startsWith("/api/");}
+    @Override protected boolean shouldNotFilter(HttpServletRequest r){return !StrictPathFilter.normalizedPath(r).startsWith("/api/");}
     @Override protected void doFilterInternal(HttpServletRequest r,HttpServletResponse response,FilterChain chain)throws ServletException,IOException {
         try{chain.doFilter(r,response);}catch(RuntimeException|ServletException error){
             ApiException auth=null;

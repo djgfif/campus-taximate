@@ -44,8 +44,8 @@ public class PartyShrinker {
     private final AppClock clock;
     private final PartyChangeService changes;
     private final PaymentService payments;
+    private final com.campustaximate.matching.MatchingSettings matchingSettings;
 
-    private static final int MAX_DELAY_SECONDS = 15 * 60;
     private static final Set<String> FREE_EXITS = Set.of("PREPAY_UNPAID", "FREE_CANCEL", "CHANGE_EXIT_FREE");
 
     private record Stay(long id, GeoPoint own, Instant boardAt, int rideSeconds, double soloKm, int soloSeconds,
@@ -53,7 +53,8 @@ public class PartyShrinker {
     }
 
     private record Plan(long version, Direction direction, GeoPoint anchor, long total, List<Stay> stays, boolean paymentFlow,
-                        Instant departure, List<com.campustaximate.matching.MatchRequest> inputs, java.util.Map<Long,GeoPoint> origins) {
+                        Instant departure, List<com.campustaximate.matching.MatchRequest> inputs, java.util.Map<Long,GeoPoint> origins,
+                        String effectiveReason) {
     }
 
     /** departed이면 남은 사람은 탑승 완료가 된다. */
@@ -67,34 +68,69 @@ public class PartyShrinker {
         Plan plan = tx.execute(status -> {
             Party party=parties.findByIdForUpdate(partyId).orElseThrow();
             if(groupVersion!=null && party.getGroupVersion()!=groupVersion) throw ApiException.conflict("PARTY_CHANGED", "일행이 바뀌었어요. 다시 확인해 주세요.");
-            if(FREE_EXITS.contains(reason)) {
-                for(var rider:requests.findByPartyOrderByRideOrder(party)) if(requested.contains(rider.getId()) && rider.getPendingExitReason()==null) {
-                    rider.setPendingExitReason(reason);rider.setExitRequestedAt(now);
+            requireOpen(party, leaving, departed, reason);
+            List<RideRequest> currentRiders = requests.findByPartyOrderByRideOrder(party);
+            if(!currentRiders.stream().map(RideRequest::getId).toList().containsAll(leaving)) throw ApiException.conflict("NOT_IN_PARTY", "이미 일행에서 빠진 요청입니다.");
+            Instant accepted = currentRiders.stream().filter(r -> leaving.contains(r.getId()))
+                    .map(RideRequest::getExitRequestedAt).filter(java.util.Objects::nonNull)
+                    .min(Instant::compareTo).orElse(now);
+            String effectiveReason = effectiveExitReason(party, reason, accepted);
+            if(FREE_EXITS.contains(effectiveReason)) {
+                for(var rider:currentRiders) if(requested.contains(rider.getId()) && rider.getPendingExitReason()==null) {
+                    rider.setPendingExitReason(effectiveReason);rider.setExitRequestedAt(now);
                 }
                 party.setRouteVerificationPending(true);parties.flush();
             }
-            if(!requests.findByPartyOrderByRideOrder(party).stream().map(RideRequest::getId).toList().containsAll(leaving)) throw ApiException.conflict("NOT_IN_PARTY", "이미 일행에서 빠진 요청입니다.");
-            return plan(partyId,leaving);
+            return plan(partyId, leaving, effectiveReason);
         });
+        boolean freeExit = !departed && FREE_EXITS.contains(plan.effectiveReason());
+        Set<Long> effectiveHeld = freeExit || !plan.paymentFlow() ? held : leaving;
         if (plan.stays().size() < 2) {
-            cancel(tx, partyId, leaving, now, departed, reason, held, plan.version());
+            cancel(tx, partyId, leaving, clock.now(), departed, plan.effectiveReason(), effectiveHeld, plan.version());
             return;
         }
-        Recalculated result = recalculateOrKeep(plan, departed, !departed && FREE_EXITS.contains(reason));
-        if (result == null || !departed && FREE_EXITS.contains(reason) && result.fresh() && !meetsConditions(plan, result)) {
-            cancel(tx, partyId, leaving, now, departed, reason, held, plan.version());
+        Recalculated result = recalculateOrKeep(plan, departed, freeExit);
+        if (result == null || freeExit && result.fresh() && !meetsConditions(plan, result)) {
+            cancel(tx, partyId, leaving, clock.now(), departed, plan.effectiveReason(), effectiveHeld, plan.version());
             return;
         }
-        tx.executeWithoutResult(status -> apply(partyId, leaving, plan, result, departed, reason, held));
+        tx.executeWithoutResult(status -> apply(partyId, leaving, plan, result, departed, plan.effectiveReason(), effectiveHeld));
+    }
+
+    private static String effectiveExitReason(Party party, String reason, Instant acceptedAt) {
+        boolean lateChange = "CHANGE_EXIT_FREE".equals(reason) && !acceptedAt.isBefore(party.getDepartureAt().minusSeconds(600));
+        boolean lateNormal = "FREE_CANCEL".equals(reason) && acceptedAt.isAfter(party.freeCancelUntil());
+        return lateChange || lateNormal ? "LATE_CANCEL" : reason;
     }
 
     public void retryPending() {
+        TransactionTemplate tx = new com.campustaximate.server.common.RetryingTransactionTemplate(transactionManager);
         for(var request:requests.findByPendingExitReasonIsNotNull()) {
-            if(request.getParty()==null) continue;
+            if(request.getParty()==null) {
+                tx.executeWithoutResult(s -> requests.findById(request.getId()).ifPresent(r -> {
+                    r.setPendingExitReason(null); r.setExitRequestedAt(null);
+                }));
+                continue;
+            }
+            long partyId = request.getParty().getId();
             try {
-                remove(request.getParty().getId(),Set.of(request.getId()),request.getExitRequestedAt(),false,request.getPendingExitReason(),null,Set.of());
+                remove(partyId,Set.of(request.getId()),request.getExitRequestedAt()!=null?request.getExitRequestedAt():clock.now(),false,request.getPendingExitReason(),null,Set.of());
             } catch(ApiException deferred) {
-                if(!Set.of("ROUTE_RETRY_PENDING","CONFLICT").contains(deferred.getCode())) throw deferred;
+                if(Set.of("ROUTE_RETRY_PENDING","CONFLICT").contains(deferred.getCode())) continue;
+                if(Set.of("DEPARTED","NOT_IN_PARTY","PARTY_CHANGED").contains(deferred.getCode())) {
+                    // 이미 운행 시작·종료·이탈된 요청의 잔여 대기 표시는 정리해 다른 일행의 회차를 막지 않는다.
+                    tx.executeWithoutResult(s -> {
+                        Party party = parties.findByIdForUpdate(partyId).orElse(null);
+                        requests.findById(request.getId()).ifPresent(r -> {
+                            r.setPendingExitReason(null); r.setExitRequestedAt(null);
+                        });
+                        if (party != null && requests.findByPartyOrderByRideOrder(party).stream().noneMatch(r -> r.getPendingExitReason() != null)) {
+                            party.setRouteVerificationPending(false);
+                        }
+                    });
+                    continue;
+                }
+                throw deferred;
             }
         }
     }
@@ -111,17 +147,22 @@ public class PartyShrinker {
         }
     }
 
-    /** 확정 때와 같은 식이다. 동승 요금 ≤ 단독 요금 합 × 0.9, 걷기 + 동승 − 단독 ≤ 15분. */
+    /** 확정 때와 같은 식이다. 동승 요금 ≤ 단독 요금 합 × (1 - 최소 절약률), 걷기 + 동승 − 단독 ≤ 허용 지연. */
     private boolean meetsConditions(Plan plan, Recalculated result) {
         long soloTotal = result.solo().stream().mapToLong(RouteClient.Route::fare).sum();
-        if (java.math.BigInteger.valueOf(result.total()).multiply(java.math.BigInteger.TEN)
-                .compareTo(java.math.BigInteger.valueOf(soloTotal).multiply(java.math.BigInteger.valueOf(9))) > 0) {
+        if (matchingSettings.minSavingRate() == 0.1) {
+            if (java.math.BigInteger.valueOf(result.total()).multiply(java.math.BigInteger.TEN)
+                    .compareTo(java.math.BigInteger.valueOf(soloTotal).multiply(java.math.BigInteger.valueOf(9))) > 0) {
+                return false;
+            }
+        } else if (result.total() > Math.round(soloTotal * (1.0 - matchingSettings.minSavingRate()))) {
             return false;
         }
+        int maxDelaySeconds = matchingSettings.maxDelayMinutes() * 60;
         for (int i = 0; i < result.ids().size(); i++) {
             long id = result.ids().get(i);
             int walk = plan.stays().stream().filter(stay -> stay.id() == id).findFirst().orElseThrow().walkSeconds();
-            if (walk + result.rideSeconds().get(i) - result.solo().get(i).seconds() > MAX_DELAY_SECONDS) {
+            if (walk + result.rideSeconds().get(i) - result.solo().get(i).seconds() > maxDelaySeconds) {
                 return false;
             }
         }
@@ -154,7 +195,7 @@ public class PartyShrinker {
         return leaving;
     }
 
-    private Plan plan(long partyId, Set<Long> leaving) {
+    private Plan plan(long partyId, Set<Long> leaving, String effectiveReason) {
         Party party = parties.findById(partyId).orElseThrow();
         List<Stay> stays = new ArrayList<>();
         for (RideRequest rider : requests.findByPartyOrderByRideOrder(party)) {
@@ -171,7 +212,7 @@ public class PartyShrinker {
             .filter(r->r.anchorId()==(party.getHub()!=null?party.getHub().getId():party.getSchool().getId())).toList();
         var origins=new java.util.HashMap<Long,GeoPoint>(); remaining.forEach(r->origins.put(r.getId(),r.origin()));
         return new Plan(party.getVersion(), party.getDirection(), party.anchorPoint(), party.getExpectedTotal(), stays, party.paymentFlow(),
-            party.getDepartureAt(),inputs,origins);
+            party.getDepartureAt(),inputs,origins,effectiveReason);
     }
 
     /** fresh는 경로를 새로 조회해 얻은 값이라는 뜻이다. 저장값을 그대로 쓴 경우에는 조건을 다시 검사하지 않는다. */
@@ -184,7 +225,7 @@ public class PartyShrinker {
             var order=new ArrayList<>(plan.inputs());
             order.sort(TripPlan.of(plan.direction()).comparator());
             var fares=new java.util.HashMap<Long,Long>(); plan.stays().forEach(r->fares.put(r.id(),r.soloFare()));
-            var verifier=new RouteGroupVerifier(routes,new java.util.HashMap<>(),clock.now(),paths,fares,plan.origins(),plan.departure())
+            var verifier=new RouteGroupVerifier(routes,new java.util.HashMap<>(),clock.now(),paths,fares,plan.origins(),plan.departure(),matchingSettings)
                 .fixedDeparture(plan.departure()).enforceGroupConstraints(enforce);
             var candidate=new com.campustaximate.matching.Candidate(order,0,plan.departure(),List.of());
             var verdict=verifier.verify(candidate);
@@ -266,10 +307,11 @@ public class PartyShrinker {
     /** 경로를 조회하는 동안 출발 처리가 끝났거나 빠질 사람의 탑승 시각이 지났으면 바꾸지 않는다. */
     private void requireOpen(Party party, Set<Long> leaving, boolean departed, String reason) {
         List<RideRequest> riders = requests.findByPartyOrderByRideOrder(party);
-        boolean closed = riders.stream().anyMatch(rider -> rider.getStatus() != RequestStatus.MATCHED);
+        boolean closed = riders.stream().anyMatch(rider -> rider.getStatus() != RequestStatus.MATCHED)
+                || (!departed && party.paymentFlow() && !party.canChangeBeforeRide());
         boolean tooLate = !departed && !"PREPAY_UNPAID".equals(reason) && riders.stream()
                 .filter(rider -> leaving.contains(rider.getId()) && !rider.isNoShow())
-                .anyMatch(rider -> rider.getPendingExitReason()==null && !rider.canCancelAt(clock.now()));
+                .anyMatch(rider -> rider.getPendingExitReason() != null ? !rider.canCompleteExit() : !rider.canCancelAt(clock.now()));
         if (closed || tooLate) {
             throw ApiException.conflict("DEPARTED", "출발 시각이 지나 취소할 수 없습니다.");
         }
@@ -283,13 +325,15 @@ public class PartyShrinker {
         requireOpen(party, leaving, departed, reason);
         changes.capture(party,requests.findByPartyOrderByRideOrder(party),true);
         Instant accepted=requests.findByPartyOrderByRideOrder(party).stream().filter(r->leaving.contains(r.getId())).map(RideRequest::getExitRequestedAt).filter(java.util.Objects::nonNull).min(Instant::compareTo).orElse(clock.now());
-        changes.changed(party,leaving,reason,held,accepted);
+        String effectiveReason = changes.changed(party,leaving,reason,held,accepted);
         List<RideRequest> stay = new ArrayList<>();
         for (RideRequest rider : requests.findByPartyOrderByRideOrder(party)) {
             if (leaving.contains(rider.getId())) {
-                if (party.paymentFlow() && FREE_EXITS.contains(reason)) {
+                if (party.paymentFlow() && FREE_EXITS.contains(effectiveReason)) {
                     payments.refundMember(partyId, rider.getMember().getId(), "무료 이탈 환불");
                 }
+                rider.setPendingExitReason(null);
+                rider.setExitRequestedAt(null);
                 rider.clearParty();
                 rider.finish(RequestStatus.CANCELED);
             } else {

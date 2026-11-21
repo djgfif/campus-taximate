@@ -19,7 +19,7 @@ public class PartyDecisionController {
     public record ExitResult(boolean freeRefund,String message) { }
     @PostMapping("/{id}/ride-confirmation")
     public PartyService.PartyView answer(@PathVariable long id,@Valid @RequestBody Answer body,HttpSession session) {
-        long actor=actor(session); confirmations.answer(actor,id,body.rode()); payments.retryDue();
+        long actor=actor(session); if(confirmations.answer(actor,id,body.rode())) payments.retryDue();
         return parties.view(actor,id);
     }
     @PostMapping("/{id}/leave-after-change")

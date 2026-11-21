@@ -24,6 +24,9 @@ public class AdminService {
     private final RideRequestRepository requests;
     private final PayoutLedgerRepository payouts;
     private final ReserveEntryRepository reserve;
+    private final PaymentService payments;
+    private final MediaFiles media;
+    private final SettlementShareRepository allocations;
     public void requireAdmin(long actor) {
         if(!members.findById(actor).map(Member::isAdmin).orElse(false))throw ApiException.forbidden("관리자만 이용할 수 있어요.");
     }
@@ -36,7 +39,7 @@ public class AdminService {
     }
     private CaseSummary summary(BoardingCase c) {
         Party p=parties.findById(c.getPartyId()).orElseThrow();
-        boolean receipt=settlements.findByParty(p).map(s->s.getReceiptPath()!=null).orElse(false);
+        boolean receipt=settlements.findByParty(p).map(settlementService::receiptAvailable).orElse(false);
         var evidence=votes.findByCaseIdOrderById(c.getId());
         return new CaseSummary(c,terms.findByPartyIdAndRequestId(c.getPartyId(),c.getRequestId()).orElseThrow(),receipt,evidence.stream().filter(v->!v.isCame()).count(),evidence.stream().filter(BoardingVote::isCame).count(),explanations.findByCaseId(c.getId()).isPresent());
     }
@@ -64,11 +67,10 @@ public class AdminService {
                 && m.getMember()!=null && PartyMessage.IMAGE.equals(m.getKind()) && m.getImagePath()!=null)
                 .orElseThrow(()->ApiException.notFound("사진이 없어요."));
         if(chatExpired(party)) throw ApiException.notFound("보관 기간이 지나 사진이 삭제됐어요.");
-        java.nio.file.Path path=java.nio.file.Path.of(message.getImagePath());
-        if(!java.nio.file.Files.isRegularFile(path) || !java.nio.file.Files.isReadable(path)
+        if(!media.readable(message.getImagePath())
                 || (message.getImageType()==null || !Set.of("image/jpeg","image/png","image/webp").contains(message.getImageType())))
             throw ApiException.notFound("보관 중인 사진이 없습니다.");
-        return new PartyChatService.ImageFile(path,message.getImageType());
+        return new PartyChatService.ImageFile(java.nio.file.Path.of(message.getImagePath()),message.getImageType());
     }
     private Party lockParty(long id){return parties.findByIdForUpdate(id).orElseThrow(()->ApiException.notFound("없는 일행입니다."));}
     private static void evidence(String s){if(s==null||s.isBlank()||s.length()>2000)throw ApiException.badRequest("EVIDENCE_REQUIRED","판정 근거를 1~2000자로 입력해 주세요.");}
@@ -103,7 +105,7 @@ public class AdminService {
         audit(actor,"NO_SHOW_DECISION","BOARDING_CASE",id,resolved,evidence,k,f);return party.getId();
     }
     public record FareReview(long partyId,PartyStatus status,String reason,Long settlementId,Long amount,boolean receiptPresent,List<FareObjection> objections) {}
-    public List<FareReview> fareReviews(long actor){requireAdmin(actor);return parties.findByStatus(PartyStatus.REVIEW_PENDING).stream().map(p->{var s=settlements.findByParty(p).orElse(null);return new FareReview(p.getId(),p.getStatus(),p.getReviewReason(),s==null?null:s.getId(),s==null?null:s.getPaidAmount(),s!=null&&s.getReceiptPath()!=null,s==null?List.of():objections.findBySettlementIdOrderById(s.getId()));}).toList();}
+    public List<FareReview> fareReviews(long actor){requireAdmin(actor);return parties.findByStatus(PartyStatus.REVIEW_PENDING).stream().map(p->{var s=settlements.findByParty(p).orElse(null);return new FareReview(p.getId(),p.getStatus(),p.getReviewReason(),s==null?null:s.getId(),s==null?null:s.getPaidAmount(),settlementService.receiptAvailable(s),s==null?List.of():objections.findBySettlementIdOrderById(s.getId()));}).toList();}
     @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void decideFare(long actor,long partyId,boolean accept,Long correctedAmount,String evidence){
         requireAdmin(actor);evidence(evidence);Party party=lockParty(partyId);
@@ -122,20 +124,43 @@ public class AdminService {
         if(!List.of("OPERATED","NOT_OPERATED").contains(decision==null?"":decision)) throw ApiException.badRequest("RIDE_DECISION_REQUIRED","운행 또는 미운행을 명시적으로 선택해 주세요.");
         String k="RIDE:"+partyId,f=decision+":"+evidence.strip();if(done(k,f))return;
         if(party.getStatus()!=PartyStatus.REVIEW_PENDING||!"RIDE_DISPUTE".equals(party.getReviewReason()))throw ApiException.conflict("NOT_REVIEWABLE","운행 여부 검토 대상이 아니에요.");
-        if(payouts.existsByPartyId(partyId) || orders.findByPartyIdOrderById(partyId).stream().anyMatch(o->o.getRefundedAmount()>0 || o.getPurpose()==PaymentPurpose.ADDITIONAL && o.getApprovedAmount()>0))
+        boolean operated="OPERATED".equals(decision);
+        if(!payments.resolveRideDecision(partyId,operated))
             throw ApiException.conflict("FINANCIAL_FINAL","이미 실행된 환불·추가 결제·지급은 운행 판정으로 되돌릴 수 없어요. 별도 재무 처리가 필요해요.");
         var s=settlements.findByParty(party).orElse(null);
-        boolean unavailable=s!=null && (s.getReceiptPath()==null || !java.nio.file.Files.isRegularFile(java.nio.file.Path.of(s.getReceiptPath())));
+        boolean unavailable=s!=null && !settlementService.receiptAvailable(s);
         boolean recovery=party.getStartedAt()==null;
-        if("OPERATED".equals(decision)) {
+        if(operated) {
             rides.recoverOperated(party);
             if(s!=null) {
                 settlementService.correctByAdmin(party,s,s.getPaidAmount());
-                party.setStatus(objections.existsBySettlementIdAndResolvedAtIsNull(s.getId())?PartyStatus.REVIEW_PENDING:PartyStatus.OBJECTION_WINDOW);
+                long payerShare=allocations.findBySettlementIdOrderByRideOrder(s.getId()).stream()
+                        .filter(SettlementShare::isPayer).mapToLong(SettlementShare::getAmount).findFirst().orElse(0L);
+                boolean openObjections=objections.existsBySettlementIdAndResolvedAtIsNull(s.getId());
+                boolean exceptional=SettlementService.exceptionalFare(party,s.getPaidAmount(),payerShare);
+                if(openObjections || exceptional) {
+                    party.setStatus(PartyStatus.REVIEW_PENDING);
+                    party.setAdminReviewRequired(true);
+                    party.setReviewReason(openObjections?null:"FARE_EXCEPTION");
+                } else {
+                    party.setStatus(PartyStatus.OBJECTION_WINDOW);
+                    party.setAdminReviewRequired(false);
+                    party.setReviewReason(null);
+                }
+            } else {
+                party.setAdminReviewRequired(false);
+                party.setReviewReason(null);
             }
-        } else rides.notOperated(party);
-        party.setAdminReviewRequired(false);party.setReviewReason(null);
-        audit(actor,"RIDE_DECISION","PARTY",partyId,decision+(recovery&&"OPERATED".equals(decision)?"_ADMIN_RECOVERY":""),
+        } else {
+            noShows.notOperated(party);
+            party.setStatus(PartyStatus.NOT_OPERATED);
+            requests.findByPartyOrderByRideOrder(party).forEach(r->{r.setPendingExitReason(null);r.setExitRequestedAt(null);r.finish(RequestStatus.CANCELED);});
+            party.setRouteVerificationPending(false);
+            payments.refundNonOperation(partyId);
+            party.setAdminReviewRequired(false);
+            party.setReviewReason(null);
+        }
+        audit(actor,"RIDE_DECISION","PARTY",partyId,decision+(recovery&&operated?"_ADMIN_RECOVERY":""),
             evidence+(unavailable?" [영수증 사용 불가: 명시적 판정, 부재로 운행 여부 추정하지 않음]":""),k,f);
     }
     public record ReportView(long id,long partyId,long reporterId,long reportedId,String reason,String memo,Instant createdAt) {}
@@ -186,7 +211,7 @@ public class AdminService {
     }
     public Settlement receiptOf(long actor,long partyId){
         requireAdmin(actor);Party p=parties.findById(partyId).orElseThrow(()->ApiException.notFound("없는 일행입니다."));
-        return settlements.findByParty(p).filter(s->s.getReceiptPath()!=null).orElseThrow(()->ApiException.notFound("보관 중인 영수증이 없습니다."));
+        return settlements.findByParty(p).filter(settlementService::receiptAvailable).orElseThrow(()->ApiException.notFound("보관 중인 영수증이 없습니다."));
     }
     public List<AdminAudit> auditLog(long actor){requireAdmin(actor);return audits.findAll();}
 }

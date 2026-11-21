@@ -23,11 +23,11 @@ public class BoardingCaseController {
     @GetMapping("/parties/{partyId}/boarding-cases")
     public List<NoShowService.CaseView> list(@PathVariable long partyId,HttpSession session){return noShows.list(actor(session),partyId);}
     @PostMapping("/parties/{partyId}/members/{memberId}/boarding-votes")
-    public void vote(@PathVariable long partyId,@PathVariable long memberId,@Valid @RequestBody VoteBody body,HttpSession session){long actor=actor(session);lifecycle.beforeDepartures();noShows.vote(actor,partyId,memberId,body.came());}
+    public void vote(@PathVariable long partyId,@PathVariable long memberId,@Valid @RequestBody VoteBody body,HttpSession session){long actor=actor(session);noShows.requireMember(actor,partyId);lifecycle.beforeDepartures();noShows.vote(actor,partyId,memberId,body.came());}
     @PostMapping("/boarding-cases/{id}/explanation")
     public void explain(@PathVariable long id,@Valid @RequestBody ExplanationBody body,HttpSession session){noShows.explain(actor(session),id,body.explanation());}
     @PostMapping("/parties/{partyId}/payer-succession")
-    public void succession(@PathVariable long partyId,@Valid @RequestBody SuccessionBody body,HttpSession session){noShows.succession(actor(session),partyId,body.accept());lifecycle.afterDepartures();}
+    public void succession(@PathVariable long partyId,@Valid @RequestBody SuccessionBody body,HttpSession session){if(noShows.succession(actor(session),partyId,body.accept()))lifecycle.afterDepartures();}
     @GetMapping("/parties/{partyId}/compensation")
     public List<CompensationEntry> compensation(@PathVariable long partyId,HttpSession session){noShows.requireMember(actor(session),partyId);return entries.findByPartyIdOrderByRequestId(partyId);}
 }

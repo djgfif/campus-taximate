@@ -7,6 +7,7 @@ import static com.campustaximate.matching.Fixtures.at;
 import static com.campustaximate.matching.Fixtures.bearing;
 import static com.campustaximate.matching.Fixtures.request;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTimeout;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -268,5 +269,41 @@ class MatchingRoundTest {
     void rejectsUnalignedSlot() {
         assertThrows(IllegalArgumentException.class,
                 () -> round.run(SLOT.plusSeconds(60), List.of(), LEGS, PASS));
+    }
+
+    @Test
+    void reservationIsNotLastChanceOnIntermediateMinutesBeforeItsFinalReservationSlot() {
+        MatchingSettings everyMinute = MatchingSettings.everyMinute();
+        TripPlan plan = TripPlan.of(Direction.FROM_HUB, everyMinute);
+        Instant slot = Instant.parse("2026-11-20T10:01:00Z");
+        // windowEnd=10:30, lead=25m -> deadline=10:05 (10:05 예약 회차가 아직 남아 있다).
+        MatchRequest reservation = Fixtures.of(1, 101, HUB, Gender.FEMALE,
+                Instant.parse("2026-11-20T10:05:00Z"), Instant.parse("2026-11-20T10:30:00Z"), at(5, 0))
+                .requested(Instant.parse("2026-11-20T10:00:00Z"), false);
+        assertFalse(plan.lastChance(reservation, slot));
+        assertFalse(plan.lastChance(reservation, Instant.parse("2026-11-20T10:04:00Z")));
+        assertTrue(plan.lastChance(reservation, Instant.parse("2026-11-20T10:05:00Z")));
+
+        // 같은 상황에서 4인 즉시 조합이 2인(즉시+예약) 조합에 우선순위 역전으로 밀리지 않는다.
+        Instant iReq = Instant.parse("2026-11-20T10:00:30Z");
+        MatchRequest i1 = Fixtures.of(2, 102, HUB, Gender.FEMALE, iReq, iReq.plusSeconds(900), at(5, 0)).requested(iReq, true);
+        MatchRequest i2 = Fixtures.of(3, 103, HUB, Gender.FEMALE, iReq, iReq.plusSeconds(900), at(5, 0)).requested(iReq, true);
+        MatchRequest i3 = Fixtures.of(4, 104, HUB, Gender.FEMALE, iReq, iReq.plusSeconds(900), at(5, 0)).requested(iReq, true);
+        MatchRequest i4 = Fixtures.of(5, 105, HUB, Gender.FEMALE, iReq, iReq.plusSeconds(900), at(5, 0)).requested(iReq, true);
+        RoundResult result = new MatchingRound(everyMinute).run(slot, List.of(reservation, i1, i2, i3, i4), LEGS, PASS);
+        assertEquals(1, result.confirmed().size());
+        assertEquals(4, result.confirmed().getFirst().order().size());
+    }
+
+    @Test
+    void newlyCreatedRequestAfterSlotIsNeverExpiredImmediately() {
+        MatchingSettings everyMinute = MatchingSettings.everyMinute();
+        TripPlan plan = TripPlan.of(Direction.FROM_HUB, everyMinute);
+        Instant slot = Instant.parse("2026-11-20T10:00:00Z");
+        MatchRequest arriving = MatchRequest.arriving(10, 110, HUB, Gender.FEMALE,
+                Instant.parse("2026-11-20T10:50:00Z"), Instant.parse("2026-11-20T11:00:00Z"),
+                Instant.parse("2026-11-20T10:04:00Z"), at(5, 0), 5.0, 600)
+                .requested(slot.plusSeconds(1), false);
+        assertFalse(plan.expired(arriving, slot));
     }
 }
