@@ -4,7 +4,7 @@ import { api } from './api.js'
 import { SettledFeedback } from './MemberSafety.jsx'
 import { BoardSection } from './Board.jsx'
 import MapView from './MapView.jsx'
-import { formatTime, partyLabel, remaining, routeLabel } from './format.js'
+import { formatTime, partyLabel, partyRouteLabel, remaining } from './format.js'
 import { Say, Screen, TopBar, useWide } from './ui.jsx'
 
 /**
@@ -102,7 +102,7 @@ export default function Home({ state, myId, config, school: knownSchool, onStart
                     <small>내 일행{party.departureAt ? `, ${formatTime(party.departureAt)} 출발` : ''}</small>
                     <b>{liveTitle(party, myId)}
                       {party.unreadChat > 0 && <span className="unread-badge" aria-label={`안 읽은 메시지 ${party.unreadChat}개`}>{party.unreadChat > 99 ? '99+' : party.unreadChat}</span>}</b>
-                    <small>{due || routeLabel({ direction: party.direction, anchorName: party.anchorName, pointName: party.meetingPoint })}</small>
+                    <small>{due || partyRouteLabel(party)}</small>
                   </span>
                   <ChevronRight size={20} aria-hidden="true" />
                 </button>

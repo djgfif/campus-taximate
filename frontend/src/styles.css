@@ -158,6 +158,8 @@ summary::-webkit-details-marker { display: none; }
 .demo-caption b { font-size: 12px; font-weight: 600; color: var(--amber); }
 /* 발표자 창 */
 .presenter { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 520px; margin: 0 auto; padding: 24px var(--gutter) 40px; }
+.presenter-head { display: flex; flex-direction: column; gap: 6px; }
+.presenter-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .presenter-head h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
 .presenter-last { padding: 10px 12px; border-radius: var(--r-s); background: var(--mist); font-size: 13px; color: var(--ink-2); }
 
@@ -182,6 +184,9 @@ summary::-webkit-details-marker { display: none; }
   .screen.solo { display: flex; flex-direction: row; align-items: flex-start; justify-content: center; overflow-y: auto; background: var(--paper); }
   .screen.solo .pane { flex: none; width: 100%; max-width: 560px; min-height: auto; border: 0; }
   .screen.solo .body { overflow: visible; }
+  .screen.solo:has(.room) { align-items: stretch; overflow: hidden; }
+  .screen.solo:has(.room) .pane { min-height: 0; height: 100%; border-inline: 1px solid var(--line); }
+  .screen.solo:has(.admin-page) .pane { max-width: 880px; }
   .screen.solo .bar { padding-top: 20px; }
   .screen.solo .bar .brand { display: none; }
   .screen:not(.solo) .bar:not(.back) { display: none; }
@@ -214,7 +219,7 @@ summary::-webkit-details-marker { display: none; }
 
 /* 입력 */
 .field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
-.field input, .field select, .field textarea { width: 100%; min-height: 52px; padding: 0 14px; border: 0; border-radius: var(--r-m); background-color: var(--paper); box-shadow: inset 0 0 0 1px var(--line); font-size: 16px; font-weight: 500; color: var(--ink); appearance: none; outline: 0; transition: box-shadow 0.12s; }
+.field input, .field select, .field textarea { width: 100%; min-height: 52px; padding: 0 14px; border: 0; border-radius: var(--r-m); background-color: var(--paper); box-shadow: inset 0 0 0 1px var(--line); font-size: 16px; font-weight: 500; color: var(--ink); -webkit-appearance: none; -moz-appearance: none; appearance: none; outline: 0; transition: box-shadow 0.12s; }
 .field textarea { min-height: 100px; padding: 12px 14px; resize: vertical; }
 .field input::placeholder, .field textarea::placeholder { color: var(--faint); font-weight: 400; }
 .field input:hover, .field select:hover, .field textarea:hover { box-shadow: inset 0 0 0 1px var(--line-strong); }
@@ -311,7 +316,7 @@ button.item:active { opacity: 0.6; }
 
 /* 시트(아래에서 올라오는 창) */
 .scrim { position: fixed; inset: 0; z-index: 40; background: var(--scrim); animation: fade 0.3s var(--ease); }
-.sheet { position: fixed; left: 50%; bottom: 0; z-index: 41; width: 100%; max-width: var(--phone); max-height: 88dvh; overflow: auto; transform: translateX(-50%); display: flex; flex-direction: column; gap: 12px; padding: 10px var(--gutter) calc(16px + var(--safe-b)); border-radius: var(--r-sheet) var(--r-sheet) 0 0; background: var(--paper); animation: rise 0.42s var(--ease); }
+.sheet { position: fixed; left: 50%; bottom: 0; z-index: 41; width: 100%; max-width: var(--phone); max-height: 88dvh; overflow: auto; transform: translateX(-50%); display: flex; flex-direction: column; gap: 12px; padding: 10px var(--gutter) calc(16px + var(--safe-b)); border-radius: var(--r-sheet) var(--r-sheet) 0 0; background: var(--paper); animation: rise 0.22s var(--ease); }
 .sheet:focus { outline: none; }
 .sheet::before { content: ''; align-self: center; width: 36px; height: 4px; border-radius: 2px; background: var(--line); }
 .sheet h2 { font-size: 20px; font-weight: 700; letter-spacing: -0.03em; }
@@ -319,7 +324,7 @@ button.item:active { opacity: 0.6; }
 .sheet.menu > h2 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .sheet.menu .item { min-height: 52px; }
 .sheet.menu .item small { display: none; }
-@keyframes rise { from { transform: translate(-50%, 100%); } }
+@keyframes rise { from { opacity: 0; transform: translate(-50%, 24px); } }
 @keyframes fade { from { opacity: 0; } }
 @media (min-width: 1024px) {
   .sheet { top: 50%; bottom: auto; width: 420px; max-height: 80dvh; padding: 24px; transform: translate(-50%, -50%); border-radius: var(--r-l); animation: fade 0.2s var(--ease); }

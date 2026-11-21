@@ -82,7 +82,8 @@ export function PartyChat({ partyId, now, status, active = true, full = false, t
 
   // 할 일이 바뀌면(상태 변화뿐 아니라 호출 가능처럼 상태는 그대로인 변화도) 놓치지 않게 접어 둔 카드를 자동으로 펼친다.
   // taskKey를 주지 않는 화면은 예전처럼 상태로만 판단한다.
-  useEffect(() => { setTaskFolded(false) }, [partyId, taskKey ?? status])
+  const taskScope = taskKey ?? status
+  useEffect(() => { setTaskFolded(false) }, [partyId, taskScope])
 
   // 상태 갱신·채팅 신호·이용 내역 주기 읽기
   useEffect(() => {
@@ -140,6 +141,7 @@ export function PartyChat({ partyId, now, status, active = true, full = false, t
     if (!el) return
     el.style.height = 'auto'
     el.style.height = `${Math.min(el.scrollHeight, INPUT_MAX_PX)}px`
+    el.style.overflowY = el.scrollHeight > INPUT_MAX_PX ? 'auto' : 'hidden'
   }, [text])
 
   const onScroll = () => {

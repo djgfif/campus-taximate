@@ -213,7 +213,10 @@ export function DemoPresenter({ now, run, parties, accounts }) {
   }, [])
   return <div className="presenter">
     <header className="presenter-head">
-      <h1>발표자 창</h1>
+      <div className="presenter-title">
+        <h1>발표자 창</h1>
+        <Btn className="small line" onClick={() => window.open('/', 'taximate-audience')}>관객 창 열기</Btn>
+      </div>
       <p className="note">관객에게 보이는 창은 따로 띄워 두세요. 여기서 장면을 바꾸면 그 창이 자막과 함께 따라 바뀌어요.</p>
     </header>
     {last && <p className="presenter-last">방금 보낸 장면: {last.scene + 1} {last.title}</p>}

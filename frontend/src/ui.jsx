@@ -288,7 +288,7 @@ export function useDialog(box, onClose, enabled = true) {
   useEffect(() => {
     if (!enabled) return undefined
     const before = document.activeElement
-    box.current?.focus()
+    box.current?.focus({ preventScroll: true })
     return () => before?.focus?.()
   }, [box, enabled])
 }

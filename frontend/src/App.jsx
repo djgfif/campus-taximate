@@ -21,7 +21,7 @@ const DemoPresenter = lazy(() => import('./DemoBar.jsx').then((m) => ({ default:
 import { isPaymentParty } from './format.js'
 import { NoShow, Unmatched, Waiting } from './RequestStatus.jsx'
 import { Avatar, Brand, Btn, Confirm, Empty, Item, LoadingScreen, Say, Screen, Sheet, TabBar, Toaster, toast, useWide } from './ui.jsx'
-import { formatTime, partyLabel, routeLabel, savedTotal, won } from './format.js'
+import { formatTime, partyLabel, partyRouteLabel, savedTotal, won } from './format.js'
 import { ChevronRight, User } from 'lucide-react'
 import { disablePush, enablePush, pushGranted, pushSupported } from './push.js'
 
@@ -345,7 +345,7 @@ function Rides({ state, onOpen, onHome, tabBar }) {
             <li key={party.id}>
               <button type="button" className="ride-row" onClick={() => onOpen(party.id)}>
                 <span className="ride-main">
-                  <b>{routeLabel({ direction: party.direction, anchorName: party.anchorName, pointName: party.meetingPoint })}</b>
+                  <b>{partyRouteLabel(party)}</b>
                   <small>{party.departureAt ? `${formatTime(party.departureAt)} 출발, ` : ''}{partyLabel(party.status)}</small>
                 </span>
                 {party.unreadChat > 0 && <span className="unread-badge" aria-label={`안 읽은 메시지 ${party.unreadChat}개`}>{party.unreadChat > 99 ? '99+' : party.unreadChat}</span>}

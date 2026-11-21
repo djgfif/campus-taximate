@@ -6,7 +6,7 @@ import PaymentCard, { PaymentRecord } from './PaymentCard.jsx'
 import { PraiseSection } from './People.jsx'
 import { BoardingPanel } from './ReviewScreens.jsx'
 import { formatDateTime, isPaymentParty, partyLabel, remaining, TRANSFER_LABEL, won } from './format.js'
-import { BackBar, Btn, Paper, Rows, Say, Screen, Sheet, SidePlain, TopBar } from './ui.jsx'
+import { BackBar, Btn, Paper, Rows, Say, Screen, Sheet, SidePlain, TopBar, useWide } from './ui.jsx'
 
 function ReceiptField({ file, onChange }) {
   const [preview, setPreview] = useState(null)
@@ -30,6 +30,7 @@ function ReceiptPaper({ party }) {
 }
 
 export function PayerInput({ party, now, run, onDone, onLater, onUpdated }) {
+  const wide = useWide()
   const correcting = party.settlement != null
   const [amount, setAmount] = useState(correcting ? String(party.settlement.paidAmount) : '')
   const [receipt, setReceipt] = useState(null)
@@ -75,7 +76,7 @@ export function PayerInput({ party, now, run, onDone, onLater, onUpdated }) {
             : '금액과 영수증을 다시 확인해 주세요. 금액이 맞으면 그대로 입력할 수 있어요.'}</Say>
         : <p className="note">확정 금액 {won(party.expectedTotal)}</p>}
       <ReceiptField file={receipt} onChange={setReceipt} />
-      {shares && <Rows items={shares.map((s) => [s.payer ? '나 (결제자)' : s.nickname, won(s.amount)])} />}
+      {!wide && shares && <Rows items={shares.map((s) => [s.payer ? '나 (결제자)' : s.nickname, won(s.amount)])} />}
       {payback != null && (payback >= 0
         ? <Say title={'정산 확정 뒤 ' + won(payback) + '을 돌려드려요'}>실제 요금 {won(value)}에서 내 확정 몫 {won(myFixed)}을 뺀 금액이에요. 일행은 확정 금액만 내고, 차이는 정산 적립금이 맡아요.</Say>
         : <Say title="정산 확정 뒤 돌려받을 금액이 없어요 (0원)">실제 요금 {won(value)}이 내 확정 몫 {won(myFixed)}보다 적어 정산 지급액은 0원이고, 관리자가 영수증을 확인해요.</Say>)}
@@ -83,7 +84,7 @@ export function PayerInput({ party, now, run, onDone, onLater, onUpdated }) {
       {(error || preview.value === value && preview.error) && <p role="alert">{error || preview.error}</p>}
       <p className="note">입력하면 24시간 동안 일행이 이의를 낼 수 있고, 그 뒤 정산이 확정돼요. 사진은 7일 뒤 지워져요.</p>
       <Btn className="line" aria-expanded={checkingBoarding} onClick={() => setCheckingBoarding((value) => !value)}>일행 탑승 확인</Btn>
-      {checkingBoarding && <BoardingPanel party={party} now={now} />}
+      {checkingBoarding && <BoardingPanel party={party} now={now} showEmpty />}
     </div>
   </Screen>
 }
@@ -126,6 +127,7 @@ export function SettlementScreen({ party, myId, now, config, onUpdated, onMenu, 
   }
   return <>
     <PartyShell party={party} now={now} onMenu={onMenu} onHome={onHome} firstTab="정산"
+      aside={settlement ? <SidePlain><Paper title="정산 요약"><FinancialDetails party={party} /></Paper><ReceiptPaper party={party} /></SidePlain> : null}
       header={<div className="pad party-head"><h1 className="head">{partyLabel(party.status)}</h1></div>}
       action={<>
         {settlement?.warning && <Say tone="stop-tone">실제 금액이 예상과 {Math.abs(settlement.differencePercent)}% 달라요. 영수증을 확인해 주세요.</Say>}
@@ -150,7 +152,11 @@ export function SettlementScreen({ party, myId, now, config, onUpdated, onMenu, 
       </div>} />
     {asking && <Sheet title="요금 이의" onClose={() => setAsking(false)}>
       <label className="field">이의 사유<textarea value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} /></label>
-      {error && <p role="alert">{error}</p>}<Btn disabled={!reason.trim()} onClick={send}>이의 보내기</Btn>
+      {error && <p role="alert">{error}</p>}
+      <div className="btns">
+        <Btn className="line" onClick={() => setAsking(false)}>취소</Btn>
+        <Btn disabled={!reason.trim()} onClick={send}>이의 보내기</Btn>
+      </div>
     </Sheet>}
   </>
 }
