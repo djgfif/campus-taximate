@@ -69,7 +69,7 @@ describe('이 일행이 정해진 이유', () => {
     expect(screen.getByText('4분')).toBeTruthy()
     expect(screen.getByText('15분 이내만 묶어요')).toBeTruthy()
     expect(screen.getByText('60%')).toBeTruthy()
-    expect(screen.getByText('90% 이하일 때만 묶어요')).toBeTruthy()
+    expect(screen.getByText('90% 이하일 때만 일행이 돼요')).toBeTruthy()
   })
 })
 
@@ -156,7 +156,7 @@ describe('실사용 점검 후 개선', () => {
     expect(screen.queryByRole('dialog', { name: '요금 이의' })).toBeNull()
   })
 
-  it('실제 금액 입력에서 일행 탑승 확인을 눌렀을 때 대상이 없으면 빈 안내를 보여 준다', async () => {
+  it('실제 요금 입력에서 일행 탑승 확인을 눌렀을 때 대상이 없으면 빈 안내를 보여 준다', async () => {
     vi.spyOn(api, 'partyBoardingCases').mockResolvedValue([])
     vi.spyOn(api, 'compensation').mockResolvedValue([])
     render(<PayerInput party={party({

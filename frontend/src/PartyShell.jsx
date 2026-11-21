@@ -23,7 +23,7 @@ export function CancelSheet({ party, now, run, onClose }) {
       onConfirm={() => run(() => api.cancelRequest(party.myRequestId), '탑승을 취소했어요')}>
       {party.freeCancelUntil && <span>{formatDateTime(party.freeCancelUntil)}까지 무료 취소예요.
         {now && new Date(now) <= new Date(party.freeCancelUntil) ? ' 선결제했으면 전액 환불해요.' : ' 무료 취소 마감이 지났어요.'}<br /></span>}
-      남은 일행의 분담금을 다시 계산하고, 한 명만 남으면 해산해요.
+      남은 일행의 확정 분담금을 다시 계산하고, 한 명만 남으면 해산해요.
     </Confirm>
   )
 }
@@ -132,7 +132,7 @@ export function PartyShell({ party, now, onHome, header, action, progress, info,
             <span>{people}명, {prepayLine || summary || partyLabel(party.status)}</span>
             <ChevronRight size={14} aria-hidden="true" />
           </button>
-          {party.myShare != null && <span className="room-share">{settled || isPaymentParty(party) ? '내 몫' : '내 몫 예상'} <b>{won(party.myShare)}</b>
+          {party.myShare != null && <span className="room-share">{settled || isPaymentParty(party) ? '확정 분담금' : '예상 분담금'} <b>{won(party.myShare)}</b>
             {party.mySoloFare > party.myShare && <s aria-label={`혼자 타면 ${won(party.mySoloFare)}`}>{won(party.mySoloFare)}</s>}</span>}
         </div>
       </header>

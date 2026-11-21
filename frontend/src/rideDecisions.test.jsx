@@ -25,14 +25,14 @@ describe('운행 확인과 변경 이탈',()=>{
   })
   it('처음 안내된 몫과 현재 몫을 표시하고 이관 출처는 숨긴다',()=>{
     render(<PartyFareRows party={{myConfirmedShare:3200,myShare:4000,myConfirmedMigrated:true}} />)
-    expect(screen.getByText('확정 때 내 몫')).toBeTruthy()
+    expect(screen.getByText('내 확정 분담금')).toBeTruthy()
     expect(screen.getByText('3,200원')).toBeTruthy()
-    expect(screen.getByText('지금 예상 몫')).toBeTruthy()
+    expect(screen.getByText('지금 예상 분담금')).toBeTruthy()
     expect(screen.getByText('4,000원')).toBeTruthy()
     expect(screen.queryByText('원본 미상(이관)')).toBeNull()
-    // 늘어난 몫은 누가 어떤 조건에서 보전하는지 함께 안내한다(명세 8.4·S24).
-    expect(screen.getByText('일행이 빠져 내 몫이 800원 늘었어요')).toBeTruthy()
-    expect(screen.getByText(/그 사람의 선결제에서 받아 정산 때 내 몫에서 빼 드려요/)).toBeTruthy()
+    // 늘어난 금액은 누가 어떤 조건에서 보전하는지 함께 안내한다(명세 8.4·S24).
+    expect(screen.getByText('일행이 빠져 내 분담금이 800원 늘었어요')).toBeTruthy()
+    expect(screen.getByText(/그 사람의 선결제에서 받아 정산 때 내 분담금에서 빼 드려요/)).toBeTruthy()
   })
   it('몫이 그대로거나 줄면 보전 안내를 보이지 않는다',()=>{
     render(<PartyFareRows party={{myConfirmedShare:3200,myShare:3000}} />)

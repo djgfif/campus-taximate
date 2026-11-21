@@ -60,31 +60,31 @@ describe('새 정산 화면', () => {
     expect(screen.queryByRole('button', { name: '금액 고치기' })).toBeNull()
   })
 
-  it('실제 금액 입력에는 계좌 칸이 없고 15% 초과 차이를 경고한다', async () => {
+  it('실제 요금 입력에는 계좌 칸이 없고 15% 초과 차이를 경고한다', async () => {
     vi.spyOn(api, 'settlementPreview').mockResolvedValue(party.settlement.shares)
     render(<PayerInput party={{ ...party, payer: true, status: 'AWAITING_FARE', settlement: null }} now={now} />)
-    fireEvent.change(screen.getByLabelText('실제 결제 금액'), { target: { value: '20000' } })
+    fireEvent.change(screen.getByLabelText('실제 요금'), { target: { value: '20000' } })
     expect(screen.getByText('확정 금액보다 19% 높아요')).toBeTruthy()
     expect(screen.queryByLabelText('은행')).toBeNull()
     expect(screen.queryByLabelText('받을 계좌')).toBeNull()
     expect(screen.getByLabelText('영수증 사진')).toBeTruthy()
     await waitFor(() => expect(api.settlementPreview).toHaveBeenCalledWith(11, 20000))
-    // 확정 분담금: 결제자는 실제 요금 20,000원에서 내 확정 몫 8,000원을 뺀 12,000원을 돌려받는다.
-    expect(await screen.findByText('정산 확정 뒤 12,000원을 돌려드려요')).toBeTruthy()
+    // 확정 분담금: 결제자는 실제 요금 20,000원에서 내 확정 분담금 8,000원을 뺀 12,000원을 돌려받는다.
+    expect(await screen.findByText('결제자가 받을 돈 12,000원 (정산 확정 뒤)')).toBeTruthy()
   })
 
   it('실제 요금이 확정 금액의 1.5배를 넘으면 관리자가 영수증을 본다고 알린다', () => {
     render(<PayerInput party={{ ...party, payer: true, status: 'AWAITING_FARE', settlement: null }} now={now} />)
-    fireEvent.change(screen.getByLabelText('실제 결제 금액'), { target: { value: '26000' } })
+    fireEvent.change(screen.getByLabelText('실제 요금'), { target: { value: '26000' } })
     expect(screen.getByText(/1.5배를 넘으면 관리자가 영수증을 확인한 뒤 돌려드려요/)).toBeTruthy()
   })
 
-  it('실제 요금이 확정 금액의 절반이나 내 몫보다 적으면 관리자 확인과 0원 지급을 안내한다', async () => {
+  it('실제 요금이 확정 금액의 절반이나 내 확정 분담금보다 적으면 관리자 확인과 0원 지급을 안내한다', async () => {
     vi.spyOn(api, 'settlementPreview').mockResolvedValue(party.settlement.shares)
     render(<PayerInput party={{ ...party, payer: true, status: 'AWAITING_FARE', settlement: null }} now={now} />)
-    fireEvent.change(screen.getByLabelText('실제 결제 금액'), { target: { value: '5000' } })
-    expect(screen.getByText(/확정 금액의 절반보다 낮거나 내 몫보다 적으면 관리자가 영수증을 확인해요/)).toBeTruthy()
-    expect(await screen.findByText('정산 확정 뒤 돌려받을 금액이 없어요 (0원)')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('실제 요금'), { target: { value: '5000' } })
+    expect(screen.getByText(/확정 금액의 절반보다 낮거나 내 확정 분담금보다 적으면 관리자가 영수증을 확인해요/)).toBeTruthy()
+    expect(await screen.findByText('결제자가 받을 돈이 없어요 (0원)')).toBeTruthy()
     expect(screen.queryByText(/-3,000원/)).toBeNull()
   })
 

@@ -5,7 +5,7 @@ import { Avatar, Btn, Sheet, toast } from './ui.jsx'
 export const PRAISE = [['ON_TIME', '시간 약속을 잘 지켜요'], ['KIND', '친절해요'], ['QUIET', '편하게 갈 수 있었어요'], ['CLEAR_PAY', '정산이 깔끔해요']]
 const praiseLabel = Object.fromEntries(PRAISE)
 
-/** 같이 타는 사람의 신뢰 정보(학과·학번, 탄 횟수, 노쇼 여부, 받은 칭찬). 일행원만 읽을 수 있다. */
+/** 같이 타는 사람의 신뢰 정보(학과·학번, 탄 횟수, 노쇼 여부, 받은 칭찬). 일행만 읽을 수 있다. */
 export function usePeople(partyId, now) {
   const [people, setPeople] = useState([])
   useEffect(() => {

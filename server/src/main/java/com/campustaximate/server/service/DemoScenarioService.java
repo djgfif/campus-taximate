@@ -53,7 +53,7 @@ public class DemoScenarioService {
     private String label(PartyStatus status) {
         return switch(status) {
             case PREPAYING -> "선결제 대기"; case READY -> "출발 준비"; case PAYER_PENDING -> "결제자 승계 요청";
-            case RIDE_UNCONFIRMED -> "운행 미확인"; case AWAITING_FARE -> "실제 금액 입력";
+            case RIDE_UNCONFIRMED -> "운행 미확인"; case AWAITING_FARE -> "실제 요금 입력";
             case OBJECTION_WINDOW -> "요금 이의 기간"; case REVIEW_PENDING -> "관리자 검토";
             case SETTLED -> "정산 확정"; case COMPLETED -> "정산 완료"; default -> "운행 종료";
         };
@@ -64,7 +64,7 @@ public class DemoScenarioService {
             case READY -> clock.now().isBefore(p.departureAt().minusSeconds(600))?"택시 호출 시각":clock.now().isBefore(p.departureAt())?"출발 시각 T":"운행 확인 T+5분";
             case PAYER_PENDING -> "승계 수락 또는 거절";
             case RIDE_UNCONFIRMED -> "내 운행 답변";
-            case AWAITING_FARE -> p.payer()?"내 실제 금액·영수증 입력":"샘플 결제자 금액 입력";
+            case AWAITING_FARE -> p.payer()?"내 실제 요금·영수증 입력":"샘플 결제자 금액 입력";
             case OBJECTION_WINDOW -> "24시간 뒤 노쇼 판정·정산 확정";
             case REVIEW_PENDING -> "관리자 계정에서 판정";
             case SETTLED -> "정산 처리 확인"; default -> "새 요청 만들기";
@@ -138,12 +138,12 @@ public class DemoScenarioService {
                         var code=boardingCodes.state(p.payerId(),p.id());
                         for(var m:p.members()) if(m.memberId()!=p.payerId() && sample(m.memberId(),actor)) boardingCodes.confirm(m.memberId(),p.id(),code.code(),code.generation());
                         boardingCodes.start(p.payerId(),p.id());
-                    } else return progress(actor,"일행 화면에서 실제 탑승·코드 열기와 운행 시작을 눌러 주세요.");
+                    } else return progress(actor,"일행 화면에서 실제 탑승·탑승 번호 열기와 운행 시작을 눌러 주세요.");
                 }
                 case AWAITING_FARE -> {
                     var window=boardingCodes.state(p.payerId(),p.id());
                     if(window.deadlineAt()!=null && clock.now().isBefore(window.deadlineAt())) moveTo(window.deadlineAt());
-                    if(!sample(p.payerId(),actor)) return progress(actor,"내 실제 금액과 영수증을 일행 화면에서 입력해 주세요.");
+                    if(!sample(p.payerId(),actor)) return progress(actor,"내 실제 요금과 영수증을 일행 화면에서 입력해 주세요.");
                     settlements.submitForDemo(p.payerId(),p.id(),p.expectedTotal(),null,null);
                 }
                 case OBJECTION_WINDOW -> {

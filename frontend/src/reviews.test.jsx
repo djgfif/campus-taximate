@@ -73,7 +73,7 @@ describe('탑승 조사·소명', () => {
     render(<PayerInput party={party} now={now} onLater={() => {}} />)
     fireEvent.click(screen.getByRole('button', { name: '일행 탑승 확인' }))
     await screen.findByRole('button', { name: '빠진 동승자 안 왔어요' })
-    expect(screen.getByRole('textbox', { name: '실제 결제 금액' }).value).toBe('')
+    expect(screen.getByRole('textbox', { name: '실제 요금' }).value).toBe('')
   })
 })
 

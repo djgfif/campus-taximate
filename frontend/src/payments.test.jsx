@@ -24,7 +24,7 @@ describe('선결제 카드', () => {
     render(<PaymentCard partyId={11} myId={2} now={now} config={{ demo: true }} clientKey="" onUpdated={updated} />)
     await screen.findByRole('heading', { name: '선결제 3,680원' })
     expect(create).toHaveBeenCalledWith(11, 'PREPAY')
-    expect(screen.getByText('확정된 내 몫을 미리 결제해요. 나중에 더 내는 일은 없어요.')).toBeTruthy()
+    expect(screen.getByText('확정 분담금을 선결제해요. 나중에 더 내는 일은 없어요.')).toBeTruthy()
     expect(screen.getByText(/^기한 /).textContent).toContain('10')
     expect(screen.getByText('시연용 모의 결제예요. 실제 돈은 나가지 않아요.')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /결제하기 모의$/ }))

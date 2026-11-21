@@ -41,7 +41,7 @@ public class SettlementService {
     private static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', 13, 10, 26, 10};
 
     private static final long MAX_AMOUNT = 10_000_000;
-    /** 실제 금액을 올린 뒤 요금 이의를 받는 기간. */
+    /** 실제 요금을 올린 뒤 요금 이의를 받는 기간. */
     private static final Duration OBJECTION_WINDOW = Duration.ofHours(24);
     private static final Set<String> RECEIPT_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
 
@@ -98,7 +98,7 @@ public class SettlementService {
             if(party.getFareRecoveryAt()==null && rideConfirmations.hasNegativeAnswer(party.getId())) { party.setStatus(PartyStatus.REVIEW_PENDING); party.setAdminReviewRequired(true); party.setReviewReason("RIDE_DISPUTE"); }
             else if(exceptionalFare(party, amount, payerShareOf(party, riders, shares))) { party.setStatus(PartyStatus.REVIEW_PENDING); party.setAdminReviewRequired(true); party.setReviewReason("FARE_EXCEPTION"); }
             else party.setStatus(PartyStatus.OBJECTION_WINDOW);
-            chatLog.system(party, String.format("결제자가 실제 금액 %,d원과 영수증을 올렸어요. 24시간 동안 요금 이의를 낼 수 있어요.", amount));
+            chatLog.system(party, String.format("결제자가 실제 요금 %,d원과 영수증을 올렸어요. 24시간 동안 요금 이의를 낼 수 있어요.", amount));
             return;
         }
         Settlement settlement = settlements.save(new Settlement(party, amount, receiptPath, contentType,
@@ -120,7 +120,7 @@ public class SettlementService {
             if(party.getStartedAt()==null) throw ApiException.conflict("NOT_STARTED","결제자가 운행 시작을 눌러야 해요.");
             noShows.closeBoarding(party);
             if(party.getBoardingDeadlineAt()!=null && clock.now().isBefore(party.getBoardingDeadlineAt()))
-                throw ApiException.conflict("BOARDING_PENDING","코드 입력 기한이 끝나면 금액을 올릴 수 있어요. 정산 확정은 필요한 조사가 끝나야 해요.");
+                throw ApiException.conflict("BOARDING_PENDING","탑승 번호 입력 기한이 끝나면 금액을 올릴 수 있어요. 정산 확정은 필요한 조사가 끝나야 해요.");
             return;
         }
         if (party.getStatus() != PartyStatus.CONFIRMED
@@ -205,7 +205,7 @@ public class SettlementService {
         media.deleteAfterCommit(oldPath);
     }
 
-    /** 관리자 검토로 확정된 실제 금액. 이의 기간은 다시 열지 않는다. */
+    /** 관리자 검토로 확정된 실제 요금. 이의 기간은 다시 열지 않는다. */
     @Transactional(propagation=org.springframework.transaction.annotation.Propagation.MANDATORY)
     public void correctByAdmin(Party party,Settlement settlement,long amount) {
         var riders=requests.findByPartyOrderByRideOrder(party);

@@ -74,7 +74,7 @@ public class RideConfirmationService {
     @Transactional(propagation=Propagation.MANDATORY)
     public void recoverOperated(Party party) {
         noShows.recoverOperated(party);
-        chatLog.system(party,"관리자가 운행 사실을 확인했어요. 결제자는 지금부터 24시간 안에 실제 금액과 영수증을 올려 주세요.");
+        chatLog.system(party,"관리자가 운행 사실을 확인했어요. 결제자는 지금부터 24시간 안에 실제 요금과 영수증을 올려 주세요.");
     }
 
     public boolean hasNegativeAnswer(long partyId) { return answers.findByPartyIdOrderById(partyId).stream().anyMatch(a->!a.isRode()); }
