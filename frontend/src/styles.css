@@ -241,8 +241,8 @@ summary::-webkit-details-marker { display: none; }
 .fold-trigger { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 42px; text-align: left; font-size: 14px; font-weight: 600; color: var(--ink-2); }
 .fold-chev { flex: none; color: var(--road); transition: transform 0.2s var(--ease); }
 .fold[data-open="true"] > .fold-trigger .fold-chev { transform: rotate(180deg); }
-.fold-panel { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 0.22s var(--ease), opacity 0.18s var(--ease); }
-.fold[data-open="true"] > .fold-panel { grid-template-rows: 1fr; opacity: 1; }
+.fold-panel { display: grid; grid-template-rows: 0fr; opacity: 0; visibility: hidden; pointer-events: none; transition: grid-template-rows 0.22s var(--ease), opacity 0.18s var(--ease), visibility 0s linear 0.22s; }
+.fold[data-open="true"] > .fold-panel { grid-template-rows: 1fr; opacity: 1; visibility: visible; pointer-events: auto; transition: grid-template-rows 0.22s var(--ease), opacity 0.18s var(--ease), visibility 0s linear 0s; }
 .fold-inner { overflow: hidden; display: flex; flex-direction: column; gap: 8px; }
 
 /* 하나 고르기: 회색 판 위 흰 칸 */
