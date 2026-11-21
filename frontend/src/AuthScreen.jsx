@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useId, useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 import DemoAccounts from './DemoAccounts.jsx'
 import { api } from './api.js'
@@ -26,6 +26,7 @@ function schoolCopy(config) {
 
 export default function AuthScreen({ config, onLogin }) {
   const copy = schoolCopy(config)
+  const pwId = useId()
   const [step, setStep] = useState('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -107,16 +108,17 @@ export default function AuthScreen({ config, onLogin }) {
         <div className="pad auth-form">
           <form className="auth-fields" onSubmit={(e) => { e.preventDefault(); signIn() }}>
             {emailField}
-            <label className="field">비밀번호
+            <div className="field">
+              <label htmlFor={pwId}>비밀번호</label>
               <span className="input-wrap">
-                <input type={showPw ? 'text' : 'password'} value={password} autoComplete="current-password" placeholder="8자 이상"
+                <input id={pwId} type={showPw ? 'text' : 'password'} value={password} autoComplete="current-password" placeholder="8자 이상"
                   onChange={(e) => setPassword(e.target.value)} />
-                <button type="button" className="input-action" aria-label={showPw ? '비밀번호 숨기기' : '비밀번호 보기'} onClick={() => setShowPw((v) => !v)}>
+                <button type="button" className="input-action" aria-label={showPw ? '입력 내용 숨기기' : '입력 내용 보기'} aria-pressed={showPw} onClick={() => setShowPw((v) => !v)}>
                   {showPw ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
                 </button>
               </span>
               {password.length > 0 && password.length < 8 && <span className="field-hint">8자 이상 입력해 주세요.</span>}
-            </label>
+            </div>
             <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
           </form>
           {/* 시연 계정은 로그인 화면에 늘어놓지 않고 한 줄로 접어 둔다 */}

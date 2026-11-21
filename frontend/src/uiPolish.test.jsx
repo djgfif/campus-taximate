@@ -33,7 +33,7 @@ describe('디자인·편의성 근본 개선 검증', () => {
     fireEvent.change(email, { target: { value: 'student@daejin.ac.kr' } })
     fireEvent.change(pw, { target: { value: '1234' } })
     expect(screen.getByText('8자 이상 입력해 주세요.')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: '비밀번호 보기' }))
+    fireEvent.click(screen.getByRole('button', { name: '입력 내용 보기' }))
     expect(pw.type).toBe('text')
     fireEvent.change(pw, { target: { value: '12345678' } })
     expect(screen.queryByText('8자 이상 입력해 주세요.')).toBeNull()

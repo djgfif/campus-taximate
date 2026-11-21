@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useId, useState } from 'react'
 import { api } from './api.js'
 import MapPicker, { searchPlaces } from './MapPicker.jsx'
 import MapView from './MapView.jsx'
@@ -29,6 +29,7 @@ export function usePreview(body) {
 }
 
 export function PlaceField({ label, value, center, onChange, samples = [], placeholder = '건물이나 정류장 이름' }) {
+  const inputId = useId()
   const [open, setOpen] = useState(false)
   const [results, setResults] = useState([])
   const centerLat = center?.lat
@@ -49,13 +50,17 @@ export function PlaceField({ label, value, center, onChange, samples = [], place
   const same = (p) => value.point && p.name === value.name && Math.abs(p.lat - value.point.lat) < 1e-6 && Math.abs(p.lon - value.point.lon) < 1e-6
   const picked = samples.findIndex(same)
   return <section className="place-field" aria-label={label}>
-    <label className="field"><span className="field-label">{label}</span><span className="place-input"><input value={value.name} maxLength={100} placeholder={placeholder}
-      onChange={(e) => onChange({ name: e.target.value, point: null })} />
-      <span className="place-end">
-        {value.point && <Check className="place-ok" size={16} aria-label="위치 선택됨" />}
-        {value.name && <button type="button" className="place-clear" aria-label={`${label} 지우기`} onClick={() => { onChange(emptyPlace()); setResults([]); setNote('') }}><X size={15} aria-hidden="true" /></button>}
+    <div className="field">
+      <label htmlFor={inputId} className="field-label">{label}</label>
+      <span className="place-input">
+        <input id={inputId} value={value.name} maxLength={100} placeholder={placeholder}
+          onChange={(e) => onChange({ name: e.target.value, point: null })} />
+        <span className="place-end">
+          {value.point && <Check className="place-ok" size={16} aria-label="위치 선택됨" />}
+          {value.name && <button type="button" className="place-clear" aria-label={`${label} 지우기`} onClick={() => { onChange(emptyPlace()); setResults([]); setNote('') }}><X size={15} aria-hidden="true" /></button>}
+        </span>
       </span>
-    </span></label>
+    </div>
     {results.length > 0 && <ul className="places">{results.map((place) => <li key={place.id}><button type="button" onClick={() => choose(place)}>{place.name}</button></li>)}</ul>}
     {note && <p className="note" role="status">{note}</p>}
     <div className="place-actions">
