@@ -53,6 +53,7 @@ export function PartyChat({ partyId, now, status, active = true, full = false, t
   const [loadingOlder, setLoadingOlder] = useState(false)
   const input = useRef(null)
   const fileInput = useRef(null)
+  const compose = useRef(null)
   const list = useRef(null)
   const pinned = useRef(true)
   const readSent = useRef(0)
@@ -84,6 +85,23 @@ export function PartyChat({ partyId, now, status, active = true, full = false, t
   // taskKey를 주지 않는 화면은 예전처럼 상태로만 판단한다.
   const taskScope = taskKey ?? status
   useEffect(() => { setTaskFolded(false) }, [partyId, taskScope])
+
+  // + 도구 메뉴는 바깥 클릭이나 Esc 키로 자연스럽게 닫는다.
+  useEffect(() => {
+    if (!toolsOpen) return undefined
+    const onPointerDown = (event) => {
+      if (compose.current && !compose.current.contains(event.target)) setToolsOpen(false)
+    }
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') setToolsOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [toolsOpen])
 
   // 상태 갱신·채팅 신호·이용 내역 주기 읽기
   useEffect(() => {
@@ -302,7 +320,7 @@ export function PartyChat({ partyId, now, status, active = true, full = false, t
       {closed && !denied && <p className="note" role="status">일행 채팅은 읽기만 가능해요.</p>}
       {!denied && meta && !closed && (
         <form className="chat-form" onSubmit={(event) => { event.preventDefault(); sendText(text) }}>
-          <div className="chat-compose">
+          <div ref={compose} className="chat-compose">
             <button type="button" className={toolsOpen ? 'chat-attach on' : 'chat-attach'} aria-label="더 보기" aria-expanded={toolsOpen} onClick={() => setToolsOpen((v) => !v)}>
               <Plus size={22} aria-hidden="true" />
             </button>

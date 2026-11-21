@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { CarFront } from 'lucide-react'
 import MapView from './MapView.jsx'
 import { api } from './api.js'
 import { pushUndecided } from './push.js'
@@ -48,7 +49,12 @@ export function Waiting({ latest, config, now, run, onMenu, onPush, tabBar }) {
     <Screen aside={<RequestMap item={latest} />} tabBar={tabBar} foot={<Btn className="line" onClick={() => setAsking(true)}>요청 취소</Btn>}>
       <TopBar onMenu={onMenu} />
       <section className="searching">
-        <div className="road" aria-hidden="true"><i /></div>
+        <div className="road-track" aria-hidden="true">
+          <span className="road-node start" />
+          <span className="road-line"><span className="road-sweep" /></span>
+          <span className="road-car"><CarFront size={16} /></span>
+          <span className="road-node end" />
+        </div>
         <h1 className="head">같이 탈 학생을 찾고 있어요</h1>
         <p className="sub">늦어도 {formatTime(latest.resultBy)}까지 결과를 알려 드려요.</p>
       </section>
@@ -57,9 +63,9 @@ export function Waiting({ latest, config, now, run, onMenu, onPush, tabBar }) {
         {config?.demo && <p className="note">시연 시각 {formatDateTime(current)}</p>}
         <Situation insight={latest.insight} now={current} />
         {onPush && pushUndecided() && (
-          <Say tone="calm" title="화면을 닫아도 결과를 받으려면">
+          <Say tone="calm" title="화면을 닫아도 결과를 받으려면"
+            action={<Btn className="small line" onClick={onPush}>알림 켜기</Btn>}>
             알림을 켜면 일행 확정과 승차 10분 전 안내가 이 기기로 옵니다.
-            <Btn className="small line push-on" onClick={onPush}>알림 켜기</Btn>
           </Say>
         )}
         <Rail items={toSchool ? [

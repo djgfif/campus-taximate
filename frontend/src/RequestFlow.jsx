@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useId, useState } from 'react'
 import { api } from './api.js'
 import MapPicker, { searchPlaces } from './MapPicker.jsx'
 import MapView from './MapView.jsx'
 import RequestTimePicker, { seoulHourKey } from './RequestTimePicker.jsx'
-import { Check, MapPin } from 'lucide-react'
+import { Check, MapPin, X } from 'lucide-react'
 import { formatTime, requestTimeOptions, shareCap, won } from './format.js'
-import { BackBar, Btn, Chips, Say, Screen, useWide } from './ui.jsx'
+import { BackBar, Btn, Chips, Fold, Say, Screen, useWide } from './ui.jsx'
 import SketchMap from './SketchMap.jsx'
 
 const emptyPlace = () => ({ name: '', point: null })
@@ -29,6 +29,7 @@ export function usePreview(body) {
 }
 
 export function PlaceField({ label, value, center, onChange, samples = [], placeholder = '건물이나 정류장 이름' }) {
+  const inputId = useId()
   const [open, setOpen] = useState(false)
   const [results, setResults] = useState([])
   const centerLat = center?.lat
@@ -49,8 +50,17 @@ export function PlaceField({ label, value, center, onChange, samples = [], place
   const same = (p) => value.point && p.name === value.name && Math.abs(p.lat - value.point.lat) < 1e-6 && Math.abs(p.lon - value.point.lon) < 1e-6
   const picked = samples.findIndex(same)
   return <section className="place-field" aria-label={label}>
-    <label className="field"><span className="field-label">{label}</span><span className="place-input"><input value={value.name} maxLength={100} placeholder={placeholder}
-      onChange={(e) => onChange({ name: e.target.value, point: null })} />{value.point && <Check className="place-ok" size={18} aria-label="위치 선택됨" />}</span></label>
+    <div className="field">
+      <label htmlFor={inputId} className="field-label">{label}</label>
+      <span className="place-input">
+        <input id={inputId} value={value.name} maxLength={100} placeholder={placeholder}
+          onChange={(e) => onChange({ name: e.target.value, point: null })} />
+        <span className="place-end">
+          {value.point && <Check className="place-ok" size={16} aria-label="위치 선택됨" />}
+          {value.name && <button type="button" className="place-clear" aria-label={`${label} 지우기`} onClick={() => { onChange(emptyPlace()); setResults([]); setNote('') }}><X size={15} aria-hidden="true" /></button>}
+        </span>
+      </span>
+    </div>
     {results.length > 0 && <ul className="places">{results.map((place) => <li key={place.id}><button type="button" onClick={() => choose(place)}>{place.name}</button></li>)}</ul>}
     {note && <p className="note" role="status">{note}</p>}
     <div className="place-actions">
@@ -77,6 +87,7 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
   const [early, setEarly] = useState(10)
   const [start, setStart] = useState('')
   const [endLength, setEndLength] = useState(60)
+  const [windowCustom, setWindowCustom] = useState(false)
   const [arrival, setArrival] = useState('')
   const [memo, setMemo] = useState(initial?.memo || '')
   const [points, setPoints] = useState({ key: '', data: [] })
@@ -132,6 +143,8 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
   const chosenArrival = arrivals.includes(arrival) ? arrival : arrivals[Math.min(30, arrivals.length - 1)]
   const maxWindow = chosenStart ? Math.min(60, (new Date(options.at(-1)) - new Date(chosenStart)) / 60000) : 0
   const chosenLength = Math.min(endLength, maxWindow)
+  const windowPresets = [15, 30, 45, 60].filter((m) => m <= maxWindow)
+  const customWindow = windowCustom || !windowPresets.includes(chosenLength)
   // 모의실험(C9): 같은 출발 시각이라도 15분 일찍 요청하면 매칭률이 올랐다. 최소 준비 25분 + 15분 = 40분 미만이면 알려 준다.
   const leadMinutes = chosenStart ? Math.round((new Date(chosenStart) - new Date(now)) / 60000) : null
   const shortLead = !instant && basis === 'DEPART' && leadMinutes !== null && leadMinutes < 40
@@ -150,7 +163,10 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
   } : null
   const preview = usePreview(body)
   const wide = useWide()
-  const tripPoints = [origin.point && { ...origin.point, label: '출', tone: 'me' }, destination.point && { ...destination.point, label: '도', tone: 'end' }].filter(Boolean)
+  const tripPoints = [
+    origin.point && { ...origin.point, label: '출', name: origin.name, tone: 'me' },
+    destination.point && { ...destination.point, label: '도', name: destination.name, tone: 'end' },
+  ].filter(Boolean)
   const tripLine = tripPoints.length === 2 ? [{ path: tripPoints, style: 'dash', color: '#8a5a00' }] : []
   const timeSummary = basis === 'DEPART'
     ? (chosenStart ? `${dayWord(chosenStart, now)} ${formatTime(chosenStart)} ~ ${formatTime(new Date(chosenStart).getTime() + chosenLength * 60000)} 출발` : '')
@@ -200,11 +216,24 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
         </fieldset>
       </section>
 
+      {/* 기본값이 무난하니 한 줄 요약만 보이고, 누르면 펼친다(요청 버튼까지의 길이를 짧게). */}
       {!instant && <details className="form-step when">
         <summary><h2 id="step-when">언제</h2><b>{timeSummary}</b><em>바꾸기</em></summary>
         <Chips label="시간 기준" value={basis} onChange={setBasis} options={[{ value: 'DEPART', label: '출발 기준' }, { value: 'ARRIVE', label: '도착 기준' }]} />
         {basis === 'DEPART' ? <>
-          <RequestTimePicker label="출발 가능 시작" options={options} value={chosenStart} now={now} onChange={setStart} waiting={waiting} waitingLabel={waitingLabel} />          <label className="field">출발 가능 범위<select value={chosenLength} onChange={(e) => setEndLength(Number(e.target.value))}>{Array.from({ length: 13 }, (_, i) => i * 5).filter((m) => m <= maxWindow).map((m) => <option key={m} value={m}>{m}분</option>)}</select></label>
+          <RequestTimePicker label="출발 가능 시작" options={options} value={chosenStart} now={now} onChange={setStart} waiting={waiting} waitingLabel={waitingLabel} />
+          {/* 범위는 칩 한 줄로 고른다. 0~60분 5분 단위 선택은 '직접'을 누르거나 칩에 없는 값일 때만 연다. */}
+          <div className="window-picker">
+            <span className="window-label" id="window-label">출발 가능 범위</span>
+            <div className="window-presets" role="group" aria-labelledby="window-label">
+              {windowPresets.map((m) => (
+                <button key={m} type="button" className={!customWindow && chosenLength === m ? 'chip on' : 'chip'} aria-pressed={!customWindow && chosenLength === m}
+                  onClick={() => { setWindowCustom(false); setEndLength(m) }}>{m}분</button>
+              ))}
+              <button type="button" className={customWindow ? 'chip on' : 'chip'} aria-pressed={customWindow} onClick={() => setWindowCustom(true)}>직접</button>
+            </div>
+            {customWindow && <label className="field window-select"><span className="sr-only">출발 가능 범위 직접 고르기</span><select aria-label="출발 가능 범위 직접 고르기" value={chosenLength} onChange={(e) => setEndLength(Number(e.target.value))}>{Array.from({ length: 13 }, (_, i) => i * 5).filter((m) => m <= maxWindow).map((m) => <option key={m} value={m}>{m}분</option>)}</select></label>}
+          </div>
           {chosenStart && <p className="range">{formatTime(chosenStart)} ~ {formatTime(new Date(chosenStart).getTime() + chosenLength * 60000)} 사이에 출발</p>}
         </> : <>
           <RequestTimePicker label="늦어도 도착 시각" options={arrivals} value={chosenArrival} now={now} onChange={setArrival} waiting={waiting} waitingLabel={waitingLabel} />
@@ -218,10 +247,9 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
           ? `출발까지 ${leadMinutes}분이라 같이 탈 사람을 찾을 시간이 짧아요. 40분 넘게 여유를 두고 올리면 일행이 생기기 쉬워요.`
           : `출발 가능 범위가 ${chosenLength}분이라 같이 탈 학생을 찾기 어려워요. 30분 넘게 두면 일행이 생기기 쉬워요.`}</p>}
 
-      <details className="memo">
-        <summary>일행에게 남길 메모 (선택)</summary>
+      <Fold title="일행에게 남길 메모 (선택)" className="memo-fold" defaultOpen={Boolean(memo)}>
         <label className="field"><span className="sr-only">일행이 알아볼 메모 (선택)</span><input maxLength={100} value={memo} placeholder="예: 검은 백팩" onChange={(e) => setMemo(e.target.value)} /></label>
-      </details>
+      </Fold>
       {(preview.error || error) && <p role="alert">{preview.error || error}</p>}
     </div>
   </Screen>

@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react'
-import { Camera } from 'lucide-react'
+import React, { useEffect, useRef, useState } from 'react'
+import { Camera, X } from 'lucide-react'
 import { api } from './api.js'
 import { PartyShell, RideConfirmationCard } from './PartyScreens.jsx'
 import PaymentCard, { PaymentRecord } from './PaymentCard.jsx'
@@ -8,18 +8,47 @@ import { BoardingPanel } from './ReviewScreens.jsx'
 import { formatDateTime, isPaymentParty, partyLabel, remaining, TRANSFER_LABEL, won } from './format.js'
 import { BackBar, Btn, Paper, Rows, Say, Screen, Sheet, SidePlain, TopBar, useWide } from './ui.jsx'
 
+const RECEIPT_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const RECEIPT_MAX_BYTES = 5 * 1024 * 1024
+
 function ReceiptField({ file, onChange }) {
   const [preview, setPreview] = useState(null)
+  const [note, setNote] = useState('')
+  const inputRef = useRef(null)
   useEffect(() => {
     if (!file) { setPreview(null); return undefined }
     const url = URL.createObjectURL(file); setPreview(url)
     return () => URL.revokeObjectURL(url)
   }, [file])
-  return <label className="photo">
-    <input aria-label="영수증 사진" type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => onChange(e.target.files[0] || null)} />
-    {preview ? <img src={preview} alt="올린 영수증 사진" /> : <span className="ph"><Camera size={22} aria-hidden="true" /></span>}
-    <span>{file ? '사진 바꾸기' : '영수증 사진 올리기'}<small>카드번호는 가리고 올려 주세요</small></span>
-  </label>
+  const pick = (next) => {
+    if (!next) { setNote(''); onChange(null); return }
+    if (next.type && !RECEIPT_TYPES.includes(next.type)) {
+      setNote('JPG, PNG, WEBP 사진만 올릴 수 있어요.')
+      if (inputRef.current) inputRef.current.value = ''
+      return
+    }
+    if (next.size > RECEIPT_MAX_BYTES) {
+      setNote('영수증 사진은 5MB 이하만 올릴 수 있어요.')
+      if (inputRef.current) inputRef.current.value = ''
+      return
+    }
+    setNote('')
+    onChange(next)
+  }
+  const clear = () => {
+    setNote('')
+    onChange(null)
+    if (inputRef.current) inputRef.current.value = ''
+  }
+  return <div className="photo-wrap">
+    <label className="photo">
+      <input ref={inputRef} aria-label="영수증 사진" type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => pick(e.target.files?.[0] || null)} />
+      {preview ? <img src={preview} alt="올린 영수증 사진" /> : <span className="ph"><Camera size={22} aria-hidden="true" /></span>}
+      <span>{file ? file.name || '사진 바꾸기' : '영수증 사진 올리기'}<small>{file ? '눌러서 다른 사진으로 바꿀 수 있어요' : '카드번호는 가리고 올려 주세요 (5MB 이하)'}</small></span>
+    </label>
+    {file && <button type="button" className="photo-clear" aria-label="영수증 사진 지우기" onClick={clear}><X size={16} aria-hidden="true" /></button>}
+    {note && <p className="field-err" role="alert">{note}</p>}
+  </div>
 }
 
 function ReceiptPaper({ party }) {
@@ -64,7 +93,7 @@ export function PayerInput({ party, now, run, onDone, onLater, onUpdated }) {
   }
   if (!isPaymentParty(party)) return <LegacySettlement party={party} onHome={onLater} />
   return <Screen aside={<SidePlain><Paper title="각자 낼 돈 (확정)">{shares ? <Rows items={shares.map((s) => [s.payer ? '나 (결제자)' : s.nickname, won(s.amount)])} /> : <p>금액을 입력하면 각자 몫을 보여 드려요.</p>}</Paper></SidePlain>}
-    foot={<><Btn disabled={!ready} onClick={submit}>{correcting ? '금액 수정하기' : '일행에게 정산 요청'}</Btn><Btn className="quiet" onClick={onLater}>{correcting ? '고치지 않기' : '나중에 입력'}</Btn></>}>
+    foot={<><Btn disabled={!ready} onClick={submit}>{correcting ? '금액 수정하기' : '일행에게 정산 요청'}</Btn><Btn className="quiet" onClick={onLater}>{correcting ? '취소' : '나중에 하기'}</Btn></>}>
     <BackBar onBack={onLater} title="실제 금액 입력" />
     <div className="pad"><RideConfirmationCard party={party} onUpdated={onUpdated} /><h1 className="head">얼마를 결제했나요?</h1>
       <label className="field amount">실제 결제 금액<input aria-label="실제 결제 금액" inputMode="numeric" value={amount ? Number(amount).toLocaleString() : ''} placeholder="0"
@@ -107,7 +136,11 @@ export function FinancialDetails({ party }) {
       <h3>{order.purpose === 'ADDITIONAL' ? '분담금 결제 기록' : '선결제 기록'}</h3><PaymentRecord order={order} />
       {(order.refundRequestedAmount > 0 || order.refundedAmount > 0) && <p className="note">환불은 카드 반영까지 3~4영업일 정도 걸려요.</p>}
     </section>)}
-    {party.payer && settlement.finalizedAt && settlement.mockPayoutAmount != null && <Say tone="calm" title={'앱 정산 기록상 받을 돈(실제 송금 없음) ' + won(settlement.mockPayoutAmount)}>실제 송금 없음</Say>}
+    {party.payer && settlement.finalizedAt && settlement.mockPayoutAmount != null && (
+      <Say tone="calm" title={'앱 정산 기록상 받을 돈(실제 송금 없음) ' + won(settlement.mockPayoutAmount)}>
+        <span className="mock-payout-meta"><span className="badge">실제 송금 없음</span> 장부 기록용 금액으로 실제 계좌 송금은 진행되지 않아요.</span>
+      </Say>
+    )}
   </div>
 }
 

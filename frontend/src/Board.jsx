@@ -15,14 +15,14 @@ export function BoardSection({ now, config, onJoined, disabled, onLoaded, direct
   const [board, setBoard] = useState(null)
   const [error, setError] = useState('')
   const [joining, setJoining] = useState(null)
+  const [reload, setReload] = useState(0)
   const onLoadedRef = useRef(onLoaded)
   useEffect(() => { onLoadedRef.current = onLoaded }, [onLoaded])
   useEffect(() => {
     let closed = false
-    api.board().then((next) => { if (!closed) { setBoard(next); setError(''); onLoadedRef.current?.(next) } }).catch((e) => !closed && setError(e.message))
+    api.board().then((next) => { if (!closed) { setBoard(next); setError(''); onLoadedRef.current?.(next) } }).catch((e) => !closed && setError(e.message || '모집 목록을 불러오지 못했어요.'))
     return () => { closed = true }
-  }, [now])
-  if (error) return null
+  }, [now, reload])
   // 홈에서 고른 방향의 일행만 보인다. 방향을 넘기지 않으면 전부 보인다.
   const same = (item) => !direction || item.direction === direction
   const parties = (board?.parties || []).filter(same)
@@ -37,7 +37,13 @@ export function BoardSection({ now, config, onJoined, disabled, onLoaded, direct
   return (
     <section className="board" aria-label="지금 모집 중">
       <h2 className="section-title">지금 모집 중</h2>
-      {!board && <p className="note" role="status">불러오는 중…</p>}
+      {error && !board && (
+        <div className="board-error" role="alert">
+          <p className="note">모집 중인 일행을 불러오지 못했어요.</p>
+          <Btn className="small line" onClick={() => setReload((n) => n + 1)}>다시 불러오기</Btn>
+        </div>
+      )}
+      {!board && !error && <p className="note" role="status">불러오는 중…</p>}
       {board && parties.length === 0 && (
         <p className="board-empty">아직 모인 일행이 없어요. 먼저 가는 길을 올리면 같은 방향 학생과 이어 드려요.</p>
       )}
