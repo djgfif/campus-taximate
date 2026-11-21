@@ -2,7 +2,8 @@
   "experiment": "C16 quote bias bridge",
   "seed": 20261121,
   "bootstrap": 4000,
-  "bias_in_service": 0.0657,
+  "bias_before": 0.0657,
+  "bias_now": 0.0,
   "inputs": {
     "kakao": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\osrm\\kakao-calibration.csv",
     "tims": "C:\\work\\01_Projects\\Team\\campus-taximate\\experiments\\.cache\\tims-monthly-safe.csv",
@@ -47,7 +48,7 @@
   },
   "tims_commute_total": {
     "grid_months": 41391,
-    "mean": 0.06616951643354706,
+    "mean": 0.06616951643354667,
     "trip_weighted": 0.06031606059807881
   },
   "per_band": {
@@ -66,9 +67,9 @@
       "actual_over_formula": {
         "grid_months": 6427,
         "trips": 5163729,
-        "mean_km": 3.5132528786110537,
+        "mean_km": 3.5132528786110577,
         "median": 0.16162386492622027,
-        "mean": 0.17834333659276644,
+        "mean": 0.1783433365927665,
         "trip_weighted": 0.16238738732691127
       },
       "service_share": 0.05191056910569106,
@@ -96,9 +97,9 @@
       "actual_over_formula": {
         "grid_months": 27844,
         "trips": 13990284,
-        "mean_km": 8.893016729633677,
+        "mean_km": 8.893016729633676,
         "median": 0.06072226953374493,
-        "mean": 0.056344086543611636,
+        "mean": 0.05634408654361156,
         "trip_weighted": 0.03680799686911196
       },
       "service_share": 0.4678048780487805,
@@ -126,9 +127,9 @@
       "actual_over_formula": {
         "grid_months": 5429,
         "trips": 76994,
-        "mean_km": 20.03574587619375,
+        "mean_km": 20.03574587619373,
         "median": 0.03370786516853941,
-        "mean": 0.0057620296832319754,
+        "mean": 0.005762029683231975,
         "trip_weighted": -0.021881337219159858
       },
       "service_share": 0.252479674796748,
@@ -156,9 +157,9 @@
       "actual_over_formula": {
         "grid_months": 1691,
         "trips": 7771,
-        "mean_km": 49.04034886398585,
+        "mean_km": 49.04034886398583,
         "median": 0.017628205128205066,
-        "mean": -0.004445283531252975,
+        "mean": -0.004445283531252977,
         "trip_weighted": -0.03952401425326724
       },
       "service_share": 0.2278048780487805,
@@ -192,6 +193,10 @@
     "app_vs_actual_ci95": [
       0.10582650705117927,
       0.17285414539104535
+    ],
+    "kakao_vs_actual_ci95": [
+      0.03765272314082684,
+      0.10054813304968124
     ]
   },
   "limitations": [

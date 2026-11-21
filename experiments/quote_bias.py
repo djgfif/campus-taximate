@@ -30,7 +30,8 @@ KAKAO = CACHE / 'osrm' / 'kakao-calibration.csv'
 TIMS = CACHE / 'tims-monthly-safe.csv'
 COMMUTE = HERE.parent.parent / 'taximate-matching-sim' / 'realdata' / 'data' / 'tims_commute_grids.csv'
 C12_CASES = CACHE / 'c12' / 'cases.tsv'
-BIAS = 0.0657  # server application.yml app.fare.quote-bias 기본값
+BIAS = 0.0657  # C16 이전 앱 기본값(app.fare.quote-bias). 이 결과로 앱 기본값은 0이 됐다.
+BIAS_NOW = 0.0  # 지금 앱 기본값: 카카오 견적 그대로
 BANDS = ('0-5', '5-15', '15-30', '30+')
 POCHEON = '41650'
 SEED = 20261121
@@ -134,16 +135,19 @@ def analyze():
     # 거리대마다 카카오 표본 수가 달라(5~15km는 8건뿐) 표본 재추출로 가중 평균의 95% 구간을 낸다.
     # 실제/공식 두 값(격자·월 중앙값, 운행 가중)을 모두 넣어 한 구간으로 합친다.
     by_band = {b: [r['ratio'] for r in kakao if r['band'] == b] for b in usable}
-    draws = []
+    draws, draws_now = [], []
     for _ in range(BOOT):
         medians = {b: statistics.median(rng.choices(by_band[b], k=len(by_band[b]))) for b in usable}
         for variant in ('median', 'trip_weighted'):
-            draws.append(sum(weights[b] * chain(medians[b], tims[b][variant])[1] for b in usable) / share)
+            pairs = [(weights[b], chain(medians[b], tims[b][variant])) for b in usable]
+            draws.append(sum(w * c[1] for w, c in pairs) / share)
+            draws_now.append(sum(w * c[0] for w, c in pairs) / share)  # 보정 0 = 카카오 견적 그대로
     weighted['app_vs_actual_ci95'] = [quantile(draws, .025), quantile(draws, .975)]
+    weighted['kakao_vs_actual_ci95'] = [quantile(draws_now, .025), quantile(draws_now, .975)]
     split = {name: summarize([r['ratio'] for r in kakao if r['inside'] == flag], rng)
              for name, flag in (('destination_in_pocheon', True), ('destination_outside_pocheon', False))}
     return dict(
-        experiment='C16 quote bias bridge', seed=SEED, bootstrap=BOOT, bias_in_service=BIAS,
+        experiment='C16 quote bias bridge', seed=SEED, bootstrap=BOOT, bias_before=BIAS, bias_now=BIAS_NOW,
         inputs=dict(kakao=str(KAKAO), tims=str(TIMS), commute_grids=str(COMMUTE), c12_cases=str(C12_CASES)),
         kakao_hub_quotes=len(kakao), kakao_all=summarize([r['ratio'] for r in kakao], rng), kakao_split=split,
         tims_commute_total=tims_total, per_band=per_band, service_requests=requests,
@@ -164,19 +168,20 @@ def pct(x, digits=1):
 def markdown(r):
     w = r['service_weighted']
     lines = ['# C16 앱 견적과 실제 요금의 차이 (카카오·요금표 공식·TIMS 연결)', '',
-             f"앱 견적 = 카카오 예상 요금 × (1 + {r['bias_in_service']:.2%}). 6.57%는 '요금표 공식 대비 실제'에서 나온 값이라, "
-             '카카오 견적에 곱해도 되는지는 확인된 적이 없다. 같은 운행의 카카오 견적과 실제 요금이 함께 공개된 자료가 없어 요금표 공식을 다리로 잇는다.', '',
+             f"앱 견적 = 카카오 예상 요금 × (1 + quote-bias). 이 실험 전 기본값은 {r['bias_before']:.2%}였다. 6.57%는 '요금표 공식 대비 실제'에서 나온 값이라, "
+             '카카오 견적에 곱해도 되는지는 확인된 적이 없었다. 같은 운행의 카카오 견적과 실제 요금이 함께 공개된 자료가 없어 요금표 공식을 다리로 잇는다.', '',
              '## 결론', '',
              f"- 대진대 출발 카카오 견적 {r['kakao_hub_quotes']}건은 같은 거리·시간의 요금표 공식보다 중앙값 {pct(r['kakao_all']['median'])} 높다. "
              f"실제 평균 요금은 같은 공식보다 거리가 길수록 덜 높다(30km 넘으면 거의 같다).",
-             f"- 지금 서비스 거리 분포로 가중하면 카카오 견적은 실제 평균보다 {pct(w['kakao_vs_actual'][0])} ~ {pct(w['kakao_vs_actual'][1])} 높다. "
-             '앱 코드의 전제(카카오 견적이 실제보다 낮다)와 반대다.',
-             f"- 앱 견적(×1.0657)은 실제 평균보다 {pct(w['app_vs_actual'][0])} ~ {pct(w['app_vs_actual'][1])} 높다고 추정된다"
-             f"(카카오 표본 재추출 95% 구간 {pct(w['app_vs_actual_ci95'][0])} ~ {pct(w['app_vs_actual_ci95'][1])}).",
-             '- 즉 지금 보정은 이용자가 실제보다 더 내는 쪽으로 기울어 있다. 확정 분담금 구조라 차액은 정산 적립금에 쌓이며 이용자에게 돌려주지 않는다(C14).',
-             '- C14 위험표는 "실제가 견적보다 평균 0~15% 높은" 경우만 다뤘다. 이 결과는 그 반대쪽(실제가 견적보다 낮음)이라 C14의 가장 작은 행보다도 이용자 쪽 초과 부담이 크다.', '',
+             f"- 지금 서비스 거리 분포로 가중하면 카카오 견적은 실제 평균보다 {pct(w['kakao_vs_actual'][0])} ~ {pct(w['kakao_vs_actual'][1])} 높다"
+             f"(95% 구간 {pct(w['kakao_vs_actual_ci95'][0])} ~ {pct(w['kakao_vs_actual_ci95'][1])}). 예전 앱 코드의 전제(카카오 견적이 실제보다 낮다)와 반대다.",
+             f"- 예전 앱 견적(×{1 + r['bias_before']:.4f})은 실제 평균보다 {pct(w['app_vs_actual'][0])} ~ {pct(w['app_vs_actual'][1])} 높았다"
+             f"(95% 구간 {pct(w['app_vs_actual_ci95'][0])} ~ {pct(w['app_vs_actual_ci95'][1])}). 이용자가 실제보다 더 내고 차액이 적립금에 쌓이는 쪽이었다.",
+             f"- **이 결과로 앱 보정을 {r['bias_now']:.0%}로 바꿨다**(카카오 견적 그대로). 간접 추정이라 깎지는(음수) 않았고, 이용자는 여전히 실제보다 조금 더 내는 쪽이다. "
+             '확정 분담금 구조라 차액은 적립금이 맡고, 운영 중 실제 요금 입력이 쌓이면 다시 맞춘다.',
+             '- 모의실험(C11~C15)의 견적은 카카오가 아니라 OSRM 경로 + 요금표 공식이고, 그 견적이 실제보다 6.57% 낮다는 것은 C5로 확인됐으므로 실험에는 6.57%를 그대로 둔다.', '',
              '## 거리대별', '',
-             '| 거리대 | 지금 서비스 비중 | 카카오/공식 (건수, 중앙값, 95% CI) | 실제/공식 (TIMS 격자·월 수, 중앙값 · 운행가중) | 카카오/실제 | 앱 견적/실제 |',
+             '| 거리대 | 지금 서비스 비중 | 카카오/공식 (건수, 중앙값, 95% CI) | 실제/공식 (TIMS 격자·월 수, 중앙값 · 운행가중) | 카카오/실제 = 지금 앱 견적/실제 | 예전 앱 견적(×1.0657)/실제 |',
              '|---|---:|---|---|---|---|']
     for b in BANDS:
         e = r['per_band'][b]; k = e['kakao_over_formula']; t = e['actual_over_formula']
@@ -194,7 +199,7 @@ def markdown(r):
               '- 카카오/공식: 카카오가 준 거리·시간을 C5와 같은 포천 낮 요금표 공식에 넣은 값 대비 카카오 예상 요금.',
               '- 실제/공식: TIMS 2025 통학권 격자·월의 평균 거리·시간을 같은 공식에 넣은 값 대비 실제 평균 요금(C5와 같은 범위).',
               '- 카카오/실제 = (1+카카오/공식)/(1+실제/공식) − 1. 실제/공식은 격자·월 중앙값과 운행 가중 평균 두 값으로 범위를 냈다.',
-              f"- 앱 견적/실제 = (1+{r['bias_in_service']})×(1+카카오/실제) − 1. 일행 확정 금액에는 여기에 여유분 1%가 더 붙는다.",
+              f"- 예전 앱 견적/실제 = (1+{r['bias_before']})×(1+카카오/실제) − 1. 지금 앱(보정 {r['bias_now']:.0%})은 카카오/실제와 같다. 일행 확정 금액에는 여기에 여유분 1%가 더 붙는다.",
               f"- 거리대 비중: C12 지금 서비스 모의 요청 {r['service_requests']:,}건의 혼자 거리.", '',
               '## 한계', ''] + [f'- {x}' for x in r['limitations']]
     lines += ['', '출처: 카카오모빌리티 길찾기 미래경로 API(C7 보정용으로 이미 받은 400건), 한국교통안전공단 TIMS 2025 택시운행정보 격자별 영업통계(data.go.kr 15165682), 포천시 택시요금표.']

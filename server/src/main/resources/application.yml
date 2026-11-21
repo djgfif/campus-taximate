@@ -64,9 +64,11 @@ app:
   payment:
     timeout-ms: 3000
   # 확정 분담금(S43, 실험 C11). 견적 = 카카오 예상 요금 × (1 + quote-bias). 일행 확정 금액에는 여유분 quote-margin을 더한다.
-  # quote-bias는 TIMS 2025 실제 영업요금이 요금표 견적보다 평균 6.57% 높았던 값이다. 여유분은 정산 적립금을 쌓는다.
+  # quote-bias는 0이다(카카오 견적 그대로). 예전 6.57%는 '요금표 공식' 대비 실제 차이라 카카오 견적에 맞지 않았다.
+  # 실험 C16: 카카오 견적은 실제 평균보다 이미 +4.6~+8.7% 높아, 6.57%를 곱하면 +11.5~+15.9%가 됐다.
+  # 근거가 약한 간접 추정이라 깎지는(음수) 않는다. 운영 중 실제 요금 입력이 쌓이면 다시 맞춘다. 여유분은 정산 적립금을 쌓는다.
   fare:
-    quote-bias: ${FARE_QUOTE_BIAS:0.0657}
+    quote-bias: ${FARE_QUOTE_BIAS:0}
     quote-margin: ${FARE_QUOTE_MARGIN:0.01}
   features:
     sequential-pickup: false

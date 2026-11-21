@@ -48,9 +48,16 @@ class ReportTests(unittest.TestCase):
     def setUpClass(cls):
         cls.r = json.loads(REPORT.read_text(encoding='utf-8'))
 
-    def test_uses_bias_from_service_config(self):
+    def test_now_bias_matches_service_config(self):
         yml = (Path(__file__).resolve().parents[2] / 'server' / 'src' / 'main' / 'resources' / 'application.yml').read_text(encoding='utf-8')
-        self.assertIn(f"FARE_QUOTE_BIAS:{self.r['bias_in_service']}", yml)
+        self.assertEqual(self.r['bias_now'], 0.0)
+        self.assertIn('quote-bias: ${FARE_QUOTE_BIAS:0}', yml)
+        self.assertAlmostEqual(self.r['bias_before'], 0.0657)
+
+    def test_now_is_kakao_as_is_and_lower_than_before(self):
+        w = self.r['service_weighted']
+        self.assertLess(w['kakao_vs_actual'][1], w['app_vs_actual'][0])
+        self.assertLessEqual(w['kakao_vs_actual_ci95'][0], w['kakao_vs_actual_ci95'][1])
 
     def test_service_weights_sum_to_one(self):
         self.assertAlmostEqual(sum(b['service_share'] for b in self.r['per_band'].values()), 1.0)

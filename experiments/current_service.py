@@ -1,7 +1,7 @@
 """C12: 지금 서비스 그대로(마감 확정 S42 + 확정 분담금 S43)를 수요 곡선 위에서 다시 잰다.
 
 - 매칭·검증·정산은 현재 체크아웃의 운영 코드(matching-engine, server)를 그대로 컴파일해 쓴다.
-- 견적 보정과 여유분은 server/src/main/resources/application.yml의 app.fare 기본값을 읽는다.
+- 여유분은 server/src/main/resources/application.yml의 app.fare 기본값을 읽는다. 견적 보정은 읽지 않는다(fare_config 참고).
 - 수요는 C10과 같은 생성기(같은 씨앗)로 하루 15~400건, 30일. 100건은 C10과 같은 요청 흐름이다.
 - 학교 앞 실제 택시 이용량(TIMS 2025, 정문 반경 약 1.5km 격자 9칸)을 곡선 위 관측 구간으로 표시한다.
 """
@@ -33,15 +33,21 @@ VACATION_MONTHS = ('2025-01', '2025-07', '2025-08')
 ATTRIBUTION = c11.ATTRIBUTION
 
 
+# 실험의 견적은 카카오가 아니라 OSRM 경로에 포천 요금표 공식을 적용한 값이다. 그 견적이 실제 요금(TIMS 2025)보다
+# 평균 6.57% 낮다는 것은 C5에서 확인했으므로 실험 견적에는 이 보정을 그대로 쓴다. 앱은 카카오 견적을 쓰고,
+# 카카오 견적은 이미 실제보다 조금 높아(C16) 앱의 quote-bias는 0이다. 두 값은 견적 출처가 달라 따로 둔다.
+SIM_QUOTE_BIAS = 0.0657
+
+
 def fare_config(path=ROOT / 'server/src/main/resources/application.yml'):
-    """Read app.fare defaults: quote-bias: ${FARE_QUOTE_BIAS:0.0657}."""
+    """(실험 견적 보정, 앱 여유분). 보정은 SIM_QUOTE_BIAS, 여유분은 app.fare.quote-margin 기본값을 읽는다."""
     text = path.read_text(encoding='utf-8')
     def value(key):
         m = re.search(key + r':\s*\$\{[A-Z_]+:([0-9.]+)\}', text)
         if not m:
             raise ValueError('app.fare.' + key + ' missing')
         return float(m.group(1))
-    return value('quote-bias'), value('quote-margin')
+    return SIM_QUOTE_BIAS, value('quote-margin')
 
 
 def tims_grid(lon, lat):
