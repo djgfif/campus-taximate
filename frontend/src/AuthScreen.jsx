@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
 import DemoAccounts from './DemoAccounts.jsx'
 import { api } from './api.js'
-import { Brand, Btn, Say, Screen, toast } from './ui.jsx'
+import { Brand, Btn, Fold, Say, Screen, toast } from './ui.jsx'
 
 /** 첫 화면: 로고, 이 서비스가 하는 일, 지금 할 일. */
 function AuthHero({ title, lead }) {
@@ -28,20 +29,32 @@ export default function AuthScreen({ config, onLogin }) {
   const [step, setStep] = useState('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPw, setShowPw] = useState(false)
   const [code, setCode] = useState('')
   const [info, setInfo] = useState('')
   const [purpose, setPurpose] = useState('join')
+  const [busy, setBusy] = useState(false)
+
+  const canSignIn = email.includes('@') && password.length >= 8 && !busy
+  const canSendCode = email.includes('@') && !busy
+  const canVerify = code.length >= 6 && !busy
 
   const signIn = async () => {
+    if (!canSignIn) return
+    setBusy(true)
     try {
       await api.signin({ email, password })
       await onLogin(false)
     } catch (e) {
       toast(e.message, 'bad')
+    } finally {
+      setBusy(false)
     }
   }
 
   const sendCode = async () => {
+    if (!canSendCode) return
+    setBusy(true)
     try {
       const result = await api.requestCode({ email })
       setStep('code')
@@ -53,15 +66,21 @@ export default function AuthScreen({ config, onLogin }) {
       }
     } catch (e) {
       toast(e.message, 'bad')
+    } finally {
+      setBusy(false)
     }
   }
 
   const verify = async () => {
+    if (!canVerify) return
+    setBusy(true)
     try {
       await api.login({ email, code })
       await onLogin(true)
     } catch (e) {
       toast(e.message, 'bad')
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -77,7 +96,7 @@ export default function AuthScreen({ config, onLogin }) {
     return (
       <Screen foot={(
         <>
-          <Btn disabled={!email.includes('@') || password.length < 8} onClick={signIn}>로그인</Btn>
+          <Btn disabled={!canSignIn} onClick={signIn}>로그인</Btn>
           <div className="auth-links">
             <button type="button" onClick={() => { setPurpose('join'); setStep('email') }}>회원가입</button>
             <button type="button" onClick={() => { setPurpose('reset'); setStep('email') }}>비밀번호 찾기</button>
@@ -86,13 +105,22 @@ export default function AuthScreen({ config, onLogin }) {
       )}>
         <AuthHero title={<>같은 방향 학생과<br />택시비를 나눠요</>} lead={copy.lead} />
         <div className="pad auth-form">
-          {emailField}
-          <label className="field">비밀번호
-            <input type="password" value={password} autoComplete="current-password"
-              onChange={(e) => setPassword(e.target.value)} />
-          </label>
+          <form className="auth-fields" onSubmit={(e) => { e.preventDefault(); signIn() }}>
+            {emailField}
+            <label className="field">비밀번호
+              <span className="input-wrap">
+                <input type={showPw ? 'text' : 'password'} value={password} autoComplete="current-password" placeholder="8자 이상"
+                  onChange={(e) => setPassword(e.target.value)} />
+                <button type="button" className="input-action" aria-label={showPw ? '비밀번호 숨기기' : '비밀번호 보기'} onClick={() => setShowPw((v) => !v)}>
+                  {showPw ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+                </button>
+              </span>
+              {password.length > 0 && password.length < 8 && <span className="field-hint">8자 이상 입력해 주세요.</span>}
+            </label>
+            <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
+          </form>
           {/* 시연 계정은 로그인 화면에 늘어놓지 않고 한 줄로 접어 둔다 */}
-          {config?.demo && <details className="demo-entry"><summary>시연 계정으로 들어가기</summary><DemoAccounts onLogin={() => onLogin(false)} /></details>}
+          {config?.demo && <Fold title="시연 계정으로 들어가기" className="demo-entry"><DemoAccounts onLogin={() => onLogin(false)} /></Fold>}
         </div>
       </Screen>
     )
@@ -102,28 +130,29 @@ export default function AuthScreen({ config, onLogin }) {
   return (
     <Screen foot={coding ? (
       <>
-        <Btn disabled={code.length < 6} onClick={verify}>인증하기</Btn>
+        <Btn disabled={!canVerify} onClick={verify}>인증하기</Btn>
         <Btn className="quiet" onClick={back}>로그인으로 돌아가기</Btn>
       </>
     ) : (
       <>
-        <Btn disabled={!email.includes('@')} onClick={sendCode}>코드 받기</Btn>
+        <Btn disabled={!canSendCode} onClick={sendCode}>코드 받기</Btn>
         <Btn className="quiet" onClick={back}>로그인으로 돌아가기</Btn>
       </>
     )}>
       <AuthHero title={coding ? <>인증 코드를<br />확인해 주세요</> : purpose === 'reset' ? <>비밀번호를<br />다시 정해요</> : <>학교 메일로<br />가입해요</>} />
-      <div className="pad auth-form">
+      <form className="pad auth-form" onSubmit={(e) => { e.preventDefault(); if (coding) verify(); else sendCode() }}>
         <p className="sub">{coding ? email : purpose === 'reset' ? '학교 메일로 받은 코드로 본인인지 확인해요.' : '학교 메일로 받은 코드로 이 학교 학생인지 확인해요.'}</p>
         {coding ? (
           <>
             <label className="field code">인증 코드
-              <input inputMode="numeric" maxLength={6} value={code} autoComplete="one-time-code"
+              <input inputMode="numeric" maxLength={6} value={code} autoComplete="one-time-code" placeholder="000000"
                 onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} />
             </label>
             {info && <Say tone="calm">{info}</Say>}
           </>
         ) : emailField}
-      </div>
+        <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
+      </form>
     </Screen>
   )
 }

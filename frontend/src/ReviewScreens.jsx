@@ -1,10 +1,44 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { ExternalLink } from 'lucide-react'
 import { api } from './api.js'
 import { formatDateTime, isPaymentParty, won } from './format.js'
-import { BackBar, Btn, Rows, Say, Screen, toast } from './ui.jsx'
+import { BackBar, Btn, Fold, Rows, Say, Screen, toast } from './ui.jsx'
 import './reviews.css'
 
 const CASE_LABEL = { PENDING: '소명 기간', REVIEW: '관리자 검토 중', CONFIRMED: '노쇼 확정', EXONERATED: '노쇼 아님' }
+const CASE_TONE = { PENDING: 'warn', REVIEW: 'warn', CONFIRMED: 'bad', EXONERATED: 'ok' }
+const AUDIT_ACTION = {
+  NO_SHOW_DECISION: '노쇼 판정',
+  FARE_DECISION: '요금 이의 판정',
+  RIDE_DECISION: '운행 여부 판정',
+  OVERDUE_HANDLED: '미정산 확인',
+  RESTRICT_MEMBER: '회원 이용 제한',
+  RELEASE_RESTRICTION: '이용 제한 해제',
+  HUB_CREATED: '승차 지점 등록',
+  HUB_UPDATED: '승차 지점 수정',
+}
+const AUDIT_TARGET = {
+  BOARDING_CASE: '탑승 조사',
+  PARTY: '일행',
+  PAYMENT_ORDER: '결제 주문',
+  MEMBER: '회원',
+  RESTRICTION: '이용 제한',
+  HUB: '승차 지점',
+}
+const AUDIT_DECISION = {
+  NO_SHOW: '노쇼 확정',
+  NOT_NO_SHOW: '노쇼 아님',
+  UNDETERMINED: '판단 불가 (노쇼 아님)',
+  OPERATED: '운행 확인',
+  NOT_OPERATED: '미운행 확인',
+  ACCEPTED: '이의 인정',
+  REJECTED: '이의 기각',
+  HANDLED: '확인 완료',
+  RESTRICTED: '제한 적용',
+  RELEASED: '제한 해제',
+  SAVED: '저장 완료',
+}
+const REPORT_REASON = { RUDE: '불쾌한 언행', DANGEROUS: '위험 행동', OTHER: '기타' }
 const freshKey = () => globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
 
 function useRemote(load) {
@@ -22,8 +56,11 @@ function useRemote(load) {
 }
 
 function RemoteState({ remote }) {
-  if (remote.error) return <Say tone="stop-tone"><p role="alert">{remote.error}</p>{remote.data && <p>아래는 마지막으로 확인한 내용이에요. 다시 불러와 최신 상태를 확인해 주세요.</p>}<Btn className="small line" onClick={remote.reload}>다시 불러오기</Btn></Say>
-  if (remote.loading) return <p role="status">불러오는 중이에요.</p>
+  if (remote.error) return <Say tone="stop-tone" action={<Btn className="small line" onClick={remote.reload}>다시 불러오기</Btn>}>
+    <p role="alert">{remote.error}</p>
+    {remote.data && <p>아래는 마지막으로 확인한 내용이에요. 다시 불러와 최신 상태를 확인해 주세요.</p>}
+  </Say>
+  if (remote.loading) return <p className="note" role="status">불러오는 중이에요.</p>
   return null
 }
 
@@ -46,7 +83,10 @@ function CaseCard({ item, currentTime, onSaved }) {
     catch (e) { setError(e.message) }
   }
   return <article className="review-card" aria-label={`일행 ${c.partyId} 탑승 조사`}>
-    <h2>일행 #{c.partyId} · {CASE_LABEL[c.status] || '상태 확인 중'}</h2>
+    <div className="review-card-head">
+      <h2>일행 {c.partyId}</h2>
+      <span className={`badge ${CASE_TONE[c.status] || ''}`}>{CASE_LABEL[c.status] || '상태 확인 중'}</span>
+    </div>
     <Rows items={[
       ['소명 마감', formatDateTime(c.deadlineAt)],
       ['일행 표시', `왔어요 ${votes.filter((v) => v.came).length}명 · 안 왔어요 ${votes.filter((v) => !v.came).length}명`],
@@ -161,7 +201,11 @@ function NoShowReview({ item, onSaved }) {
   const remote = useRemote(load)
   const [decision, setDecision] = useState('UNDETERMINED')
   return <article className="review-card">
-    <h2>조사 #{id} · 일행 #{item.investigation.partyId} · 회원 #{item.investigation.memberId}</h2>
+    <div className="review-card-head">
+      <h2>노쇼 조사 <span className="review-id">#{id}</span></h2>
+      <span className={`badge ${CASE_TONE[item.investigation.status] || 'warn'}`}>{CASE_LABEL[item.investigation.status] || '검토 대기'}</span>
+    </div>
+    <p className="review-meta-row"><span>일행 {item.investigation.partyId}</span><span>대상 회원 {item.investigation.memberId}</span></p>
     <Rows items={[
       ['부재 표시', `${item.absentVotes}명`], ['참석 표시', `${item.presentVotes}명`],
       ['영수증', item.receiptPresent ? '있음' : '없음'], ['소명', item.explanationPresent ? '있음' : '없음'],
@@ -170,14 +214,14 @@ function NoShowReview({ item, onSaved }) {
     <RemoteState remote={remote} />
     {remote.data && <>
       <h3>본인 소명</h3><p className="review-text">{remote.data.explanation?.explanation || '접수된 소명 없음'}</p>
-      <details><summary>일행 표시와 최근 대화 확인</summary>
-        {remote.data.votes.map((v) => <p key={v.id}>회원 #{v.actorId}: {v.came ? '왔어요' : '안 왔어요'} · {formatDateTime(v.createdAt)}</p>)}
-        <ol className="review-chat">{remote.data.chat.map((m) => <li key={m.id}><small>회원 #{m.memberId} · {formatDateTime(m.createdAt)}</small>
-          {m.kind === 'IMAGE' ? m.imageUrl ? <a href={m.imageUrl} target="_blank" rel="noreferrer">사진 증거 보기</a> : <p>보관 중인 사진이 없어요.</p> : <p>{m.text}</p>}
+      <Fold title="일행 표시와 최근 대화 확인" className="review-fold">
+        {remote.data.votes.map((v) => <p key={v.id} className="review-vote">회원 {v.actorId}: <b>{v.came ? '왔어요' : '안 왔어요'}</b> · {formatDateTime(v.createdAt)}</p>)}
+        <ol className="review-chat">{remote.data.chat.map((m) => <li key={m.id}><small>회원 {m.memberId} · {formatDateTime(m.createdAt)}</small>
+          {m.kind === 'IMAGE' ? m.imageUrl ? <a className="review-link" href={m.imageUrl} target="_blank" rel="noreferrer"><ExternalLink size={14} aria-hidden="true" />사진 증거 보기</a> : <p>보관 중인 사진이 없어요.</p> : <p>{m.text}</p>}
         </li>)}</ol>
-      </details>
+      </Fold>
     </>}
-    {item.receiptPresent && <a href={`/api/admin/parties/${item.investigation.partyId}/receipt`} target="_blank" rel="noreferrer">영수증 확인</a>}
+    {item.receiptPresent && <a className="review-link" href={`/api/admin/parties/${item.investigation.partyId}/receipt`} target="_blank" rel="noreferrer"><ExternalLink size={14} aria-hidden="true" />영수증 확인</a>}
     <EvidenceAction identity={decision} label="노쇼 판정 저장" disabled={!remote.data} onSaved={onSaved}
       act={(evidence) => api.decideNoShow(id, { decision, evidence })}>
       <label className="field">판정<select value={decision} onChange={(e) => setDecision(e.target.value)}>
@@ -194,9 +238,13 @@ function FareReview({ item, onSaved }) {
   const ride = item.reason === 'RIDE_DISPUTE'
   const held = item.reason === 'RIDE_FINANCIAL_HOLD'
   const validAmount = /^\d+$/.test(amount) && Number.isSafeInteger(Number(amount)) && Number(amount) > 0
-  return <article className="review-card"><h2>일행 #{item.partyId} · {held ? '정산 보류' : ride ? '운행 확인' : '요금 이의'}</h2>
-    <p>입력 요금: {item.amount == null ? '미입력' : won(item.amount)}</p>
-    {item.receiptPresent ? <a href={`/api/admin/parties/${item.partyId}/receipt`} target="_blank" rel="noreferrer">영수증 확인</a> : <p>영수증 없음</p>}
+  return <article className="review-card">
+    <div className="review-card-head">
+      <h2>일행 {item.partyId}</h2>
+      <span className={`badge ${held ? 'bad' : 'warn'}`}>{held ? '정산 보류' : ride ? '운행 확인' : '요금 이의'}</span>
+    </div>
+    <Rows items={[['입력 요금', item.amount == null ? '미입력' : won(item.amount)]]} />
+    {item.receiptPresent ? <a className="review-link" href={`/api/admin/parties/${item.partyId}/receipt`} target="_blank" rel="noreferrer"><ExternalLink size={14} aria-hidden="true" />영수증 확인</a> : <p className="note">영수증 없음</p>}
     {item.objections.map((o) => <p className="review-text" key={o.id}>이의 사유: {o.reason}</p>)}
     {held ? <>
       <Say tone="stop-tone" title={item.rideDecision === 'OPERATED' ? '운행 판정 저장됨' : item.rideDecision === 'NOT_OPERATED' ? '미운행 판정 저장됨' : '운행 판정 확인 필요'}>결제 내역을 확인할 때까지 이 일행의 자동 정산을 보류해요.</Say>
@@ -243,10 +291,13 @@ function Reports({ items }) {
   const [selected, setSelected] = useState(null)
   return <>{items.length === 0 && <p>접수된 신고가 없어요.</p>}
     {items.map((r) => <article className="review-card" key={r.id}>
-      <h2>신고 #{r.id} · 일행 #{r.partyId}</h2><p>회원 #{r.reporterId} → 회원 #{r.reportedId}</p>
-      <p>{({ RUDE: '불쾌한 언행', DANGEROUS: '위험 행동', OTHER: '기타' })[r.reason] || r.reason} · {formatDateTime(r.createdAt)}</p>
+      <div className="review-card-head">
+        <h2>신고 <span className="review-id">#{r.id}</span></h2>
+        <span className="badge bad">{REPORT_REASON[r.reason] || r.reason}</span>
+      </div>
+      <p className="review-meta-row"><span>일행 {r.partyId}</span><span>신고자 {r.reporterId} → 대상 {r.reportedId}</span><span>{formatDateTime(r.createdAt)}</span></p>
       <p className="review-text">{r.memo || '메모 없음'}</p>
-      <Btn className="line" onClick={() => setSelected(r.reportedId)}>회원 #{r.reportedId} 제한 관리</Btn>
+      <Btn className="line" onClick={() => setSelected(r.reportedId)}>회원 {r.reportedId} 제한 관리</Btn>
     </article>)}
     <label className="field">관리할 회원 번호<input inputMode="numeric" value={selected ?? ''} onChange={(e) => setSelected(/^\d+$/.test(e.target.value) ? e.target.value : null)} /></label>
     {Number.isSafeInteger(Number(selected)) && Number(selected) > 0 && <MemberRestrictions key={selected} memberId={Number(selected)} />}
@@ -269,8 +320,8 @@ function HubEditor({ hub, onSaved, onClose }) {
       <div className="review-grid"><label className="field">위도<input inputMode="decimal" value={form.lat} onChange={(e) => change('lat', e.target.value)} /></label>
         <label className="field">경도<input inputMode="decimal" value={form.lon} onChange={(e) => change('lon', e.target.value)} /></label></div>
       <label className="field">학교 번호 (여러 곳이면 쉼표로 구분)<input value={schools} onChange={(e) => setSchools(e.target.value)} /></label>
-      <label><input type="checkbox" checked={form.active} onChange={(e) => change('active', e.target.checked)} /> 사용 중</label>
-      <label><input type="checkbox" checked={form.fieldChecked} onChange={(e) => change('fieldChecked', e.target.checked)} /> 현장에서 택시 승차 가능 여부 확인함</label>
+      <label className="check"><input type="checkbox" checked={form.active} onChange={(e) => change('active', e.target.checked)} /> 사용 중</label>
+      <label className="check"><input type="checkbox" checked={form.fieldChecked} onChange={(e) => change('fieldChecked', e.target.checked)} /> 현장에서 택시 승차 가능 여부 확인함</label>
     </EvidenceAction><Btn className="line" onClick={onClose}>편집 닫기</Btn>
   </article>
 }
@@ -279,9 +330,17 @@ function Hubs({ items, onSaved }) {
   const [editing, setEditing] = useState(null)
   return <><Btn className="line" onClick={() => setEditing({})}>승차 지점 등록</Btn>
     {editing && <HubEditor key={editing.id || 'new'} hub={editing.id ? editing : null} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); onSaved() }} />}
-    {items.map((h) => <article className="review-card" key={h.id}><h2>{h.name} · #{h.id}</h2><p>{h.meetingPoint}</p>
-      <p>학교 {h.schoolIds.join(', ')} · {h.active ? '사용 중' : '사용 중지'} · {h.fieldChecked ? '현장 확인됨' : '현장 미확인'}</p>
-      <p className="note">{h.lat}, {h.lon}</p><Btn className="line" onClick={() => setEditing(h)}>지점 수정</Btn>
+    {items.map((h) => <article className="review-card" key={h.id}>
+      <div className="review-card-head">
+        <h2>{h.name} <span className="review-id">#{h.id}</span></h2>
+        <div className="review-badges">
+          <span className={`badge ${h.active ? 'ok' : ''}`}>{h.active ? '사용 중' : '사용 중지'}</span>
+          <span className={`badge ${h.fieldChecked ? 'ok' : 'warn'}`}>{h.fieldChecked ? '현장 확인됨' : '현장 미확인'}</span>
+        </div>
+      </div>
+      <p>{h.meetingPoint}</p>
+      <p className="note">연결 학교 {h.schoolIds.join(', ')} · 좌표 {h.lat}, {h.lon}</p>
+      <Btn className="line" onClick={() => setEditing(h)}>지점 수정</Btn>
     </article>)}</>
 }
 
@@ -298,20 +357,35 @@ function AdminList({ tab }) {
       {tab === 'reports' && <Reports items={remote.data} />}
       {tab === 'hubs' && <Hubs items={remote.data} onSaved={remote.reload} />}
       {tab === 'overdue' && remote.data.map((o) => <article className="review-card" key={o.id}>
-        <h2>일행 #{o.partyId} · 회원 #{o.memberId}</h2><p>분담금 결제 {won(o.amount)} · 기한 {formatDateTime(o.deadlineAt)}</p>
-        {o.adminHandledAt ? <Say title="관리자 확인 완료">{o.adminNote} · {formatDateTime(o.adminHandledAt)}</Say>
+        <div className="review-card-head">
+          <h2>일행 {o.partyId} · 회원 {o.memberId}</h2>
+          <span className={`badge ${o.adminHandledAt ? 'ok' : 'bad'}`}>{o.adminHandledAt ? '확인 완료' : '미정산'}</span>
+        </div>
+        <Rows items={[['분담금', won(o.amount)], ['결제 기한', formatDateTime(o.deadlineAt)]]} />
+        {o.adminHandledAt ? <Say tone="save-tone" title="관리자 확인 완료">{o.adminNote} · {formatDateTime(o.adminHandledAt)}</Say>
           : <EvidenceAction label="미정산 확인 기록" onSaved={remote.reload} act={(evidence) => api.handleOverdue(o.id, evidence)} />}
         <p className="note">확인 기록은 결제 승인이나 채무 면제가 아니에요.</p>
       </article>)}
       {tab === 'reserve' && <article className="review-card" aria-label="정산 적립금">
-        <h2>정산 적립금 {won(remote.data.balance)}</h2>
-        <p>정산 {remote.data.settlements}건 · 부족분을 메운 금액 {won(remote.data.covered)}</p>
+        <div className="review-card-head">
+          <h2>정산 적립금</h2>
+          <span className="badge ok">{won(remote.data.balance)}</span>
+        </div>
+        <Rows items={[['누적 정산', `${remote.data.settlements}건`], ['부족분 보전 합계', won(remote.data.covered)]]} />
         <p className="note">각자 확정 몫만 내고, 실제 요금과의 차이를 여기서 맡아요. 초기 기금은 운영 주체가 따로 더해 관리해요.</p>
-        {remote.data.recent?.length > 0 && <Rows items={remote.data.recent.map((e) => ['일행 #' + e.partyId, (e.amount >= 0 ? '+' : '') + won(e.amount) + ' (확정 ' + won(e.fixedTotal) + ' / 실제 ' + won(e.paidAmount) + ')'])} />}
+        {remote.data.recent?.length > 0 && <Rows items={remote.data.recent.map((e) => ['일행 ' + e.partyId, (e.amount >= 0 ? '+' : '') + won(e.amount) + ' (확정 ' + won(e.fixedTotal) + ' / 실제 ' + won(e.paidAmount) + ')'])} />}
       </article>}
       {tab === 'audits' && [...remote.data].reverse().map((a) => <article className="review-card" key={a.id}>
-        <h2>처리 #{a.id} · {a.action}</h2><p>관리자 #{a.actorId} · {formatDateTime(a.createdAt)}</p>
-        <p>{a.targetType} #{a.targetId} · {a.decision}</p><p className="review-text">{a.evidence}</p>
+        <div className="review-card-head">
+          <h2>{AUDIT_ACTION[a.action] || a.action} <span className="review-id">#{a.id}</span></h2>
+          {a.decision && <span className="badge">{AUDIT_DECISION[a.decision] || a.decision}</span>}
+        </div>
+        <p className="review-meta-row">
+          <span>{AUDIT_TARGET[a.targetType] || a.targetType} #{a.targetId}</span>
+          <span>관리자 {a.actorId}</span>
+          <span>{formatDateTime(a.createdAt)}</span>
+        </p>
+        <p className="review-text">{a.evidence}</p>
       </article>)}
     </>}
     <Btn className="line" onClick={remote.reload}>목록 새로고침</Btn>

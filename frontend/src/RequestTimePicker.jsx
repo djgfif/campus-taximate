@@ -1,5 +1,5 @@
 import React from 'react'
-import { Btn, Chips } from './ui.jsx'
+import { Chips } from './ui.jsx'
 
 const seoulParts = (value) => new Date(new Date(value).getTime() + 9 * 3600000).toISOString().slice(0, 16)
 
@@ -27,13 +27,19 @@ export default function RequestTimePicker({ label, options, value, now, onChange
   const here = count(parts.slice(11, 13))
   return <fieldset className="time-picker" aria-label={label}>
     <legend>{label}</legend>
+    <div className="quick" role="group" aria-label={label + ' 빠른 선택'}>
+      {[30, 60, 120].map((m) => {
+        const target = quick(m)
+        const active = Boolean(target && target === chosen)
+        return <button type="button" className={active ? 'quick-pill on' : 'quick-pill'} aria-pressed={active} key={m} disabled={!target} onClick={() => onChange(target)}>{m === 30 ? '30분 뒤' : m / 60 + '시간 뒤'}</button>
+      })}
+    </div>
     <Chips label={label + ' 날짜'} value={parts.slice(0, 10)} onChange={chooseDay}
       options={days.map((day) => ({ value: day, label: day === today ? '오늘' : '내일' }))} />
     <div className="time-columns">
       <label className="field"><span className="sr-only">{label} </span>시<select value={parts.slice(11, 13)} onChange={(e) => chooseHour(e.target.value)}>{hours.map((h) => <option key={h} value={h}>{Number(h)}시{count(h) > 0 ? ` · ${count(h)}명 대기` : ''}</option>)}</select></label>
       <label className="field"><span className="sr-only">{label} </span>분<select value={chosen} onChange={(e) => onChange(e.target.value)}>{minutes.map((t) => <option key={t} value={t}>{seoulParts(t).slice(14, 16)}분</option>)}</select></label>
     </div>
-    {here > 0 && <p className="note waiting-here" role="status">{Number(parts.slice(11, 13))}시대에 {waitingLabel} {here}명이 기다리고 있어요.</p>}
-    <div className="quick" role="group" aria-label={label + ' 빠른 선택'}>{[30, 60, 120].map((m) => <Btn className="small line" key={m} disabled={!quick(m)} onClick={() => onChange(quick(m))}>{m === 30 ? '30분 뒤' : m / 60 + '시간 뒤'}</Btn>)}</div>
+    {here > 0 && <p className="waiting-here" role="status"><i className="live-dot" aria-hidden="true" />{Number(parts.slice(11, 13))}시대에 {waitingLabel} {here}명이 기다리고 있어요.</p>}
   </fieldset>
 }

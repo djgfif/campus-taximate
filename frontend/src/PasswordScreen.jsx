@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
 import { api } from './api.js'
 import { Brand, Btn, Screen, toast } from './ui.jsx'
 
@@ -6,32 +7,45 @@ import { Brand, Btn, Screen, toast } from './ui.jsx'
 export default function PasswordScreen({ onDone }) {
   const [password, setPassword] = useState('')
   const [again, setAgain] = useState('')
-  const ok = password.length >= 8 && password.length <= 64 && password === again
+  const [showPw, setShowPw] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const ok = password.length >= 8 && password.length <= 64 && password === again && !busy
 
   const submit = async () => {
+    if (!ok) return
+    setBusy(true)
     try {
       await api.setPassword({ password })
       await onDone()
     } catch (e) {
       toast(e.message, 'bad')
+    } finally {
+      setBusy(false)
     }
   }
 
   return (
     <Screen foot={<Btn disabled={!ok} onClick={submit}>비밀번호 정하기</Btn>}>
       <header className="bar"><Brand /></header>
-      <div className="pad">
+      <form className="pad" onSubmit={(e) => { e.preventDefault(); submit() }}>
         <h1 className="head">로그인에 쓸<br />비밀번호를 정해 주세요</h1>
         <label className="field">비밀번호 (8자 이상)
-          <input type="password" value={password} autoComplete="new-password" maxLength={64}
-            onChange={(e) => setPassword(e.target.value)} />
+          <span className="input-wrap">
+            <input type={showPw ? 'text' : 'password'} value={password} autoComplete="new-password" maxLength={64} placeholder="8자 이상"
+              onChange={(e) => setPassword(e.target.value)} />
+            <button type="button" className="input-action" aria-label={showPw ? '비밀번호 숨기기' : '비밀번호 보기'} onClick={() => setShowPw((v) => !v)}>
+              {showPw ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+            </button>
+          </span>
+          {password.length > 0 && password.length < 8 && <span className="field-hint">8자 이상 입력해 주세요.</span>}
         </label>
         <label className="field">비밀번호 확인
-          <input type="password" value={again} autoComplete="new-password" maxLength={64}
+          <input type={showPw ? 'text' : 'password'} value={again} autoComplete="new-password" maxLength={64} placeholder="비밀번호를 한 번 더 입력해 주세요"
             onChange={(e) => setAgain(e.target.value)} />
+          {again && password !== again && <span className="field-err" role="alert">두 비밀번호가 다릅니다.</span>}
         </label>
-        {again && password !== again && <p className="note">두 비밀번호가 다릅니다.</p>}
-      </div>
+        <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
+      </form>
     </Screen>
   )
 }

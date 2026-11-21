@@ -43,11 +43,12 @@ function stopsOf(party, mine, routes) {
   const me = toSchool ? solo[0] : solo[solo.length - 1]
   const far = toSchool ? shared[0] : shared[shared.length - 1]
   const farOrder = toSchool ? 1 : party.members.length
+  const farMember = party.members.find((m) => m.rideOrder === farOrder)
   const stops = [
-    { ...anchor, label: toSchool ? '학' : '출', tone: 'end' },
-    { ...me, label: mine.rideOrder, tone: 'me' },
+    { ...anchor, label: toSchool ? '학' : '출', name: toSchool ? party.anchorName : (party.meetingPoint || party.anchorName), tone: 'end' },
+    { ...me, label: mine.rideOrder, name: mine.pointName, tone: 'me' },
   ]
-  if (mine.rideOrder !== farOrder) stops.push({ ...far, label: farOrder })
+  if (mine.rideOrder !== farOrder) stops.push({ ...far, label: farOrder, name: farMember?.pointName })
   return stops
 }
 

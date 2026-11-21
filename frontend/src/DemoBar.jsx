@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Check } from 'lucide-react'
 import { api } from './api.js'
 import { formatDateTime } from './format.js'
-import { Btn, Chips, Say, Sheet } from './ui.jsx'
+import { Btn, Chips, Fold, Say, Sheet } from './ui.jsx'
 
 /**
  * 시연은 일곱 장면으로 보여 준다. 서버 상태 이름 대신 사람이 하는 일로 부르고,
@@ -117,25 +117,22 @@ export function DemoPanel({ now, run, parties = [], accounts = null, onScene }) 
         {i < scene ? <Check size={16} aria-label="지남" /> : i === scene ? <small>지금</small> : null}
       </li>)}
     </ol>
-    <details className="demo-more">
-      <summary>다른 장면 체험</summary>
+    <Fold title="다른 장면 체험" className="demo-more">
       <p className="note">요청이 없으면 시연 경로를 만들어요. 진행 중인 일행이 있으면 그 일행에서 실행해요.</p>
       <div className="demo-grid">{OTHER_SCENES.map(([id, label]) => <Btn className="line" disabled={busy} key={id} onClick={act(() => api.demoScenario(id, role))}>{label}</Btn>)}</div>
       <Btn className="line" disabled={busy} onClick={act(api.demoBoardParty, false)}>다른 학생이 모으는 일행 만들기</Btn>
-    </details>
-    <details className="demo-more">
-      <summary>시간 넘기기</summary>
+    </Fold>
+    <Fold title="시간 넘기기" className="demo-more">
       <div className="demo-grid">
         <Btn className="line" disabled={busy} onClick={act(api.demoAct, false)}>다른 일행이 움직이기</Btn>
         <Btn className="line" disabled={busy} onClick={act(() => api.demoAdvance(5), false)}>5분 뒤</Btn>
         <Btn className="line" disabled={busy} onClick={act(() => api.demoAdvance(30), false)}>30분 뒤</Btn>
         <Btn className="line" disabled={busy} onClick={act(() => api.demoAdvance(1440), false)}>하루 뒤</Btn>
       </div>
-    </details>
-    {accounts && <details className="demo-more">
-      <summary>계정 바꾸기</summary>
+    </Fold>
+    {accounts && <Fold title="계정 바꾸기" className="demo-more">
       {accounts}
-    </details>}
+    </Fold>}
   </>
 }
 

@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from 'react'
-import { ChevronLeft, Copy, Info, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Copy, Info, X } from 'lucide-react'
 import { api } from './api.js'
 import { PartyChat } from './PartyChat.jsx'
 import { BoardingPanel } from './ReviewScreens.jsx'
@@ -125,13 +125,16 @@ export function PartyShell({ party, now, onHome, header, action, progress, info,
         <div className="room-line">
           <button type="button" className="icon-btn" aria-label="홈으로" onClick={onHome}><ChevronLeft size={26} /></button>
           <h1 className="room-title">{roomTitle(party, time ?? party.departureAt)}</h1>
-          <button type="button" className="icon-btn" aria-label="일행 정보 열기" onClick={openDetails}><Info size={22} /></button>
+          <button type="button" className="room-info-btn" aria-label="일행 정보 열기" onClick={openDetails}><Info size={16} aria-hidden="true" /><span>정보</span></button>
         </div>
-        <p className="room-sub">
-          <span>{people}명, {prepayLine || summary || partyLabel(party.status)}</span>
+        <div className="room-sub">
+          <button type="button" className="room-meta-btn" onClick={openDetails}>
+            <span>{people}명, {prepayLine || summary || partyLabel(party.status)}</span>
+            <ChevronRight size={14} aria-hidden="true" />
+          </button>
           {party.myShare != null && <span className="room-share">{settled || isPaymentParty(party) ? '내 몫' : '내 몫 예상'} <b>{won(party.myShare)}</b>
             {party.mySoloFare > party.myShare && <s aria-label={`혼자 타면 ${won(party.mySoloFare)}`}>{won(party.mySoloFare)}</s>}</span>}
-        </p>
+        </div>
       </header>
       <section className="chat-pane" aria-label="채팅 창">
         <PartyChat key={party.id} partyId={party.id} now={now} status={party.status} active full tools={menu} task={task} taskKey={taskKey} />

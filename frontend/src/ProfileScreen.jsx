@@ -8,24 +8,30 @@ export default function ProfileScreen({ onDone }) {
   const [nickname, setNickname] = useState('')
   const [gender, setGender] = useState('FEMALE')
   const [extra, setExtra] = useState({ department: '', admissionYear: null, showProfile: true })
+  const [busy, setBusy] = useState(false)
 
+  const canSubmit = Boolean(nickname.trim()) && !busy
   const submit = async () => {
+    if (!canSubmit) return
+    setBusy(true)
     try {
       await api.profile({ nickname, gender })
       if (extra.department?.trim() || extra.admissionYear != null) await api.saveProfile(extra).catch(() => {})
       await onDone()
     } catch (e) {
       toast(e.message, 'bad')
+    } finally {
+      setBusy(false)
     }
   }
 
   return (
-    <Screen foot={<Btn disabled={!nickname.trim()} onClick={submit}>시작하기</Btn>}>
+    <Screen foot={<Btn disabled={!canSubmit} onClick={submit}>시작하기</Btn>}>
       <header className="bar"><Brand /></header>
-      <div className="pad">
+      <form className="pad" onSubmit={(e) => { e.preventDefault(); submit() }}>
         <h1 className="head">일행에게 보일<br />이름을 정해 주세요</h1>
         <label className="field">닉네임
-          <input maxLength={20} value={nickname} onChange={(e) => setNickname(e.target.value)} />
+          <input maxLength={20} value={nickname} placeholder="예: 민수" onChange={(e) => setNickname(e.target.value)} />
         </label>
         <div className="field">성별
           <Chips label="성별" value={gender} onChange={setGender} options={[
@@ -35,7 +41,8 @@ export default function ProfileScreen({ onDone }) {
         </div>
         <p className="note">동성끼리만 매칭됩니다.</p>
         <ProfileFields value={extra} onChange={setExtra} />
-      </div>
+        <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
+      </form>
     </Screen>
   )
 }

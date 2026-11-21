@@ -54,10 +54,26 @@ function liveDue(party, now) {
 /** 학교와 모집 중인 일행의 모이는 곳을 한 지도에. */
 function HomeMap({ school, board, direction }) {
   if (!school) return <div className="map-canvas" aria-hidden="true" />
-  // 지도를 못 불러와도 빈 회색 판이 아니라 학교 위치만은 보이게 한다.
-  const fallback = <div className="map-canvas map-fallback" aria-hidden="true"><span className="mf-pin"><i />{school.name}</span></div>
+  const sameParties = (board?.parties || []).filter((c) => c.direction === direction)
+  const waitingCount = (board?.waiting || []).filter((w) => w.direction === direction).reduce((sum, w) => sum + (w.count || 0), 0)
+  const dirLabel = direction === 'TO_SCHOOL' ? '등교' : '하교'
+  // 지도 키가 없거나 로드에 실패해도 빈 회색 판 대신 캠퍼스 격자와 현재 모집 현황을 깔끔하게 보여 준다.
+  const fallback = (
+    <div className="map-canvas map-fallback" aria-hidden="true">
+      <div className="mf-grid" />
+      <div className="mf-center">
+        <span className="mf-pulse" />
+        <span className="mf-pin"><i />{school.name}</span>
+      </div>
+      <div className="mf-card">
+        <span className="mf-kicker">{dirLabel} 실시간 현황</span>
+        <strong>{sameParties.length > 0 ? `모집 중 일행 ${sameParties.length}팀` : '지금 바로 일행을 모아 보세요'}</strong>
+        <small>{waitingCount > 0 ? `같은 방향 학생 ${waitingCount}명이 매칭을 기다리고 있어요` : '출발지와 도착지를 입력하면 같은 방향 학생과 이어 드려요'}</small>
+      </div>
+    </div>
+  )
   const points = [{ lat: school.lat, lon: school.lon, label: '학', tone: 'end' }]
-  for (const card of (board?.parties || []).filter((c) => c.direction === direction)) {
+  for (const card of sameParties) {
     if (card.anchorLat && card.anchorLon) points.push({ lat: card.anchorLat, lon: card.anchorLon, label: formatTime(card.departureAt).replace(/^오[전후] /, ''), tone: 'time' })
   }
   return <MapView points={points} edge={56} fallback={fallback} />

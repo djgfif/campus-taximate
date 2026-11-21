@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import { api } from './api.js'
 import { PartyChat } from './PartyScreens.jsx'
 import { FinancialDetails } from './SettleScreens.jsx'
@@ -29,11 +30,12 @@ function Row({ item, selected, onSelect }) {
         <span className={`badge ${tone}`}>{label}</span>
         {item.paid != null && <span>{won(item.paid)}</span>}
       </div>
+      {onSelect && (selected ? <ChevronUp size={18} aria-hidden="true" /> : <ChevronDown size={18} aria-hidden="true" />)}
     </>
   )
   if (!onSelect) return <div className="item">{content}</div>
   return (
-    <button type="button" className={selected ? 'item sel' : 'item'} aria-pressed={selected} onClick={onSelect}>
+    <button type="button" className={selected ? 'item sel' : 'item'} aria-expanded={selected} onClick={onSelect}>
       {content}
     </button>
   )
@@ -71,14 +73,19 @@ const ongoing = (item) => (HISTORY_LABEL[item.stage] || [])[1] === 'warn'
 /** 이용 내역. 휴대폰과 넓은 화면 모두 지도 없이 한 칸으로, 고른 줄 아래에 금액과 결제 기록을 펼친다. */
 export default function History({ onHome, admin = false, onBoardingCases }) {
   const [items, setItems] = useState(null)
-  const [selectedId, setSelectedId] = useState(null)
+  const [selectedId, setSelectedId] = useState(undefined)
   const [accuracy, setAccuracy] = useState(null)
   useEffect(() => {
     api.history().then(setItems).catch(() => setItems([]))
     if (admin) api.fareAccuracy().then(setAccuracy).catch(() => setAccuracy(null))
   }, [admin])
   const saved = savedTotal(items || [])
-  const selected = items?.find((item) => item.id === selectedId) || items?.[0]
+  const activeId = selectedId === undefined ? items?.[0]?.id : selectedId
+  const selected = activeId != null ? items?.find((item) => item.id === activeId) : null
+  const toggleItem = (id) => setSelectedId((prev) => {
+    const current = prev === undefined ? items?.[0]?.id : prev
+    return current === id ? null : id
+  })
   return (
     <Screen>
       <header className="bar"><h1 className="bar-title">이용 내역</h1></header>
@@ -96,7 +103,7 @@ export default function History({ onHome, admin = false, onBoardingCases }) {
             {list.map((item) => (
               <React.Fragment key={item.id}>
                 <Row item={item} selected={item.id === selected?.id}
-                  onSelect={() => setSelectedId(item.id)} />
+                  onSelect={() => toggleItem(item.id)} />
                 {item.id === selected?.id && <div className="history-open">
                   <Detail item={item} />
                   <BoardingCaseLink item={item} onBoardingCases={onBoardingCases} />

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Check, ChevronLeft, ChevronRight, Home as HomeIcon, Info, MessageCircle, Receipt, User } from 'lucide-react'
+import { AlertTriangle, Check, ChevronDown, ChevronLeft, ChevronRight, Home as HomeIcon, Info, MessageCircle, Receipt, User, X } from 'lucide-react'
 
 const WIDE = '(min-width: 1024px)'
 
@@ -59,14 +59,16 @@ export function SideEmpty({ title, children }) {
   return <div className="side-empty"><div><b>{title}</b><p>{children}</p></div></div>
 }
 
-/** 두 사람이 한 차에: 노란 차창 안에 나란히 앉은 두 사람. */
+/** 캠퍼스 택시메이트 엠블럼: 노란 배지 위의 택시 지붕등과 동승 실루엣. */
 export function Mark({ size = 24 }) {
   return (
-    <svg className="mark" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
-      <rect width="24" height="24" rx="7" fill="var(--amber)" />
-      <circle cx="8.5" cy="10" r="2.6" fill="var(--ink)" />
-      <circle cx="15.5" cy="10" r="2.6" fill="var(--ink)" />
-      <path d="M4.5 18.5c0-2.4 1.8-4 4-4s4 1.6 4 4M11.5 18.5c0-2.4 1.8-4 4-4s4 1.6 4 4" fill="var(--ink)" />
+    <svg className="mark" width={size} height={size} viewBox="0 0 28 28" aria-hidden="true">
+      <rect width="28" height="28" rx="8" fill="var(--amber)" />
+      <rect x="10.5" y="5.5" width="7" height="2.4" rx="1.2" fill="var(--ink)" />
+      <path d="M6.8 14.2 8.7 9.8A2.2 2.2 0 0 1 10.7 8.5h6.6a2.2 2.2 0 0 1 2 1.3l1.9 4.4c.7.4 1.3 1.2 1.3 2.1v3.2a1.3 1.3 0 0 1-1.3 1.3h-1.4a1.2 1.2 0 0 1-1.2-1.2v-.8H9.4v.8a1.2 1.2 0 0 1-1.2 1.2H6.8a1.3 1.3 0 0 1-1.3-1.3v-3.2c0-.9.6-1.7 1.3-2.1Z" fill="var(--ink)" />
+      <path d="M10.4 10.4h7.2l1.2 3.1H9.2l1.2-3.1Z" fill="var(--amber)" />
+      <circle cx="9.6" cy="16.4" r="1.25" fill="var(--amber)" />
+      <circle cx="18.4" cy="16.4" r="1.25" fill="var(--amber)" />
     </svg>
   )
 }
@@ -135,8 +137,9 @@ export function BackBar({ onBack, title, step, total }) {
 export function FareCompare({ solo, share }) {
   const won = (n) => `${Number(n).toLocaleString()}원`
   const ratio = solo > 0 ? Math.max(0.06, Math.min(1, share / solo)) : 1
+  const savePct = solo > 0 ? Math.round(((solo - share) / solo) * 100) : 0
   return <section className="fare-compare" aria-label="아끼는 돈">
-    <p className="fc-save"><b>{won(solo - share)}</b> 아껴요</p>
+    <p className="fc-save"><b>{won(solo - share)}</b> 아껴요{savePct > 0 && <span className="fc-pct">-{savePct}%</span>}</p>
     <div className="fc-row"><span>혼자 타면</span><i className="fc-bar solo" /><em>{won(solo)}</em></div>
     <div className="fc-row"><span>같이 타면</span><i className="fc-bar shared" style={{ '--w': `${Math.round(ratio * 100)}%` }} /><em>{won(share)}</em></div>
   </section>
@@ -192,12 +195,35 @@ export function Btn({ onClick, className = '', disabled, children, type = 'butto
   )
 }
 
-export function Say({ tone = '', title, children }) {
+export function Say({ tone = '', title, action, children }) {
   const Icon = tone === 'stop-tone' ? AlertTriangle : tone === 'save-tone' ? Check : Info
   return (
-    <div className={`say ${tone}`}>
-      <Icon size={18} aria-hidden="true" />
-      <div>{title && <b>{title}</b>}{children}</div>
+    <div className={`say ${tone}${action ? ' has-action' : ''}`}>
+      <div className="say-row">
+        <Icon size={18} aria-hidden="true" />
+        <div className="say-body">{title && <b>{title}</b>}{children}</div>
+      </div>
+      {action && <div className="say-action">{action}</div>}
+    </div>
+  )
+}
+
+/** 기본 HTML details 대신 쓰는 부드러운 접힘 패널. 아이콘 회전과 높이 전환을 통일한다. */
+export function Fold({ title, defaultOpen = false, className = '', children }) {
+  const [open, setOpen] = useState(defaultOpen)
+  const panel = useRef(null)
+  useEffect(() => {
+    if (panel.current) panel.current.inert = !open
+  }, [open])
+  return (
+    <div className={`fold ${className}`} data-open={open ? 'true' : undefined}>
+      <button type="button" className="fold-trigger" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+        <span>{title}</span>
+        <ChevronDown size={17} className="fold-chev" aria-hidden="true" />
+      </button>
+      <div ref={panel} className="fold-panel">
+        <div className="fold-inner">{children}</div>
+      </div>
     </div>
   )
 }
@@ -227,14 +253,21 @@ export function Rail({ items }) {
   )
 }
 
-// 알록달록한 파스텔 대신 무채색 두 단계만 쓴다. 사람마다 색이 달라 보일 필요는 없다.
-const AVATAR_TONES = ['#eceef1', '#e4e6ea']
+// 동승자 3~4명이 채팅과 목록에서 한눈에 구분되도록 차분한 뮤트 톤 6종을 쓴다.
+const AVATAR_TONES = [
+  ['#fef3c7', '#8a5300'],
+  ['#e3f2eb', '#0b6b43'],
+  ['#e5f0fb', '#1d56a3'],
+  ['#f0eafa', '#5b399e'],
+  ['#fceae6', '#a33c29'],
+  ['#e8eff2', '#355464'],
+]
 
 /** 사람을 사람처럼: 이름 첫 글자를 담은 동그란 프로필. 같은 이름은 늘 같은 색이다. */
 export function Avatar({ name = '', size = 32 }) {
   const text = String(name).trim()
-  const tone = AVATAR_TONES[[...text].reduce((sum, ch) => sum + ch.codePointAt(0), 0) % AVATAR_TONES.length]
-  return <span className="avatar" aria-hidden="true" style={{ width: size, height: size, fontSize: Math.round(size * 0.42), background: tone }}>{text.slice(0, 1) || '?'}</span>
+  const [bg, fg] = AVATAR_TONES[[...text].reduce((sum, ch) => sum + ch.codePointAt(0), 0) % AVATAR_TONES.length]
+  return <span className="avatar" aria-hidden="true" style={{ width: size, height: size, fontSize: Math.round(size * 0.42), background: bg, color: fg }}>{text.slice(0, 1) || '?'}</span>
 }
 
 export function Item({ title, detail, onClick, right, danger }) {
@@ -300,7 +333,10 @@ export function Sheet({ title, onClose, children, className = '' }) {
     <>
       <div className={`scrim ${className}`} onClick={onClose} aria-hidden="true" />
       <section ref={box} tabIndex={-1} className={`sheet ${className}`} role="dialog" aria-modal="true" aria-label={title}>
-        <h2>{title}</h2>
+        <div className="sheet-head">
+          <h2>{title}</h2>
+          <button type="button" className="icon-btn sheet-close" aria-label="닫기" onClick={onClose}><X size={20} aria-hidden="true" /></button>
+        </div>
         {children}
       </section>
     </>

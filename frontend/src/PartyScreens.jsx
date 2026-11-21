@@ -10,7 +10,7 @@ import BoardingCodePanel from './BoardingCodePanel.jsx'
 import LegacyParty from './LegacyPartyScreens.jsx'
 import { CancelSheet, DriverView, PartySecondary, PartyShell, REAL_NAME, roleTag } from './PartyShell.jsx'
 import { formatTime, formatDateTime, isPaymentParty, knownPartyStatus, meetPlace, partyLabel, remaining, won } from './format.js'
-import { Avatar, BackBar, Btn, FairnessNote, FareCompare, Item, Meter, Rail, Rows, Say, Screen, Sheet, useWide } from './ui.jsx'
+import { Avatar, BackBar, Btn, FairnessNote, FareCompare, Fold, Item, Meter, Rail, Rows, Say, Screen, Sheet, useWide } from './ui.jsx'
 
 // 일행 채팅과 공통 방 뼈대는 별도 파일로 분리했다. 다른 화면은 기존 경로에서 그대로 가져온다.
 export { DriverView, PartyChat, PartyShell }
@@ -86,8 +86,8 @@ export function PartyFareRows({ party }) {
     ]} />
     {/* 명세 8.4·S24: 확정된 노쇼나 무료 취소 마감 뒤 취소면 늘어난 몫을 빠진 사람의 선결제에서 보전(그 사람 확정 몫까지). */}
     {increase > 0 && <Say title={`일행이 빠져 내 몫이 ${won(increase)} 늘었어요`}>
-      빠진 사람이 노쇼로 확정되거나 무료 취소 마감 뒤에 취소했다면, 늘어난 만큼을 그 사람의 선결제에서 받아 정산 때 내 몫에서 빼 드려요(그 사람의 확정 몫까지).
-      노쇼가 아니라고 판정되거나 빠진 사람이 처음 결제자라면 보전 없이 실제 요금으로 나눠요.
+      노쇼 확정·마감 후 취소라면 늘어난 금액을 그 사람의 선결제에서 받아 정산 때 내 몫에서 빼 드려요.
+      노쇼가 아니거나 처음 결제자가 빠지면 실제 요금 기준으로 나눠요.
     </Say>}
   </>
 }
@@ -106,7 +106,19 @@ function stepOf(party) {
 export function PartyStepper({ party, compact = false }) {
   const ended = ['DISSOLVED', 'NOT_OPERATED'].includes(party.status)
   const current = stepOf(party)
-  return <ol className={`stepper${ended ? ' ended' : ''}${compact ? ' compact' : ''}`} aria-label={compact ? '지금 단계' : '진행 단계'}>
+  if (compact) {
+    return <div className={`stepper-compact${ended ? ' ended' : ''}`}>
+      <div className="stepper-meta">
+        <span className="stepper-now">{ended ? partyLabel(party.status) : STEPS[current]}</span>
+        <small>{current + 1} / {STEPS.length}</small>
+      </div>
+      <ol className={`stepper compact${ended ? ' ended' : ''}`} aria-label="지금 단계">
+        {STEPS.map((step, i) => <li key={step} className={i < current ? 'done' : i === current ? 'now' : ''}
+          aria-current={i === current ? 'step' : undefined}><span aria-hidden="true" /><b className="sr-only">{step}</b></li>)}
+      </ol>
+    </div>
+  }
+  return <ol className={`stepper${ended ? ' ended' : ''}`} aria-label="진행 단계">
     {STEPS.map((step, i) => <li key={step} className={i < current ? 'done' : i === current ? 'now' : ''}
       aria-current={i === current ? 'step' : undefined}><span aria-hidden="true" />{step}</li>)}
   </ol>
@@ -252,8 +264,10 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
           {!owesPrepay && <PartyStepper party={party} compact />}
           <NextAction party={party} now={now} myId={myId} mine={mine} config={config} run={run} onUpdated={onUpdated} onDriver={() => setDriver(true)} />
           {['READY', 'RIDE_UNCONFIRMED', 'AWAITING_FARE'].includes(party.status) && <BoardingCodePanel party={party} now={now} onUpdated={onUpdated} />}
-          {party.canLeaveAfterChange && <Say tone="stop-tone" title="일행이 바뀌었어요">현재 내 몫은 {won(party.myShare)}이에요. 원하지 않으면 {party.changeExitFree ? '호출 전까지 무료로' : ''} 빠질 수 있어요.
-            <Btn className="line" onClick={() => setLeavingChange(true)}>변경돼서 빠지기</Btn></Say>}
+          {party.canLeaveAfterChange && <Say tone="stop-tone" title="일행이 바뀌었어요"
+            action={<Btn className="small line" onClick={() => setLeavingChange(true)}>변경돼서 빠지기</Btn>}>
+            현재 내 몫은 {won(party.myShare)}이에요. 원하지 않으면 {party.changeExitFree ? '호출 전까지 무료로' : ''} 빠질 수 있어요.
+          </Say>}
           {waiting && party.instant && !mine?.arrived && !owesPrepay && <Btn className="line" disabled={mine?.nearby}
             onClick={() => run(() => api.prepareParty(party.id, 'NEARBY'), '2분 안 도착으로 표시했어요')}>{mine?.nearby ? '2분 안 도착 표시 완료' : '2분 안 도착'}</Btn>}
       </>}
@@ -294,8 +308,7 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
           party.freeCancelUntil && ['무료 취소 마감', formatDateTime(party.freeCancelUntil)],
         ]} />
         <PartyFareRows party={party} />
-        <details className="rules">
-          <summary>규칙 자세히</summary>
+        <Fold title="규칙 자세히" className="rules">
           <ul>
             <li>{free ? '무료 취소 마감 전 취소하면 승인된 선결제를 전액 환불해요.' : '무료 취소 마감이 지나 취소하면 남은 일행의 늘어난 몫을 보전해요.'}</li>
             <li>누가 오지 않으면 일행·본인 소명을 보고 24시간 뒤 판정해요. 노쇼로 확정되면 남은 일행의 늘어난 몫을 그 사람의 선결제에서 보전하고, 판단할 수 없으면 노쇼로 보지 않아요.</li>
@@ -305,7 +318,7 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
             <li>운행 시작 표시가 없으면 탔는지 물어보고, 미운행이 확인될 때만 환불해요.</li>
             <li>{CHAT_RETENTION}</li>
           </ul>
-        </details>
+        </Fold>
         <div className="list"><Item title="일행과 경로 자세히" onClick={onDetail} /></div>
         <PartySecondary party={party} onCancel={() => setAsking(true)} />
       </div>} />
