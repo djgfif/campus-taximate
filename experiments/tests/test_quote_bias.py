@@ -74,6 +74,26 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(self.r['kakao_hub_quotes'],
                          self.r['kakao_split']['destination_in_pocheon']['n'] + self.r['kakao_split']['destination_outside_pocheon']['n'])
 
+    def test_border_surcharge_closes_the_outside_gap(self):
+        # 포천 밖 운행은 경로 대부분이 경계 밖이고, 할증을 넣으면 포천 안 운행과 비슷한 수준이 돼야 한다.
+        s = self.r['kakao_split']; inside, outside = s['destination_in_pocheon'], s['destination_outside_pocheon']
+        self.assertGreater(outside['outside_fraction_median'], 0.5)
+        self.assertLess(inside['outside_fraction_median'], 0.05)
+        self.assertGreater(outside['median'] - inside['median'], 0.05)
+        self.assertLess(abs(outside['border']['median'] - inside['border']['median']), 0.05)
+
+    def test_no_border_sensitivity_is_kept(self):
+        self.assertIn('service_weighted', self.r['no_border'])
+        self.assertGreater(self.r['no_border']['service_weighted']['kakao_vs_actual'][0], self.r['service_weighted']['kakao_vs_actual'][0])
+
+
+class BorderSurchargeTests(unittest.TestCase):
+    def test_only_fare_above_base_and_outside_share_is_surcharged(self):
+        self.assertEqual(qb.with_border_surcharge(4800, 1.0), 4800)
+        self.assertEqual(qb.with_border_surcharge(20000, 0.0), 20000)
+        self.assertAlmostEqual(qb.with_border_surcharge(20000, 1.0), 4800 + 15200 * 1.2)
+        self.assertAlmostEqual(qb.with_border_surcharge(20000, 0.5), 20000 + 0.2 * 15200 * 0.5)
+
 
 if __name__ == '__main__':
     unittest.main()
