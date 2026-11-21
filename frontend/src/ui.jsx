@@ -82,7 +82,7 @@ export function Brand() {
     e.preventDefault()
     goHome()
   }
-  return <span className="brand" href="/" aria-label="택시메이트 첫 화면으로" onClick={click}><Mark />택시메이트</span>
+  return <a className="brand" href="/" aria-label="택시메이트 첫 화면으로" onClick={click}><Mark />택시메이트</a>
 }
 
 export function TopBar({ onMenu, onHome, floating, actions }) {
