@@ -70,9 +70,32 @@ class ReportTests(unittest.TestCase):
         self.assertGreaterEqual(max(highs), w['app_vs_actual'][1])
         self.assertLessEqual(w['app_vs_actual_ci95'][0], w['app_vs_actual_ci95'][1])
 
-    def test_hub_quotes_only(self):
-        self.assertEqual(self.r['kakao_hub_quotes'],
+    def test_all_quotes_are_split_by_destination(self):
+        self.assertEqual(self.r['kakao_quotes'],
                          self.r['kakao_split']['destination_in_pocheon']['n'] + self.r['kakao_split']['destination_outside_pocheon']['n'])
+        self.assertEqual(self.r['kakao_quotes'], self.r['kakao_hub_quotes'] + (self.r['campus']['n'] if self.r['campus'] else 0))
+
+    def test_campus_supplement_fills_5_to_15(self):
+        c = self.r['campus']
+        if not c:
+            self.skipTest('C16 보강 표본 없음')
+        self.assertEqual(c['n'], 3 * qb.PER_SUB_BAND)
+        self.assertEqual({k: v['n'] for k, v in c['by_sub_band'].items()}, {'5-8': 24, '8-11': 24, '11-15': 24})
+        self.assertGreaterEqual(self.r['per_band']['5-15']['kakao_over_formula']['n'], 60)
+        # 미리 고정한 표본 파일이 그대로인지(결과를 본 뒤 다시 뽑지 않았는지)
+        self.assertEqual(c['sample_sha256'], qb._sha(qb.CAMPUS_SAMPLE))
+
+    def test_border_assumption_fits_best_and_none_supports_old_bias(self):
+        sc = self.r['scenarios']
+        gap = {k: abs(v['inside']['median'] - v['outside']['median']) for k, v in sc.items()}
+        self.assertEqual(min(gap, key=gap.get), 'border')
+        for v in sc.values():
+            # 어느 가정에서도 예전 앱 견적(카카오 x 1.0657)이 실제 평균에 맞는다고 볼 수 없다(카카오/실제 하한이 -6.57%보다 높다).
+            self.assertGreater(v['service_weighted']['kakao_vs_actual'][0], -0.0657 / 1.0657)
+
+    def test_original_200_kept_for_comparison(self):
+        o = self.r['original_200']['service_weighted']
+        self.assertLess(o['kakao_vs_actual'][0], o['kakao_vs_actual'][1])
 
     def test_border_surcharge_closes_the_outside_gap(self):
         # 포천 밖 운행은 경로 대부분이 경계 밖이고, 할증을 넣으면 포천 안 운행과 비슷한 수준이 돼야 한다.

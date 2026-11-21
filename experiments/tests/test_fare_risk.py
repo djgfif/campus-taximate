@@ -30,6 +30,19 @@ class FareRiskTests(unittest.TestCase):
             paid = [lv[f'{x:.4f}']['mean_paid_over_meter'] for x in fr.SCENARIOS]
             self.assertEqual(paid, sorted(paid, reverse=True), n)
 
+    def test_stress_without_shock_matches_the_main_table(self):
+        # 스트레스 계산(공통 충격 0, 같은 2,000경로)은 본 표의 지금 앱 행과 같은 기금을 내야 한다(두 구현이 맞는지).
+        for n, s in self.r.get('stress', {}).items():
+            main = self.r['levels'][n][f"now_{s['x']:.4f}"]
+            self.assertAlmostEqual(s['paths_2000']['seed99'], main['seed99'], delta=max(50, 0.01 * main['seed99']))
+            self.assertAlmostEqual(s['paths_2000']['probability_ever_negative'], main['probability_ever_negative'], delta=0.01)
+
+    def test_common_shock_raises_the_fund(self):
+        for n, s in self.r.get('stress', {}).items():
+            for sp in fr.STRESS_SPREADS:
+                funds = [s['cells'][f'{sp}_{sd}']['seed99'] for sd in fr.STRESS_SHOCKS]
+                self.assertEqual(funds, sorted(funds), (n, sp))
+
 
 if __name__ == '__main__':
     unittest.main()

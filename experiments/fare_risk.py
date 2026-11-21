@@ -51,9 +51,49 @@ APPS = (('now', '지금 앱(보정 0), C16 추정', 1 / (1 + ASSUMED)), ('before
 LEVELS = (15, 35, 70, 100)
 
 
-def rows(path=c12.CACHE / 'fixed.csv'):
+def rows(path=c12.CACHE / 'fixed.csv', spread=1.):
     with path.open(encoding='utf-8', newline='') as f:
-        return [r for r in csv.DictReader(f) if abs(float(r['spread']) - 1.) < 1e-9]
+        return [r for r in csv.DictReader(f) if abs(float(r['spread']) - spread) < 1e-9]
+
+
+# 스트레스 시험(ChatGPT 검토 제안): 개별 오차를 TIMS 격자·월 잔차에서 뽑아 실제보다 좁을 수 있고,
+# 같은 날 여러 운행이 함께 비싸지는 공통 충격(정체·날씨)이 없다. 지금 앱의 C16 최악 쪽에서
+# 오차 폭 1/1.5/2배 × 하루 공통 충격(로그정규, 평균 1) 표준편차 0/5/10%를 학기 경로 20,000개로 본다.
+STRESS_PATHS = 20000
+STRESS_SPREADS = (1., 1.5, 2.)
+STRESS_SHOCKS = (0., .05, .10)
+STRESS_LEVELS = (35, 100)
+
+
+def stress(rs, n, x, quote_scale, shock_sd, paths, rng):
+    """경로·날마다 공통 충격 s를 그날 모든 실제 요금에 곱한다. 1.5배 초과 관리자 검토 규칙은 충격 뒤 요금으로 다시 판단한다."""
+    scale = (1 + x) / (1 + ASSUMED)
+    days = []
+    for day in range(c12.DAYS):
+        rr = sorted([r for r in rs if int(r['n']) == n and int(r['day']) == day], key=lambda r: (int(r['finish']), int(r['group_id'])))
+        days.append((np.array([int(r['fixed_quote']) * quote_scale for r in rr], dtype=float),
+                     np.array([int(r['meter']) * scale for r in rr], dtype=float)))
+    P, T = paths.shape
+    shock = np.exp(shock_sd * rng.standard_normal((P, T)) - shock_sd ** 2 / 2) if shock_sd else np.ones((P, T))
+    totals = np.zeros((P, T)); minima = np.zeros((P, T))
+    for d, (f, m) in enumerate(days):
+        if not len(f):
+            continue
+        idx = np.nonzero(paths == d)
+        meter = shock[idx][:, None] * m[None, :]
+        delta = np.where(meter > 1.5 * f[None, :], 0., f[None, :] - meter)
+        cum = np.cumsum(delta, axis=1)
+        totals[idx] = cum[:, -1]
+        minima[idx] = np.minimum(0., cum.min(axis=1))
+    ending = np.cumsum(totals, axis=1)
+    previous = np.concatenate((np.zeros((P, 1)), ending[:, :-1]), axis=1)
+    minimum = np.minimum(0., np.min(previous + minima, axis=1))
+    required = -minimum
+    groups = sum(len(f) for f, _ in days)
+    review = sum(float(np.mean(shock[np.nonzero(paths == d)][:, None] * m[None, :] > 1.5 * f[None, :])) * len(f)
+                 for d, (f, m) in enumerate(days) if len(f) and np.any(paths == d)) / groups if groups else None
+    return dict(paths=P, review_share=review, probability_ever_negative=float(np.mean(minimum < 0)),
+                seed99=float(c11.seed_fund(np.ceil(required), .99)), end_mean=float(ending[:, -1].mean()), end_p1=float(np.quantile(ending[:, -1], .01)))
 
 
 def scenario(rs, n, x, paths, quote_scale=1.):
@@ -93,7 +133,19 @@ def main():
         for key, _, qs in APPS:
             for x in NOW:
                 out[str(n)][f'{key}_{x:.4f}'] = scenario(rs, n, x, paths, quote_scale=qs)
-    run.json_write(REPORTS / 'c14-fare-risk.json', dict(assumed=ASSUMED, scenarios=SCENARIOS, c16_x=NOW, levels=out))
+    stress_out = {}
+    if NOW:
+        worst = max(NOW)  # 실제가 카카오 견적에 가장 가까운(운영자에게 불리한) 쪽
+        big = np.random.default_rng(c12.SEED + 16).integers(0, c12.DAYS, size=(STRESS_PATHS, paths.shape[1]))
+        by_spread = {s: rows(spread=s) for s in STRESS_SPREADS}
+        for n in STRESS_LEVELS:
+            base2k = stress(by_spread[1.], n, worst, APPS[0][2], 0., paths, np.random.default_rng(1))
+            cells = {}
+            for s in STRESS_SPREADS:
+                for sd in STRESS_SHOCKS:
+                    cells[f'{s}_{sd}'] = stress(by_spread[s], n, worst, APPS[0][2], sd, big, np.random.default_rng(c12.SEED + int(100 * s) + int(1000 * sd)))
+            stress_out[str(n)] = dict(x=worst, paths_2000=base2k, cells=cells)
+    run.json_write(REPORTS / 'c14-fare-risk.json', dict(assumed=ASSUMED, scenarios=SCENARIOS, c16_x=NOW, levels=out, stress=stress_out))
     won = lambda v: f'{v:,.0f}원'
     L = ['# C14 요금 보정의 위험', '',
          '견적 보정 6.57%는 요금표 견적과 TIMS 2025 실제 영업요금의 차이에서 나왔고, 예전 앱은 이를 카카오 길찾기 견적에 곱했다. '
@@ -126,6 +178,22 @@ def main():
                  f"지금 앱은 기금 없이 시작하면 학기 중 한 번이라도 적자가 날 확률이 최대 {100 * max(s['probability_ever_negative'] for s in now):.0f}%지만, "
                  f"초기 기금 {won(max(s['seed99'] for s in now))}이면 99% 버틴다. 이용자 초과 부담은 거의 없어지고, 운영자 쪽 위험은 작은 초기 기금으로 감당할 수준이다.")
     L.append('- 이 보정들은 같은 운행 비교로 확인된 값이 아니다. 운영 중 실제 요금 입력이 쌓이면 보정값을 다시 맞춰야 하고(정산마다 실제 요금이 기록된다), 그 전까지는 위 표가 위험의 범위다.')
+    for n, s in stress_out.items():
+        b = s['paths_2000']; c0 = s['cells']['1.0_0.0']
+        L += ['', f'## 스트레스 시험: 지금 앱, 하루 {n}건', '',
+              f"C16 범위 중 운영자에게 가장 불리한 쪽(실제가 카카오 견적보다 {100 * s['x']:+.2f}%)에서, 개별 오차를 TIMS 격자·월 잔차보다 넓게(1.5·2배) 하고 "
+              '같은 날 모든 운행에 함께 곱하는 공통 충격(정체·날씨 같은 날 단위 변동, 로그정규 평균 1)을 더한다. 학기 경로는 20,000개.', '',
+              f"- 경로 수 안정성(오차 1배, 충격 0): 2,000경로 99% 기금 {won(b['seed99'])}·적자 확률 {100 * b['probability_ever_negative']:.0f}% → "
+              f"20,000경로 {won(c0['seed99'])}·{100 * c0['probability_ever_negative']:.0f}%.", '',
+              '| 개별 오차 폭 | 공통 충격 0% | 공통 충격 5% | 공통 충격 10% |', '|---|---|---|---|']
+        for sp in STRESS_SPREADS:
+            cells = [s['cells'][f'{sp}_{sd}'] for sd in STRESS_SHOCKS]
+            L.append(f"| {sp:g}배 | " + ' | '.join(f"99% 기금 {won(c['seed99'])}, 적자 확률 {100 * c['probability_ever_negative']:.0f}%, 관리자 검토 {100 * c['review_share']:.1f}%" for c in cells) + ' |')
+        worst_cell = max(s['cells'].values(), key=lambda c: c['seed99'])
+        L += ['', f"- 기본 가정의 99% 초기 기금 {won(c0['seed99'])}은 확정 운영비가 아니라 범위의 한 점이다. 이 표의 가장 나쁜 조합에서는 {won(worst_cell['seed99'])}이 필요하다.",
+              '- 하루 공통 충격이 개별 오차 폭보다 기금을 크게 바꾼다. 같은 날 모든 일행이 함께 비싸지면 서로 상쇄되지 않기 때문이다.',
+              '- 개별 오차 폭을 키우면 실제 요금이 확정 금액의 1.5배를 넘어 관리자 검토로 빠지는 일행(적립금에서 빼지 않음)이 늘어, 충격이 클 때는 기금이 오히려 덜 늘 수 있다.',
+              '- 오차 폭과 공통 충격의 크기는 관측값이 아니라 가정이다(개별 일반택시 요금은 공개되지 않는다).']
     (REPORTS / 'c14-fare-risk.md').write_text('\n'.join(L) + '\n', encoding='utf-8')
     print('\n'.join(L[-4:]))
 
