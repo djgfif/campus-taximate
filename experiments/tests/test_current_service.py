@@ -12,10 +12,13 @@ HAS_PYPROJ = importlib.util.find_spec('pyproj') is not None
 
 
 class C12UnitTests(unittest.TestCase):
-    def test_fare_config_matches_server_defaults(self):
+    def test_fare_config_uses_sim_bias_and_server_margin(self):
+        # 실험 견적(요금표 공식)의 보정은 C5 값 그대로, 여유분만 앱 설정을 따른다. 앱 보정(카카오 견적)은 C16에 따라 0이다.
         bias, margin = c12.fare_config()
         self.assertAlmostEqual(bias, 0.0657)
         self.assertAlmostEqual(margin, 0.01)
+        yml = (c12.ROOT / 'server/src/main/resources/application.yml').read_text(encoding='utf-8')
+        self.assertIn('quote-bias: ${FARE_QUOTE_BIAS:0}', yml)
 
     @unittest.skipUnless(HAS_PYPROJ, 'pyproj is not installed in this Python environment')
     def test_campus_grid_and_neighbourhood(self):

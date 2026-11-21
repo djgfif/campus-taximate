@@ -7,6 +7,10 @@
     0.1,
     0.15
   ],
+  "c16_x": [
+    -0.046,
+    -0.0089
+  ],
   "levels": {
     "15": {
       "0.0000": {
@@ -78,6 +82,62 @@
         "seed99": 169370,
         "probability_never_negative_seed95": 0.95,
         "probability_never_negative_seed99": 0.99
+      },
+      "now_-0.0460": {
+        "groups": 21,
+        "review_share": 0.0,
+        "mean_paid_over_meter": 0.0925858623190845,
+        "share_paid_more_than_meter": 0.7619047619047619,
+        "end_mean": 186017.8145,
+        "end_p5": 124644.3,
+        "end_p1": 102095.07,
+        "probability_ever_negative": 0.293,
+        "seed95": 2535,
+        "seed99": 4276,
+        "probability_never_negative_seed95": 0.963,
+        "probability_never_negative_seed99": 0.99
+      },
+      "now_-0.0089": {
+        "groups": 21,
+        "review_share": 0.0,
+        "mean_paid_over_meter": 0.05168692629644478,
+        "share_paid_more_than_meter": 0.7142857142857143,
+        "end_mean": 108202.408,
+        "end_p5": 54485.15,
+        "end_p1": 35376.36,
+        "probability_ever_negative": 0.5185,
+        "seed95": 9414,
+        "seed99": 14121,
+        "probability_never_negative_seed95": 0.9525,
+        "probability_never_negative_seed99": 0.99
+      },
+      "before_-0.0460": {
+        "groups": 21,
+        "review_share": 0.0,
+        "mean_paid_over_meter": 0.16436875347344881,
+        "share_paid_more_than_meter": 0.9523809523809523,
+        "end_mean": 329681.5055,
+        "end_p5": 243013.4,
+        "end_p1": 211377.42,
+        "probability_ever_negative": 0.0,
+        "seed95": 0,
+        "seed99": 0,
+        "probability_never_negative_seed95": 1.0,
+        "probability_never_negative_seed99": 1.0
+      },
+      "before_-0.0089": {
+        "groups": 21,
+        "review_share": 0.0,
+        "mean_paid_over_meter": 0.12078275735412158,
+        "share_paid_more_than_meter": 0.8571428571428571,
+        "end_mean": 251874.0915,
+        "end_p5": 178816.95,
+        "end_p1": 152283.55,
+        "probability_ever_negative": 0.072,
+        "seed95": 1205,
+        "seed99": 1205,
+        "probability_never_negative_seed95": 0.993,
+        "probability_never_negative_seed99": 0.993
       }
     },
     "35": {
@@ -150,6 +210,62 @@
         "seed99": 921348,
         "probability_never_negative_seed95": 0.95,
         "probability_never_negative_seed99": 0.99
+      },
+      "now_-0.0460": {
+        "groups": 120,
+        "review_share": 0.008333333333333333,
+        "mean_paid_over_meter": 0.05044326400292909,
+        "share_paid_more_than_meter": 0.7083333333333334,
+        "end_mean": 657202.813,
+        "end_p5": 527324.8,
+        "end_p1": 484203.63,
+        "probability_ever_negative": 0.3515,
+        "seed95": 5963,
+        "seed99": 9422,
+        "probability_never_negative_seed95": 0.9505,
+        "probability_never_negative_seed99": 0.99
+      },
+      "now_-0.0089": {
+        "groups": 120,
+        "review_share": 0.008333333333333333,
+        "mean_paid_over_meter": 0.011121858398541518,
+        "share_paid_more_than_meter": 0.5916666666666667,
+        "end_mean": 251980.251,
+        "end_p5": 139406.3,
+        "end_p1": 105482.79000000001,
+        "probability_ever_negative": 0.6605,
+        "seed95": 20827,
+        "seed99": 31141,
+        "probability_never_negative_seed95": 0.95,
+        "probability_never_negative_seed99": 0.99
+      },
+      "before_-0.0460": {
+        "groups": 120,
+        "review_share": 0.008333333333333333,
+        "mean_paid_over_meter": 0.11945738644792159,
+        "share_paid_more_than_meter": 0.9,
+        "end_mean": 1384921.473,
+        "end_p5": 1198370.4,
+        "end_p1": 1123509.76,
+        "probability_ever_negative": 0.0915,
+        "seed95": 2331,
+        "seed99": 4662,
+        "probability_never_negative_seed95": 0.965,
+        "probability_never_negative_seed99": 0.995
+      },
+      "before_-0.0089": {
+        "groups": 120,
+        "review_share": 0.008333333333333333,
+        "mean_paid_over_meter": 0.07755256449532588,
+        "share_paid_more_than_meter": 0.7916666666666666,
+        "end_mean": 979712.576,
+        "end_p5": 825202.85,
+        "end_p1": 767861.13,
+        "probability_ever_negative": 0.2675,
+        "seed95": 3765,
+        "seed99": 6999,
+        "probability_never_negative_seed95": 0.956,
+        "probability_never_negative_seed99": 0.9905
       }
     },
     "70": {
@@ -222,6 +338,62 @@
         "seed99": 3087286,
         "probability_never_negative_seed95": 0.95,
         "probability_never_negative_seed99": 0.99
+      },
+      "now_-0.0460": {
+        "groups": 346,
+        "review_share": 0.002890173410404624,
+        "mean_paid_over_meter": 0.048244180223885325,
+        "share_paid_more_than_meter": 0.7138728323699421,
+        "end_mean": 1630240.0895,
+        "end_p5": 1380641.7,
+        "end_p1": 1290280.6,
+        "probability_ever_negative": 0.467,
+        "seed95": 15082,
+        "seed99": 17201,
+        "probability_never_negative_seed95": 0.95,
+        "probability_never_negative_seed99": 0.993
+      },
+      "now_-0.0089": {
+        "groups": 346,
+        "review_share": 0.002890173410404624,
+        "mean_paid_over_meter": 0.00900509326363319,
+        "share_paid_more_than_meter": 0.546242774566474,
+        "end_mean": 420526.4675,
+        "end_p5": 156288.95,
+        "end_p1": 62021.200000000004,
+        "probability_ever_negative": 0.8575,
+        "seed95": 73969,
+        "seed99": 112352,
+        "probability_never_negative_seed95": 0.95,
+        "probability_never_negative_seed99": 0.9905
+      },
+      "before_-0.0460": {
+        "groups": 346,
+        "review_share": 0.002890173410404624,
+        "mean_paid_over_meter": 0.11711382286459404,
+        "share_paid_more_than_meter": 0.8930635838150289,
+        "end_mean": 3781051.8735,
+        "end_p5": 3499666.05,
+        "end_p1": 3396168.7,
+        "probability_ever_negative": 0.139,
+        "seed95": 3077,
+        "seed99": 4265,
+        "probability_never_negative_seed95": 0.961,
+        "probability_never_negative_seed99": 1.0
+      },
+      "before_-0.0089": {
+        "groups": 346,
+        "review_share": 0.002890173410404624,
+        "mean_paid_over_meter": 0.07529672789105324,
+        "share_paid_more_than_meter": 0.791907514450867,
+        "end_mean": 2571375.7405,
+        "end_p5": 2309756.15,
+        "end_p1": 2202063.16,
+        "probability_ever_negative": 0.417,
+        "seed95": 8958,
+        "seed99": 9051,
+        "probability_never_negative_seed95": 0.9675,
+        "probability_never_negative_seed99": 0.9975
       }
     },
     "100": {
@@ -294,6 +466,234 @@
         "seed99": 4821101,
         "probability_never_negative_seed95": 0.95,
         "probability_never_negative_seed99": 0.99
+      },
+      "now_-0.0460": {
+        "groups": 607,
+        "review_share": 0.0016474464579901153,
+        "mean_paid_over_meter": 0.05647833419003789,
+        "share_paid_more_than_meter": 0.7051070840197694,
+        "end_mean": 3317246.601,
+        "end_p5": 2955432.35,
+        "end_p1": 2809690.0,
+        "probability_ever_negative": 0.524,
+        "seed95": 11080,
+        "seed99": 17664,
+        "probability_never_negative_seed95": 0.961,
+        "probability_never_negative_seed99": 0.999
+      },
+      "now_-0.0089": {
+        "groups": 607,
+        "review_share": 0.0016474464579901153,
+        "mean_paid_over_meter": 0.01693101686741505,
+        "share_paid_more_than_meter": 0.57166392092257,
+        "end_mean": 1121717.88,
+        "end_p5": 779686.35,
+        "end_p1": 631319.09,
+        "probability_ever_negative": 0.762,
+        "seed95": 48830,
+        "seed99": 74799,
+        "probability_never_negative_seed95": 0.95,
+        "probability_never_negative_seed99": 0.99
+      },
+      "before_-0.0460": {
+        "groups": 607,
+        "review_share": 0.0016474464579901153,
+        "mean_paid_over_meter": 0.12588896074632427,
+        "share_paid_more_than_meter": 0.8846787479406919,
+        "end_mean": 7244269.672,
+        "end_p5": 6808076.95,
+        "end_p1": 6651340.9,
+        "probability_ever_negative": 0.211,
+        "seed95": 4265,
+        "seed99": 5668,
+        "probability_never_negative_seed95": 0.965,
+        "probability_never_negative_seed99": 1.0
+      },
+      "before_-0.0089": {
+        "groups": 607,
+        "review_share": 0.0016474464579901153,
+        "mean_paid_over_meter": 0.08374338467560505,
+        "share_paid_more_than_meter": 0.7808896210873146,
+        "end_mean": 5048829.126,
+        "end_p5": 4645850.35,
+        "end_p1": 4500483.11,
+        "probability_ever_negative": 0.3505,
+        "seed95": 8423,
+        "seed99": 12440,
+        "probability_never_negative_seed95": 0.9645,
+        "probability_never_negative_seed99": 1.0
+      }
+    }
+  },
+  "stress": {
+    "35": {
+      "x": -0.0089,
+      "paths_2000": {
+        "paths": 2000,
+        "review_share": 0.008333333333333333,
+        "probability_ever_negative": 0.6605,
+        "seed99": 31141.0,
+        "end_mean": 251979.68479520548,
+        "end_p1": 105488.21035657356
+      },
+      "cells": {
+        "1.0_0.0": {
+          "paths": 20000,
+          "review_share": 0.008333333333333333,
+          "probability_ever_negative": 0.674,
+          "seed99": 32148.0,
+          "end_mean": 251135.97067392364,
+          "end_p1": 95395.4915886275
+        },
+        "1.0_0.05": {
+          "paths": 20000,
+          "review_share": 0.008761527876372837,
+          "probability_ever_negative": 0.7317,
+          "seed99": 76797.0,
+          "end_mean": 252406.43755597476,
+          "end_p1": 28738.60972623312
+        },
+        "1.0_0.1": {
+          "paths": 20000,
+          "review_share": 0.011356853276639597,
+          "probability_ever_negative": 0.78435,
+          "seed99": 182871.0,
+          "end_mean": 264354.19605209224,
+          "end_p1": -85872.56547564971
+        },
+        "1.5_0.0": {
+          "paths": 20000,
+          "review_share": 0.016666666666666666,
+          "probability_ever_negative": 0.7054,
+          "seed99": 50313.0,
+          "end_mean": 321005.35208291304,
+          "end_p1": 101512.29604203843
+        },
+        "1.5_0.05": {
+          "paths": 20000,
+          "review_share": 0.019365296555325463,
+          "probability_ever_negative": 0.72725,
+          "seed99": 82177.0,
+          "end_mean": 328995.9442784607,
+          "end_p1": 63270.37426609174
+        },
+        "1.5_0.1": {
+          "paths": 20000,
+          "review_share": 0.02211914922406912,
+          "probability_ever_negative": 0.76565,
+          "seed99": 170690.0,
+          "end_mean": 344373.14506572526,
+          "end_p1": -42881.952815563556
+        },
+        "2.0_0.0": {
+          "paths": 20000,
+          "review_share": 0.03333333333333333,
+          "probability_ever_negative": 0.70385,
+          "seed99": 61691.0,
+          "end_mean": 420361.3798121333,
+          "end_p1": 143366.79755559764
+        },
+        "2.0_0.05": {
+          "paths": 20000,
+          "review_share": 0.033721802793159776,
+          "probability_ever_negative": 0.71655,
+          "seed99": 90982.0,
+          "end_mean": 425044.5778502375,
+          "end_p1": 104452.33917622275
+        },
+        "2.0_0.1": {
+          "paths": 20000,
+          "review_share": 0.03683224994583388,
+          "probability_ever_negative": 0.7309,
+          "seed99": 143084.0,
+          "end_mean": 454114.130341886,
+          "end_p1": 42478.485027759365
+        }
+      }
+    },
+    "100": {
+      "x": -0.0089,
+      "paths_2000": {
+        "paths": 2000,
+        "review_share": 0.0016474464579901153,
+        "probability_ever_negative": 0.762,
+        "seed99": 74799.0,
+        "end_mean": 1121725.704398238,
+        "end_p1": 631322.5113108781
+      },
+      "cells": {
+        "1.0_0.0": {
+          "paths": 20000,
+          "review_share": 0.0016474464579901153,
+          "probability_ever_negative": 0.75565,
+          "seed99": 79944.0,
+          "end_mean": 1124474.6225282983,
+          "end_p1": 653335.3899127361
+        },
+        "1.0_0.05": {
+          "paths": 20000,
+          "review_share": 0.0024466568532156108,
+          "probability_ever_negative": 0.79355,
+          "seed99": 290703.0,
+          "end_mean": 1144906.0850415137,
+          "end_p1": 251946.43245396003
+        },
+        "1.0_0.1": {
+          "paths": 20000,
+          "review_share": 0.0037248170588908016,
+          "probability_ever_negative": 0.8247,
+          "seed99": 831687.0,
+          "end_mean": 1194326.1218175201,
+          "end_p1": -407675.71300190076
+        },
+        "1.5_0.0": {
+          "paths": 20000,
+          "review_share": 0.006589785831960461,
+          "probability_ever_negative": 0.78425,
+          "seed99": 151486.0,
+          "end_mean": 1353893.565807204,
+          "end_p1": 610864.3788533383
+        },
+        "1.5_0.05": {
+          "paths": 20000,
+          "review_share": 0.006823363984199836,
+          "probability_ever_negative": 0.8226,
+          "seed99": 332435.0,
+          "end_mean": 1354409.153402856,
+          "end_p1": 325904.5852357873
+        },
+        "1.5_0.1": {
+          "paths": 20000,
+          "review_share": 0.01043632287125096,
+          "probability_ever_negative": 0.82505,
+          "seed99": 726564.0,
+          "end_mean": 1492563.111627973,
+          "end_p1": -142560.4566387708
+        },
+        "2.0_0.0": {
+          "paths": 20000,
+          "review_share": 0.014827018121911038,
+          "probability_ever_negative": 0.7951,
+          "seed99": 215035.0,
+          "end_mean": 1715910.04968587,
+          "end_p1": 736812.0206587246
+        },
+        "2.0_0.05": {
+          "paths": 20000,
+          "review_share": 0.016033445959268304,
+          "probability_ever_negative": 0.8106,
+          "seed99": 320928.0,
+          "end_mean": 1774665.3825855502,
+          "end_p1": 566450.1481779933
+        },
+        "2.0_0.1": {
+          "paths": 20000,
+          "review_share": 0.02267385668678064,
+          "probability_ever_negative": 0.8064,
+          "seed99": 524047.0,
+          "end_mean": 2028814.0899663826,
+          "end_p1": 410698.32374350843
+        }
       }
     }
   }
