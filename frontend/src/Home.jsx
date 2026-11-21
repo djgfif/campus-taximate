@@ -69,15 +69,20 @@ export default function Home({ state, myId, config, school: knownSchool, onStart
   const [board, setBoard] = useState(null)
   const [direction, setDirection] = useState(() => defaultDirection(state.now))
   const wide = useWide()
-  const school = knownSchool !== undefined ? knownSchool : loadedSchool
+  // 학교는 App이 한 번 읽어 넘긴다(읽는 중이면 null). school을 아예 넘기지 않은 화면(시험 등)만 여기서 직접 읽는다.
+  const ownsSchool = knownSchool === undefined
+  const school = ownsSchool ? loadedSchool : knownSchool
   useEffect(() => {
     let closed = false
     api.history().then((items) => !closed && setHistory(items)).catch(() => !closed && setHistory([]))
-    if (knownSchool === undefined) {
-      api.school().then((data) => !closed && setLoadedSchool(data)).catch(() => !closed && setLoadedSchool(null))
-    }
     return () => { closed = true }
-  }, [knownSchool])
+  }, [])
+  useEffect(() => {
+    if (!ownsSchool) return undefined
+    let closed = false
+    api.school().then((data) => !closed && setLoadedSchool(data)).catch(() => !closed && setLoadedSchool(null))
+    return () => { closed = true }
+  }, [ownsSchool])
   const toSchool = direction === 'TO_SCHOOL'
   const recent = recentRoutes(history).filter((item) => item.displayDirection === direction).slice(0, 3)
   const blocked = state.restricted

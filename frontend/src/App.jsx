@@ -61,7 +61,8 @@ export default function App() {
   const [editingProfile, setEditingProfile] = useState(false)
   // 내 정보의 "같이 타서 덜 낸 돈". 내 정보 화면·메뉴를 열 때만 읽고, 닫거나 다른 탭으로 갈 때는 불필요하게 다시 부르지 않는다.
   const [saved, setSaved] = useState(0)
-  const [school, setSchool] = useState(undefined)
+  // 내 학교. 홈 지도와 등교 탭에 쓴다. 읽는 중·실패는 null(홈이 따로 다시 읽지 않는다).
+  const [school, setSchool] = useState(null)
 
   const session = useRef(0)
   const latestRead = useRef(0)
@@ -153,7 +154,7 @@ export default function App() {
   )
 
   useEffect(() => {
-    if (!me || me.needsProfile || me.needsPassword) { setSchool(undefined); return undefined }
+    if (!me || me.needsProfile || me.needsPassword) { setSchool(null); return undefined }
     let closed = false
     api.school().then((data) => !closed && setSchool(data)).catch(() => !closed && setSchool(null))
     return () => { closed = true }
