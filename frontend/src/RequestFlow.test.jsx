@@ -83,10 +83,11 @@ describe('새 탑승 요청', () => {
     await chooseOrigin(); await chooseDestination()
     // 이 시각(출발까지 25분)에는 여유 안내가 이미 있다. 범위까지 좁으면 두 안내를 한 문장으로 묶는다.
     expect(screen.queryByText(/출발 가능 범위 \d+분/)).toBeNull()
-    fireEvent.change(screen.getByLabelText('출발 가능 범위'), { target: { value: '20' } })
+    fireEvent.click(screen.getByRole('button', { name: '직접' }))
+    fireEvent.change(screen.getByLabelText('출발 가능 범위 직접 고르기'), { target: { value: '20' } })
     expect(screen.getByText('출발까지 25분, 출발 가능 범위 20분이라 같이 탈 학생을 찾기 어려워요. 40분 넘게 여유를 두고 범위를 30분 넘게 잡으면 일행이 생기기 쉬워요.')).toBeTruthy()
     expect(document.querySelectorAll('.lead-note')).toHaveLength(1)
-    fireEvent.change(screen.getByLabelText('출발 가능 범위'), { target: { value: '30' } })
+    fireEvent.click(screen.getByRole('button', { name: '30분' }))
     expect(screen.queryByText(/출발 가능 범위 \d+분/)).toBeNull()
     expect(screen.getByText(/출발까지 25분이라 같이 탈 사람을 찾을 시간이 짧아요/)).toBeTruthy()
   })

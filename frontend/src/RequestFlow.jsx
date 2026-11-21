@@ -87,6 +87,7 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
   const [early, setEarly] = useState(10)
   const [start, setStart] = useState('')
   const [endLength, setEndLength] = useState(60)
+  const [windowCustom, setWindowCustom] = useState(false)
   const [arrival, setArrival] = useState('')
   const [memo, setMemo] = useState(initial?.memo || '')
   const [points, setPoints] = useState({ key: '', data: [] })
@@ -142,6 +143,8 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
   const chosenArrival = arrivals.includes(arrival) ? arrival : arrivals[Math.min(30, arrivals.length - 1)]
   const maxWindow = chosenStart ? Math.min(60, (new Date(options.at(-1)) - new Date(chosenStart)) / 60000) : 0
   const chosenLength = Math.min(endLength, maxWindow)
+  const windowPresets = [15, 30, 45, 60].filter((m) => m <= maxWindow)
+  const customWindow = windowCustom || !windowPresets.includes(chosenLength)
   // 모의실험(C9): 같은 출발 시각이라도 15분 일찍 요청하면 매칭률이 올랐다. 최소 준비 25분 + 15분 = 40분 미만이면 알려 준다.
   const leadMinutes = chosenStart ? Math.round((new Date(chosenStart) - new Date(now)) / 60000) : null
   const shortLead = !instant && basis === 'DEPART' && leadMinutes !== null && leadMinutes < 40
@@ -221,13 +224,17 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
         <Chips label="시간 기준" value={basis} onChange={setBasis} options={[{ value: 'DEPART', label: '출발 기준' }, { value: 'ARRIVE', label: '도착 기준' }]} />
         {basis === 'DEPART' ? <>
           <RequestTimePicker label="출발 가능 시작" options={options} value={chosenStart} now={now} onChange={setStart} waiting={waiting} waitingLabel={waitingLabel} />
+          {/* 범위는 칩 한 줄로 고른다. 0~60분 5분 단위 선택은 '직접'을 누르거나 칩에 없는 값일 때만 연다. */}
           <div className="window-picker">
-            <div className="window-presets" role="group" aria-label="출발 가능 범위 빠른 선택">
-              {[15, 30, 45, 60].filter((m) => m <= maxWindow).map((m) => (
-                <button key={m} type="button" className={chosenLength === m ? 'chip on' : 'chip'} aria-pressed={chosenLength === m} onClick={() => setEndLength(m)}>{m}분</button>
+            <span className="window-label" id="window-label">출발 가능 범위</span>
+            <div className="window-presets" role="group" aria-labelledby="window-label">
+              {windowPresets.map((m) => (
+                <button key={m} type="button" className={!customWindow && chosenLength === m ? 'chip on' : 'chip'} aria-pressed={!customWindow && chosenLength === m}
+                  onClick={() => { setWindowCustom(false); setEndLength(m) }}>{m}분</button>
               ))}
+              <button type="button" className={customWindow ? 'chip on' : 'chip'} aria-pressed={customWindow} onClick={() => setWindowCustom(true)}>직접</button>
             </div>
-            <label className="field window-select"><span>출발 가능 범위</span><select value={chosenLength} onChange={(e) => setEndLength(Number(e.target.value))}>{Array.from({ length: 13 }, (_, i) => i * 5).filter((m) => m <= maxWindow).map((m) => <option key={m} value={m}>{m}분</option>)}</select></label>
+            {customWindow && <label className="field window-select"><span className="sr-only">출발 가능 범위 직접 고르기</span><select aria-label="출발 가능 범위 직접 고르기" value={chosenLength} onChange={(e) => setEndLength(Number(e.target.value))}>{Array.from({ length: 13 }, (_, i) => i * 5).filter((m) => m <= maxWindow).map((m) => <option key={m} value={m}>{m}분</option>)}</select></label>}
           </div>
           {chosenStart && <p className="range">{formatTime(chosenStart)} ~ {formatTime(new Date(chosenStart).getTime() + chosenLength * 60000)} 사이에 출발</p>}
         </> : <>

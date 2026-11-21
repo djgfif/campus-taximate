@@ -12,31 +12,31 @@ const AUDIT_ACTION = {
   FARE_DECISION: '요금 이의 판정',
   RIDE_DECISION: '운행 여부 판정',
   OVERDUE_HANDLED: '미정산 확인',
-  RESTRICT_MEMBER: '회원 이용 제한',
-  RELEASE_RESTRICTION: '이용 제한 해제',
-  HUB_CREATED: '승차 지점 등록',
-  HUB_UPDATED: '승차 지점 수정',
+  RESTRICT: '회원 이용 제한',
+  RELEASE: '이용 제한 해제',
+  HUB_SAVE: '승차 지점 저장',
 }
+// 서버 AdminService.audit 호출이 남기는 값과 같아야 한다. 판단 불가는 서버가 NOT_NO_SHOW로 저장한다.
 const AUDIT_TARGET = {
   BOARDING_CASE: '탑승 조사',
   PARTY: '일행',
   PAYMENT_ORDER: '결제 주문',
-  MEMBER: '회원',
   RESTRICTION: '이용 제한',
   HUB: '승차 지점',
 }
 const AUDIT_DECISION = {
   NO_SHOW: '노쇼 확정',
   NOT_NO_SHOW: '노쇼 아님',
-  UNDETERMINED: '판단 불가 (노쇼 아님)',
   OPERATED: '운행 확인',
+  OPERATED_ADMIN_RECOVERY: '운행 확인 (관리자 복구)',
   NOT_OPERATED: '미운행 확인',
   ACCEPTED: '이의 인정',
   REJECTED: '이의 기각',
   HANDLED: '확인 완료',
-  RESTRICTED: '제한 적용',
+  GRANTED: '제한 적용',
   RELEASED: '제한 해제',
-  SAVED: '저장 완료',
+  CREATED: '새로 등록',
+  UPDATED: '수정',
 }
 const REPORT_REASON = { RUDE: '불쾌한 언행', DANGEROUS: '위험 행동', OTHER: '기타' }
 const freshKey = () => globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`

@@ -25,7 +25,8 @@ export function ReportSheet({ partyId, member, onClose, onSaved }) {
     }
   }
   return (
-    <Sheet title={`${member.nickname}님 신고와 다시 매칭 안 하기`} onClose={onClose}>
+    // 보내는 중에는 ×·바깥 누르기·Esc 모두 닫지 않는다(결과를 모른 채 창이 사라지지 않게).
+    <Sheet title={`${member.nickname}님 신고와 다시 매칭 안 하기`} onClose={() => { if (!busy) onClose() }}>
       <p className="note">신고하면 다시 매칭하지 않도록 함께 지정돼요. 다시 매칭 안 함은 상대에게 알리지 않아요.</p>
       <form className="report-form" onSubmit={(e) => {
         e.preventDefault()
@@ -50,7 +51,6 @@ export function ReportSheet({ partyId, member, onClose, onSaved }) {
         member.avoided ? '다시 매칭 안 함을 해제했어요' : '앞으로 같은 일행으로 매칭하지 않아요',
       )}>{member.avoided ? '다시 매칭 안 함 해제' : '다시 매칭하지 않기'}</Btn>
       {error && <p role="alert">{error}</p>}
-      <Btn className="quiet" disabled={busy} onClick={onClose}>닫기</Btn>
     </Sheet>
   )
 }
@@ -135,7 +135,6 @@ export function SettledFeedback({ party, myId }) {
       {choosing && (
         <Sheet title="다시 매칭하지 않을 상대" onClose={() => setChoosing(false)}>
           <MemberActions partyId={party.id} onlyAvoid onSaved={close} />
-          <Btn className="quiet" onClick={() => setChoosing(false)}>닫기</Btn>
         </Sheet>
       )}
     </section>

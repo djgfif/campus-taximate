@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AuthScreen from './AuthScreen.jsx'
 import { BoardSection } from './Board.jsx'
+import { ReportSheet } from './MemberSafety.jsx'
 import BoardingCodePanel from './BoardingCodePanel.jsx'
 import History from './History.jsx'
 import { PartyChat } from './PartyChat.jsx'
@@ -62,8 +63,14 @@ describe('디자인·편의성 근본 개선 검증', () => {
     expect(origin.value).toBe('')
     // 시간 카드가 기본으로 열려 있어 빠른 선택 버튼이 바로 보인다.
     expect(screen.getByRole('button', { name: '30분 뒤' })).toBeTruthy()
+    // 범위는 칩 한 줄로만 고르고, 5분 단위 목록은 '직접'을 누를 때만 나온다.
+    expect(screen.queryByLabelText('출발 가능 범위 직접 고르기')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '30분' }))
-    expect(screen.getByLabelText('출발 가능 범위').value).toBe('30')
+    expect(screen.getByRole('button', { name: '30분' }).getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(screen.getByRole('button', { name: '직접' }))
+    fireEvent.change(screen.getByLabelText('출발 가능 범위 직접 고르기'), { target: { value: '25' } })
+    expect(screen.getByRole('button', { name: '30분' }).getAttribute('aria-pressed')).toBe('false')
+    expect(screen.getByRole('button', { name: '직접' }).getAttribute('aria-pressed')).toBe('true')
   })
 
   it('탑승 코드 패널은 남은 시간 카운트다운과 복사 버튼을 보여 주며 6자리 숫자 형식을 유지한다', async () => {
@@ -144,15 +151,40 @@ describe('디자인·편의성 근본 개선 검증', () => {
     expect(screen.queryByRole('button', { name: '영수증 사진 지우기' })).toBeNull()
   })
 
+  it('신고 창은 × 하나로 닫고, 신고를 보내는 중에는 닫히지 않는다', async () => {
+    let finish
+    vi.spyOn(api, 'reportMember').mockReturnValue(new Promise((resolve) => { finish = resolve }))
+    const onClose = vi.fn()
+    render(<ReportSheet partyId={1} member={{ memberId: 2, nickname: '지민', avoided: false }} onClose={onClose} onSaved={vi.fn()} />)
+    expect(screen.getAllByRole('button', { name: '닫기' })).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: '신고하기' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '신고하기' }).disabled).toBe(true))
+    fireEvent.click(screen.getByRole('button', { name: '닫기' }))
+    expect(onClose).not.toHaveBeenCalled()
+    finish({})
+    await waitFor(() => expect(screen.getByRole('button', { name: '신고하기' }).disabled).toBe(false))
+    fireEvent.click(screen.getByRole('button', { name: '닫기' }))
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
   it('관리자 처리 기록은 영문 enum 대신 한글 배지로 표시한다', async () => {
     vi.spyOn(api, 'adminNoShows').mockResolvedValue([])
     vi.spyOn(api, 'adminAudits').mockResolvedValue([
-      { id: 3, action: 'NO_SHOW_DECISION', targetType: 'BOARDING_CASE', targetId: 7, decision: 'UNDETERMINED', actorId: 9, createdAt: '2026-11-18T03:00:00Z', evidence: '확인 완료' },
+      { id: 3, action: 'NO_SHOW_DECISION', targetType: 'BOARDING_CASE', targetId: 7, decision: 'NOT_NO_SHOW', actorId: 9, createdAt: '2026-11-18T03:00:00Z', evidence: '확인 완료' },
+      { id: 4, action: 'RESTRICT', targetType: 'RESTRICTION', targetId: 2, decision: 'GRANTED', actorId: 9, createdAt: '2026-11-18T04:00:00Z', evidence: '반복 노쇼' },
+      { id: 5, action: 'HUB_SAVE', targetType: 'HUB', targetId: 1, decision: 'UPDATED', actorId: 9, createdAt: '2026-11-18T05:00:00Z', evidence: '현장 확인' },
+      { id: 6, action: 'RIDE_DECISION', targetType: 'PARTY', targetId: 4, decision: 'OPERATED_ADMIN_RECOVERY', actorId: 9, createdAt: '2026-11-18T06:00:00Z', evidence: '영수증 확인' },
     ])
     render(<AdminScreen allowed onBack={vi.fn()} />)
     fireEvent.click(screen.getByRole('button', { name: '처리 기록' }))
+    // 서버 AdminService가 실제로 남기는 action·decision 값이 모두 한글로 보여야 한다.
     expect(await screen.findByText('노쇼 판정')).toBeTruthy()
-    expect(screen.getByText('판단 불가 (노쇼 아님)')).toBeTruthy()
+    expect(screen.getByText('노쇼 아님')).toBeTruthy()
     expect(screen.getByText('탑승 조사 #7')).toBeTruthy()
+    expect(screen.getByText('회원 이용 제한')).toBeTruthy()
+    expect(screen.getByText('제한 적용')).toBeTruthy()
+    expect(screen.getByText('승차 지점 저장')).toBeTruthy()
+    expect(screen.getByText('운행 확인 (관리자 복구)')).toBeTruthy()
+    expect(document.body.textContent).not.toMatch(/[A-Z]{2,}_[A-Z_]+|GRANTED|UPDATED/)
   })
 })

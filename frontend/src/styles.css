@@ -559,11 +559,11 @@ button.item:active { opacity: 0.6; }
 .waiting-here { display: inline-flex; align-items: center; gap: 7px; align-self: flex-start; padding: 5px 10px; border-radius: 999px; background: var(--save-soft); font-size: 12px; font-weight: 600; color: var(--save); }
 .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--save); flex: none; }
 .window-picker { display: flex; flex-direction: column; gap: 8px; }
-.window-presets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.window-label { font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.window-presets { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; }
 .window-presets .chip { min-height: 36px; font-size: 13px; background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-2); }
 .window-presets .chip.on { background: var(--ink); color: #fff; box-shadow: none; }
-.window-select { flex-direction: row; align-items: center; justify-content: space-between; gap: 10px; }
-.window-select select { width: auto; min-width: 104px; min-height: 38px; padding-top: 0; padding-bottom: 0; font-size: 14px; }
+.window-select select { min-height: 38px; padding-top: 0; padding-bottom: 0; font-size: 14px; }
 .range { font-size: 14px; font-weight: 700; color: var(--ink); }
 .memo-fold { padding: 0 2px; border-top: 1px solid var(--line); }
 .memo-fold .fold-trigger { min-height: 44px; font-size: 14px; color: var(--ink-2); }
@@ -605,7 +605,6 @@ button.item:active { opacity: 0.6; }
 .stepper.ended li span { background: var(--line); }
 /* 지금 할 일 */
 .next-action { display: flex; flex-direction: column; gap: 6px; padding: 20px 18px 18px; border-radius: var(--r-l); background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); }
-.next-action.calm { background: var(--mist); box-shadow: none; }
 .next-action h2 { margin-bottom: 2px; font-size: 18px; line-height: 1.35; font-weight: 700; letter-spacing: -0.025em; }
 .next-action p { font-size: 14px; line-height: 1.55; color: var(--road); }
 .next-action .btn { min-height: 48px; margin-top: 8px; font-size: 15px; }
