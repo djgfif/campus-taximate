@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { AlertTriangle, Check, ChevronDown, ChevronLeft, ChevronRight, Home as HomeIcon, Info, MessageCircle, Receipt, User, X } from 'lucide-react'
 
 const WIDE = '(min-width: 1024px)'
@@ -73,8 +73,16 @@ export function Mark({ size = 24 }) {
   )
 }
 
+export const HomeLinkContext = createContext(null)
+
 export function Brand() {
-  return <span className="brand"><Mark />택시메이트</span>
+  const goHome = useContext(HomeLinkContext)
+  const click = (e) => {
+    if (!goHome || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+    e.preventDefault()
+    goHome()
+  }
+  return <span className="brand" href="/" aria-label="택시메이트 첫 화면으로" onClick={click}><Mark />택시메이트</span>
 }
 
 export function TopBar({ onMenu, onHome, floating, actions }) {

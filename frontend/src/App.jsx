@@ -20,7 +20,7 @@ const DemoBar = lazy(() => import('./DemoBar.jsx'))
 const DemoPresenter = lazy(() => import('./DemoBar.jsx').then((m) => ({ default: m.DemoPresenter })))
 import { isPaymentParty } from './format.js'
 import { NoShow, Unmatched, Waiting } from './RequestStatus.jsx'
-import { Avatar, Brand, Btn, Confirm, Empty, Item, LoadingScreen, Say, Screen, Sheet, TabBar, Toaster, toast, useWide } from './ui.jsx'
+import { Avatar, Brand, Btn, HomeLinkContext, Confirm, Empty, Item, LoadingScreen, Say, Screen, Sheet, TabBar, Toaster, toast, useWide } from './ui.jsx'
 import { formatTime, partyLabel, partyRouteLabel, savedTotal, won } from './format.js'
 import { ChevronRight, User } from 'lucide-react'
 import { disablePush, enablePush, pushGranted, pushSupported } from './push.js'
@@ -216,8 +216,10 @@ export default function App() {
   const demoAccounts = config?.demo ? <DemoAccounts onLogin={async () => { session.current += 1; setState(null); setResetting(false); setMenu(false); navigate('/'); setMe(await api.me()) }} /> : null
   const demo = config?.demo && me ? <Suspense fallback={null}><DemoBar now={state?.now} run={run} refresh={refresh} parties={state?.parties || []} accounts={demoAccounts} wide={wide} /></Suspense> : null
   const presenter = config?.demo && location.pathname === '/presenter'
-
+  const goHome = useCallback(() => navigate('/'), [navigate])
+  
   return (
+    <HomeLinkContext.Provider value={goHome}>
     <main className="app">
       <Toaster />
       {me === undefined && !down && <LoadingScreen />}
@@ -270,6 +272,7 @@ export default function App() {
         </>
       )}
     </main>
+    </HomeLinkContext.Provider>
   )
 }
 
