@@ -31,8 +31,13 @@ class AdminNoShowEvidenceTest {
     @Mock SettlementRepository settlements;
     @Mock BoardingVoteRepository votes;
     @Mock BoardingExplanationRepository explanations;
+    @Mock SettlementService settlementService;
     @InjectMocks AdminService service;
     @TempDir Path directory;
+    @BeforeEach void wireMedia() {
+        ReflectionTestUtils.setField(service, "media",
+                new MediaFiles(mock(FileDeleteJobRepository.class), clock, mock(org.springframework.transaction.PlatformTransactionManager.class), directory.toString()));
+    }
     private static final Instant NOW=Instant.parse("2026-11-18T00:00:00Z");
     private Party givenCase() {
         var admin=new Member();admin.setId(1L);admin.setAdmin(true);

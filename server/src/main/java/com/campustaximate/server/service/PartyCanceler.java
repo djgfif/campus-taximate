@@ -32,9 +32,12 @@ public class PartyCanceler {
         EndReason survivor = party.getBoardedAt() != null ? EndReason.LEFT_ALONE : EndReason.PARTY_CANCELED;
         party.revokeBoardingCode();
         party.setRouteVerificationPending(false);
-        Instant nextSlot = AppClock.nextSlotAfter(now);
         for (RideRequest rider : riders) {
+            Instant nextSlot = rider.getMode() == com.campustaximate.server.domain.RequestMode.INSTANT
+                    ? AppClock.nextMinuteAfter(now) : AppClock.nextSlotAfter(now);
             Instant lastSlot = rider.resultBy();
+            rider.setPendingExitReason(null);
+            rider.setExitRequestedAt(null);
             rider.clearParty();
             if (leavingRequestIds.contains(rider.getId())) {
                 rider.finish(RequestStatus.CANCELED);

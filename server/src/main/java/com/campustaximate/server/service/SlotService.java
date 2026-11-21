@@ -262,8 +262,14 @@ public class SlotService {
         List<Long> shares = SettlementCalculator.shares(total, units, payerIndex);
         RideRequest first = riders.get(0);
         Instant departure = group.departure();
-        com.campustaximate.server.domain.Hub selectedHub = first.getDirection() == Direction.FROM_HUB
-                ? hubs.getReferenceById(group.order().getFirst().anchorId()) : null;
+        com.campustaximate.server.domain.Hub selectedHub = null;
+        if (first.getDirection() == Direction.FROM_HUB) {
+            selectedHub = hubs.findById(group.order().getFirst().anchorId()).orElse(null);
+            if (selectedHub == null || !selectedHub.isActive() || !selectedHub.isFieldChecked()) {
+                MatchingDiagnostics.reason(slot, group.order().stream().map(MatchRequest::id).toList(), "HUB_INACTIVE", group.order().getFirst().anchorId());
+                return;
+            }
+        }
         Party party = parties.save(new Party(first.getDirection(), selectedHub, first.getSchool(),
                 riders.get(payerIndex).getMember(), departure, total));
         safety.remember(party, riders);
@@ -304,9 +310,12 @@ public class SlotService {
         }
         List<RideRequestPoint> points = r.getPoints();
         if (points.isEmpty()) {
+            if (r.getHub() == null || !r.getHub().isActive() || !r.getHub().isFieldChecked()) return List.of();
             return List.of(atPoint(r, r.getHub(), 0, r.getSoloKm(), r.getSoloSeconds()));
         }
-        return points.stream().map(p -> atPoint(r, p.getHub(), p.getWalkSeconds(), p.getAnchorKm(), p.getAnchorSeconds())).toList();
+        return points.stream()
+                .filter(p -> p.getHub().isActive() && p.getHub().isFieldChecked())
+                .map(p -> atPoint(r, p.getHub(), p.getWalkSeconds(), p.getAnchorKm(), p.getAnchorSeconds())).toList();
     }
 
     private static MatchRequest atPoint(RideRequest r, com.campustaximate.server.domain.Hub point,

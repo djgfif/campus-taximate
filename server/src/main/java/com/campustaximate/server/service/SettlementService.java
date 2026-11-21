@@ -73,7 +73,8 @@ public class SettlementService {
         riders = requests.findByPartyOrderByRideOrder(party);
         if (!party.paymentFlow()) requireAccount(bankName, accountNumber);
         List<Long> shares = shares(amount, riders, party);
-        create(party, riders, shares, amount, store(receipt), receipt.getContentType(), bankName, accountNumber);
+        StoredReceipt stored = store(receipt);
+        create(party, riders, shares, amount, stored.path(), stored.contentType(), bankName, accountNumber);
     }
 
     /** 시연의 샘플 결제자 전용. 사진 없이 정산을 만든다. */
@@ -167,7 +168,8 @@ public class SettlementService {
             List<RideRequest> riders = requests.findByPartyOrderByRideOrder(party);
             List<Long> values = shares(amount, riders, party);
             String previous = settlement.getReceiptPath();
-            settlement.setReceiptPath(store(receipt)); settlement.setReceiptContentType(receipt.getContentType());
+            StoredReceipt stored = store(receipt);
+            settlement.setReceiptPath(stored.path()); settlement.setReceiptContentType(stored.contentType());
             Instant storedAt = clock.now();
             settlement.setPaidAmount(amount); settlement.setRevision(settlement.getRevision() + 1); settlement.setStoredAt(storedAt);
             settlement.setObjectionDeadlineAt(storedAt.plus(OBJECTION_WINDOW)); settlement.clearAccount();
@@ -192,8 +194,9 @@ public class SettlementService {
             }
         }
         String oldPath = settlement.getReceiptPath();
-        settlement.setReceiptPath(store(receipt));
-        settlement.setReceiptContentType(receipt.getContentType());
+        StoredReceipt stored = store(receipt);
+        settlement.setReceiptPath(stored.path());
+        settlement.setReceiptContentType(stored.contentType());
         settlement.setBankName(bankName.trim());
         settlement.setAccountNumber(accountNumber.trim());
         settlement.setPaidAmount(amount);
@@ -232,7 +235,8 @@ public class SettlementService {
         if (requests.findByPartyOrderByRideOrder(party).stream().noneMatch(r -> r.getMember().getId() == memberId)) {
             throw ApiException.forbidden("일행원만 요금 이의를 낼 수 있습니다.");
         }
-        if (!party.paymentFlow() || !List.of(PartyStatus.OBJECTION_WINDOW, PartyStatus.REVIEW_PENDING).contains(party.getStatus())
+        if (!party.paymentFlow() || "RIDE_FINANCIAL_HOLD".equals(party.getReviewReason())
+                || !List.of(PartyStatus.OBJECTION_WINDOW, PartyStatus.REVIEW_PENDING).contains(party.getStatus())
                 || !clock.now().isBefore(settlement.getObjectionDeadlineAt())) throw ApiException.conflict("OBJECTION_CLOSED", "요금 이의 기간이 끝났습니다.");
         if (reason == null || reason.isBlank() || reason.length() > 500) throw ApiException.badRequest("INVALID_OBJECTION", "이의 사유는 1~500자로 입력해 주세요.");
         if (objections.existsBySettlementIdAndMemberId(settlement.getId(), memberId)) return;
@@ -241,20 +245,27 @@ public class SettlementService {
         objection.setCreatedAt(clock.now()); objections.save(objection); party.setStatus(PartyStatus.REVIEW_PENDING);
     }
 
-    /** 보관 기간이 지난 사진과 계좌를 지운다. 금액과 정산 기록은 남긴다. */
-    @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
+    /** 보관 기간이 지난 사진과 계좌를 지운다. 금액과 정산 기록은 남긴다. 일행별 짧은 트랜잭션으로 락 경합을 줄인다. */
     public void purgeReceipts() {
         Instant now = clock.now();
         Instant limit = now.minus(MediaRetention.KEEP);
-        for (Settlement candidate : settlements.findExpired(limit)) {
-            Party party=parties.findByIdForUpdate(candidate.getParty().getId()).orElseThrow();
-            Settlement settlement=settlements.findByParty(party).orElseThrow();
-            entityManager.refresh(settlement);
-            if (!MediaRetention.receiptExpired(settlement, now)) continue;
-            media.deleteAfterCommit(settlement.getReceiptPath());
-            settlement.setReceiptPath(null);
-            settlement.setReceiptContentType(null);
-            settlement.clearAccount();
+        List<Long> partyIds = settlements.findExpired(limit).stream()
+                .map(s -> s.getParty().getId()).distinct().sorted().toList();
+        var tx = new com.campustaximate.server.common.RetryingTransactionTemplate(transactionManager);
+        tx.setIsolationLevel(org.springframework.transaction.TransactionDefinition.ISOLATION_READ_COMMITTED);
+        for (long partyId : partyIds) {
+            tx.executeWithoutResult(status -> {
+                Party party = parties.findByIdForUpdate(partyId).orElse(null);
+                if (party == null) return;
+                Settlement settlement = settlements.findByParty(party).orElse(null);
+                if (settlement == null) return;
+                entityManager.refresh(settlement);
+                if (!MediaRetention.receiptExpired(settlement, clock.now())) return;
+                media.deleteAfterCommit(settlement.getReceiptPath());
+                settlement.setReceiptPath(null);
+                settlement.setReceiptContentType(null);
+                settlement.clearAccount();
+            });
         }
     }
 
@@ -357,31 +368,38 @@ public class SettlementService {
                     || amount < payerShare);
     }
 
-    /** 브라우저가 보낸 형식은 믿지 않고 파일 앞부분으로 확인한다. */
-    private static void requireImageBytes(MultipartFile receipt) {
+    private record StoredReceipt(String path, String contentType) {
+    }
+
+    /** 브라우저가 보낸 형식은 믿지 않고 파일 앞부분으로 확인해 실제 형식을 돌려준다. */
+    private static String sniffImageType(MultipartFile receipt) {
         byte[] head = new byte[12];
         try (InputStream in = receipt.getInputStream()) {
             int read = in.readNBytes(head, 0, head.length);
-            boolean jpeg = read >= 3 && (head[0] & 0xFF) == 0xFF && (head[1] & 0xFF) == 0xD8 && (head[2] & 0xFF) == 0xFF;
-            boolean png = read >= 8 && Arrays.equals(Arrays.copyOf(head, 8), PNG);
-            boolean webp = read >= 12 && new String(head, 0, 4, StandardCharsets.ISO_8859_1).equals("RIFF")
-                    && new String(head, 8, 4, StandardCharsets.ISO_8859_1).equals("WEBP");
-            if (!jpeg && !png && !webp) {
-                throw ApiException.badRequest("RECEIPT_TYPE", "JPG, PNG, WEBP 사진만 올릴 수 있습니다.");
+            if (read >= 3 && (head[0] & 0xFF) == 0xFF && (head[1] & 0xFF) == 0xD8 && (head[2] & 0xFF) == 0xFF) {
+                return "image/jpeg";
             }
+            if (read >= 8 && Arrays.equals(Arrays.copyOf(head, 8), PNG)) {
+                return "image/png";
+            }
+            if (read >= 12 && new String(head, 0, 4, StandardCharsets.ISO_8859_1).equals("RIFF")
+                    && new String(head, 8, 4, StandardCharsets.ISO_8859_1).equals("WEBP")) {
+                return "image/webp";
+            }
+            throw ApiException.badRequest("RECEIPT_TYPE", "JPG, PNG, WEBP 사진만 올릴 수 있습니다.");
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
-    private String store(MultipartFile receipt) {
+    private StoredReceipt store(MultipartFile receipt) {
         if (receipt == null || receipt.isEmpty()) {
             throw ApiException.badRequest("RECEIPT_REQUIRED", "결제 내역 사진을 올려 주세요.");
         }
         if (receipt.getContentType() == null || !RECEIPT_TYPES.contains(receipt.getContentType())) {
             throw ApiException.badRequest("RECEIPT_TYPE", "JPG, PNG, WEBP 사진만 올릴 수 있습니다.");
         }
-        requireImageBytes(receipt);
-        return media.storeReceipt(receipt);
+        String detected = sniffImageType(receipt);
+        return new StoredReceipt(media.storeReceipt(receipt), detected);
     }
 }

@@ -25,9 +25,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 @RequiredArgsConstructor
 public class RideRequestService {
     private static final Duration MAX_WINDOW = Duration.ofMinutes(60);
-    private static final Duration LEAD = Duration.ofMinutes(MatchingSettings.everyMinute().leadMinutes());
     private static final Duration OVERDUE = Duration.ofHours(24);
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+
+    private Duration lead() { return Duration.ofMinutes(matchingSettings.leadMinutes()); }
 
     private final RideRequestRepository requests;
     private final MemberRepository members;
@@ -139,7 +140,7 @@ public class RideRequestService {
         Prepared prepared = new com.campustaximate.server.common.RetryingTransactionTemplate(transactionManager).execute(status -> prepare(memberId, input));
         Quote quote = quote(memberId, input, prepared, true);
         Instant deadline = input.requestMode()==RequestMode.INSTANT ? requestedAt.plusSeconds(matchingSettings.instantMatchMinutes()*60L)
-                : quote.deadline() != null ? quote.deadline() : input.windowEnd().minus(LEAD);
+                : quote.deadline() != null ? quote.deadline() : input.windowEnd().minus(lead());
         return new Preview(quote.solo().fare(), (quote.solo().seconds() + 59) / 60, deadline);
     }
 
@@ -201,13 +202,13 @@ public class RideRequestService {
     }
 
     private Instant arrivalDeadline(NewRequest input, RouteClient.Route solo) {
-        // 사람별 모집 마감은 단독 예상 출발에서 P와 추가 여유 35분을 뺀다.
-        Instant deadline = input.arriveBy().minusSeconds(solo.seconds()).minus(LEAD).minusSeconds(35 * 60);
-        return input.direction() == Direction.TO_SCHOOL ? AppClock.slotOf(deadline) : AppClock.minuteOf(deadline);
+        // 사람별 모집 마감은 단독 예상 출발에서 P와 추가 여유 35분을 뺀다. 도착 기준 요청은 5분 예약 회차에 맞춘다.
+        Instant deadline = input.arriveBy().minusSeconds(solo.seconds()).minus(lead()).minusSeconds(35 * 60);
+        return AppClock.slotOf(deadline);
     }
 
     private void requireTimely(NewRequest input, RouteClient.Route solo) {
-        if (input.basis() == TimeBasis.ARRIVE && arrivalDeadline(input, solo).isBefore(AppClock.nextMinuteAfter(clock.now()))) throw ApiException.badRequest("TOO_LATE", "도착 희망 시각이 너무 가까워 일행을 찾을 시간이 없습니다.");
+        if (input.basis() == TimeBasis.ARRIVE && arrivalDeadline(input, solo).isBefore(AppClock.nextSlotAfter(clock.now()))) throw ApiException.badRequest("TOO_LATE", "도착 희망 시각이 너무 가까워 일행을 찾을 시간이 없습니다.");
     }
 
     private void validateTimes(NewRequest input) {
@@ -223,7 +224,7 @@ public class RideRequestService {
         } else {
             Instant start = input.windowStart(), end = input.windowEnd();
             if (start == null || end == null || !isFiveMinuteUnit(start) || !isFiveMinuteUnit(end) || end.isBefore(start) || Duration.between(start, end).compareTo(MAX_WINDOW) > 0) throw ApiException.badRequest("INVALID_WINDOW", "출발 가능 시간은 5분 단위, 최대 60분으로 입력해 주세요.");
-            if (!clock.now().isBefore(end.minus(LEAD))) throw ApiException.badRequest("TOO_LATE", "모집 마감이 지난 요청입니다.");
+            if (!clock.now().isBefore(end.minus(lead()))) throw ApiException.badRequest("TOO_LATE", "모집 마감이 지난 요청입니다.");
             reference = start;
         }
         Instant limit = clock.now().atZone(SEOUL).toLocalDate().plusDays(2).atStartOfDay(SEOUL).toInstant();
@@ -244,7 +245,7 @@ public class RideRequestService {
     }
 
     private boolean cancel(long memberId,long requestId,boolean changed,Long version) {
-        record Plan(Long partyId,boolean free,long groupVersion,boolean paymentFlow) { }
+        record Plan(Long partyId,boolean free,long groupVersion,boolean paymentFlow,String reason,Instant requestedAt) { }
         Plan plan=new com.campustaximate.server.common.RetryingTransactionTemplate(transactionManager).execute(status -> {
             RideRequest reference=requests.findById(requestId).filter(r->r.getMember().getId()==memberId)
                     .orElseThrow(()->ApiException.notFound("없는 요청입니다."));
@@ -252,14 +253,18 @@ public class RideRequestService {
             if(reference.getParty()==null) throw ApiException.conflict("CANNOT_CANCEL", "취소할 수 없는 상태입니다.");
             var party=partyRepository.findByIdForUpdate(reference.getParty().getId()).orElseThrow();
             if(version!=null && (party.getGroupVersion()!=version || party.getGroupVersion()<=1)) throw ApiException.conflict("PARTY_CHANGED", "일행이 바뀌었어요. 다시 확인해 주세요.");
-            if(reference.getPendingExitReason()==null && !reference.canCancelAt(clock.now())) throw ApiException.conflict("DEPARTED", "출발 시각이 지나 취소할 수 없습니다.");
-            boolean free=reference.getPendingExitReason()!=null || party.paymentFlow() && (changed?clock.now().isBefore(party.getDepartureAt().minusSeconds(600)):!clock.now().isAfter(party.freeCancelUntil()));
-            return new Plan(party.getId(),free,party.getGroupVersion(),party.paymentFlow());
+            Instant now = clock.now();
+            if(reference.getPendingExitReason()!=null ? !reference.canCompleteExit() : !reference.canCancelAt(now)) throw ApiException.conflict("DEPARTED", "출발 시각이 지나 취소할 수 없습니다.");
+            boolean preserved = reference.getPendingExitReason() != null;
+            boolean free = preserved || party.paymentFlow() && (changed ? now.isBefore(party.getDepartureAt().minusSeconds(600)) : !now.isAfter(party.freeCancelUntil()));
+            String reason = preserved ? reference.getPendingExitReason() : free ? (changed ? "CHANGE_EXIT_FREE" : "FREE_CANCEL") : "LATE_CANCEL";
+            Instant requestedAt = preserved && reference.getExitRequestedAt() != null ? reference.getExitRequestedAt() : now;
+            return new Plan(party.getId(),free,party.getGroupVersion(),party.paymentFlow(),reason,requestedAt);
         });
         if(plan==null) return true;
         Set<Long> held=plan.free()||!plan.paymentFlow()?Set.of():Set.of(requestId);
-        shrinker.remove(plan.partyId(),Set.of(requestId),clock.now(),false,
-                plan.free()?(changed?"CHANGE_EXIT_FREE":"FREE_CANCEL"):"LATE_CANCEL",plan.groupVersion(),held);
+        shrinker.remove(plan.partyId(),Set.of(requestId),plan.requestedAt(),false,
+                plan.reason(),plan.groupVersion(),held);
         boolean free=plan.free() && !partyTerms.findByPartyIdAndRequestId(plan.partyId(),requestId).map(t->t.isRefundHeld() || "LATE_CANCEL".equals(t.getExitReason())).orElse(false);
         return free;
     }

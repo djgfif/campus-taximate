@@ -135,7 +135,7 @@ final class RouteGroupVerifier implements GroupVerifier {
         GeoPoint hub = first.anchor();
         List<GeoPoint> stops = GeoPoint.mergeStops(order.stream().map(MatchRequest::own).toList());
         Instant departure = candidate.departure();
-        if (departure == null) departure = slot.plusSeconds(MatchingSettings.everyMinute().leadMinutes() * 60L);
+        if (departure == null) departure = slot.plusSeconds(settings.leadMinutes() * 60L);
         boolean instant=order.stream().anyMatch(MatchRequest::instant);
         Instant minimum=fixedDeparture!=null?fixedDeparture:instant?TripPlan.of(Direction.FROM_HUB,settings).schedule(order,java.util.Collections.nCopies(order.size(),0),slot).departure():slot.plusSeconds(settings.leadMinutes()*60L);
         if(minimum==null || instant&&order.stream().anyMatch(MatchRequest::arrival)) return reject(candidate);
@@ -143,9 +143,11 @@ final class RouteGroupVerifier implements GroupVerifier {
         List<RouteClient.Route> solo = new ArrayList<>();
         RouteClient.Route full = null;
         boolean fits = false;
+        java.util.Set<Instant> tried = new java.util.HashSet<>();
         try {
             for (int attempt = 0; attempt < MAX_BACKTRACK_QUERIES; attempt++) {
                 if (departure.isBefore(minimum)) return reject(candidate);
+                tried.add(departure);
                 full = sharedRouteAt(hub, stops, departure);
                 List<Integer> legs = legSeconds(full, stops.size());
                 if (legs == null) return unavailable(candidate);
@@ -161,7 +163,7 @@ final class RouteGroupVerifier implements GroupVerifier {
                 if (first.arrival()) {
                     Instant target = order.stream().map(MatchRequest::arriveBy).min(Instant::compareTo).orElseThrow();
                     Instant revised = minuteFloor(target.minusSeconds(seconds.getLast()));
-                    if (fixedDeparture==null && !revised.equals(departure)) {
+                    if (fixedDeparture == null && !revised.equals(departure) && !tried.contains(revised) && attempt + 1 < MAX_BACKTRACK_QUERIES) {
                         departure = revised;
                         continue;
                     }
@@ -201,10 +203,10 @@ final class RouteGroupVerifier implements GroupVerifier {
         MatchRequest first = order.get(0);
         TripPlan plan = TripPlan.of(Direction.TO_SCHOOL);
         TripPath path = plan.sharedPath(first.anchor(), order.stream().map(MatchRequest::own).toList());
-        List<GeoPoint> all = new ArrayList<>();
-        all.add(path.origin());
-        all.addAll(path.stops());
-        List<GeoPoint> merged = GeoPoint.mergeStops(all);
+        // 탑승 지점끼리만 50m 병합하고 학교(도착지)는 분리 유지해 마지막 탑승자가 학교와 합쳐져 음수 탑승 시간이 나오지 않게 한다.
+        List<GeoPoint> pickups = GeoPoint.mergeStops(order.stream().map(MatchRequest::own).toList());
+        List<GeoPoint> merged = new ArrayList<>(pickups);
+        merged.add(first.anchor());
         if (merged.size() < 2) {
             return reject(candidate);
         }

@@ -99,9 +99,11 @@ public class NoShowService {
             changes.changed(party,missing,"BOARDING_UNCONFIRMED",missing);
             for(var rider:riders) if(missing.contains(rider.getId())) {
                 rider.setEndReason(EndReason.BOARDING_UNCONFIRMED);
+                rider.setPendingExitReason(null); rider.setExitRequestedAt(null);
                 rider.clearParty(); rider.finish(RequestStatus.CANCELED);
             }
         }
+        party.setRouteVerificationPending(false);
         var remaining=riders.stream().filter(r->!missing.contains(r.getId())).toList();
         // 운행이 이미 시작됐으므로 한 명이어도 실제 요금을 정산한다. 단독 값은 최초 조회값을 보존한다.
         if(!missing.isEmpty()) {
@@ -109,7 +111,7 @@ public class NoShowService {
             var current=SettlementCalculator.shares(party.getExpectedTotal(),remaining.stream().map(RideRequest::getRatioUnits).toList(),payer);
             for(int i=0;i<remaining.size();i++){remaining.get(i).setExpectedShare(current.get(i));remaining.get(i).setRideOrder(i+1);}
         }
-        remaining.forEach(r->r.finish(RequestStatus.COMPLETED));
+        remaining.forEach(r->{r.setPendingExitReason(null);r.setExitRequestedAt(null);r.finish(RequestStatus.COMPLETED);});
     }
     @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void vote(long actor,long partyId,long target,boolean came) {
@@ -123,13 +125,14 @@ public class NoShowService {
             boolean payerMissing=target==party.getPayer().getId() && party.getStartedAt()==null && party.getBoardedAt()==null && request.getBoardingConfirmedAt()==null && !clock.now().isBefore(party.getDepartureAt())
                     && List.of(PartyStatus.READY,PartyStatus.RIDE_UNCONFIRMED,PartyStatus.PAYER_PENDING).contains(party.getStatus());
             if(!payerMissing || came) throw ApiException.conflict("NOT_UNCONFIRMED","탑승 미확인 대상이 아니에요.");
-            c=open(party,term,true);
+            c=open(party,term,Objects.equals(party.getOriginalPayerId(),term.getMemberId()));
         }
         var old=votes.findByCaseIdAndActorId(c.getId(),actor).orElse(null);
         if(old!=null) {if(old.isCame()!=came)throw ApiException.conflict("ANSWER_FINAL","첫 표시는 바꿀 수 없어요.");return;}
         if(!c.pending() || !clock.now().isBefore(c.getDeadlineAt())) throw ApiException.conflict("VOTE_CLOSED","일행 표시 기한이 끝났어요.");
         BoardingVote vote=new BoardingVote();vote.setCaseId(c.getId());vote.setActorId(actor);vote.setCame(came);vote.setCreatedAt(clock.now());votes.save(vote);
-        if("ORIGINAL_PAYER".equals(c.getKind()) && !came && party.getStartedAt()==null && party.getSuccessionStatus()==null) offer(party,c);
+        if(Objects.equals(target,party.getPayer().getId()) && !came && party.getStartedAt()==null && party.getSuccessionStatus()==null
+                && party.getStatus()==PartyStatus.READY && clock.now().isBefore(party.getDepartureAt().plusSeconds(300))) offer(party,c);
     }
     private void offer(Party party,BoardingCase c) {
         var remaining=requests.findByPartyOrderByRideOrder(party).stream().filter(r->!r.getId().equals(c.getRequestId())).toList();
@@ -140,25 +143,28 @@ public class NoShowService {
         notifications.toMember(next.getMember(),"[캠퍼스 택시메이트] 결제자 승계 요청","원래 결제자의 도착이 확인되지 않았어요. 출발 시각 5분 뒤까지 결제자 승계를 수락해 주세요.");
     }
     @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
-    public void succession(long actor,long partyId,boolean accept) {
+    public boolean succession(long actor,long partyId,boolean accept) {
         Party party=lock(partyId);
         if(!Objects.equals(party.getSuccessorId(),actor)) throw ApiException.forbidden("승계를 요청받은 사람만 답할 수 있어요.");
         String decision=accept?"ACCEPTED":"REFUSED";
-        if(decision.equals(party.getSuccessionStatus())) return;
+        if(decision.equals(party.getSuccessionStatus())) return false;
         if(!"OFFERED".equals(party.getSuccessionStatus())) throw ApiException.conflict("SUCCESSION_FINAL","승계 처리가 끝났어요.");
-        if(!accept || !clock.now().isBefore(party.getSuccessionDeadlineAt())) {failSuccession(party);return;}
+        if(!accept || !clock.now().isBefore(party.getSuccessionDeadlineAt())) {failSuccession(party);return true;}
         var original=requests.findByPartyOrderByRideOrder(party).stream().filter(r->r.getMember().getId().equals(party.getPayer().getId())).findFirst().orElseThrow();
         changes.changed(party,Set.of(original.getId()),"PAYER_NO_SHOW",Set.of(original.getId()));
         original.setEndReason(EndReason.BOARDING_UNCONFIRMED);
+        original.setPendingExitReason(null); original.setExitRequestedAt(null);
         original.clearParty();original.finish(RequestStatus.CANCELED);
         party.setPayer(members.getReferenceById(actor));party.setSuccessionStatus("ACCEPTED");
         party.revokeBoardingCode(); party.setStatus(PartyStatus.READY);
         chatLog.system(party,"결제자가 바뀌어 이전 코드를 닫았어요. 새 결제자가 실제 탑승을 표시하면 새 코드가 열려요.");
+        return true;
     }
     private void failSuccession(Party party) {
         party.revokeBoardingCode();
+        party.setRouteVerificationPending(false);
         party.setSuccessionStatus("REFUSED");party.setStatus(PartyStatus.NOT_OPERATED);
-        requests.findByPartyOrderByRideOrder(party).forEach(r->r.finish(RequestStatus.CANCELED));
+        requests.findByPartyOrderByRideOrder(party).forEach(r->{r.setPendingExitReason(null);r.setExitRequestedAt(null);r.finish(RequestStatus.CANCELED);});
         payments.refundAll(party.getId(),"결제자 승계 미성사");
     }
     @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
@@ -169,6 +175,7 @@ public class NoShowService {
     @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void explain(long actor,long caseId,String text) {
         BoardingCase ref=cases.findById(caseId).orElseThrow(()->ApiException.notFound("없는 조사입니다."));
+        if(ref.getMemberId()!=actor) throw ApiException.forbidden("본인 조사에만 소명할 수 있어요.");
         lock(ref.getPartyId()); var c=cases.findById(caseId).orElseThrow();entityManager.refresh(c,jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         if(c.getMemberId()!=actor) throw ApiException.forbidden("본인 조사에만 소명할 수 있어요.");
         if(text==null || text.isBlank() || text.length()>2000)throw ApiException.badRequest("INVALID_EXPLANATION","소명은 1~2000자로 입력해 주세요.");

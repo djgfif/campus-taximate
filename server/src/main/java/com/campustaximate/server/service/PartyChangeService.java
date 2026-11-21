@@ -29,11 +29,11 @@ public class PartyChangeService {
         }
     }
     @Transactional(propagation=Propagation.MANDATORY)
-    public void changed(Party party, Set<Long> leaving, String reason, Set<Long> held) {
-        changed(party,leaving,reason,held,clock.now());
+    public String changed(Party party, Set<Long> leaving, String reason, Set<Long> held) {
+        return changed(party,leaving,reason,held,clock.now());
     }
     @Transactional(propagation=Propagation.MANDATORY)
-    public void changed(Party party, Set<Long> leaving, String reason, Set<Long> held, java.time.Instant acceptedAt) {
+    public String changed(Party party, Set<Long> leaving, String reason, Set<Long> held, java.time.Instant acceptedAt) {
         var at=clock.now();
         // 경로 조회 중 마감이 지나도 저장 직전의 시각으로 판정한다.
         boolean lateChange=reason.equals("CHANGE_EXIT_FREE") && !acceptedAt.isBefore(party.getDepartureAt().minusSeconds(600));
@@ -57,5 +57,6 @@ public class PartyChangeService {
             c.setNoCompensation(Objects.equals(party.getOriginalPayerId(),term.getMemberId()));cases.save(c);
         }
         if(!leaving.isEmpty()) chatLog.system(party,"일행원 "+leaving.size()+"명이 빠졌어요. 분담금과 하차 순서를 다시 계산했어요.");
+        return reason;
     }
 }
