@@ -1181,9 +1181,9 @@ class PaymentFlowTest {
         assertThat(payouts.findAll()).singleElement().satisfies(p->{assertThat(p.getMemberId()).isEqualTo(ids.get(2));assertThat(p.getAmount()).isEqualTo(3200);});
     }
 
-    /** 이의 인용은 결제자가 받은 실제 금액(지급액)을 고친다. 각자의 몫은 확정 금액 기준이라 그대로다. */
+    /** 이의 인용은 결제자가 받은 실제 요금(지급액)을 고친다. 각자의 몫은 확정 금액 기준이라 그대로다. */
     @Test void adminFareAcceptanceCorrectsPaidAmountAndPayoutAndWritesOneAudit(){
-        depart();submit(24000);settlementService.objectToFare(ids.get(0),partyId,"실제 금액은 영수증의 16800원");
+        depart();submit(24000);settlementService.objectToFare(ids.get(0),partyId,"실제 요금은 영수증의 16800원");
         admin.decideFare(adminId(),partyId,true,16800L,"영수증 금액 확인");lifecycle.afterDepartures();
         assertThat(settlements.findAll().getFirst().getPaidAmount()).isEqualTo(16800);
         assertThat(order(0).getRefundedAmount()).isZero();assertThat(order(1).getRefundedAmount()).isZero();

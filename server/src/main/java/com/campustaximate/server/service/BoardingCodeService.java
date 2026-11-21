@@ -44,14 +44,14 @@ public class BoardingCodeService {
         p.setBoardingCode(formatCode(RANDOM.nextInt(1_000_000)));
         p.setBoardedAt(clock.now()); p.setBoardingDeadlineAt(p.getBoardedAt().plusSeconds(300)); p.setBoardingClosedAt(null);
         r.setBoardingConfirmedAt(clock.now()); r.setArrived(true);
-        chat.system(p,"결제자가 택시에 탔어요. 탑승한 일행은 결제자 화면의 코드를 5분 안에 입력해 주세요.");
+        chat.system(p,"결제자가 택시에 탔어요. 탑승한 동승자는 결제자 화면의 탑승 번호를 5분 안에 입력해 주세요.");
     }
     // A rejected attempt must commit even when the request or an outer transaction rolls back.
     @Transactional(propagation=Propagation.REQUIRES_NEW, isolation=Isolation.READ_COMMITTED, noRollbackFor=ApiException.class)
     public void confirm(long actor,long id,String code,int generation) {
         Party p=lock(id); RideRequest r=member(p,actor);
         if(p.getPayer().getId()==actor) throw ApiException.forbidden("결제자는 실제 탑승 버튼을 사용해 주세요.");
-        if(p.getBoardingCode()==null || generation!=p.getBoardingGeneration()) throw ApiException.conflict("CODE_GENERATION","코드가 바뀌었어요. 화면을 새로고침해 주세요.");
+        if(p.getBoardingCode()==null || generation!=p.getBoardingGeneration()) throw ApiException.conflict("CODE_GENERATION","탑승 번호가 바뀌었어요. 화면을 새로고침해 주세요.");
         // Only a historical successful retry is allowed after the window closed normally.
         boolean active=List.of(PartyStatus.READY,PartyStatus.RIDE_UNCONFIRMED,PartyStatus.AWAITING_FARE).contains(p.getStatus());
         if(!active || r.isNoShow() || !List.of(RequestStatus.MATCHED,RequestStatus.COMPLETED).contains(r.getStatus()))
@@ -59,14 +59,14 @@ public class BoardingCodeService {
         if(r.getBoardingConfirmedAt()!=null) return;
         if(r.getStatus()!=RequestStatus.MATCHED) throw ApiException.conflict("BOARDING_ENDED","종료된 요청입니다.");
         if(p.isRouteVerificationPending()) throw ApiException.conflict("ROUTE_RETRY_PENDING","일행 경로를 다시 확인한 뒤 탑승할 수 있어요.");
-        if(!clock.now().isBefore(p.getBoardingDeadlineAt())) throw ApiException.conflict("CODE_EXPIRED","코드 입력 시간이 끝났어요. 탑승 미확인은 조사로 확인해요.");
+        if(!clock.now().isBefore(p.getBoardingDeadlineAt())) throw ApiException.conflict("CODE_EXPIRED","탑승 번호 입력 시간이 끝났어요. 탑승 미확인은 조사로 확인해요.");
         BoardingAttempt a=attempts.findByPartyIdAndMemberIdAndGeneration(id,actor,generation).orElseGet(()->{
             BoardingAttempt created=new BoardingAttempt(); created.setPartyId(id); created.setMemberId(actor); created.setGeneration(generation); return created;
         });
-        if(a.getFailures()>=5) throw ApiException.conflict("CODE_LOCKED","이번 코드의 입력 기회를 모두 사용했어요.");
+        if(a.getFailures()>=5) throw ApiException.conflict("CODE_LOCKED","이번 탑승 번호의 입력 기회를 모두 사용했어요.");
         if(code==null || !code.matches("[0-9]{6}") || !p.getBoardingCode().equals(code)) {
             a.setFailures(a.getFailures()+1); attempts.saveAndFlush(a);
-            throw ApiException.conflict("CODE_MISMATCH","코드가 맞지 않아요. 남은 횟수: "+(5-a.getFailures()));
+            throw ApiException.conflict("CODE_MISMATCH","탑승 번호가 맞지 않아요. 남은 횟수: "+(5-a.getFailures()));
         }
         r.setBoardingConfirmedAt(clock.now()); r.setArrived(true);
         chat.system(p,actor,"%s님의 탑승이 확인됐어요.");

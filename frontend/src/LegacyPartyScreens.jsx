@@ -100,7 +100,7 @@ function SchoolPayer({ party, now, myId, run, onDetail, onHome, onMenu }) {
       </div>}
       info={<div className="block">
         <Rows items={[['내 확정 분담금', won(party.myShare), 'big'], ['학교 도착', formatTime(party.arrivalAt)]]} />
-        <div className="list"><Item title="분담금과 경로 자세히" onClick={onDetail} /></div>
+        <div className="list"><Item title="확정 분담금과 경로 자세히" onClick={onDetail} /></div>
         {new Date(now) >= new Date(party.departureAt) && <MemberActions partyId={party.id} />}
         <PartySecondary party={party} onCancel={() => setAsking(true)} />
       </div>} />
@@ -141,7 +141,7 @@ function SchoolRider({ party, now, run, onDetail, onHome, onMenu }) {
       </div>}
       info={<div className="block">
         <Rows items={[['내 승차 지점', meetPlace(party)], ['내 승차 시각', formatTime(party.myBoardAt)], ['결제자', party.payerNickname]]} />
-        <div className="list"><Item title="분담금과 경로 자세히" onClick={onDetail} /></div>
+        <div className="list"><Item title="확정 분담금과 경로 자세히" onClick={onDetail} /></div>
         {new Date(now) >= new Date(party.departureAt) && <MemberActions partyId={party.id} />}
         <PartySecondary party={party} onCancel={() => setAsking(true)} />
       </div>} />

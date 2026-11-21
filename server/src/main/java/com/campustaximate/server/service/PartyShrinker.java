@@ -169,7 +169,7 @@ public class PartyShrinker {
         return true;
     }
 
-    /** 저장된 단독 값과 예상 요금을 그대로 쓴다. 실제 금액은 결제 뒤 같은 비율로 나눈다. */
+    /** 저장된 단독 값과 예상 요금을 그대로 쓴다. 실제 요금은 결제 뒤 같은 비율로 나눈다. */
     private Recalculated keepStoredValues(Plan plan) {
         TripPlan trip = TripPlan.of(plan.direction());
         List<RouteClient.Route> solo = plan.stays().stream()

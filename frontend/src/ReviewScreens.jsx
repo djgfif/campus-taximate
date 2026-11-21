@@ -171,7 +171,7 @@ export function PartyBoardingPanel({ party, now, showEmpty = false }) {
       <div className="review-actions"><Btn onClick={vote}>표시 제출</Btn><Btn className="line" onClick={() => setPending(null)}>돌아가기</Btn></div>
     </div>}
     {error && <p role="alert">{error}</p>}
-    {entries.length > 0 && <div><h3>보전 내역</h3>{entries.map((e) => <p key={e.id}>회원 #{e.memberId} · 보전 {won(e.credit)} · 부담 {won(e.charge)} · 최종 몫 {won(e.netShare)}</p>)}</div>}
+    {entries.length > 0 && <div><h3>보전 내역</h3>{entries.map((e) => <p key={e.id}>회원 #{e.memberId} · 보전 {won(e.credit)} · 부담 {won(e.charge)} · 최종 분담금 {won(e.netShare)}</p>)}</div>}
   </section>
 }
 
@@ -257,7 +257,7 @@ function FareReview({ item, onSaved }) {
       <Say>영수증이 없거나 보관 기한이 지나도 미운행으로 추정하지 않아요. 자료와 소명을 검토해 운행 여부를 직접 선택하고 근거를 남겨 주세요. 운행 확인 시 금액 입력을 복구해요.</Say>
       <EvidenceAction identity={rideDecision} label="운행 검토 확정" disabled={!rideDecision} onSaved={onSaved} act={(evidence) => api.decideRide(item.partyId, rideDecision, evidence)}>
         <label className="field">운행 판정<select aria-label="운행 판정" value={rideDecision} onChange={(e) => setRideDecision(e.target.value)}>
-          <option value="">자료를 확인한 뒤 선택해 주세요</option><option value="OPERATED">운행 확인 · 실제 금액 입력 복구</option><option value="NOT_OPERATED">미운행 확인 · 환불 진행</option>
+          <option value="">자료를 확인한 뒤 선택해 주세요</option><option value="OPERATED">운행 확인 · 실제 요금 입력 복구</option><option value="NOT_OPERATED">미운행 확인 · 환불 진행</option>
         </select></label>
         </EvidenceAction>
     </> : <EvidenceAction identity={`${accept}:${amount}`} label="요금 판정 저장" onSaved={onSaved} disabled={accept && !validAmount}
@@ -372,7 +372,7 @@ function AdminList({ tab }) {
           <span className="badge ok">{won(remote.data.balance)}</span>
         </div>
         <Rows items={[['누적 정산', `${remote.data.settlements}건`], ['부족분 보전 합계', won(remote.data.covered)]]} />
-        <p className="note">각자 확정 몫만 내고, 실제 요금과의 차이를 여기서 맡아요. 초기 기금은 운영 주체가 따로 더해 관리해요.</p>
+        <p className="note">각자 확정 분담금만 내고, 실제 요금과의 차이를 여기서 맡아요. 초기 기금은 운영 주체가 따로 더해 관리해요.</p>
         {remote.data.recent?.length > 0 && <Rows items={remote.data.recent.map((e) => ['일행 ' + e.partyId, (e.amount >= 0 ? '+' : '') + won(e.amount) + ' (확정 ' + won(e.fixedTotal) + ' / 실제 ' + won(e.paidAmount) + ')'])} />}
       </article>}
       {tab === 'audits' && [...remote.data].reverse().map((a) => <article className="review-card" key={a.id}>

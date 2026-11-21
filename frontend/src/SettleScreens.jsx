@@ -92,23 +92,23 @@ export function PayerInput({ party, now, run, onDone, onLater, onUpdated }) {
     } catch (e) { setError(e.message) }
   }
   if (!isPaymentParty(party)) return <LegacySettlement party={party} onHome={onLater} />
-  return <Screen aside={<SidePlain><Paper title="각자 낼 돈 (확정)">{shares ? <Rows items={shares.map((s) => [s.payer ? '나 (결제자)' : s.nickname, won(s.amount)])} /> : <p>금액을 입력하면 각자 몫을 보여 드려요.</p>}</Paper></SidePlain>}
+  return <Screen aside={<SidePlain><Paper title="각자 낼 돈 (확정)">{shares ? <Rows items={shares.map((s) => [s.payer ? '나 (결제자)' : s.nickname, won(s.amount)])} /> : <p>금액을 입력하면 각자 확정 분담금을 보여 드려요.</p>}</Paper></SidePlain>}
     foot={<><Btn disabled={!ready} onClick={submit}>{correcting ? '금액 수정하기' : '일행에게 정산 요청'}</Btn><Btn className="quiet" onClick={onLater}>{correcting ? '취소' : '나중에 하기'}</Btn></>}>
-    <BackBar onBack={onLater} title="실제 금액 입력" />
+    <BackBar onBack={onLater} title="실제 요금 입력" />
     <div className="pad"><RideConfirmationCard party={party} onUpdated={onUpdated} /><h1 className="head">얼마를 결제했나요?</h1>
-      <label className="field amount">실제 결제 금액<input aria-label="실제 결제 금액" inputMode="numeric" value={amount ? Number(amount).toLocaleString() : ''} placeholder="0"
+      <label className="field amount">실제 요금<input aria-label="실제 요금" inputMode="numeric" value={amount ? Number(amount).toLocaleString() : ''} placeholder="0"
         onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))} /><em>원</em></label>
       {unusual ? <Say tone="stop-tone" title={'확정 금액보다 ' + Math.round(Math.abs(difference) * 100) + '% ' + (difference > 0 ? '높아요' : '낮아요')}>{highExceptional
           ? '1.5배를 넘으면 관리자가 영수증을 확인한 뒤 돌려드려요. 금액이 맞으면 그대로 입력해 주세요.'
           : lowExceptional
-            ? '확정 금액의 절반보다 낮거나 내 몫보다 적으면 관리자가 영수증을 확인해요. 금액이 맞으면 그대로 입력해 주세요.'
+            ? '확정 금액의 절반보다 낮거나 내 확정 분담금보다 적으면 관리자가 영수증을 확인해요. 금액이 맞으면 그대로 입력해 주세요.'
             : '금액과 영수증을 다시 확인해 주세요. 금액이 맞으면 그대로 입력할 수 있어요.'}</Say>
         : <p className="note">확정 금액 {won(party.expectedTotal)}</p>}
       <ReceiptField file={receipt} onChange={setReceipt} />
       {!wide && shares && <Rows items={shares.map((s) => [s.payer ? '나 (결제자)' : s.nickname, won(s.amount)])} />}
       {payback != null && (payback >= 0
-        ? <Say title={'정산 확정 뒤 ' + won(payback) + '을 돌려드려요'}>실제 요금 {won(value)}에서 내 확정 몫 {won(myFixed)}을 뺀 금액이에요. 일행은 확정 금액만 내고, 차이는 정산 적립금이 맡아요.</Say>
-        : <Say title="정산 확정 뒤 돌려받을 금액이 없어요 (0원)">실제 요금 {won(value)}이 내 확정 몫 {won(myFixed)}보다 적어 정산 지급액은 0원이고, 관리자가 영수증을 확인해요.</Say>)}
+        ? <Say title={'결제자가 받을 돈 ' + won(payback) + ' (정산 확정 뒤)'}>실제 요금 {won(value)}에서 내 확정 분담금 {won(myFixed)}을 뺀 금액이에요. 일행은 확정 금액만 내고, 차이는 정산 적립금이 맡아요.</Say>
+        : <Say title="결제자가 받을 돈이 없어요 (0원)">실제 요금 {won(value)}이 내 확정 분담금 {won(myFixed)}보다 적어 받을 돈은 0원이고, 관리자가 영수증을 확인해요.</Say>)}
       {locked && <Say>이의가 있거나 수정할 수 있는 시간이 지났어요.</Say>}
       {(error || preview.value === value && preview.error) && <p role="alert">{error || preview.error}</p>}
       <p className="note">입력하면 24시간 동안 일행이 이의를 낼 수 있고, 그 뒤 정산이 확정돼요. 사진은 7일 뒤 지워져요.</p>
@@ -126,10 +126,10 @@ export function FinancialDetails({ party }) {
   const mine = settlement.shares?.find((s) => s.memberId === ownId)
   return <div className="financial-details">
     <Rows items={[
-      ['실제 결제 금액', won(settlement.paidAmount)], mine && ['내 몫', won(mine.amount), 'big'],
+      ['실제 요금', won(settlement.paidAmount)], mine && ['확정 분담금', won(mine.amount), 'big'],
       settlement.finalizedAt && ['정산 확정', formatDateTime(settlement.finalizedAt)],
     ]} />
-    {settlement.shares?.length > 0 && <Paper title="각자 몫"><Rows items={settlement.shares.map((s) => [
+    {settlement.shares?.length > 0 && <Paper title="각자 확정 분담금"><Rows items={settlement.shares.map((s) => [
       (s.memberId === ownId ? '나' : party.members?.find((m) => m.memberId === s.memberId)?.nickname || '일행') + (s.payer ? ' (결제자)' : ''), won(s.amount),
     ])} /></Paper>}
     {settlement.payments?.map((order) => <section key={order.orderId} aria-label={order.purpose === 'ADDITIONAL' ? '분담금 결제 기록' : '선결제 기록'}>
@@ -163,7 +163,7 @@ export function SettlementScreen({ party, myId, now, config, onUpdated, onMenu, 
       aside={settlement ? <SidePlain><Paper title="정산 요약"><FinancialDetails party={party} /></Paper><ReceiptPaper party={party} /></SidePlain> : null}
       header={<div className="pad party-head"><h1 className="head">{partyLabel(party.status)}</h1></div>}
       action={<>
-        {settlement?.warning && <Say tone="stop-tone">실제 금액이 예상과 {Math.abs(settlement.differencePercent)}% 달라요. 영수증을 확인해 주세요.</Say>}
+        {settlement?.warning && <Say tone="stop-tone">실제 요금이 예상과 {Math.abs(settlement.differencePercent)}% 달라요. 영수증을 확인해 주세요.</Say>}
         {open && <Say title={'요금 이의 기간 ' + remaining(deadline, now) + ' 남음'}>{formatDateTime(deadline)}까지 이의를 낼 수 있어요. {party.status === 'REVIEW_PENDING' ? '접수된 이의는 관리자 검토를 기다려요.' : '이의가 없으면 정산을 확정해요.'}</Say>}
         {party.status === 'REVIEW_PENDING' && <Say>{financialHold ? '운행 판정은 저장됐어요. 관리자가 결제 기록을 확인할 때까지 정산을 보류해요.'
           : party.reviewReason === 'RIDE_DISPUTE' ? '운행 여부를 관리자 검토 중이에요. 환불을 보류해요.'
@@ -199,7 +199,7 @@ export function LegacySettlement({ party, onHome, onMenu }) {
   return <Screen foot={<Btn onClick={onHome}>홈으로</Btn>}><TopBar onMenu={onMenu} />
     <div className="pad"><h1 className="head">이전 정산 기록</h1><p>이전 송금 방식의 기록은 읽기만 할 수 있어요.</p>
       {settlement && <><Rows items={[
-        ['실제 결제 금액', won(settlement.paidAmount)],
+        ['실제 요금', won(settlement.paidAmount)],
         ...((settlement.transfers || []).map((t) => [t.senderNickname, won(t.amount) + ', ' + (TRANSFER_LABEL[t.status] || '상태 확인 중')])),
       ]} /><ReceiptPaper party={party} /></>}
     </div></Screen>
