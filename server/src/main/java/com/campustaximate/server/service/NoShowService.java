@@ -89,7 +89,7 @@ public class NoShowService {
         if(party.getStartedAt()==null) return;
         var riders=requests.findByPartyOrderByRideOrder(party);
         party.setBoardingClosedAt(clock.now());
-        chatLog.system(party,"탑승 코드 입력 시간이 끝났어요. 미확인 대상은 24시간 소명과 조사로 확인하며, 미입력만으로 노쇼를 확정하지 않아요.");
+        chatLog.system(party,"탑승 번호 입력 시간이 끝났어요. 미확인 대상은 24시간 소명과 조사로 확인하며, 미입력만으로 노쇼를 확정하지 않아요.");
         Set<Long> missing=new HashSet<>();
         for(var rider:riders) if(rider.getBoardingConfirmedAt()==null) {
             var term=terms.findByPartyIdAndRequestId(party.getId(),rider.getId()).orElseThrow();
@@ -157,7 +157,7 @@ public class NoShowService {
         original.clearParty();original.finish(RequestStatus.CANCELED);
         party.setPayer(members.getReferenceById(actor));party.setSuccessionStatus("ACCEPTED");
         party.revokeBoardingCode(); party.setStatus(PartyStatus.READY);
-        chatLog.system(party,"결제자가 바뀌어 이전 코드를 닫았어요. 새 결제자가 실제 탑승을 표시하면 새 코드가 열려요.");
+        chatLog.system(party,"결제자가 바뀌어 이전 탑승 번호를 닫았어요. 새 결제자가 실제 탑승을 표시하면 새 탑승 번호가 열려요.");
         return true;
     }
     private void failSuccession(Party party) {

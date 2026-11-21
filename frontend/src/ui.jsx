@@ -164,7 +164,7 @@ export function FairnessNote({ delay, solo, share, rules, walkExcluded = false }
     <h2>이 일행이 정해진 이유</h2>
     <div className="fair-rows">
       <div><span>같이 가서 늘어나는 시간</span><b>{delay}분</b><small>{maxDelay}분 이내만 묶어요{walkExcluded ? ', 걷는 시간 제외' : ''}</small></div>
-      <div><span>혼자 요금 중 내가 내는 몫</span><b>{pct}%</b><small>{maxShare}% 이하일 때만 묶어요</small></div>
+      <div><span>혼자 요금 중 내가 내는 비율</span><b>{pct}%</b><small>{maxShare}% 이하일 때만 일행이 돼요</small></div>
     </div>
     <p>확정 금액을 각자 혼자 탈 때 요금의 비율대로 나눠요. 멀리 가는 사람이 더 내고, 실제 요금이 더 나와도 더 내지 않아요.</p>
   </section>

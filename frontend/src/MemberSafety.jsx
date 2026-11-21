@@ -84,9 +84,9 @@ export function MemberActions({ partyId, onlyAvoid = false, onSaved }) {
     } catch (e) { setError(e.message) } finally { setBusy(false) }
   }
   return (
-    <section className="block" aria-label="일행원 신고와 매칭 설정">
-      <h2 className="block-title">{onlyAvoid ? '다시 매칭하지 않을 상대를 골라 주세요' : '일행원 신고와 다시 매칭 안 하기'}</h2>
-      {!peers && !error && <p role="status">일행원을 불러오고 있어요</p>}
+    <section className="block" aria-label="일행 신고와 매칭 설정">
+      <h2 className="block-title">{onlyAvoid ? '다시 매칭하지 않을 상대를 골라 주세요' : '일행 신고와 다시 매칭 안 하기'}</h2>
+      {!peers && !error && <p role="status">일행을 불러오고 있어요</p>}
       <div className="list">
         {peers?.map((member) => (
           <div className="item" key={member.memberId}>
@@ -109,7 +109,7 @@ export function HistoryMemberActions({ partyId }) {
   const [open, setOpen] = useState(false)
   return (
     <div>
-      <Btn className="small quiet" aria-expanded={open} onClick={() => setOpen((value) => !value)}>일행원 신고와 다시 매칭 안 하기</Btn>
+      <Btn className="small quiet" aria-expanded={open} onClick={() => setOpen((value) => !value)}>일행 신고와 다시 매칭 안 하기</Btn>
       {open && <MemberActions partyId={partyId} />}
     </div>
   )

@@ -34,7 +34,7 @@ export function Situation({ insight, now }) {
     case 'OTHER_DIRECTION':
       return <Say tone="calm" title={`같은 시간대 ${insight.peers}명이 있지만 방향이 달라요`}>{next} 같은 방향 요청을 기다립니다.</Say>
     default:
-      return <Say title={`같은 방향 ${insight.sameDirection}명과 조건을 확인하고 있어요`}>지연 15분, 요금 10% 조건이 맞으면 일행이 됩니다. {next}</Say>
+      return <Say title={`방향이 맞는 ${insight.sameDirection}명과 조건을 확인하고 있어요`}>늦는 시간 15분, 절약 10% 조건이 맞으면 일행이 됩니다. {next}</Say>
   }
 }
 

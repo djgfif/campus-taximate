@@ -54,7 +54,7 @@ export default function PaymentCard({ partyId, purpose = 'PREPAY', myId, now, co
   const urgent = minutesLeft != null && minutesLeft > 0 && minutesLeft <= 10
   return <section className={compact ? 'payment-card compact' : 'payment-card'} aria-label={extra ? '분담금 결제' : '선결제'}>
     <h2>{extra ? '분담금 결제' : '선결제'}{order ? ' ' + won(order.amount) : ''}</h2>
-    {!extra && !compact && <p>확정된 내 몫을 미리 결제해요. 나중에 더 내는 일은 없어요.</p>}
+    {!extra && !compact && <p>확정 분담금을 선결제해요. 나중에 더 내는 일은 없어요.</p>}
     {!order && !error && <p role="status">주문을 확인하고 있어요.</p>}
     {order && <>
       {settled ? <p className="due paid">승인 완료</p> : <>

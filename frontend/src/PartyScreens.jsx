@@ -26,7 +26,7 @@ export function PartyDetail({ party, myId, now, onBack }) {
   const wide = useWide()
   return (
     <Screen aside={mine ? <RouteSide party={party} mine={mine} /> : null}>
-      <BackBar onBack={onBack} title={toSchool ? '분담금과 경로' : '일행과 경로'} />
+      <BackBar onBack={onBack} title={toSchool ? '확정 분담금과 경로' : '일행과 경로'} />
       <div className="block"><Rows items={[
         ['모이는 곳', meetPlace(party)], [party.instant?'예상 출발':'출발 시각', formatDateTime(party.departureAt)],
         ['결제자', party.payerNickname],
@@ -45,8 +45,8 @@ export function PartyDetail({ party, myId, now, onBack }) {
       <div className="band" />
       {mine && !wide && <RouteComparison party={party} mine={mine} />}
       <div className="block">
-        {toSchool && <p className="note">승차 시각 3분 뒤까지 도착 표시가 없으면 그 사람을 빼고 갑니다. 분담금은 남은 일행으로 다시 계산하고, 혼자 남으면 일행이 취소됩니다.</p>}
-        <p className="note">{isPaymentParty(party) ? '각자 낼 돈은 확정 분담금 그대로예요. 실제 요금과의 차이는 정산 적립금이 맡아요.' : '실제 금액은 결제 후 같은 비율로 나눕니다. ' + REAL_NAME}</p>
+        {toSchool && <p className="note">승차 시각 3분 뒤까지 도착 표시가 없으면 그 사람을 빼고 갑니다. 확정 분담금은 남은 일행으로 다시 계산하고, 혼자 남으면 일행이 취소됩니다.</p>}
+        <p className="note">{isPaymentParty(party) ? '각자 낼 돈은 확정 분담금 그대로예요. 실제 요금과의 차이는 정산 적립금이 맡아요.' : '실제 요금은 결제 후 같은 비율로 나눕니다. ' + REAL_NAME}</p>
         {new Date(now) >= new Date(party.departureAt) && <MemberActions partyId={party.id} />}
       </div>
     </Screen>
@@ -81,12 +81,12 @@ export function PartyFareRows({ party }) {
   const increase = party.myConfirmedShare!=null ? party.myShare - party.myConfirmedShare : 0
   return <>
     <Rows items={[
-      party.myConfirmedShare!=null ? ['확정 때 내 몫',won(party.myConfirmedShare),'big'] : ['내 예상 몫',won(party.myShare),'big'],
-      party.myConfirmedShare!=null && party.myConfirmedShare!==party.myShare && ['지금 예상 몫',won(party.myShare),'big'],
+      party.myConfirmedShare!=null ? ['내 확정 분담금',won(party.myConfirmedShare),'big'] : ['내 예상 분담금',won(party.myShare),'big'],
+      party.myConfirmedShare!=null && party.myConfirmedShare!==party.myShare && ['지금 예상 분담금',won(party.myShare),'big'],
     ]} />
-    {/* 명세 8.4·S24: 확정된 노쇼나 무료 취소 마감 뒤 취소면 늘어난 몫을 빠진 사람의 선결제에서 보전(그 사람 확정 몫까지). */}
-    {increase > 0 && <Say title={`일행이 빠져 내 몫이 ${won(increase)} 늘었어요`}>
-      노쇼 확정·마감 후 취소라면 늘어난 금액을 그 사람의 선결제에서 받아 정산 때 내 몫에서 빼 드려요(그 사람의 확정 몫까지).
+    {/* 명세 8.4·S24: 확정된 노쇼나 무료 취소 마감 뒤 취소면 늘어난 금액을 빠진 사람의 선결제에서 보전(그 사람 확정 몫까지). */}
+    {increase > 0 && <Say title={`일행이 빠져 내 분담금이 ${won(increase)} 늘었어요`}>
+      노쇼 확정·마감 후 취소라면 늘어난 금액을 그 사람의 선결제에서 받아 정산 때 내 분담금에서 빼 드려요(그 사람의 확정 분담금까지).
       노쇼가 아니거나 처음 결제자가 빠지면 실제 요금 기준으로 나눠요.
     </Say>}
   </>
@@ -200,11 +200,11 @@ function NextAction({ party, now, myId, mine, config, run, onUpdated, onDriver }
   } else if (party.status === 'AWAITING_FARE') {
     if (party.payer && !party.canSettle) {
       title = '탑승 확인이 끝나면 금액을 입력해요'
-      detail = '동승자의 탑승 번호 입력 시간(5분)이 끝나면 실제 금액과 영수증 입력 화면이 열려요.'
+      detail = '동승자의 탑승 번호 입력 시간(5분)이 끝나면 실제 요금과 영수증 입력 화면이 열려요.'
       tone = 'calm'
     } else {
-      title = party.payer ? '실제 금액을 입력해 주세요' : '결제자의 금액 입력을 기다려요'
-      detail = party.payer ? '영수증 사진과 함께 올리면 내 몫을 뺀 나머지를 돌려드려요.' : '입력되면 24시간 동안 요금 이의를 낼 수 있어요.'
+      title = party.payer ? '실제 요금을 입력해 주세요' : '결제자의 금액 입력을 기다려요'
+      detail = party.payer ? '영수증 사진과 함께 올리면 내 확정 분담금을 뺀 나머지를 받아요.' : '입력되면 24시간 동안 요금 이의를 낼 수 있어요.'
       if (!party.payer) tone = 'calm'
     }
   } else if (['DISSOLVED', 'NOT_OPERATED', 'FARE_MISSING'].includes(party.status)) {
@@ -266,7 +266,7 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
           {['READY', 'RIDE_UNCONFIRMED', 'AWAITING_FARE'].includes(party.status) && <BoardingCodePanel party={party} now={now} onUpdated={onUpdated} />}
           {party.canLeaveAfterChange && <Say tone="stop-tone" title="일행이 바뀌었어요"
             action={<Btn className="small line" onClick={() => setLeavingChange(true)}>변경돼서 빠지기</Btn>}>
-            현재 내 몫은 {won(party.myShare)}이에요. 원하지 않으면 {party.changeExitFree ? '호출 전까지 무료로' : ''} 빠질 수 있어요.
+            현재 내 확정 분담금은 {won(party.myShare)}이에요. 원하지 않으면 {party.changeExitFree ? '호출 전까지 무료로' : ''} 빠질 수 있어요.
           </Say>}
           {waiting && party.instant && !mine?.arrived && !owesPrepay && <Btn className="line" disabled={mine?.nearby}
             onClick={() => run(() => api.prepareParty(party.id, 'NEARBY'), '2분 안 도착으로 표시했어요')}>{mine?.nearby ? '2분 안 도착 표시 완료' : '2분 안 도착'}</Btn>}
@@ -310,9 +310,9 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
         <PartyFareRows party={party} />
         <Fold title="규칙 자세히" className="rules">
           <ul>
-            <li>{free ? '무료 취소 마감 전 취소하면 승인된 선결제를 전액 환불해요.' : '무료 취소 마감이 지나 취소하면 남은 일행의 늘어난 몫을 보전해요.'}</li>
-            <li>누가 오지 않으면 일행·본인 소명을 보고 24시간 뒤 판정해요. 노쇼로 확정되면 남은 일행의 늘어난 몫을 그 사람의 선결제에서 보전하고, 판단할 수 없으면 노쇼로 보지 않아요.</li>
-            <li>선결제는 확정 때 정해진 내 몫 그대로이고, 그게 최종 금액이에요. 길이 막혀 요금이 더 나와도 더 받지 않아요. 차이는 정산 적립금이 맡아요.</li>
+            <li>{free ? '무료 취소 마감 전 취소하면 승인된 선결제를 전액 환불해요.' : '무료 취소 마감이 지나 취소하면 남은 일행의 늘어난 금액을 보전해요.'}</li>
+            <li>누가 오지 않으면 일행·본인 소명을 보고 24시간 뒤 판정해요. 노쇼로 확정되면 남은 일행의 늘어난 금액을 그 사람의 선결제에서 보전하고, 판단할 수 없으면 노쇼로 보지 않아요.</li>
+            <li>선결제는 확정 때 정해진 확정 분담금 그대로이고, 그게 최종 금액이에요. 길이 막혀 요금이 더 나와도 더 받지 않아요. 차이는 정산 적립금이 맡아요.</li>
             {party.instant && <li>즉시 일행은 선결제 기한이 확정 뒤 {config?.instantMatching?.prepMinutes ?? 5}분이고, 모두 준비되면 바로 호출해요.</li>}
             <li>택시는 결제자가 카카오T로 직접 불러요. 앱은 부른 사실만 기록해요.</li>
             <li>운행 시작 표시가 없으면 탔는지 물어보고, 미운행이 확인될 때만 환불해요.</li>

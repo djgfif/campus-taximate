@@ -76,17 +76,17 @@ describe('디자인·편의성 근본 개선 검증', () => {
     expect(screen.getByRole('button', { name: '직접' }).getAttribute('aria-pressed')).toBe('true')
   })
 
-  it('탑승 코드 패널은 남은 시간 카운트다운과 복사 버튼을 보여 주며 6자리 숫자 형식을 유지한다', async () => {
+  it('탑승 번호 패널은 남은 시간 카운트다운과 복사 버튼을 보여 주며 6자리 숫자 형식을 유지한다', async () => {
     vi.spyOn(api, 'boardingState').mockResolvedValue({
       status: 'OPEN', code: '482910', deadlineAt: '2026-11-11T00:05:00Z', generation: 1, remainingAttempts: 5,
     })
     const writeText = vi.fn().mockResolvedValue()
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
     render(<BoardingCodePanel party={{ id: 1, payer: true, status: 'READY' }} now="2026-11-11T00:02:30Z" />)
-    const ticket = await screen.findByLabelText('탑승 코드')
+    const ticket = await screen.findByLabelText('탑승 번호')
     expect(ticket.textContent).toMatch(/^\d{6}$/)
     expect(screen.getByText('02:30')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: '탑승 코드 복사' }))
+    fireEvent.click(screen.getByRole('button', { name: '탑승 번호 복사' }))
     await waitFor(() => expect(writeText).toHaveBeenCalledWith('482910'))
   })
 

@@ -77,29 +77,29 @@ export default function BoardingCodePanel({ party, now, onUpdated, active = true
   const ended = (state.status === 'EXPIRED' || expired) && !state.confirmed
   const actionable = canCall || state.canOpen || showCode || typing || state.canStart || ended || (!party.payer && state.confirmed)
   // 아직 할 일이 없으면 한 줄로만 알려 준다. 타기 전부터 큰 상자를 띄우지 않는다.
-  if (!actionable) return <section ref={panel} className="board-hint" aria-label="탑승 코드 확인">
-    <p>택시에 타면 결제자 화면의 6자리 번호로 탑승을 확인해요.</p>
+  if (!actionable) return <section ref={panel} className="board-hint" aria-label="탑승 번호 확인">
+    <p>택시에 타면 결제자 화면의 탑승 번호로 탑승을 확인해요.</p>
     {error && <p role="alert">{error}</p>}
   </section>
-  return <section ref={panel} className="next-action boarding" aria-label="탑승 코드 확인">
+  return <section ref={panel} className="next-action boarding" aria-label="탑승 번호 확인">
     <div className="boarding-head">
       <h2>{showCode ? '탑승 번호' : typing ? '탑승 번호를 입력해 주세요' : '택시에 타면 탑승을 확인해 주세요'}</h2>
       {state.deadlineAt && windowOpen && <span className={urgent ? 'code-timer urgent' : 'code-timer'}>{formatCountdown(leftMs)}</span>}
     </div>
     {showCode && <>
       <div className="ticket-box">
-        <strong className="ticket" aria-label="탑승 코드">{state.code}</strong>
-        <button type="button" className="ticket-copy" aria-label="탑승 코드 복사" onClick={copyCode}><Copy size={15} aria-hidden="true" />복사</button>
+        <strong className="ticket" aria-label="탑승 번호">{state.code}</strong>
+        <button type="button" className="ticket-copy" aria-label="탑승 번호 복사" onClick={copyCode}><Copy size={15} aria-hidden="true" />복사</button>
       </div>
       <p>탑승한 일행에게 이 번호를 보여 주세요.</p>
     </>}
     {state.deadlineAt && windowOpen && <p className="boarding-deadline">입력 마감 {formatTime(state.deadlineAt)}</p>}
     {!showCode && !typing && !ended && <p>결제자가 탄 뒤 5분 동안 번호를 입력해요.</p>}
     {canCall && <Btn disabled={busy} onClick={() => act(() => api.callParty(party.id))}>택시 불렀어요</Btn>}
-    {state.canOpen && <Btn disabled={busy} onClick={() => act(() => api.boarded(party.id))}>택시 탔어요 · 코드 열기</Btn>}
+    {state.canOpen && <Btn disabled={busy} onClick={() => act(() => api.boarded(party.id))}>택시 탔어요 · 탑승 번호 열기</Btn>}
     {!party.payer && state.confirmed && <p className="ok">탑승 확인 완료</p>}
     {typing && <form className="code-form" onSubmit={(e) => { e.preventDefault(); act(() => api.confirmBoardingCode(party.id, code, state.generation)) }}>
-      <label className="field code"><span className="sr-only">결제자 화면의 6자리 코드</span><input aria-label="6자리 탑승 코드" inputMode="numeric" autoComplete="off" maxLength={6} placeholder="000000" value={code} onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ''))} /></label>
+      <label className="field code"><span className="sr-only">결제자 화면의 탑승 번호</span><input aria-label="6자리 탑승 번호" inputMode="numeric" autoComplete="off" maxLength={6} placeholder="000000" value={code} onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ''))} /></label>
       <div className="code-meta">
         <span>남은 입력 횟수 {state.remainingAttempts}회</span>
         <span className="code-progress">{code.length}/6</span>

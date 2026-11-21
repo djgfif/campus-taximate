@@ -98,7 +98,7 @@ function JoinSheet({ card, config, onClose, onJoined }) {
       <PlaceField label="내릴 곳" value={place} center={center.lat ? center : null} onChange={setPlace} samples={config?.demo ? config.sampleDropoffs || [] : []} />
       <label className="field">일행에게 한마디 (선택)<input maxLength={100} value={memo} placeholder="예: 검은 백팩 멨어요" onChange={(e) => setMemo(e.target.value)} /></label>
       {error && <p role="alert">{error}</p>}
-      <p className="note">기존 일행의 몫이 오르지 않고 경로가 맞을 때만 합류돼요. {formatTime(card.joinUntil)}까지 신청할 수 있어요.</p>
+      <p className="note">기존 일행의 확정 분담금이 오르지 않고 경로가 맞을 때만 합류돼요. {formatTime(card.joinUntil)}까지 신청할 수 있어요.</p>
       <Btn disabled={!place.point || !place.name.trim()} onClick={submit}>합류 신청</Btn>
     </Sheet>
   )

@@ -35,7 +35,7 @@ function guide(party) {
     case 'READY': return ['승차 지점에 모여요', payer ? '모두 도착하면 "택시 불렀어요"를 눌러 보세요.' : '일행방 아래 "도착했어요"를 눌러 보세요.']
     case 'PAYER_PENDING': return ['결제자가 오지 않았어요', '일행방 아래 카드에서 "제가 결제할게요"를 눌러 보세요.']
     case 'RIDE_UNCONFIRMED': return ['택시 탔는지 물어봐요', '일행방 아래 카드에서 "탔어요"나 "못 탔어요"를 눌러 보세요.']
-    case 'AWAITING_FARE': return ['실제 요금을 입력해요', payer ? '실제 택시비와 영수증을 입력해 보세요.' : '결제자가 요금을 입력하면 내 몫이 정해져요. "다음 장면 보기"로 넘겨 보세요.']
+    case 'AWAITING_FARE': return ['실제 요금을 입력해요', payer ? '실제 택시비와 영수증을 입력해 보세요.' : '결제자가 요금을 입력하면 정산이 시작돼요. "다음 장면 보기"로 넘겨 보세요.']
     case 'OBJECTION_WINDOW':
     case 'REVIEW_PENDING': return ['요금을 확인하는 시간이에요', '요금이 이상하면 이의를 낼 수 있어요. "다음 장면 보기"를 누르면 24시간이 지나요.']
     default: return ['정산이 끝났어요', '혼자 탈 때보다 얼마 덜 냈는지 일행방에서 확인해 보세요.']
