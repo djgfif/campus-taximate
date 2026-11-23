@@ -1,0 +1,16 @@
+# 운영 실행: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# 시연 설정을 운영 설정으로 덮어쓴다. .env의 운영 필수 값이 없으면 시작하지 않는다.
+services:
+  mysql:
+    environment:
+      MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD를 .env에 넣어 주세요}
+    volumes:
+      - taximate-mysql:/var/lib/mysql
+
+  app:
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-default}
+      DB_URL: jdbc:mysql://mysql:3306/taximate?serverTimezone=UTC&characterEncoding=UTF-8
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD를 .env에 넣어 주세요}
+      APP_DEMO_RESET_DATABASE: "false"
+      TOSS_SECRET_KEY: ${TOSS_SECRET_KEY:?TOSS_SECRET_KEY를 .env에 넣어 주세요}

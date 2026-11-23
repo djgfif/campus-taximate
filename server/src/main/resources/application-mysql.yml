@@ -1,4 +1,4 @@
-# 시연 모드를 실제 MySQL로 돌린다. SPRING_PROFILES_ACTIVE=demo,mysql 로 함께 켠다.
+# 시연 모드를 실제 MySQL로 돌린다. SPRING_PROFILES_ACTIVE=demo,mysql 로 함께 켠다(docker compose 기본값). 기본 주소는 compose MySQL의 3307 포트다.
 # DB 구조는 Flyway가 만들고 엔티티와 일치하는지 시작할 때 검사한다.
 spring:
   datasource:
