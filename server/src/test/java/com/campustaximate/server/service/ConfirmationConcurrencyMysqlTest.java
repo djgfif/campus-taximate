@@ -11,7 +11,7 @@ import org.springframework.test.context.ActiveProfiles;import org.springframewor
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 /**
- * E-03을 실제 MySQL(InnoDB)에서 돌린다. scripts/local-mysql.ps1로 3307 포트 MySQL을 띄우고
+ * E-03을 실제 MySQL(InnoDB)에서 돌린다. docker compose up -d mysql로 3307 포트 MySQL을 띄우고
  * MYSQL_TESTS=true 일 때만 실행한다. 시연용 DB를 비우고 시작한다.
  */
 @SpringBootTest(properties={"app.tmap.app-key="})

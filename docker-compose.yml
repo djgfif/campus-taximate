@@ -1,17 +1,21 @@
-# 값은 .env에서 읽는다. .env.example을 참고한다.
+# 시연 실행: docker compose up --build  → http://localhost:8080
+# 운영 실행: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# 키는 .env에서 읽는다(.env.example 참고). 시연은 .env가 없어도 모의 경로·모의 결제로 돈다.
 services:
   mysql:
     image: mysql:8.4.3
     environment:
       MYSQL_DATABASE: taximate
       MYSQL_USER: ${DB_USER:-taximate}
-      MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD를 .env에 넣어 주세요}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-taximate}
       MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+    # 이 컴퓨터에서만 접속. 기존 MySQL(3306)과 겹치지 않게 3307로 연다.
     ports:
-      - "127.0.0.1:3306:3306"
+      - "127.0.0.1:3307:3306"
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     volumes:
-      - taximate-mysql:/var/lib/mysql
+      # 시연 DB는 켤 때마다 비우므로 운영 DB와 다른 저장소를 쓴다.
+      - taximate-demo-mysql:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
       interval: 5s
@@ -26,14 +30,24 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     environment:
-      DB_URL: jdbc:mysql://mysql:3306/taximate?serverTimezone=UTC&characterEncoding=UTF-8
+      SPRING_PROFILES_ACTIVE: demo,mysql
+      DB_URL: jdbc:mysql://mysql:3306/taximate?serverTimezone=UTC&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&useSSL=false
+      DB_USER: ${DB_USER:-taximate}
+      DB_PASSWORD: ${DB_PASSWORD:-taximate}
+      # 시연 전용 DB라 켤 때마다 비운다(DemoDatabaseReset).
+      APP_DEMO_RESET_DATABASE: "true"
+      # 시연은 모의 결제기를 쓰므로 토스 키를 비운다.
+      TOSS_SECRET_KEY: ""
     ports:
       - "8080:8080"
     volumes:
       - taximate-uploads:/app/uploads
 
 volumes:
+  taximate-demo-mysql:
   taximate-mysql:
   taximate-uploads:

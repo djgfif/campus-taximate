@@ -14,4 +14,13 @@ class DemoDatabaseResetTest {
         assertThat(DemoDatabaseReset.local("jdbc:mysql://db.example.ac.kr:3306/taximate")).isFalse();
         assertThat(DemoDatabaseReset.local("jdbc:mysql://mysql:3306/taximate")).isFalse();
     }
+
+    @Test
+    void wipesNamedDemoDatabaseOnlyInDemoMode() {
+        String docker = "jdbc:mysql://mysql:3306/taximate";
+        assertThat(DemoDatabaseReset.wipes(true, true, docker)).isTrue();
+        assertThat(DemoDatabaseReset.wipes(true, false, docker)).isFalse();
+        assertThat(DemoDatabaseReset.wipes(false, true, docker)).isFalse();
+        assertThat(DemoDatabaseReset.wipes(false, false, "jdbc:mysql://localhost:3306/taximate")).isFalse();
+    }
 }

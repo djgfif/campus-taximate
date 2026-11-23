@@ -44,33 +44,17 @@ python scripts/release_bundle.py
 
 ## 시연 실행
 
-시연도 운영과 같은 MySQL로 돌립니다. Java 21, Node 20, MySQL 8이 필요합니다. `.env.example`을 복사해 `.env`를 만들고 카카오 키를 넣습니다. `KAKAO_REST_KEY`가 없으면 모의 경로로 돕니다.
-
-`demo` 프로필은 `app.payment.simulated=true`로 외부 결제가 없는 모의 결제기를 사용합니다. 이때 `TOSS_SECRET_KEY`는 비워 둡니다. 토스 테스트 결제창으로 시연하려면 테스트용 서버·클라이언트 키를 설정하고 `--app.payment.simulated=false`로 실행하세요. 키가 있다는 이유로 모의·실제 결제기를 자동 전환하지 않습니다.
-
-1. 화면을 빌드해 서버에 넣고 jar를 만듭니다.
+Docker만 있으면 됩니다. Java·Node·MySQL을 따로 설치하지 않습니다. 카카오 지도와 실제 길찾기를 쓰려면 `.env.example`을 복사해 `.env`를 만들고 카카오 키를 넣습니다. `.env`가 없거나 `KAKAO_REST_KEY`가 비어 있으면 모의 경로로 돕니다.
 
 ```bash
-cd frontend && npm ci && npm run build && cd ..
-./mvnw package -DskipTests
+docker compose up --build
 ```
 
-2. 설치된 MySQL 8 프로그램으로 이 프로젝트 전용 MySQL을 관리자 권한 없이 3307 포트에 띄웁니다. 처음 한 번은 DB와 사용자를 만들고, 이미 떠 있으면 그대로 둡니다. 기존 MySQL 서비스와 데이터는 건드리지 않습니다.
+화면 빌드 → 서버 jar → 실행 이미지를 만들고, MySQL 8.4와 서버를 `demo,mysql` 프로필로 함께 띄웁니다. `http://localhost:8080`에서 `demo-f1@daejin.ac.kr`, 비밀번호 `demo1234`로 로그인합니다. 새 계정은 학교 메일 코드로 가입을 인증한 뒤 비밀번호를 정하며, 시연 계정은 코드가 자동으로 들어갑니다. 요청을 만든 뒤 상단의 시연 메뉴에서 일행 만들기를 누르면 일행이 정해집니다. 끌 때는 `docker compose down`입니다.
 
-```powershell
-./scripts/local-mysql.ps1
-```
+Flyway가 DB 구조를 만들고, 시연은 시계를 앞으로 돌리므로 켤 때마다 DB를 비우고 시작합니다. 비우는 것은 시연 모드이면서 DB 주소가 이 컴퓨터이거나 `app.demo.reset-database=true`로 시연 전용 DB라고 명시했을 때뿐이며, 시연 DB는 운영 DB와 다른 저장소(`taximate-demo-mysql`)를 씁니다. 시연 MySQL은 이 컴퓨터의 3307 포트로도 열립니다(사용자·비밀번호 `taximate`).
 
-3. `demo,mysql` 프로필로 서버를 켭니다.
-
-```bash
-set -a; . ./.env; set +a
-TOSS_SECRET_KEY= SPRING_PROFILES_ACTIVE=demo,mysql java -jar server/target/server-0.1.0.jar
-```
-
-`http://localhost:8080`에서 `demo-f1@daejin.ac.kr`, 비밀번호 `demo1234`로 로그인합니다. 새 계정은 학교 메일 코드로 가입을 인증한 뒤 비밀번호를 정하며, 시연 계정은 코드가 자동으로 들어갑니다. 요청을 만든 뒤 상단의 시연 메뉴에서 일행 만들기를 누르면 일행이 정해집니다.
-
-Flyway가 DB 구조를 만들고, 시연은 시계를 앞으로 돌리므로 실행할 때마다 DB를 비우고 시작합니다. 비우는 것은 시연 모드이면서 DB 주소가 이 컴퓨터일 때뿐입니다. `demo` 프로필만 켜면 메모리 DB(H2)로 돌며, 이는 자동 테스트(E2E·부하 시험)용입니다.
+시연은 `app.payment.simulated=true`로 외부 결제가 없는 모의 결제기를 쓰고, 그래서 `docker-compose.yml`이 `TOSS_SECRET_KEY`를 비웁니다. 키가 있다는 이유로 모의·실제 결제기를 자동 전환하지 않습니다. 메모리 DB(H2)로 도는 `demo` 단독 프로필은 자동 테스트(E2E·부하 시험)용입니다.
 
 API 문서는 시연 실행 중 `http://localhost:8080/swagger-ui.html`에서 볼 수 있습니다.
 
@@ -79,10 +63,10 @@ API 문서는 시연 실행 중 `http://localhost:8080/swagger-ui.html`에서 �
 `.env`에 `.env.example`의 값을 모두 채운 뒤 실행합니다. `ACCOUNT_KEY`, `KAKAO_REST_KEY`, `MAIL_HOST`, `TOSS_SECRET_KEY`가 없으면 서버가 시작을 거부합니다. 화면 빌드에는 짝이 맞는 `VITE_TOSS_CLIENT_KEY`가 필요합니다. 모의 결제는 실제 `demo` 프로필과 명시적 모의 결제 설정이 모두 있어야 허용되며, `app.demo.enabled=true`만으로 운영에서 켤 수 없습니다. DB 구조는 Flyway가 만들고, 시작할 때 엔티티와 일치하는지 검사합니다.
 
 ```bash
-docker compose up -d --build
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
-`/actuator/health`로 상태를 확인합니다. 로그를 파일로 남기려면 `SPRING_PROFILES_ACTIVE=logfile`과 `LOG_DIR`을 넣습니다.
+`docker-compose.prod.yml`이 시연 설정을 운영 설정으로 덮어씁니다. `DB_PASSWORD`나 `TOSS_SECRET_KEY`가 비어 있으면 시작하지 않습니다. `/actuator/health`로 상태를 확인합니다. 로그를 파일로 남기려면 `SPRING_PROFILES_ACTIVE=logfile`과 `LOG_DIR`을 넣습니다.
 
 ## 개발
 
