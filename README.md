@@ -44,33 +44,33 @@ python scripts/release_bundle.py
 
 ## 시연 실행
 
-MySQL 없이 돌아가고 재시작하면 데이터가 사라집니다. Java 21과 Node 20이 필요합니다. `.env.example`을 복사해 `.env`를 만들고 카카오 키를 넣습니다. `KAKAO_REST_KEY`가 없으면 모의 경로로 돕니다.
+시연도 운영과 같은 MySQL로 돌립니다. Java 21, Node 20, MySQL 8이 필요합니다. `.env.example`을 복사해 `.env`를 만들고 카카오 키를 넣습니다. `KAKAO_REST_KEY`가 없으면 모의 경로로 돕니다.
 
 `demo` 프로필은 `app.payment.simulated=true`로 외부 결제가 없는 모의 결제기를 사용합니다. 이때 `TOSS_SECRET_KEY`는 비워 둡니다. 토스 테스트 결제창으로 시연하려면 테스트용 서버·클라이언트 키를 설정하고 `--app.payment.simulated=false`로 실행하세요. 키가 있다는 이유로 모의·실제 결제기를 자동 전환하지 않습니다.
+
+1. 화면을 빌드해 서버에 넣고 jar를 만듭니다.
 
 ```bash
 cd frontend && npm ci && npm run build && cd ..
 ./mvnw package -DskipTests
-set -a; . ./.env; set +a
-SPRING_PROFILES_ACTIVE=demo java -jar server/target/server-0.1.0.jar
 ```
 
-`http://localhost:8080`에서 `demo-f1@daejin.ac.kr`, 비밀번호 `demo1234`로 로그인합니다. 새 계정은 학교 메일 코드로 가입을 인증한 뒤 비밀번호를 정하며, 시연 계정은 코드가 자동으로 들어갑니다. 요청을 만든 뒤 상단의 시연 메뉴에서 일행 만들기를 누르면 일행이 정해집니다.
-
-### MySQL로 시연하기
-
-설치된 MySQL 8 프로그램으로 이 프로젝트 전용 MySQL을 관리자 권한 없이 3307 포트에 띄웁니다. 기존 MySQL 서비스와 데이터는 건드리지 않습니다.
+2. 설치된 MySQL 8 프로그램으로 이 프로젝트 전용 MySQL을 관리자 권한 없이 3307 포트에 띄웁니다. 처음 한 번은 DB와 사용자를 만들고, 이미 떠 있으면 그대로 둡니다. 기존 MySQL 서비스와 데이터는 건드리지 않습니다.
 
 ```powershell
 ./scripts/local-mysql.ps1
 ```
 
+3. `demo,mysql` 프로필로 서버를 켭니다.
+
 ```bash
 set -a; . ./.env; set +a
-SPRING_PROFILES_ACTIVE=demo,mysql java -jar server/target/server-0.1.0.jar
+TOSS_SECRET_KEY= SPRING_PROFILES_ACTIVE=demo,mysql java -jar server/target/server-0.1.0.jar
 ```
 
-Flyway가 DB 구조를 만들고, 시연은 시계를 앞으로 돌리므로 실행할 때마다 DB를 비우고 시작합니다. 비우는 것은 시연 모드이면서 DB 주소가 이 컴퓨터일 때뿐입니다.
+`http://localhost:8080`에서 `demo-f1@daejin.ac.kr`, 비밀번호 `demo1234`로 로그인합니다. 새 계정은 학교 메일 코드로 가입을 인증한 뒤 비밀번호를 정하며, 시연 계정은 코드가 자동으로 들어갑니다. 요청을 만든 뒤 상단의 시연 메뉴에서 일행 만들기를 누르면 일행이 정해집니다.
+
+Flyway가 DB 구조를 만들고, 시연은 시계를 앞으로 돌리므로 실행할 때마다 DB를 비우고 시작합니다. 비우는 것은 시연 모드이면서 DB 주소가 이 컴퓨터일 때뿐입니다. `demo` 프로필만 켜면 메모리 DB(H2)로 돌며, 이는 자동 테스트(E2E·부하 시험)용입니다.
 
 API 문서는 시연 실행 중 `http://localhost:8080/swagger-ui.html`에서 볼 수 있습니다.
 
