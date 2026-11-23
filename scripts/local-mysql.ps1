@@ -7,9 +7,13 @@ if (-not (Test-Path $Data)) {
   New-Item -ItemType Directory -Force (Split-Path $Data) | Out-Null
   & "$bin\mysqld.exe" --initialize-insecure --basedir="$base" --datadir="$Data" --console
 }
-Start-Process -FilePath "$bin\mysqld.exe" -WindowStyle Hidden -ArgumentList @(
-  "--basedir=`"$base`"", "--datadir=`"$Data`"", '--port=3307', '--bind-address=127.0.0.1', '--mysqlx=OFF',
-  '--character-set-server=utf8mb4', '--collation-server=utf8mb4_unicode_ci')
+# 이미 떠 있으면 다시 띄우지 않는다.
+& "$bin\mysql.exe" -uroot --port=3307 --host=127.0.0.1 -e 'select 1' 2>$null | Out-Null
+if ($LASTEXITCODE -ne 0) {
+  Start-Process -FilePath "$bin\mysqld.exe" -WindowStyle Hidden -ArgumentList @(
+    "--basedir=`"$base`"", "--datadir=`"$Data`"", '--port=3307', '--bind-address=127.0.0.1', '--mysqlx=OFF',
+    '--character-set-server=utf8mb4', '--collation-server=utf8mb4_unicode_ci')
+}
 for ($i = 0; $i -lt 30; $i++) {
   & "$bin\mysql.exe" -uroot --port=3307 --host=127.0.0.1 -e 'select 1' 2>$null | Out-Null
   if ($LASTEXITCODE -eq 0) { break }
