@@ -49,7 +49,7 @@ async function startHomeRequest(page) {
 }
 
 async function demo(page, action) {
-  // 휴대폰은 '시연' 단추, 넓은 화면은 단추 없이 D 키로 연다.
+  // 휴대폰은 위쪽 '시연' 단추, 넓은 화면은 상단 메뉴의 '시연' 단추로 연다(D 키도 동작).
   const fab = page.getByRole('button', { name: '시연', exact: true })
   if (await fab.isVisible()) await fab.click()
   else await page.keyboard.press('d')

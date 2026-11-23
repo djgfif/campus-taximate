@@ -146,13 +146,15 @@ const typing = (target) => target instanceof HTMLElement
   && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
 
 /**
- * 관객 화면의 시연 도구. 휴대폰은 위쪽 작은 '시연' 단추로 창을 연다.
- * 넓은 화면은 단추를 숨기고 키보드로만 다룬다: D는 시연 창, →는 다음 장면.
+ * 관객 화면의 시연 도구. 휴대폰은 위쪽 작은 '시연' 단추로, 넓은 화면은 상단 메뉴의 '시연' 단추로 창을 연다.
+ * 넓은 화면에서는 키보드 단축키(D 시연 창, → 다음 장면)와 발표자 창(/presenter)도 함께 쓸 수 있다.
  * 장면이 바뀌면 창을 닫고 자막을 띄운 뒤 그 일행방으로 간다. 발표자 창(/presenter)에서 바꿔도 똑같이 따라간다.
  */
-export default function DemoBar({ now, run, refresh, parties = [], accounts = null, wide = false }) {
+export default function DemoBar({ now, run, refresh, parties = [], accounts = null, wide = false, open: controlledOpen, onOpenChange }) {
   const navigate = useNavigate()
-  const [open, setOpen] = useState(false)
+  const [innerOpen, setInnerOpen] = useState(false)
+  const open = controlledOpen ?? innerOpen
+  const setOpen = onOpenChange || setInnerOpen
   const [caption, setCaption] = useState(null)
   const timer = useRef(null)
   const stepping = useRef(false)
@@ -162,7 +164,7 @@ export default function DemoBar({ now, run, refresh, parties = [], accounts = nu
     clearTimeout(timer.current)
     timer.current = setTimeout(() => setCaption(null), 3200)
     if (info?.id) navigate('/parties/' + info.id)
-  }, [navigate])
+  }, [navigate, setOpen])
   useEffect(() => () => clearTimeout(timer.current), [])
   // 발표자 창에서 장면을 바꾸면 이 창도 새로 읽고 따라간다.
   useEffect(() => {
@@ -189,13 +191,16 @@ export default function DemoBar({ now, run, refresh, parties = [], accounts = nu
     }
     window.addEventListener('keydown', key)
     return () => window.removeEventListener('keydown', key)
-  }, [open, parties.length, run, showScene])
+  }, [open, parties.length, run, setOpen, showScene])
   return <>
     {!wide && <button type="button" className="demo-fab" onClick={() => setOpen(true)}>시연</button>}
     <SceneCaption caption={caption} />
     {open && <Sheet title="시연" className="pop demo" onClose={() => setOpen(false)}>
       <DemoPanel now={now} run={run} parties={parties} accounts={accounts} onScene={showScene} />
-      {wide && <p className="note">키보드: D 시연 창, → 다음 장면. 발표자 창은 주소 끝에 /presenter를 붙여 따로 여세요.</p>}
+      {wide && <div className="demo-presenter-tip">
+        <Btn className="line small" onClick={() => { setOpen(false); window.open('/presenter', 'taximate-presenter') }}>발표자 창 열기</Btn>
+        <p className="note">단축키: D 시연 창 · → 다음 장면</p>
+      </div>}
     </Sheet>}
   </>
 }
