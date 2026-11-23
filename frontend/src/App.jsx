@@ -28,8 +28,8 @@ import { disablePush, enablePush, pushGranted, pushSupported } from './push.js'
 const POLL_MS = 5000
 const LIVE_POLL_MS = 30000
 
-/** 넓은 화면의 위쪽 메뉴 한 줄. 휴대폰 아래 탭바와 같은 일을 한다. demo는 시연 단추 자리다. */
-function Nav({ tab, onTab, onMenu, admin, name, unread = 0 }) {
+/** 넓은 화면의 위쪽 메뉴 한 줄. 휴대폰 아래 탭바와 같은 일을 한다. onDemo가 있으면 시연 단추를 함께 보여 준다. */
+function Nav({ tab, onTab, onMenu, onDemo, admin, name, unread = 0 }) {
   const item = (id, label) => <button type="button" className={tab === id ? 'on' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => onTab(id)}>{label}
     {id === 'rides' && unread > 0 && <span className="unread-badge" aria-label={`안 읽은 메시지 ${unread}개`}>{unread > 99 ? '99+' : unread}</span>}</button>
   return (
@@ -42,7 +42,10 @@ function Nav({ tab, onTab, onMenu, admin, name, unread = 0 }) {
         {admin && item('admin', '관리자')}
       </nav>
       <span className="gap" />
-      <button type="button" className="nav-me" aria-label="내 정보" onClick={onMenu}><User size={18} aria-hidden="true" />{name}</button>
+      <div className="nav-right">
+        {onDemo && <button type="button" className="demo-nav" onClick={onDemo}>시연</button>}
+        <button type="button" className="nav-me" aria-label="내 정보" onClick={onMenu}><User size={18} aria-hidden="true" />{name}</button>
+      </div>
     </header>
   )
 }
@@ -57,6 +60,7 @@ export default function App() {
   const [down, setDown] = useState(false)
   const [offline, setOffline] = useState(false)
   const [menu, setMenu] = useState(false)
+  const [demoOpen, setDemoOpen] = useState(false)
   const [leaving, setLeaving] = useState(false)
   const [editingProfile, setEditingProfile] = useState(false)
   // 내 정보의 "같이 타서 덜 낸 돈". 내 정보 화면·메뉴를 열 때만 읽고, 닫거나 다른 탭으로 갈 때는 불필요하게 다시 부르지 않는다.
@@ -95,6 +99,7 @@ export default function App() {
     setState(null)
     navigate('/')
     setMenu(false)
+    setDemoOpen(false)
     await request()
     setMe(null)
   }, [navigate])
@@ -213,8 +218,9 @@ export default function App() {
       <button type="button" onClick={() => setLeaving(true)}>모든 기기에서 로그아웃</button>
     </div>
   </>
-  const demoAccounts = config?.demo ? <DemoAccounts onLogin={async () => { session.current += 1; setState(null); setResetting(false); setMenu(false); navigate('/'); setMe(await api.me()) }} /> : null
-  const demo = config?.demo && me ? <Suspense fallback={null}><DemoBar now={state?.now} run={run} refresh={refresh} parties={state?.parties || []} accounts={demoAccounts} wide={wide} /></Suspense> : null
+  const openDemo = useCallback(() => setDemoOpen(true), [])
+  const demoAccounts = config?.demo ? <DemoAccounts onLogin={async () => { session.current += 1; setState(null); setResetting(false); setMenu(false); setDemoOpen(false); navigate('/'); setMe(await api.me()) }} /> : null
+  const demo = config?.demo && me ? <Suspense fallback={null}><DemoBar now={state?.now} run={run} refresh={refresh} parties={state?.parties || []} accounts={demoAccounts} wide={wide} open={demoOpen} onOpenChange={setDemoOpen} /></Suspense> : null
   const presenter = config?.demo && location.pathname === '/presenter'
   const goHome = useCallback(() => navigate('/'), [navigate])
   
@@ -241,7 +247,7 @@ export default function App() {
       )}
       {me && !me.needsPassword && !resetting && !me.needsProfile && !presenter && (
         <>
-          {wide && <Nav tab={navTab} onTab={setTab} onMenu={openMenu} admin={me.admin} name={me.nickname} unread={unread} />}
+          {wide && <Nav tab={navTab} onTab={setTab} onMenu={openMenu} onDemo={config?.demo ? openDemo : null} admin={me.admin} name={me.nickname} unread={unread} />}
           {offline && <Say tone="stop-tone">연결이 끊겼습니다. 다시 연결하는 중입니다.</Say>}
           {config?.simulatedRoute && <p className="demo-strip" role="note">시연 모드: 금액과 시간은 예시예요</p>}
           {paymentReturn && <PaymentResult key={me.id + location.search} search={location.search} myId={me.id} onUpdated={refresh}

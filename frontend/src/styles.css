@@ -151,6 +151,7 @@ summary::-webkit-details-marker { display: none; }
 .demo-more .fold-trigger { min-height: 42px; font-size: 14px; font-weight: 600; color: var(--ink-2); }
 .demo-more[data-open="true"] .fold-inner { padding-bottom: 12px; gap: 8px; }
 .demo-more .demo-login { margin: 0; padding: 0; border: 0; }
+.demo-presenter-tip { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 8px; }
 /* 장면이 바뀔 때 잠깐 뜨는 자막 */
 .demo-caption { position: fixed; z-index: 75; top: var(--float-top); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; max-width: calc(100% - 24px); margin: 0; padding: 10px 16px; border-radius: var(--r-m); background: var(--ink); color: #fff; font-size: 15px; font-weight: 600; white-space: nowrap; animation: caption 0.36s var(--ease); }
 @keyframes caption { from { opacity: 0; transform: translate(-50%, -12px); } }
@@ -172,6 +173,7 @@ summary::-webkit-details-marker { display: none; }
   .nav-links button { display: flex; align-items: center; height: 100%; border-bottom: 2px solid transparent; font-size: 15px; font-weight: 600; color: var(--road); }
   .nav-links button.on { border-bottom-color: var(--ink); color: var(--ink); }
   .nav .gap { flex: 1; }
+  .nav-right { display: flex; align-items: center; gap: 10px; }
   .nav-me { display: flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 10px; border-radius: var(--r-s); font-size: 14px; font-weight: 600; color: var(--ink-2); }
   /* 왼쪽 판 | 오른쪽 지도. 판과 지도 사이는 선 하나로만 나눈다. */
   .screen { min-height: 0; display: grid; grid-template-columns: var(--left) minmax(0, 1fr); }
@@ -833,6 +835,7 @@ button.item:active { opacity: 0.6; }
   .where:hover:not(:disabled) { background: var(--mist-2); }
   .text-row:hover { color: var(--ink-2); }
   .demo-login button:hover:not(:disabled) { background: var(--mist); }
+  .demo-nav:hover, .nav-me:hover { background: var(--mist); color: var(--ink); }
   .auth-links button:hover { color: var(--ink); }
   .chat-tools button:hover { background: var(--mist); }
   .ride-row:hover { width: calc(100% + 16px); margin-inline: -8px; padding-inline: 8px; border-radius: var(--r-s); background: var(--mist); }
