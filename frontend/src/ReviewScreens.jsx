@@ -3,6 +3,7 @@ import { ExternalLink } from 'lucide-react'
 import { api } from './api.js'
 import { formatDateTime, isPaymentParty, won } from './format.js'
 import { BackBar, Btn, Fold, Rows, Say, Screen, toast } from './ui.jsx'
+import AdminLayout from './layouts/AdminLayout.jsx'
 import './reviews.css'
 
 const CASE_LABEL = { PENDING: '소명 기간', REVIEW: '관리자 검토 중', CONFIRMED: '노쇼 확정', EXONERATED: '노쇼 아님' }
@@ -395,12 +396,19 @@ function AdminList({ tab }) {
 export function AdminScreen({ allowed, onBack }) {
   const [tab, setTab] = useState('no-shows')
   if (!allowed) return <Screen><BackBar title="관리자" onBack={onBack} /><div className="pad"><Say tone="stop-tone">관리자만 이용할 수 있어요.</Say></div></Screen>
-  return <Screen><BackBar title="관리자" onBack={onBack} /><div className="pad review-stack admin-page">
-    <h1 className="head">관리자</h1><p className="sub">자료를 확인하고 처리 근거를 남겨 주세요.</p>
-    <Say>모의 운영 장부예요. 실제 계좌 송금·지급대행은 연동되지 않으며, 모든 처리 근거는 감사 기록에 남아요.</Say>
-    <nav className="review-nav" aria-label="관리 업무">{ADMIN_TABS.map(([id, label]) => <button type="button" key={id} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}>{label}</button>)}</nav>
-    <AdminList key={tab} tab={tab} />
-  </div></Screen>
+  const currentTitle = ADMIN_TABS.find(([id]) => id === tab)?.[1] || '관리자'
+  return (
+    <AdminLayout tabs={ADMIN_TABS} activeTab={tab} onSelectTab={setTab} onBack={onBack}>
+      <div className="review-stack admin-page">
+        <div>
+          <h1 className="head">{currentTitle}</h1>
+          <p className="sub">자료를 확인하고 처리 근거를 남겨 주세요.</p>
+        </div>
+        <Say>모의 운영 장부예요. 실제 계좌 송금·지급대행은 연동되지 않으며, 모든 처리 근거는 감사 기록에 남아요.</Say>
+        <AdminList key={tab} tab={tab} />
+      </div>
+    </AdminLayout>
+  )
 }
 
 export function BoardingPanel({ party, now, showEmpty = false }) {

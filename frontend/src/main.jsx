@@ -6,6 +6,8 @@ import App from './App.jsx'
 import ErrorBoundary from './ErrorBoundary.jsx'
 import { registerWorker } from './push.js'
 import './styles.css'
+import './styles/tokens.css'
+import './styles/layouts.css'
 
 registerWorker()
 

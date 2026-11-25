@@ -59,16 +59,16 @@ export function SideEmpty({ title, children }) {
   return <div className="side-empty"><div><b>{title}</b><p>{children}</p></div></div>
 }
 
-/** 캠퍼스 택시메이트 엠블럼: 노란 배지 위의 택시 지붕등과 동승 실루엣. */
+/** 캠퍼스 택시메이트 엠블럼: 딥 그린 배지 위의 모빌리티 심볼. */
 export function Mark({ size = 24 }) {
   return (
     <svg className="mark" width={size} height={size} viewBox="0 0 28 28" aria-hidden="true">
-      <rect width="28" height="28" rx="8" fill="var(--amber)" />
-      <rect x="10.5" y="5.5" width="7" height="2.4" rx="1.2" fill="var(--ink)" />
-      <path d="M6.8 14.2 8.7 9.8A2.2 2.2 0 0 1 10.7 8.5h6.6a2.2 2.2 0 0 1 2 1.3l1.9 4.4c.7.4 1.3 1.2 1.3 2.1v3.2a1.3 1.3 0 0 1-1.3 1.3h-1.4a1.2 1.2 0 0 1-1.2-1.2v-.8H9.4v.8a1.2 1.2 0 0 1-1.2 1.2H6.8a1.3 1.3 0 0 1-1.3-1.3v-3.2c0-.9.6-1.7 1.3-2.1Z" fill="var(--ink)" />
-      <path d="M10.4 10.4h7.2l1.2 3.1H9.2l1.2-3.1Z" fill="var(--amber)" />
-      <circle cx="9.6" cy="16.4" r="1.25" fill="var(--amber)" />
-      <circle cx="18.4" cy="16.4" r="1.25" fill="var(--amber)" />
+      <rect width="28" height="28" rx="8" fill="var(--color-primary, #145a46)" />
+      <rect x="10.5" y="5.5" width="7" height="2.4" rx="1.2" fill="#ffffff" />
+      <path d="M6.8 14.2 8.7 9.8A2.2 2.2 0 0 1 10.7 8.5h6.6a2.2 2.2 0 0 1 2 1.3l1.9 4.4c.7.4 1.3 1.2 1.3 2.1v3.2a1.3 1.3 0 0 1-1.3 1.3h-1.4a1.2 1.2 0 0 1-1.2-1.2v-.8H9.4v.8a1.2 1.2 0 0 1-1.2 1.2H6.8a1.3 1.3 0 0 1-1.3-1.3v-3.2c0-.9.6-1.7 1.3-2.1Z" fill="#ffffff" />
+      <path d="M10.4 10.4h7.2l1.2 3.1H9.2l1.2-3.1Z" fill="var(--color-primary, #145a46)" />
+      <circle cx="9.6" cy="16.4" r="1.25" fill="var(--color-primary, #145a46)" />
+      <circle cx="18.4" cy="16.4" r="1.25" fill="var(--color-primary, #145a46)" />
     </svg>
   )
 }
