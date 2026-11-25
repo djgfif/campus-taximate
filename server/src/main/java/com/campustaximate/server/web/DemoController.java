@@ -61,4 +61,9 @@ public class DemoController {
     }
     @PostMapping("/act") public void act(HttpSession s) { demo.actAsSamples(actor(s)); }
     @PostMapping("/board-party") public Map<String,String> boardParty(HttpSession s) { return Map.of("message",demo.openBoardParty(actor(s))); }
+    public record PayerCode(String code) { }
+    /** 시연용 학생이 결제자일 때, 동승자 화면에 결제자 폰의 탑승 번호를 대신 보여 준다. */
+    @GetMapping("/parties/{id}/payer-code") public PayerCode payerCode(@PathVariable long id,HttpSession s) {
+        return new PayerCode(demo.samplePayerCode(actor(s),id));
+    }
 }

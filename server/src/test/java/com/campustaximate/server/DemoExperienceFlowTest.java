@@ -98,6 +98,24 @@ class DemoExperienceFlowTest {
         assertThat(scenarios.next(me).message()).contains("영수증");
         assertThat(clock.now()).isEqualTo(deadline);
     }
+    @Test void passengerSeesSamplePayersCodeOnlyWhileInputIsOpen() {
+        request();demo.matchNow(me,DemoService.Role.PASSENGER);
+        long id=current().id(),payer=current().payerId();
+        assertThat(demo.samplePayerCode(me,id)).isNull(); // 결제자가 아직 타지 않았다
+        var order=orders.findByPartyIdAndMemberIdAndPurpose(id,me,PaymentPurpose.PREPAY).orElseThrow();
+        payments.confirm(me,order.getOrderId(),"demo_"+order.getOrderId(),order.getAmount()); // 내 선결제
+        for(int i=0;i<8 && !"OPEN".equals(boardingCodes.state(me,id).status());i++) scenarios.next(me);
+        assertThat(boardingCodes.state(me,id).status()).isEqualTo("OPEN");
+        String code=demo.samplePayerCode(me,id);
+        assertThat(code).isEqualTo(boardingCodes.state(payer,id).code()).matches("[0-9]{6}");
+        assertThat(boardingCodes.state(me,id).code()).isNull(); // 일반 화면에는 여전히 번호가 없다
+        boardingCodes.confirm(me,id,code,boardingCodes.state(me,id).generation());
+        assertThat(demo.samplePayerCode(me,id)).isNull(); // 확인한 뒤에는 더 알려 주지 않는다
+    }
+    @Test void payerGetsNoDemoCodeHint() {
+        request();demo.matchNow(me,DemoService.Role.PAYER);
+        assertThat(demo.samplePayerCode(me,current().id())).isNull();
+    }
     @Test void instantScenarioCreatesInstantRequestAndParty() {
         var p=scenarios.scenario(me,DemoScenarioService.Scenario.INSTANT,DemoService.Role.PASSENGER);
         assertThat(p.partyId()).isNotNull();assertThat(current().instant()).isTrue();assertThat(current().payer()).isFalse();

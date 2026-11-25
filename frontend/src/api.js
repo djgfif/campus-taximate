@@ -131,4 +131,5 @@ export const api = {
   demoAdvance: (minutes) => json('POST', '/demo/advance', { minutes }),
   demoSamples: (count) => json('POST', '/demo/samples', { count }),
   demoAct: () => json('POST', '/demo/act'),
+  demoPayerCode: (partyId) => request(`/demo/parties/${partyId}/payer-code`),
 }

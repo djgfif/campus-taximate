@@ -42,3 +42,18 @@ it('만료 후 미입력을 노쇼 확정으로 안내하지 않고 조사와 �
  expect(await screen.findByText(/이유만으로 노쇼가 되지 않아요/)).toBeTruthy()
  expect(screen.queryByRole('button', { name: '탑승 확인' })).toBeNull()
 })
+it('시연에서 결제자가 시연용 학생이면 동승자 입력 창에 결제자 화면의 번호를 알려 준다', async () => {
+ vi.spyOn(api, 'boardingState').mockResolvedValue(base)
+ const hint = vi.spyOn(api, 'demoPayerCode').mockResolvedValue({ code: '004217' })
+ render(<BoardingCodePanel party={{ id: 7, payer: false }} now={now} demo />)
+ expect((await screen.findByText(/결제자 화면의 번호는/)).textContent).toContain('004217')
+ expect(hint).toHaveBeenCalledWith(7)
+})
+it('시연이 아니면 결제자 번호를 묻지 않는다', async () => {
+ vi.spyOn(api, 'boardingState').mockResolvedValue(base)
+ const hint = vi.spyOn(api, 'demoPayerCode').mockResolvedValue({ code: '004217' })
+ render(<BoardingCodePanel party={{ id: 7, payer: false }} now={now} />)
+ await screen.findByLabelText('6자리 탑승 번호')
+ expect(hint).not.toHaveBeenCalled()
+ expect(screen.queryByText(/결제자 화면의 번호는/)).toBeNull()
+})

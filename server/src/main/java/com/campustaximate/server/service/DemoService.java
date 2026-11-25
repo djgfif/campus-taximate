@@ -264,6 +264,20 @@ public class DemoService {
         }
     }
 
+    /**
+     * 시연에서 결제자가 시연용 학생이면, 동승자인 나는 결제자 폰을 볼 수 없다. 택시 안에서 결제자 화면을 보는 장면 대신
+     * 입력 창이 열려 있는 동안만 그 번호를 알려 준다. 결제자가 실제 사람이거나 내가 결제자면 알려 주지 않는다.
+     */
+    public String samplePayerCode(long memberId, long partyId) {
+        requireEnabled();
+        var mine = boardingCodes.state(memberId, partyId); // 일행원이 아니면 여기서 거절된다
+        long payerId = partyService.view(memberId, partyId).payerId();
+        if (!isSample(payerId, memberId) || mine.confirmed() || !"OPEN".equals(mine.status())) {
+            return null;
+        }
+        return boardingCodes.state(payerId, partyId).code();
+    }
+
     public void sampleChat(long memberId,PartyService.PartyView party,String text) {
         requireEnabled();
         party.members().stream().filter(m->isSample(m.memberId(),memberId)).findFirst().ifPresent(m->chat.send(m.memberId(),party.id(),text));

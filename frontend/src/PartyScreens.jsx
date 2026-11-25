@@ -263,7 +263,7 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
               선결제할 차례에는 결제 카드에만 집중하게 숨긴다. */}
           {!owesPrepay && <PartyStepper party={party} compact />}
           <NextAction party={party} now={now} myId={myId} mine={mine} config={config} run={run} onUpdated={onUpdated} onDriver={() => setDriver(true)} />
-          {['READY', 'RIDE_UNCONFIRMED', 'AWAITING_FARE'].includes(party.status) && <BoardingCodePanel party={party} now={now} onUpdated={onUpdated} />}
+          {['READY', 'RIDE_UNCONFIRMED', 'AWAITING_FARE'].includes(party.status) && <BoardingCodePanel party={party} now={now} onUpdated={onUpdated} demo={!!config?.demo} />}
           {party.canLeaveAfterChange && <Say tone="stop-tone" title="일행이 바뀌었어요"
             action={<Btn className="small line" onClick={() => setLeavingChange(true)}>변경돼서 빠지기</Btn>}>
             현재 내 확정 분담금은 {won(party.myShare)}이에요. 원하지 않으면 {party.changeExitFree ? '호출 전까지 무료로' : ''} 빠질 수 있어요.

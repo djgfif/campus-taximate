@@ -12,8 +12,9 @@ const formatCountdown = (ms) => {
 }
 
 /** Arrival is a location signal; only the payer's actual boarding opens this window. */
-export default function BoardingCodePanel({ party, now, onUpdated, active = true, allowCall = false }) {
+export default function BoardingCodePanel({ party, now, onUpdated, active = true, allowCall = false, demo = false }) {
   const [state, setState] = useState(null)
+  const [demoCode, setDemoCode] = useState(null)
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -45,6 +46,14 @@ export default function BoardingCodePanel({ party, now, onUpdated, active = true
     const timer = setInterval(() => setWall(Date.now()), 1000)
     return () => clearInterval(timer)
   }, [])
+  // 시연: 결제자가 시연용 학생이면 그 폰을 볼 수 없으니, 입력 창이 열린 동안 결제자 화면의 번호를 대신 알려 준다.
+  const waitingForCode = demo && !party.payer && state?.status === 'OPEN' && !state?.confirmed
+  useEffect(() => {
+    let live = true
+    setDemoCode(null)
+    if (waitingForCode) api.demoPayerCode(party.id).then((r) => { if (live) setDemoCode(r?.code || null) }).catch(() => {})
+    return () => { live = false }
+  }, [waitingForCode, party.id, state?.generation])
   const act = async (work) => {
     setBusy(true); setError('')
     try { await work(); setCode(''); await onUpdated?.() } catch (e) { setError(e.message) }
@@ -100,6 +109,7 @@ export default function BoardingCodePanel({ party, now, onUpdated, active = true
     {!party.payer && state.confirmed && <p className="ok">탑승 확인 완료</p>}
     {typing && <form className="code-form" onSubmit={(e) => { e.preventDefault(); act(() => api.confirmBoardingCode(party.id, code, state.generation)) }}>
       <label className="field code"><span className="sr-only">결제자 화면의 탑승 번호</span><input aria-label="6자리 탑승 번호" inputMode="numeric" autoComplete="off" maxLength={6} placeholder="000000" value={code} onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ''))} /></label>
+      {demoCode && <p className="note demo-code">시연: 결제자 화면의 번호는 <strong>{demoCode}</strong>예요.</p>}
       <div className="code-meta">
         <span>남은 입력 횟수 {state.remainingAttempts}회</span>
         <span className="code-progress">{code.length}/6</span>
