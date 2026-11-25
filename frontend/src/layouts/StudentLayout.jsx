@@ -17,7 +17,7 @@ export default function StudentLayout({ tab, onTab, onMenu, name, unread = 0, ch
       onClick={() => onTab(id)}
     >
       {label}
-      {id === 'rides' && unread > 0 && (
+      {id === 'messages' && unread > 0 && (
         <span className="unread-badge" aria-label={`안 읽은 메시지 ${unread}개`}>
           {unread > 99 ? '99+' : unread}
         </span>
@@ -35,6 +35,7 @@ export default function StudentLayout({ tab, onTab, onMenu, name, unread = 0, ch
               {navItem('home', '홈')}
               {navItem('find', '동승 찾기')}
               {navItem('rides', '내 일행')}
+              {navItem('messages', '메시지')}
               {navItem('history', '이용 내역')}
             </nav>
             <span className="student-nav-spacer" />

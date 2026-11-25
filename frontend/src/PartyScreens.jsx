@@ -125,7 +125,7 @@ export function PartyStepper({ party, compact = false }) {
 }
 
 /** 상태와 역할에 맞는 "지금 할 일" 하나. 제목·한 줄 설명·남은 시간과, 필요하면 그 자리에서 누르는 카드. */
-function NextAction({ party, now, myId, mine, config, run, onUpdated, onDriver }) {
+export function NextAction({ party, now, myId, mine, config, run, onUpdated, onDriver }) {
   // 일행 상태는 모두 결제할 때까지 PREPAYING이라, 내 결제 여부는 내 선결제 주문으로 판단한다.
   const [prepay, setPrepay] = useState(null)
   const waiting = ['PREPAYING', 'READY'].includes(party.status)

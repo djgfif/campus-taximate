@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Check, ChevronDown, ChevronLeft, ChevronRight, Home as HomeIcon, Info, MessageCircle, Receipt, User, X } from 'lucide-react'
+import { AlertTriangle, Check, ChevronDown, ChevronLeft, ChevronRight, Home as HomeIcon, Info, MessageCircle, Receipt, User, Users, X } from 'lucide-react'
 
 const WIDE = '(min-width: 1024px)'
 
@@ -102,12 +102,13 @@ export function TopBar({ onMenu, onHome, floating, actions }) {
 
 const TABS = [
   ['home', '홈', HomeIcon],
-  ['rides', '내 일행', MessageCircle],
+  ['rides', '내 일행', Users],
+  ['messages', '메시지', MessageCircle],
   ['history', '이용 내역', Receipt],
   ['me', '내 정보', User],
 ]
 
-/** 휴대폰 아래 탭바. 넓은 화면은 위쪽 메뉴(.nav)가 같은 일을 한다. unread는 내 일행의 안 읽은 메시지 수다. */
+/** 휴대폰 아래 탭바. 넓은 화면은 위쪽 메뉴(.student-nav)가 같은 일을 한다. unread는 메시지의 안 읽은 수다. */
 export function TabBar({ current, onTab, unread = 0 }) {
   const wide = useWide()
   if (wide) return null
@@ -116,7 +117,7 @@ export function TabBar({ current, onTab, unread = 0 }) {
       {TABS.map(([id, label, Icon]) => (
         <button key={id} type="button" className={current === id ? 'on' : ''} aria-current={current === id ? 'page' : undefined} onClick={() => onTab(id)}>
           <span className="tab-icon"><Icon size={22} aria-hidden="true" />
-            {id === 'rides' && unread > 0 && <span className="unread-badge" aria-label={`안 읽은 메시지 ${unread}개`}>{unread > 99 ? '99+' : unread}</span>}
+            {id === 'messages' && unread > 0 && <span className="unread-badge" aria-label={`안 읽은 메시지 ${unread}개`}>{unread > 99 ? '99+' : unread}</span>}
           </span>
           {label}
         </button>

@@ -8,6 +8,8 @@ import History from './History.jsx'
 import DemoAccounts from './DemoAccounts.jsx'
 import Home from './Home.jsx'
 import FindPage from './pages/FindPage.jsx'
+import TripDetailPage from './pages/TripDetailPage.jsx'
+import MessagesPage from './pages/MessagesPage.jsx'
 import { HomeRequest, SchoolRequest } from './RequestFlow.jsx'
 import { Joining } from './Board.jsx'
 import { ProfileSheet } from './People.jsx'
@@ -35,6 +37,8 @@ const LIVE_POLL_MS = 30000
 const ROUTE_TAB = {
   '/find': 'find',
   '/app/find': 'find',
+  '/messages': 'messages',
+  '/app/messages': 'messages',
   '/history': 'history',
   '/app/history': 'history',
   '/rides': 'rides',
@@ -66,9 +70,15 @@ export default function App() {
 
   const session = useRef(0)
   const latestRead = useRef(0)
-  const tab = ROUTE_TAB[location.pathname] || 'home'
+  const messagesPartyId = Number(location.pathname.match(/^\/(?:app\/)?messages\/(\d+)$/)?.[1]) || null
+  const tab = messagesPartyId ? 'messages' : (ROUTE_TAB[location.pathname] || 'home')
   const paymentReturn = ['success', 'fail'].includes(new URLSearchParams(location.search).get('payment'))
-  const setTab = useCallback((next) => navigate(next === 'home' ? '/' : next === 'find' ? '/app/find' : `/${next}`), [navigate])
+  const setTab = useCallback((next) => {
+    if (next === 'home') navigate('/')
+    else if (next === 'find') navigate('/app/find')
+    else if (next === 'messages') navigate('/app/messages')
+    else navigate(`/${next}`)
+  }, [navigate])
 
   const refresh = useCallback(async () => {
     const current = session.current
@@ -266,6 +276,17 @@ export default function App() {
             />
           )}
           {!paymentReturn && tab === 'find' && !state && <LoadingScreen />}
+          {!paymentReturn && tab === 'messages' && !state && <LoadingScreen />}
+          {!paymentReturn && tab === 'messages' && state && (
+            <MessagesPage
+              state={state}
+              activePartyId={messagesPartyId}
+              onSelectParty={(id) => navigate(id ? `/app/messages/${id}` : '/app/messages')}
+              onOpenTrip={(id) => navigate(`/parties/${id}`)}
+              onHome={() => setTab('find')}
+              tabBar={tabBar}
+            />
+          )}
           {!paymentReturn && tab === 'home' && !state && <LoadingScreen />}
           {!paymentReturn && tab === 'home' && state && (
             <Flow state={state} config={config} school={school} myId={me.id} run={run} refresh={refresh} onMenu={openMenu} onPush={togglePush} pushOn={pushOn} onHistory={() => setTab('history')} onFind={() => setTab('find')} tabBar={tabBar} />
@@ -324,6 +345,11 @@ function Flow({ state, config, school, myId, run, refresh, onMenu, onHistory, on
     if (party.settlement) return <SettlementScreen key={party.id} party={party} myId={myId} now={state.now} config={config}
       onUpdated={refresh} onMenu={onMenu} onCorrect={() => setCorrectingId(party.id)} onHome={home}
       onDetail={() => navigate('/parties/' + party.id + '?detail=1')} />
+    if (isPaymentParty(party)) {
+      return <TripDetailPage party={party} now={state.now} myId={myId} config={config} run={run} onUpdated={refresh}
+        onDetail={() => navigate('/parties/' + party.id + '?detail=1')} onHome={() => navigate('/rides')}
+        onMessages={(id) => navigate('/app/messages/' + id)} />
+    }
     return <PartyScreen party={party} now={state.now} myId={myId} config={config} run={run} onUpdated={refresh} onMenu={onMenu}
       onDetail={() => navigate('/parties/' + party.id + '?detail=1')} onHome={home} />
   }
