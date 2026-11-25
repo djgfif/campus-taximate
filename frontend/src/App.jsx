@@ -10,11 +10,12 @@ import Home from './Home.jsx'
 import FindPage from './pages/FindPage.jsx'
 import TripDetailPage from './pages/TripDetailPage.jsx'
 import MessagesPage from './pages/MessagesPage.jsx'
+import SettlementPage from './pages/SettlementPage.jsx'
 import { HomeRequest, SchoolRequest } from './RequestFlow.jsx'
 import { Joining } from './Board.jsx'
 import { ProfileSheet } from './People.jsx'
 import { PartyDetail, PartyScreen } from './PartyScreens.jsx'
-import { PayerInput, SettlementScreen } from './SettleScreens.jsx'
+import { PayerInput } from './SettleScreens.jsx'
 import PaymentResult from './PaymentScreens.jsx'
 import { BoardingCasesScreen } from './ReviewScreens.jsx'
 
@@ -342,9 +343,10 @@ function Flow({ state, config, school, myId, run, refresh, onMenu, onHistory, on
       return <PayerInput key={party.id + ':' + correctingId} party={party} now={state.now} run={run} onUpdated={refresh}
         onDone={() => setCorrectingId(null)} onLater={() => party.canSettle ? home() : setCorrectingId(null)} />
     }
-    if (party.settlement) return <SettlementScreen key={party.id} party={party} myId={myId} now={state.now} config={config}
-      onUpdated={refresh} onMenu={onMenu} onCorrect={() => setCorrectingId(party.id)} onHome={home}
-      onDetail={() => navigate('/parties/' + party.id + '?detail=1')} />
+    if (party.settlement) return <SettlementPage key={party.id} party={party} myId={myId} now={state.now} config={config}
+      onUpdated={refresh} onCorrect={() => setCorrectingId(party.id)} onHome={() => navigate('/rides')}
+      onDetail={() => navigate('/parties/' + party.id + '?detail=1')}
+      onMessages={(id) => navigate('/app/messages/' + id)} />
     if (isPaymentParty(party)) {
       return <TripDetailPage party={party} now={state.now} myId={myId} config={config} run={run} onUpdated={refresh}
         onDetail={() => navigate('/parties/' + party.id + '?detail=1')} onHome={() => navigate('/rides')}

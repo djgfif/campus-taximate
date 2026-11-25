@@ -51,7 +51,7 @@ function ReceiptField({ file, onChange }) {
   </div>
 }
 
-function ReceiptPaper({ party }) {
+export function ReceiptPaper({ party }) {
   return <Paper title="영수증">
     {party.settlement?.receiptAvailable ? <a href={'/api/parties/' + party.id + '/receipt'} target="_blank" rel="noreferrer">영수증 사진 보기</a>
       : <p className="note">보관 중인 영수증 사진이 없어요. 정산 기록은 남아 있어요.</p>}
