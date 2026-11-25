@@ -90,7 +90,7 @@ flowchart LR
 
 ---
 
-## 5. 사용자 상태 투영 모델 (`TripViewModel` — Taximate 3.0 연계)
+## 5. 사용자 상태 투영 모델 (`TripViewModel`)
 
 백엔드의 16개 내부 `PartyStatus`를 학생 화면에 그대로 노출하지 않고, 사용자 중심 **6단계 진행 상태 + 역할별 다음 할 일(`ActionPanel`)** 로 투영한다.
 
@@ -113,5 +113,5 @@ flowchart LR
 |---|---|---|
 | **보존 (변경 없음)** | 1·2계층 핵심 엔진, 인증·채팅·탑승번호·관리자 | `matching-engine/`, `BoardingCodeService`, `PartyChatService`, `AdminService`, `MemberSafetyService`, `NoShowService` |
 | **수정 (3계층 전환)** | 선결제·적립금 제거 → 결제수단 등록 + 확인형 후불 1회 결제 | `PaymentService`, `PaymentLifecycleService`, `SettlementService`(확인·버전·6시간 자동확정), `ReserveEntry` 비활성화 |
-| **UI 개편 (Taximate 3.0)** | 소비자 예약형 IA + 4레이아웃 격리 + 후불 확인 화면 | `frontend/src/` (PR 1~6) |
+| **UI/IA 개편** | 소비자 예약형 정보 구조 + 4레이아웃 격리 + 후불 확인 화면 | `frontend/src/` (PR 1~6) |
 | **제거/정리 대상** | 과거 구 방식 잔재 | `LegacyPartyScreens.jsx`, 구 송금 API(`/transfers/{id}/sent|received`), 적립금 안내 문구 |

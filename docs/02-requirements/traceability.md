@@ -1,6 +1,6 @@
-# 요구사항 추적표 v2.0 (Requirements Traceability Matrix)
+# 요구사항 추적표 (v2.0)
 
-> **목적:** `v2.0 FR(40개) ↔ UC(14개) ↔ 시퀀스 다이어그램(3종) ↔ Taximate 3.0 화면 ↔ 백엔드 구현/전환 상태 ↔ 자동 테스트`를 한 표로 연결한다.
+> **목적:** `v2.0 FR(40개) ↔ UC(14개) ↔ 시퀀스 다이어그램(3종) ↔ 목표 UI 경로 ↔ 백엔드 구현/전환 상태 ↔ 자동 테스트`를 한 표로 연결한다.
 > **구현 상태 표기:** `완료(유지)` = 현행 `main`에 구현·검증 완료 / `전환 필요` = 현행 S43(선결제·적립금)에서 v2.0(결제수단 등록·확인형 후불 1회 결제)으로 전환 시 수정 대상.
 
 ---
@@ -17,7 +17,7 @@
 
 ## 2. 전체 요구사항 추적표 (FR 40개)
 
-| FR | 등급 | UC | Taximate 3.0 경로 | 구현 상태 | 핵심 구현 클래스 | 기준선 검증 테스트 |
+| FR | 등급 | UC | 목표 화면 경로 | 구현 상태 | 핵심 구현 클래스 | 기준선 검증 테스트 |
 |---|---|---|---|---|---|---|
 | `FR-A01` | P0 | UC-01 | `/register` | 완료(유지) | `AuthService`, `PasswordHasher` | `AuthConcurrencyTest`, `FlowTest` |
 | `FR-A02` | P0 | UC-01 | `/login` | 완료(유지) | `AuthService`, `LoginTokenService` | `ApiSecurityTest`, `FlowTest` |
