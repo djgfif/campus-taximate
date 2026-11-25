@@ -7,6 +7,7 @@ import PasswordScreen from './PasswordScreen.jsx'
 import History from './History.jsx'
 import DemoAccounts from './DemoAccounts.jsx'
 import Home from './Home.jsx'
+import FindPage from './pages/FindPage.jsx'
 import { HomeRequest, SchoolRequest } from './RequestFlow.jsx'
 import { Joining } from './Board.jsx'
 import { ProfileSheet } from './People.jsx'
@@ -32,6 +33,8 @@ const POLL_MS = 5000
 const LIVE_POLL_MS = 30000
 
 const ROUTE_TAB = {
+  '/find': 'find',
+  '/app/find': 'find',
   '/history': 'history',
   '/app/history': 'history',
   '/rides': 'rides',
@@ -65,7 +68,7 @@ export default function App() {
   const latestRead = useRef(0)
   const tab = ROUTE_TAB[location.pathname] || 'home'
   const paymentReturn = ['success', 'fail'].includes(new URLSearchParams(location.search).get('payment'))
-  const setTab = useCallback((next) => navigate(next === 'home' ? '/' : `/${next}`), [navigate])
+  const setTab = useCallback((next) => navigate(next === 'home' ? '/' : next === 'find' ? '/app/find' : `/${next}`), [navigate])
 
   const refresh = useCallback(async () => {
     const current = session.current
@@ -253,9 +256,19 @@ export default function App() {
           {!paymentReturn && tab === 'me' && <Screen><header className="bar"><h1 className="bar-title">내 정보</h1></header><div className="pad me-page">{meMenu(() => {})}</div>{tabBar}</Screen>}
           {!paymentReturn && tab === 'history' && tabBar}
           {!paymentReturn && tab === 'boarding-cases' && <BoardingCasesScreen now={state?.now} onBack={() => setTab('home')} />}
+          {!paymentReturn && tab === 'find' && state && (
+            <FindPage
+              state={state}
+              config={config}
+              onChanged={refresh}
+              onStart={(next) => navigate(next.direction === 'TO_SCHOOL' ? '/request/school' : '/request/home', { state: { initial: next.initial } })}
+              tabBar={tabBar}
+            />
+          )}
+          {!paymentReturn && tab === 'find' && !state && <LoadingScreen />}
           {!paymentReturn && tab === 'home' && !state && <LoadingScreen />}
           {!paymentReturn && tab === 'home' && state && (
-            <Flow state={state} config={config} school={school} myId={me.id} run={run} refresh={refresh} onMenu={openMenu} onPush={togglePush} pushOn={pushOn} onHistory={() => setTab('history')} tabBar={tabBar} />
+            <Flow state={state} config={config} school={school} myId={me.id} run={run} refresh={refresh} onMenu={openMenu} onPush={togglePush} pushOn={pushOn} onHistory={() => setTab('history')} onFind={() => setTab('find')} tabBar={tabBar} />
           )}
           {demo}
           {menu && (
@@ -278,7 +291,7 @@ export default function App() {
 }
 
 /** 상태 이름을 화면에 노출하지 않고, 현재 서버가 허용한 동작만 연결한다. */
-function Flow({ state, config, school, myId, run, refresh, onMenu, onHistory, onPush, pushOn, tabBar }) {
+function Flow({ state, config, school, myId, run, refresh, onMenu, onHistory, onFind, onPush, pushOn, tabBar }) {
   const location = useLocation()
   const navigate = useNavigate()
   const [seenRequest, setSeenRequest] = useState(null)
@@ -329,7 +342,7 @@ function Flow({ state, config, school, myId, run, refresh, onMenu, onHistory, on
       setSeenRequest(latest.id); startRequest({ direction: latest.direction, initial: latest })
     }} />
   }
-  return <Home state={state} myId={myId} config={config} school={school} onChanged={refresh} onStart={startRequest} onHistory={onHistory} tabBar={tabBar}
+  return <Home state={state} myId={myId} config={config} school={school} onChanged={refresh} onStart={startRequest} onHistory={onHistory} onFind={onFind} tabBar={tabBar}
     onReopen={(id) => navigate('/parties/' + id)} />
 }
 

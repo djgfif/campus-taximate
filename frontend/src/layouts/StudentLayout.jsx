@@ -33,6 +33,7 @@ export default function StudentLayout({ tab, onTab, onMenu, name, unread = 0, ch
             <Brand />
             <nav className="student-nav-links" aria-label="주요 메뉴">
               {navItem('home', '홈')}
+              {navItem('find', '동승 찾기')}
               {navItem('rides', '내 일행')}
               {navItem('history', '이용 내역')}
             </nav>

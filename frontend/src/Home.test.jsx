@@ -38,4 +38,15 @@ describe('홈', () => {
     expect(history).toHaveBeenCalledTimes(1)
     expect(school).not.toHaveBeenCalled()
   })
+
+  it('홈은 지도를 마운트하지 않고 요청 중심 화면을 렌더링한다', async () => {
+    vi.spyOn(api, 'history').mockResolvedValue([])
+    vi.spyOn(api, 'board').mockResolvedValue({ parties: [], waiting: [] })
+    const { container } = render(
+      <Home myId={1} onStart={vi.fn()} onReopen={vi.fn()} state={state('2026-11-12T09:00:00Z')} />,
+    )
+    expect(await screen.findByRole('heading', { name: '오늘 어디로 가나요?' })).toBeTruthy()
+    expect(container.querySelector('.map-canvas')).toBeNull()
+    expect(container.querySelector('.home-map')).toBeNull()
+  })
 })
