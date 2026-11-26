@@ -9,20 +9,27 @@ import com.campustaximate.server.route.RouteClient;
 import com.campustaximate.server.common.AppClock;
 import com.campustaximate.server.domain.Party;
 import com.campustaximate.server.domain.PartyStatus;
+import com.campustaximate.server.domain.PaymentOrder;
 import com.campustaximate.server.domain.PaymentPurpose;
 import com.campustaximate.server.domain.PaymentStatus;
+import com.campustaximate.server.domain.PayoutLedger;
 import com.campustaximate.server.domain.RequestStatus;
 import com.campustaximate.server.domain.RideRequest;
 import com.campustaximate.server.domain.Settlement;
+import com.campustaximate.server.domain.SettlementShare;
 import com.campustaximate.server.domain.TransferRequest;
 import com.campustaximate.server.domain.TransferStatus;
+import com.campustaximate.server.repository.FareObjectionRepository;
 import com.campustaximate.server.repository.PartyRepository;
 import com.campustaximate.server.repository.RideRequestRepository;
+import com.campustaximate.server.repository.SettlementConfirmationRepository;
 import com.campustaximate.server.repository.SettlementRepository;
 import com.campustaximate.server.repository.TransferRequestRepository;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,6 +58,9 @@ public class PartyService {
     private final com.campustaximate.server.repository.RideConfirmationRepository rideAnswers;
     private final com.campustaximate.server.repository.PartyMessageRepository chatMessages;
     private final com.campustaximate.server.repository.PartyChatReadRepository chatReads;
+    private final FareObjectionRepository objections;
+    private final SettlementConfirmationRepository confirmations;
+    private final PostpaidOrderSyncService postpaidOrders;
     private final PartyChatService chatLog;
     private final BoardingCodeService boardingCodes;
     private final MediaFiles media;
@@ -69,7 +79,10 @@ public class PartyService {
     public record SettlementView(long paidAmount, int revision, boolean warning, int differencePercent,
                                  boolean canCorrect, boolean receiptAvailable, String bankName, String accountNumber,
                                  List<TransferView> transfers, Instant objectionDeadlineAt, Instant finalizedAt,
-                                 List<SettlementService.ShareView> shares, List<PaymentService.OrderView> payments, Long mockPayoutAmount) {
+                                 List<SettlementService.ShareView> shares, List<PaymentService.OrderView> payments,
+                                 Long mockPayoutAmount, boolean myConfirmed, int confirmedCount, int totalRidersToConfirm,
+                                 Instant autoFinalizeAt, Long expectedPayoutAmount, Long collectedPayoutAmount,
+                                 Long unpaidAmount, boolean payable) {
     }
 
     public record PartyView(long id, Direction direction, PartyStatus status, int paymentFlowVersion, String anchorName, String meetingPoint,
@@ -271,21 +284,74 @@ public class PartyService {
         long difference = settlement.getPaidAmount() - expected;
         boolean warning = Math.abs(difference) > expected * WARNING_RATE;
         int percent = expected == 0 ? 0 : (int) Math.round(difference * 100.0 / expected);
-        boolean canCorrect = payer && (party.paymentFlow()
-                ? party.getStatus() == PartyStatus.OBJECTION_WINDOW && clock.now().isBefore(settlement.getObjectionDeadlineAt())
-                : list.stream().allMatch(t -> t.getStatus() == TransferStatus.REQUESTED));
+        List<PaymentOrder> partyOrders = paymentOrders.findByPartyIdOrderById(party.getId());
+        List<SettlementShare> shareRows = allocations.findBySettlementIdOrderByRideOrder(settlement.getId());
+        boolean canCorrect = payer && (party.postpaidFlow()
+                ? party.getStatus() == PartyStatus.OBJECTION_WINDOW
+                        && clock.now().isBefore(settlement.getObjectionDeadlineAt())
+                        && !objections.existsBySettlementId(settlement.getId())
+                        && !confirmations.existsBySettlementId(settlement.getId())
+                        && partyOrders.stream().noneMatch(o -> o.getPurpose() == PaymentPurpose.POSTPAID
+                                && (o.getStatus() == PaymentStatus.PROCESSING
+                                        || o.getStatus() == PaymentStatus.ADMIN_REQUIRED
+                                        || o.getApprovedAmount() > 0
+                                        || (o.getStatus() == PaymentStatus.APPROVED && o.getAmount() > 0)))
+                : party.paymentFlow()
+                        ? party.getStatus() == PartyStatus.OBJECTION_WINDOW && clock.now().isBefore(settlement.getObjectionDeadlineAt())
+                        : list.stream().allMatch(t -> t.getStatus() == TransferStatus.REQUESTED));
         List<TransferView> views = list.stream()
                 .map(t -> new TransferView(t.getId(), t.getSender().getId(), t.getSender().getNickname(),
                         t.getAmount(), t.getStatus()))
                 .toList();
+        boolean myConfirmed = false;
+        int confirmedCount = 0;
+        int totalRidersToConfirm = 0;
+        Instant autoFinalizeAt = null;
+        Long expectedPayoutAmount = null;
+        Long collectedPayoutAmount = null;
+        Long unpaidAmount = null;
+        boolean payable = false;
+        PayoutLedger ledger = payouts.findBySettlementId(settlement.getId()).orElse(null);
+        if (party.postpaidFlow()) {
+            List<SettlementShare> riderShares = shareRows.stream().filter(s -> !s.isPayer()).toList();
+            totalRidersToConfirm = riderShares.size();
+            Set<Long> confirmedMembers = new HashSet<>(confirmations.findConfirmedMemberIds(settlement.getId(), settlement.getRevision()));
+            for (PaymentOrder o : partyOrders) {
+                if (o.getPurpose() == PaymentPurpose.POSTPAID
+                        && (o.getStatus() == PaymentStatus.APPROVED || o.getStatus() == PaymentStatus.PROCESSING)) {
+                    confirmedMembers.add(o.getMemberId());
+                }
+            }
+            confirmedCount = (int) riderShares.stream().filter(s -> confirmedMembers.contains(s.getMemberId())).count();
+            myConfirmed = !payer && confirmedMembers.contains(memberId);
+            autoFinalizeAt = settlement.getObjectionDeadlineAt();
+            long payerShareAmount = shareRows.stream().filter(SettlementShare::isPayer)
+                    .mapToLong(SettlementShare::getAmount).findFirst().orElse(0L);
+            expectedPayoutAmount = ledger != null
+                    ? ledger.getExpectedAmount()
+                    : Math.max(0L, settlement.getPaidAmount() - payerShareAmount);
+            long collected = ledger != null
+                    ? ledger.getCollectedAmount()
+                    : Math.min(expectedPayoutAmount, partyOrders.stream()
+                            .filter(o -> o.getPurpose() == PaymentPurpose.POSTPAID
+                                    || o.getPurpose() == PaymentPurpose.COMPENSATION
+                                    || o.getPurpose() == PaymentPurpose.ADDITIONAL)
+                            .mapToLong(o -> Math.max(0L, o.getApprovedAmount() - o.getRefundedAmount()))
+                            .sum());
+            collectedPayoutAmount = collected;
+            unpaidAmount = Math.max(0L, expectedPayoutAmount - collected);
+            payable = !postpaidOrders.isPayableLocked(party, settlement)
+                    && List.of(PartyStatus.OBJECTION_WINDOW, PartyStatus.SETTLED).contains(party.getStatus());
+        }
         return new SettlementView(settlement.getPaidAmount(), settlement.getRevision(), warning, percent, canCorrect,
                 !MediaRetention.receiptExpired(settlement, clock.now()) && media.readable(settlement.getReceiptPath()),
                 settlement.getBankName(), settlement.getAccountNumber(), views,
                 settlement.getObjectionDeadlineAt(), settlement.getFinalizedAt(),
-                allocations.findBySettlementIdOrderByRideOrder(settlement.getId()).stream().map(a ->
-                        new SettlementService.ShareView(a.getMemberId(), "", a.getAmount(), a.isPayer())).toList(),
-                paymentOrders.findByPartyIdOrderById(party.getId()).stream().filter(o -> o.getMemberId() == memberId)
+                shareRows.stream().map(a -> new SettlementService.ShareView(a.getMemberId(), "", a.getAmount(), a.isPayer())).toList(),
+                partyOrders.stream().filter(o -> o.getMemberId() == memberId)
                         .map(o -> payments.get(memberId, o.getOrderId())).toList(),
-                payouts.findBySettlementId(settlement.getId()).map(com.campustaximate.server.domain.PayoutLedger::getAmount).orElse(null));
+                ledger == null ? null : ledger.getAmount(),
+                myConfirmed, confirmedCount, totalRidersToConfirm, autoFinalizeAt,
+                expectedPayoutAmount, collectedPayoutAmount, unpaidAmount, payable);
     }
 }

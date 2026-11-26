@@ -66,7 +66,7 @@ public class DemoScenarioService {
             case PAYER_PENDING -> "승계 수락 또는 거절";
             case RIDE_UNCONFIRMED -> "내 운행 답변";
             case AWAITING_FARE -> p.payer()?"내 실제 요금·영수증 입력":"샘플 결제자 금액 입력";
-            case OBJECTION_WINDOW -> "24시간 뒤 노쇼 판정·정산 확정";
+            case OBJECTION_WINDOW -> p.paymentFlowVersion() >= 3 ? "6시간 뒤 자동 확정 또는 확인 후 결제" : "24시간 뒤 노쇼 판정·정산 확정";
             case REVIEW_PENDING -> "관리자 계정에서 판정";
             case SETTLED -> "정산 처리 확인"; default -> "새 요청 만들기";
         };
@@ -152,7 +152,25 @@ public class DemoScenarioService {
                     for(var c:noShows.list(actor,p.id())) if(c.investigation().pending()&&c.investigation().getDeadlineAt().isAfter(target)) target=c.investigation().getDeadlineAt();
                     moveTo(target);
                 }
-                case SETTLED -> demo.runNow();
+                case SETTLED -> {
+                    if (p.paymentFlowVersion() >= 3 && payments.simulated()) {
+                        for (var o : orders.findByPartyIdOrderById(p.id())) {
+                            if (!sample(o.getMemberId(), actor)) continue;
+                            if (o.getStatus() != PaymentStatus.REQUIRED && o.getStatus() != PaymentStatus.OVERDUE) continue;
+                            if (o.getPurpose() == PaymentPurpose.POSTPAID) {
+                                settlements.confirmAndPay(o.getMemberId(), p.id(), p.settlement().revision(),
+                                        o.getOrderId(), o.getAmount(), null, null);
+                            } else if (o.getPurpose() == PaymentPurpose.COMPENSATION || o.getPurpose() == PaymentPurpose.ADDITIONAL) {
+                                payments.confirm(o.getMemberId(), o.getOrderId(), "demo_" + o.getOrderId(), o.getAmount());
+                            }
+                        }
+                    }
+                    demo.runNow();
+                    if (p.paymentFlowVersion() >= 3 && orders.findByPartyIdOrderById(p.id()).stream()
+                            .anyMatch(o -> o.getMemberId() == actor && (o.getStatus() == PaymentStatus.REQUIRED || o.getStatus() == PaymentStatus.OVERDUE))) {
+                        return progress(actor, "정산 화면에서 내 후불 분담금을 확인하고 결제해 주세요.");
+                    }
+                }
                 default -> { return progress(actor,nextName(p)+"를 진행해 주세요."); }
             }
             return progress(actor,"다음 단계로 진행했어요.");

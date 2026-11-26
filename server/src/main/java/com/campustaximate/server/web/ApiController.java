@@ -64,6 +64,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -494,9 +495,23 @@ public class ApiController {
 
     public record ObjectionBody(@NotBlank @Size(max=500) String reason) { }
 
+    public record ConfirmAndPayBody(@NotNull Integer revision, @NotBlank String orderId,
+                                    @NotNull Long amount, String paymentKey) { }
+
     @PostMapping("/parties/{id}/settlement/objections")
     public void objectToFare(@PathVariable long id, @Valid @RequestBody ObjectionBody body, HttpSession session) {
         settlements.objectToFare(memberId(session), id, body.reason());
+    }
+
+    @PostMapping("/parties/{id}/settlement/confirm-and-pay")
+    public ResponseEntity<SettlementService.ConfirmAndPayView> confirmAndPay(
+            @PathVariable long id,
+            @Valid @RequestBody ConfirmAndPayBody body,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            HttpSession session) {
+        var result = settlements.confirmAndPay(memberId(session), id, body.revision(), body.orderId(),
+                body.amount(), body.paymentKey(), idempotencyKey);
+        return result.processing() ? ResponseEntity.accepted().body(result) : ResponseEntity.ok(result);
     }
 
     @GetMapping("/parties/{id}/settlement/preview")

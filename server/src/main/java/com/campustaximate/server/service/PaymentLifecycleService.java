@@ -29,6 +29,7 @@ public class PaymentLifecycleService {
     private final AppClock clock;
     private final NoShowService noShows;
     private final BoardingCaseRepository boardingCases;
+    private final PostpaidOrderSyncService postpaidOrders;
     private final CompensationService compensation;
     private final CompensationEntryRepository compensationEntries;
     private final ReserveEntryRepository reserve;
@@ -132,8 +133,38 @@ public class PaymentLifecycleService {
             });
         }
         payments.retryDue();
+        for (Party candidate : parties.findByStatus(PartyStatus.OBJECTION_WINDOW)) {
+            if (candidate.postpaidFlow()) finalizeIfAllPostpaidConfirmed(candidate.getId());
+        }
         for (Party candidate : parties.findByStatus(PartyStatus.SETTLED)) tx().executeWithoutResult(status ->
                 payments.completeIfDone(parties.findByIdForUpdate(candidate.getId()).orElseThrow()));
+    }
+
+    /** 모든 비결제 동승자가 최신 후불 분담금을 확인·결제 승인했고 보류 사유가 없으면 즉시 정산을 확정한다. */
+    public boolean finalizeIfAllPostpaidConfirmed(long partyId) {
+        return Boolean.TRUE.equals(tx().execute(status -> {
+            Party party = parties.findByIdForUpdate(partyId).orElse(null);
+            if (party == null || !party.postpaidFlow() || party.getStatus() != PartyStatus.OBJECTION_WINDOW) {
+                return false;
+            }
+            Settlement settlement = settlements.findByParty(party).orElse(null);
+            if (settlement == null || postpaidOrders.isPayableLocked(party, settlement)) {
+                return false;
+            }
+            List<SettlementShare> shareRows = shares.findBySettlementIdOrderByRideOrder(settlement.getId());
+            if (shareRows.isEmpty()) return false;
+            for (SettlementShare share : shareRows) {
+                if (share.isPayer() || share.getAmount() == 0) continue;
+                PaymentOrder order = orders
+                        .findByPartyIdAndMemberIdAndPurpose(partyId, share.getMemberId(), PaymentPurpose.POSTPAID)
+                        .orElse(null);
+                if (order == null || order.getStatus() != PaymentStatus.APPROVED || order.getAmount() != share.getAmount()) {
+                    return false;
+                }
+            }
+            finalizeSettlement(partyId, true);
+            return true;
+        }));
     }
 
     /** 전원 확인·결제 완료 등으로 이의 기간 종료 전에 후불 정산을 즉시 확정한다. */
@@ -166,8 +197,15 @@ public class PaymentLifecycleService {
                     .collect(java.util.stream.Collectors.toSet());
             for (CompensationEntry entry : compensations) {
                 if (entry.getCharge() <= 0 || activeMemberIds.contains(entry.getMemberId())) continue;
-                payments.createObligation(partyId, entry.getMemberId(), entry.getRequestId(), settlement.getId(),
+                PaymentOrder compOrder = payments.createObligation(partyId, entry.getMemberId(), entry.getRequestId(), settlement.getId(),
                         PaymentPurpose.COMPENSATION, entry.getCharge(), paymentDeadline);
+                if (compOrder.getAmount() != entry.getCharge()
+                        && (compOrder.getStatus() == PaymentStatus.REQUIRED || compOrder.getStatus() == PaymentStatus.OVERDUE)) {
+                    compOrder.setOrderId("ctm_" + UUID.randomUUID());
+                    compOrder.setAmount(entry.getCharge());
+                    compOrder.setPaymentKey(null);
+                    compOrder.setDeadlineAt(paymentDeadline);
+                }
                 requests.findById(entry.getRequestId())
                         .ifPresent(r -> notifications.toMember(r.getMember(), "[캠퍼스 택시메이트] 보전 분담금 결제 요청",
                                 "확정된 보전 분담금 " + entry.getCharge() + "원을 24시간 안에 결제해 주세요."));

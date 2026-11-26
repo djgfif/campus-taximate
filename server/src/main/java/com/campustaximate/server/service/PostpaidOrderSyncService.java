@@ -86,10 +86,20 @@ public class PostpaidOrderSyncService {
                 created.setSettlementRevision(settlement.getRevision());
                 continue;
             }
-            if (existing.getStatus() == PaymentStatus.PROCESSING) {
-                throw ApiException.conflict("PAYMENT_IN_PROGRESS", "진행 중인 결제가 끝난 뒤 금액을 조정할 수 있어요.");
+            if (existing.getStatus() == PaymentStatus.PROCESSING
+                    || existing.getStatus() == PaymentStatus.ADMIN_REQUIRED) {
+                throw ApiException.conflict(
+                        existing.getStatus() == PaymentStatus.ADMIN_REQUIRED
+                                ? "PAYMENT_ADMIN_REQUIRED" : "PAYMENT_IN_PROGRESS",
+                        existing.getStatus() == PaymentStatus.ADMIN_REQUIRED
+                                ? "관리자 확인이 필요한 결제가 있어 금액을 조정할 수 없어요."
+                                : "진행 중인 결제가 끝난 뒤 금액을 조정할 수 있어요.");
             }
-            if (existing.getStatus() == PaymentStatus.APPROVED) {
+            boolean zeroUncharged = existing.getStatus() == PaymentStatus.APPROVED
+                    && existing.getApprovedAmount() == 0
+                    && existing.getPaymentKey() == null
+                    && existing.getRefundTarget() == 0;
+            if (existing.getStatus() == PaymentStatus.APPROVED && !zeroUncharged) {
                 if (adminAdjustment) {
                     applyAdminPostPayAdjustment(party, settlement, existing, share, rider, requestId);
                 }
@@ -170,8 +180,14 @@ public class PostpaidOrderSyncService {
                         party.getId(), share.getMemberId(), requestId, settlement.getId(),
                         PaymentPurpose.ADDITIONAL, delta, deltaDeadline);
                 created.setSettlementRevision(settlement.getRevision());
-            } else if (existingAdditional.getStatus() == PaymentStatus.PROCESSING) {
-                throw ApiException.conflict("PAYMENT_IN_PROGRESS", "진행 중인 추가 결제가 끝난 뒤 다시 시도해 주세요.");
+            } else if (existingAdditional.getStatus() == PaymentStatus.PROCESSING
+                    || existingAdditional.getStatus() == PaymentStatus.ADMIN_REQUIRED) {
+                throw ApiException.conflict(
+                        existingAdditional.getStatus() == PaymentStatus.ADMIN_REQUIRED
+                                ? "PAYMENT_ADMIN_REQUIRED" : "PAYMENT_IN_PROGRESS",
+                        existingAdditional.getStatus() == PaymentStatus.ADMIN_REQUIRED
+                                ? "관리자 확인이 필요한 추가 결제가 있어 다시 조정할 수 없어요."
+                                : "진행 중인 추가 결제가 끝난 뒤 다시 시도해 주세요.");
             } else if (existingAdditional.getStatus() == PaymentStatus.REQUIRED
                     || existingAdditional.getStatus() == PaymentStatus.OVERDUE) {
                 existingAdditional.setOrderId("ctm_" + UUID.randomUUID());

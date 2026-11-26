@@ -11,8 +11,10 @@ import com.campustaximate.server.domain.PaymentPurpose;
 import com.campustaximate.server.domain.PaymentStatus;
 import com.campustaximate.server.domain.RideRequest;
 import com.campustaximate.server.domain.Settlement;
+import com.campustaximate.server.domain.SettlementConfirmation;
 import com.campustaximate.server.domain.TransferRequest;
 import com.campustaximate.server.domain.TransferStatus;
+import com.campustaximate.server.repository.MemberRepository;
 import com.campustaximate.server.repository.PartyRepository;
 import com.campustaximate.server.repository.PaymentOrderRepository;
 import com.campustaximate.server.repository.RideRequestRepository;
@@ -21,14 +23,15 @@ import com.campustaximate.server.repository.SettlementRepository;
 import com.campustaximate.server.repository.TransferRequestRepository;
 import com.campustaximate.settlement.SettlementCalculator;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -54,6 +57,7 @@ public class SettlementService {
     @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager entityManager;
     private final PartyRepository parties;
     private final RideRequestRepository requests;
+    private final MemberRepository members;
     private final SettlementRepository settlements;
     private final TransferRequestRepository transfers;
     private final AppClock clock;
@@ -65,12 +69,18 @@ public class SettlementService {
     private final PaymentOrderRepository orders;
     private final SettlementConfirmationRepository confirmations;
     private final PostpaidOrderSyncService postpaidOrders;
+    private final PaymentService payments;
+    private final PaymentLifecycleService paymentLifecycle;
     private final PartyChatService chatLog;
     private final NoShowService noShows;
 
     private final MediaFiles media;
 
     public record ShareView(long memberId, String nickname, long amount, boolean payer) {
+    }
+
+    public record ConfirmAndPayView(PaymentService.OrderView order, PartyStatus partyStatus,
+                                    int revision, boolean processing, boolean settled) {
     }
 
     @Transactional
@@ -186,6 +196,7 @@ public class SettlementService {
             if (party.postpaidFlow() && (confirmations.existsBySettlementId(settlement.getId())
                     || orders.findByPartyIdOrderById(partyId).stream().anyMatch(o -> o.getPurpose() == PaymentPurpose.POSTPAID
                             && (o.getStatus() == PaymentStatus.PROCESSING
+                                    || o.getStatus() == PaymentStatus.ADMIN_REQUIRED
                                     || o.getApprovedAmount() > 0
                                     || (o.getStatus() == PaymentStatus.APPROVED && o.getAmount() > 0))))) {
                 throw ApiException.conflict("ALREADY_PAID", "이미 확인·결제한 일행원이 있어 요금을 고칠 수 없어요.");
@@ -276,6 +287,7 @@ public class SettlementService {
         if (party.postpaidFlow() && (confirmations.existsBySettlementIdAndMemberIdAndRevision(settlement.getId(), memberId, settlement.getRevision())
                 || orders.findByPartyIdAndMemberIdAndPurpose(partyId, memberId, PaymentPurpose.POSTPAID)
                         .map(o -> o.getStatus() == PaymentStatus.PROCESSING
+                                || o.getStatus() == PaymentStatus.ADMIN_REQUIRED
                                 || o.getApprovedAmount() > 0
                                 || (o.getStatus() == PaymentStatus.APPROVED && o.getAmount() > 0))
                         .orElse(false))) {
@@ -285,6 +297,105 @@ public class SettlementService {
         var objection = new com.campustaximate.server.domain.FareObjection();
         objection.setSettlementId(settlement.getId()); objection.setMemberId(memberId); objection.setReason(reason.strip());
         objection.setCreatedAt(clock.now()); objections.save(objection); party.setStatus(PartyStatus.REVIEW_PENDING);
+    }
+
+    private record ConfirmPrep(long orderDbId, String orderId, Long operationId, PartyStatus partyStatus, int revision) {
+    }
+
+    /**
+     * 후불 정산(v3) 단일 확인·결제 API.
+     * 일행 잠금 아래 버전·주문·금액 일치를 확인해 확인 기록과 결제 작업을 커밋한 뒤,
+     * 잠금 밖에서 PG 승인을 실행하고 전원 확인이 끝나면 즉시 정산 확정까지 진행한다.
+     */
+    public ConfirmAndPayView confirmAndPay(long memberId, long partyId, int revision, String orderId,
+                                           long amount, String paymentKey, String idempotencyKey) {
+        if (orderId == null || orderId.isBlank()) {
+            throw ApiException.badRequest("INVALID_ORDER_ID", "결제 주문 번호를 확인해 주세요.");
+        }
+        if (idempotencyKey != null && (idempotencyKey.isBlank() || idempotencyKey.length() > 100)) {
+            throw ApiException.badRequest("INVALID_IDEMPOTENCY_KEY", "멱등 키는 1~100자로 입력해 주세요.");
+        }
+        if (paymentKey != null && paymentKey.length() > 200) {
+            throw ApiException.badRequest("INVALID_PAYMENT_KEY", "결제 키를 확인해 주세요.");
+        }
+        var tx = new com.campustaximate.server.common.RetryingTransactionTemplate(transactionManager);
+        ConfirmPrep prep = tx.execute(status -> {
+            Party party = parties.findByIdForUpdate(partyId).orElseThrow(() -> ApiException.notFound("없는 일행입니다."));
+            if (!party.postpaidFlow()) {
+                throw ApiException.conflict("NOT_POSTPAID_PARTY", "후불 정산 일행에서만 사용할 수 있어요.");
+            }
+            RideRequest mine = requests.findByPartyOrderByRideOrder(party).stream()
+                    .filter(r -> r.getMember().getId() == memberId)
+                    .findFirst()
+                    .orElseThrow(() -> ApiException.forbidden("일행원만 정산을 확인하고 결제할 수 있어요."));
+            if (party.getPayer().getId().equals(mine.getMember().getId())) {
+                throw ApiException.forbidden("결제자는 분담금을 결제하지 않아요.");
+            }
+            Settlement settlement = settlements.findByParty(party).orElseThrow(() -> ApiException.notFound("정산이 없습니다."));
+            if (postpaidOrders.isPayableLocked(party, settlement)) {
+                throw ApiException.conflict("SETTLEMENT_LOCKED", "관리자 검토 또는 탑승 조사가 끝난 뒤 결제할 수 있어요.");
+            }
+            if (!List.of(PartyStatus.OBJECTION_WINDOW, PartyStatus.SETTLED).contains(party.getStatus())) {
+                throw ApiException.conflict("BAD_STATE", "정산 확인 및 결제할 수 없는 상태입니다.");
+            }
+            PaymentOrder order = orders.findByPartyIdAndMemberIdAndPurpose(partyId, memberId, PaymentPurpose.POSTPAID)
+                    .flatMap(ref -> orders.lockById(ref.getId()))
+                    .orElseThrow(() -> ApiException.notFound("후불 정산 결제 주문이 없습니다."));
+            if (!Objects.equals(order.getOrderId(), orderId)
+                    || settlement.getRevision() != revision
+                    || order.getAmount() != amount) {
+                throw ApiException.conflict("SETTLEMENT_REVISED", String.format(
+                        "정산 금액이 변경됐어요. 최신 금액(%,d원, 버전 %d)을 다시 확인해 주세요.",
+                        order.getAmount(), settlement.getRevision()));
+            }
+            if (order.getStatus() == PaymentStatus.APPROVED) {
+                if (!confirmations.existsBySettlementIdAndMemberIdAndRevision(settlement.getId(), memberId, revision)) {
+                    confirmations.save(new SettlementConfirmation(
+                            settlement, members.getReferenceById(memberId), revision, clock.now()));
+                }
+                return new ConfirmPrep(order.getId(), order.getOrderId(), null, party.getStatus(), revision);
+            }
+            String effectiveKey;
+            if (order.getPaymentKey() != null) {
+                if (paymentKey != null && !paymentKey.isBlank() && !order.getPaymentKey().equals(paymentKey)) {
+                    throw ApiException.conflict("PAYMENT_KEY_CHANGED", "이미 등록된 결제 키와 다릅니다.");
+                }
+                effectiveKey = order.getPaymentKey();
+            } else if (paymentKey != null && !paymentKey.isBlank()) {
+                effectiveKey = paymentKey;
+            } else if (payments.simulated()) {
+                effectiveKey = payments.nextSimulatedPostpaidKey(order);
+            } else {
+                throw ApiException.badRequest("INVALID_PAYMENT_KEY", "결제 키를 확인해 주세요.");
+            }
+            if (!confirmations.existsBySettlementIdAndMemberIdAndRevision(settlement.getId(), memberId, revision)) {
+                confirmations.save(new SettlementConfirmation(
+                        settlement, members.getReferenceById(memberId), revision, clock.now()));
+            }
+            Long opId = payments.preparePostpaidConfirm(order, effectiveKey);
+            return new ConfirmPrep(order.getId(), order.getOrderId(), opId, party.getStatus(), revision);
+        });
+
+        if (prep.operationId() != null) {
+            payments.execute(prep.operationId());
+        }
+
+        PaymentOrder latestOrder = orders.findById(prep.orderDbId()).orElseThrow();
+        if (latestOrder.getStatus() == PaymentStatus.REQUIRED) {
+            throw ApiException.conflict("PAYMENT_REJECTED", "결제가 거절됐어요. 결제수단을 확인한 뒤 다시 시도해 주세요.");
+        }
+        if (latestOrder.getStatus() == PaymentStatus.ADMIN_REQUIRED) {
+            throw ApiException.conflict("PAYMENT_ADMIN_REQUIRED", "결제 확인이 지연돼 관리자 확인이 필요해요.");
+        }
+        if (latestOrder.getStatus() == PaymentStatus.PROCESSING) {
+            return new ConfirmAndPayView(payments.get(memberId, prep.orderId()), prep.partyStatus(),
+                    prep.revision(), true, false);
+        }
+        paymentLifecycle.finalizeIfAllPostpaidConfirmed(partyId);
+        PartyStatus latestPartyStatus = parties.findById(partyId).map(Party::getStatus).orElse(prep.partyStatus());
+        boolean settled = List.of(PartyStatus.SETTLED, PartyStatus.COMPLETED).contains(latestPartyStatus);
+        return new ConfirmAndPayView(payments.get(memberId, prep.orderId()), latestPartyStatus,
+                prep.revision(), false, settled);
     }
 
     /** 보관 기간이 지난 사진과 계좌를 지운다. 금액과 정산 기록은 남긴다. 일행별 짧은 트랜잭션으로 락 경합을 줄인다. */

@@ -365,7 +365,8 @@ class PostpaidMatchingAndJoinTest {
         assertThat(ledgerBefore.getCollectedAmount()).isZero();
         assertThat(ledgerBefore.getAmount()).isZero();
 
-        payments.confirm(stayingId, stayingOrder.getOrderId(), "pay_" + stayingOrder.getOrderId(), stayingOrder.getAmount());
+        settlements.confirmAndPay(stayingId, reloaded.getId(), settlement.getRevision(),
+                stayingOrder.getOrderId(), stayingOrder.getAmount(), null, null);
         assertThat(payouts.findBySettlementId(settlement.getId()).orElseThrow().getCollectedAmount())
                 .isEqualTo(stayingOrder.getAmount());
         assertThat(parties.findById(reloaded.getId()).orElseThrow().getStatus()).isEqualTo(PartyStatus.SETTLED);
