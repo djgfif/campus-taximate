@@ -45,7 +45,7 @@ describe('History 이용 내역 UX 개선', () => {
 
     render(<History onHome={vi.fn()} onOpenParty={onOpenParty} onOpenMessages={onOpenMessages} />)
     const detail = await screen.findByRole('complementary', { name: '선택한 이용 상세' })
-    expect(within(detail).getByText('강남역에서 학교 정문')).toBeTruthy()
+    expect(within(detail).getByText('강남역 → 학교 정문')).toBeTruthy()
     expect(within(detail).getByText('5,272원')).toBeTruthy()
     expect(within(detail).getByText('실제 택시비 (현장 결제)')).toBeTruthy()
     expect(within(detail).getByText('10,600원')).toBeTruthy()
@@ -56,7 +56,7 @@ describe('History 이용 내역 UX 개선', () => {
     expect(onOpenMessages).toHaveBeenCalledWith(1)
   })
 
-  it('결제자의 누적 절약액과 본인 분담금을 정확히 표시하고 승인된 단일 전표는 기본 접힘으로 중복을 줄인다', async () => {
+  it('결제자의 누적 절약액과 본인 분담금을 정확히 표시하고 승인된 단일 영수증은 기본 접힘으로 중복을 줄인다', async () => {
     setWide(true)
     vi.spyOn(api, 'history').mockResolvedValue([
       {
@@ -84,7 +84,7 @@ describe('History 이용 내역 UX 개선', () => {
     expect(screen.getByText('5,304원')).toBeTruthy()
     const detail = await screen.findByRole('complementary', { name: '선택한 이용 상세' })
     expect(within(detail).queryByText('주문 금액')).toBeNull()
-    fireEvent.click(within(detail).getByRole('button', { name: '결제 전표 보기' }))
+    fireEvent.click(within(detail).getByRole('button', { name: '영수증 보기' }))
     expect(within(detail).getByText('주문 금액')).toBeTruthy()
   })
 
@@ -106,8 +106,8 @@ describe('History 이용 내역 UX 개선', () => {
     expect(screen.queryByText(/선결제는 조사 중 보류돼요/)).toBeNull()
 
     fireEvent.click(screen.getByRole('tab', { name: /지난 이용/ }))
-    await waitFor(() => expect(screen.queryByText('포천시청에서 학교 정문')).toBeNull())
-    expect(screen.getByText('학교 정문에서 역전')).toBeTruthy()
+    await waitFor(() => expect(screen.queryByText('포천시청 → 학교 정문')).toBeNull())
+    expect(screen.getByText('학교 정문 → 역전')).toBeTruthy()
   })
 
   it('정산 전 모이는 중 항목에서는 결제자라도 확정 분담금 대신 정산 전을 표시한다', async () => {

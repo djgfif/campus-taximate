@@ -1,5 +1,5 @@
 import React from 'react'
-import { ReceiptText, ShieldCheck, Sparkles } from 'lucide-react'
+import { ReceiptText, Route, ShieldCheck } from 'lucide-react'
 import { Mark } from '../ui.jsx'
 
 const HIGHLIGHTS = [
@@ -9,7 +9,7 @@ const HIGHLIGHTS = [
     desc: '같은 캠퍼스 소속이 확인된 학생끼리만 동승 일행으로 연결돼요.',
   },
   {
-    icon: Sparkles,
+    icon: Route,
     title: '공정 기준 자동 매칭',
     desc: '우회 시간 15분 이내, 혼자 탈 때보다 10% 이상 절약될 때만 일행을 묶어요.',
   },
@@ -27,7 +27,7 @@ export default function PublicLayout({ children }) {
       <div className="public-frame">
         <aside className="public-hero" aria-label="서비스 소개">
           <div className="public-brand">
-            <Mark size={32} />
+            <Mark size={28} />
             <span>캠퍼스 택시메이트</span>
           </div>
           <h2 className="public-headline">
@@ -41,9 +41,7 @@ export default function PublicLayout({ children }) {
           <ul className="public-highlights">
             {HIGHLIGHTS.map(({ icon: Icon, title, desc }) => (
               <li key={title}>
-                <span className="public-hi-icon" aria-hidden="true">
-                  <Icon size={18} />
-                </span>
+                <Icon className="public-hi-icon" size={18} aria-hidden="true" />
                 <div>
                   <strong>{title}</strong>
                   <p>{desc}</p>

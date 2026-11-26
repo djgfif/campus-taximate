@@ -15,8 +15,8 @@ import { Avatar, Btn, FairnessNote, FareCompare, Fold, Rail, Rows, Say, Screen, 
 
 /**
  * 이용 상세 페이지 (/app/trips/:partyId, /parties/:id).
- * 채팅과 분리된 업무 중심 화면: PC에서는 8:4 2단 레이아웃으로
- * 왼쪽에 이동·일행·금액·경로 정보를, 오른쪽에 역할별 '지금 할 일'과 메시지함 링크를 배치한다.
+ * 상단 헤더와 단계를 바탕 위에 두고, 본문은 하나의 흰 면 안의 구분선 섹션으로,
+ * 우측은 지금 할 일 액션 카드 하나로 집중시킨다.
  */
 export default function TripDetailPage({ party, now, myId, config, run, onUpdated, onHome, onDetail, onMessages }) {
   const [asking, setAsking] = useState(false)
@@ -31,7 +31,6 @@ export default function TripDetailPage({ party, now, myId, config, run, onUpdate
   const waiting = ['PREPAYING', 'READY'].includes(party.status)
   const free = party.freeCancelUntil && new Date(now) <= new Date(party.freeCancelUntil)
   const postpaid = isPostpaidParty(party)
-  // 후불 정산 v3는 선결제가 없다.
   const owesPrepay = party.status === 'PREPAYING' && !party.payer && !postpaid
   const canArrive = waiting && !owesPrepay && (party.instant ? !mine?.arrived : party.canArrive)
   const calling = party.payer && waiting && party.canCall && !party.calledAt
@@ -42,27 +41,51 @@ export default function TripDetailPage({ party, now, myId, config, run, onUpdate
     <Screen>
       <div className="trip-page">
         <header className="trip-header">
-          <button type="button" className="trip-back" onClick={onHome}>
-            <ChevronLeft size={18} aria-hidden="true" />
-            <span>내 일행</span>
-          </button>
+          <div className="trip-header-bar">
+            <button type="button" className="trip-back" onClick={onHome}>
+              <ChevronLeft size={16} aria-hidden="true" />
+              <span>내 일행</span>
+            </button>
+            <button type="button" className="trip-msg-link" onClick={() => onMessages?.(party.id)}>
+              <MessageCircle size={15} aria-hidden="true" />
+              <span>일행 메시지 열기</span>
+              {party.unreadChat > 0 && (
+                <span className="unread-badge" aria-label={`안 읽은 메시지 ${party.unreadChat}개`}>
+                  {party.unreadChat > 99 ? '99+' : party.unreadChat}
+                </span>
+              )}
+            </button>
+          </div>
           <div className="trip-header-main">
-            <div className="trip-header-top">
+            <p className="trip-header-meta">
               <span className="trip-role-pill">{roleTag(party)}</span>
+              <span>·</span>
               <span className="trip-status-pill">{vm?.statusLabel || partyLabel(party.status)}</span>
-            </div>
+              {party.payerNickname && (
+                <>
+                  <span>·</span>
+                  <span>결제자 {party.payerNickname}</span>
+                </>
+              )}
+            </p>
             <h1 className="trip-title">
               {party.instant ? '예상 출발 ' : ''}
               {formatTime(party.departureAt)} · {meetPlace(party)}
             </h1>
           </div>
           <PartyStepper party={party} />
+          {party.adminReviewRequired && (
+            <div className="trip-alert-row" role="status">
+              <ShieldAlert size={16} aria-hidden="true" />
+              <span>관리자 검토가 진행 중인 일행이에요.</span>
+            </div>
+          )}
         </header>
 
         <div className="trip-grid">
-          <div className="trip-main">
-            <section className="home-card" aria-label="이동 및 일행 정보">
-              <div className="home-card-head">
+          <div className="trip-main surface-box trip-main-surface">
+            <section className="trip-section" aria-label="이동 및 일행 정보">
+              <div className="home-section-head">
                 <h2 className="section-title">같이 타는 사람</h2>
                 <span className="note">하차 순서</span>
               </div>
@@ -82,34 +105,26 @@ export default function TripDetailPage({ party, now, myId, config, run, onUpdate
                   ok: party.status === 'PREPAYING' ? m.prepaid === true : m.arrived,
                 }))}
               />
-              {party.payer && (
-                <div className="trip-tool-row">
-                  <Btn className="line small" onClick={() => setDriver(true)}>기사님께 보여 줄 화면</Btn>
-                </div>
-              )}
             </section>
 
-            <section className="home-card" aria-label="금액 및 경로 정보">
+            <section className="trip-section" aria-label="금액 및 경로 정보">
               <h2 className="section-title">금액 구성</h2>
-              <Rows
-                items={[
-                  ['모이는 곳', meetPlace(party)],
-                  [party.instant ? '예상 출발' : '출발 시각', formatDateTime(party.departureAt)],
-                  ['결제자', party.payerNickname],
-                  party.freeCancelUntil && ['무료 취소 마감', formatDateTime(party.freeCancelUntil)],
-                ]}
-              />
-              <PartyFareRows party={party} />
               {party.mySoloFare > party.myShare && <FareCompare solo={party.mySoloFare} share={party.myShare} />}
+              <PartyFareRows party={party} />
+              {party.freeCancelUntil && (
+                <Rows items={[['무료 취소 마감', formatDateTime(party.freeCancelUntil)]]} />
+              )}
               {mine && party.mySoloFare > 0 && (
-                <FairnessNote
-                  delay={figures(mine).delay}
-                  solo={party.mySoloFare}
-                  share={party.myShare}
-                  rules={config?.rules}
-                  walkExcluded={isPaymentParty(party)}
-                  postpaid={postpaid}
-                />
+                <Fold title="분담 계산 기준" className="rules">
+                  <FairnessNote
+                    delay={figures(mine).delay}
+                    solo={party.mySoloFare}
+                    share={party.myShare}
+                    rules={config?.rules}
+                    walkExcluded={isPaymentParty(party)}
+                    postpaid={postpaid}
+                  />
+                </Fold>
               )}
               <div className="trip-tool-row">
                 <Btn className="line small" onClick={() => setShowRoute((v) => !v)}>
@@ -121,7 +136,7 @@ export default function TripDetailPage({ party, now, myId, config, run, onUpdate
               {showRoute && mine && <RouteComparison party={party} mine={mine} />}
             </section>
 
-            <section className="home-card" aria-label="탑승 확인 및 규칙">
+            <section className="trip-section" aria-label="탑승 확인 및 규칙">
               <BoardingPanel party={party} now={now} />
               <Fold title="이용 규칙 자세히" className="rules">
                 <ul>
@@ -140,7 +155,7 @@ export default function TripDetailPage({ party, now, myId, config, run, onUpdate
           </div>
 
           <aside className="trip-aside">
-            <section className="home-card trip-action-card" aria-label="지금 해야 할 일">
+            <section className="surface-box surface-pad trip-action-card" aria-label="지금 해야 할 일">
               <NextAction
                 party={party}
                 now={now}
@@ -154,6 +169,10 @@ export default function TripDetailPage({ party, now, myId, config, run, onUpdate
 
               {['READY', 'RIDE_UNCONFIRMED', 'AWAITING_FARE'].includes(party.status) && (
                 <BoardingCodePanel party={party} now={now} onUpdated={onUpdated} demo={!!config?.demo} />
+              )}
+
+              {party.payer && (
+                <Btn className="line" onClick={() => setDriver(true)}>기사님께 보여 줄 화면</Btn>
               )}
 
               {canArrive && (
@@ -185,31 +204,6 @@ export default function TripDetailPage({ party, now, myId, config, run, onUpdate
                 </Say>
               )}
             </section>
-
-            <section className="home-card trip-msg-card" aria-label="일행 메시지">
-              <div className="home-card-head">
-                <h2 className="block-title">일행 메시지</h2>
-                {party.unreadChat > 0 && (
-                  <span className="unread-badge" aria-label={`안 읽은 메시지 ${party.unreadChat}개`}>
-                    {party.unreadChat > 99 ? '99+' : party.unreadChat}
-                  </span>
-                )}
-              </div>
-              <p className="note">만나는 위치·옷차림·도착 안내를 일행과 나눌 수 있어요. 결제와 탑승 인증은 이 화면에서 바로 완료할 수 있어요.</p>
-              <Btn className="line" onClick={() => onMessages?.(party.id)}>
-                <MessageCircle size={17} aria-hidden="true" />
-                일행 메시지 열기
-              </Btn>
-            </section>
-
-            {party.adminReviewRequired && (
-              <section className="home-card">
-                <div className="trip-alert-row">
-                  <ShieldAlert size={18} aria-hidden="true" />
-                  <span>관리자 검토가 진행 중인 일행이에요.</span>
-                </div>
-              </section>
-            )}
           </aside>
         </div>
       </div>
@@ -219,17 +213,10 @@ export default function TripDetailPage({ party, now, myId, config, run, onUpdate
           <Say title={party.changeExitFree ? '무료 이탈' : '무료 아님'}>
             {party.changeExitFree ? (postpaid ? '호출 시각 전이라 낼 돈 없이 빠질 수 있어요.' : '호출 시각 전이라 승인된 결제를 전액 환불해요.') : '호출 시각이 지나 무료가 아니에요.'}
           </Say>
-          <Btn
-            onClick={async () => {
-              await run(() => api.leaveAfterChange(party.id, party.groupVersion), (r) => r.message)
-              setLeavingChange(false)
-            }}
-          >
-            변경 이탈 확인
-          </Btn>
+          <Btn onClick={() => run(() => api.leaveChangedParty(party.id), '일행에서 빠졌어요').then(() => setLeavingChange(false))}>빠지기</Btn>
         </Sheet>
       )}
-      {asking && <CancelSheet party={party} now={now} run={run} onClose={() => setAsking(false)} />}
+      {asking && <CancelSheet party={party} free={free} onClose={() => setAsking(false)} onConfirm={() => run(() => api.cancelParty(party.id), '취소했어요').then(() => setAsking(false))} />}
       {driver && <DriverView party={party} onClose={() => setDriver(false)} />}
     </Screen>
   )

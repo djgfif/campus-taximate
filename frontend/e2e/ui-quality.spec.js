@@ -96,6 +96,11 @@ test('10개 해상도에서 가로 넘침과 치명적 콘솔 오류 없이 표�
     await page.setViewportSize({ width: 1280, height: 800 })
     await page.goto(route)
     await ready()
+    if (route === '/app/find') await saveShot(page, 'find-desktop-1280')
+    if (route === '/request/home') await saveShot(page, 'request-desktop-1280')
+    if (route === '/app/account/payments') await saveShot(page, 'payments-desktop-1280')
+    if (route === '/app/messages') await saveShot(page, 'messages-desktop-1280')
+    if (route === '/history') await saveShot(page, 'history-desktop-1280')
     for (const [width, height] of VIEWPORTS) {
       await page.setViewportSize({ width, height })
       await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))

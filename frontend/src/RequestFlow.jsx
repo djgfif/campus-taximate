@@ -227,8 +227,25 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
     navigate('/app/account/payments', { state: { returnTo: location.pathname } })
   }
   const center = hubs[0] || school
-  return <Screen aside={origin.point ? <MapView points={[{ ...origin.point, label: '출', tone: 'me' },
-    ...(destination.point ? [{ ...destination.point, label: '도', tone: 'end' }] : [])]} /> : undefined}
+  const mapPoints = tripPoints.length > 0 ? tripPoints : (center ? [{ ...center, label: '학', name: center.name || '캠퍼스', tone: 'me' }] : [])
+  const desktopMapAside = origin.point ? (
+    <MapView
+      points={tripPoints}
+      lines={tripLine}
+      fallback={(
+        <div className="map-stage-fallback">
+          <SketchMap points={mapPoints} lines={tripLine} label="출발지와 도착지 약도" />
+          <span className="map-stage-pill">약도로 경로를 보여 드려요</span>
+        </div>
+      )}
+    />
+  ) : (
+    <div className="map-stage-empty" role="region" aria-label="경로 미리보기">
+      {mapPoints.length > 0 && <SketchMap points={mapPoints} lines={[]} label="기준 캠퍼스 위치 약도" />}
+      <span className="map-stage-pill">출발지와 도착지를 고르면 경로가 표시돼요</span>
+    </div>
+  )
+  return <Screen aside={desktopMapAside}
     foot={<>
       {/* 요청 전에 정확한 몫은 알 수 없다(누구와 묶일지 모름). 대신 매칭 규칙이 보장하는 상한을 보여 준다. */}
       <p className="foot-sum" aria-live="polite">{preview.data

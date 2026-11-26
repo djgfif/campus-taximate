@@ -80,6 +80,12 @@ export function formatDateTime(value) {
 
 export const won = (value) => `${Number(value).toLocaleString()}원`
 
+/** 서울 시각 오후 2시 전에는 등교, 그 뒤에는 하교를 기본 방향으로 고른다. */
+export function defaultDirection(now) {
+  const hour = Number(new Date(now || Date.now()).toLocaleString('en-US', { hour: 'numeric', hour12: false, timeZone: 'Asia/Seoul' }))
+  return hour < 14 ? 'TO_SCHOOL' : 'FROM_HUB'
+}
+
 /**
  * 요청 전에 보여 줄 "같이 타면 이 금액 이하". 서버는 일행 합계가 혼자 요금 합의 (1 - 최소 절약률) 이하일 때만 묶고,
  * 몫은 혼자 요금 비율로 나누므로 내 몫도 그 이하다. 몫을 나눌 때 생기는 몇 원의 반올림(10원 여유)까지 덮고 100원 단위로 올린다.

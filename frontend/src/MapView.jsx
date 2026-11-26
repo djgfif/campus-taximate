@@ -21,6 +21,7 @@ export function buildMarkerElement(point) {
 export default function MapView({ points = [], lines = [], edge = 48, right = 0, onFail, fallback = null }) {
   const box = useRef(null)
   const [failed, setFailed] = useState(!HAS_KEY)
+  const [ready, setReady] = useState(false)
   const key = JSON.stringify([points, lines.map((line) => [line.color, line.path.length, line.path[0]]), right])
 
   useEffect(() => {
@@ -31,10 +32,15 @@ export default function MapView({ points = [], lines = [], edge = 48, right = 0,
     let closed = false
     let observer = null
     const drawn = []
+    setReady(false)
     loadKakaoMaps()
       .then((maps) => {
         const first = points[0] || lines[0]?.path[0]
-        if (closed || !first) return
+        if (closed) return
+        if (!first || !box.current) {
+          setReady(false)
+          return
+        }
         box.current.innerHTML = ''
         const map = new maps.Map(box.current, { center: new maps.LatLng(first.lat, first.lon), level: 7 })
         const bounds = new maps.LatLngBounds()
@@ -65,6 +71,7 @@ export default function MapView({ points = [], lines = [], edge = 48, right = 0,
         fit()
         observer = new ResizeObserver(fit)
         observer.observe(box.current)
+        setReady(true)
       })
       .catch(() => {
         if (closed) return
@@ -80,5 +87,18 @@ export default function MapView({ points = [], lines = [], edge = 48, right = 0,
   }, [key])
 
   if (failed) return fallback
-  return <div ref={box} className={lines.length ? 'map-canvas muted' : 'map-canvas'} role="img" aria-label="지도" />
+  const canvasClass = lines.length ? 'map-canvas muted' : 'map-canvas'
+  if (!fallback) return <div ref={box} className={canvasClass} role="img" aria-label="지도" />
+  return (
+    <div className="map-view-shell">
+      <div
+        ref={box}
+        className={canvasClass}
+        role="img"
+        aria-label="지도"
+        style={ready ? undefined : { opacity: 0, pointerEvents: 'none' }}
+      />
+      {!ready && <div className="map-view-fallback">{fallback}</div>}
+    </div>
+  )
 }

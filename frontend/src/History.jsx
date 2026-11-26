@@ -4,7 +4,7 @@ import { api } from './api.js'
 import { POSTPAID_RECORD_LABEL, PostpaidCollection } from './SettleScreens.jsx'
 import { PaymentRecord } from './PaymentCard.jsx'
 import { MemberActions } from './MemberSafety.jsx'
-import { HISTORY_LABEL, formatDateTime, historyMyShare, isPostpaidParty, routeLabel, savedTotal, won } from './format.js'
+import { HISTORY_LABEL, formatDateTime, historyMyShare, isPostpaidParty, savedTotal, won } from './format.js'
 import { Bone, Btn, Empty, Say, Screen, useWide } from './ui.jsx'
 
 const ongoing = (item) => (HISTORY_LABEL[item.stage] || [])[1] === 'warn'
@@ -14,6 +14,25 @@ const FILTER_TABS = [
   ['ONGOING', '진행 중'],
   ['PAST', '지난 이용'],
 ]
+
+const historyRoute = (item) => (item.direction === 'TO_SCHOOL'
+  ? `${item.pointName} → ${item.anchorName}`
+  : `${item.anchorName} → ${item.pointName}`)
+
+function shortHistoryDate(value) {
+  const date = new Date(value)
+  if (value == null || !Number.isFinite(date.getTime())) return '시각 확인 중'
+  const parts = new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).formatToParts(date)
+  const get = (type) => parts.find((p) => p.type === type)?.value || ''
+  return `${get('month')}월 ${get('day')}일 ${get('dayPeriod')} ${get('hour')}:${get('minute')}`
+}
 
 function PaymentVoucherBox({ order, label }) {
   const needsAttention = order.status !== 'APPROVED'
@@ -34,18 +53,18 @@ function PaymentVoucherBox({ order, label }) {
   return (
     <div className="history-voucher-box">
       <div className="history-voucher-summary">
-        <span><strong>{label}</strong> · {statusText} ({amountText})</span>
+        <span><strong>{label}</strong> · {statusText} · {amountText}</span>
         <button
           type="button"
           className="history-voucher-toggle"
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
         >
-          {open ? '전표 접기' : '결제 전표 보기'}
+          {open ? '접기' : '영수증 보기'}
         </button>
       </div>
       {open && (
-        <div>
+        <div className="history-voucher-body">
           <PaymentRecord order={order} />
           {(order.refundRequestedAmount > 0 || order.refundedAmount > 0) && (
             <p className="note">환불은 카드 반영까지 3~4영업일 정도 걸려요.</p>
@@ -71,18 +90,18 @@ function HistoryCard({ item, wide, selected, onSelect }) {
       <div className="history-card-top">
         <div className="history-card-badges">
           <span className={`badge ${tone}`}>{label}</span>
-          {item.payer && <span className="history-role-tag">결제자</span>}
+          {item.payer && <span className="history-role-meta">내가 결제</span>}
         </div>
         <span className="history-card-date">
-          {formatDateTime(item.arriveBy || item.windowStart)}
+          {shortHistoryDate(item.arriveBy || item.windowStart)}
           {wide
-            ? <ChevronRight size={16} aria-hidden="true" />
-            : selected ? <ChevronUp size={16} aria-hidden="true" /> : <ChevronDown size={16} aria-hidden="true" />}
+            ? <ChevronRight size={15} aria-hidden="true" />
+            : selected ? <ChevronUp size={15} aria-hidden="true" /> : <ChevronDown size={15} aria-hidden="true" />}
         </span>
       </div>
       <div className="history-card-bottom">
         <div className="history-card-route">
-          <b>{routeLabel(item)}</b>
+          <b>{historyRoute(item)}</b>
           {item.partySize != null && <small>{item.partySize}명 동승</small>}
         </div>
         <div className="history-card-money">
@@ -163,11 +182,11 @@ function HistoryDetail({ item, showHeader = true, onBoardingCases, onOpenParty, 
         <div className="history-detail-head">
           <div className="history-detail-badges">
             <span className={`badge ${tone}`}>{label}</span>
-            {isPayer && <span className="history-role-tag">결제자</span>}
-            {item.partySize != null && <span className="history-role-tag">{item.partySize}명 동승</span>}
+            {isPayer && <span className="history-role-meta">내가 결제</span>}
+            {item.partySize != null && <span className="history-role-meta">{item.partySize}명 동승</span>}
           </div>
-          <h2 className="history-detail-route">{routeLabel(item)}</h2>
-          <p className="history-detail-meta">{formatDateTime(item.arriveBy || item.windowStart)}</p>
+          <h2 className="history-detail-route">{historyRoute(item)}</h2>
+          <p className="history-detail-meta">{shortHistoryDate(item.arriveBy || item.windowStart)}</p>
         </div>
       )}
 
@@ -213,13 +232,13 @@ function HistoryDetail({ item, showHeader = true, onBoardingCases, onOpenParty, 
       {id != null && (
         <div className="history-detail-actions">
           <Btn
-            className={isOngoing ? '' : 'line'}
+            className={isOngoing ? 'block' : 'line block'}
             onClick={() => (onOpenParty ? onOpenParty(id) : window.location.assign(`/parties/${id}`))}
           >
             {isOngoing ? '일행·정산 화면 열기' : '일행 상세 보기'}
           </Btn>
           {onOpenMessages && (
-            <Btn className="line" onClick={() => onOpenMessages(id)}>메시지 열기</Btn>
+            <Btn className="quiet" onClick={() => onOpenMessages(id)}>메시지 열기</Btn>
           )}
         </div>
       )}
@@ -237,7 +256,7 @@ function HistoryDetail({ item, showHeader = true, onBoardingCases, onOpenParty, 
         {settlement && (
           <>
             {settlement.shares?.length > 0 && (
-              <div className="history-section-card">
+              <div className="history-subsection">
                 <h4>각자 분담금</h4>
                 <div className="history-shares-list">
                   {settlement.shares.map((s) => {
@@ -255,7 +274,7 @@ function HistoryDetail({ item, showHeader = true, onBoardingCases, onOpenParty, 
             )}
 
             {collection && (
-              <div className="history-section-card">
+              <div className="history-subsection">
                 <h4>동승자 결제 수납</h4>
                 {(settlement.totalRidersToConfirm ?? 0) > 0 ? (
                   <div
@@ -303,7 +322,7 @@ function HistoryDetail({ item, showHeader = true, onBoardingCases, onOpenParty, 
               <p className="note">{item.stage?.startsWith('BOARDING_') ? '후불 정산 방식이거나 결제된 주문이 없어요.' : '내 결제 주문이 없어요.'}</p>
             )}
             {current.orders.map((order) => (
-              <section key={order.orderId} className="history-section-card" aria-label={order.purpose === 'ADDITIONAL' ? '분담금 결제 기록' : '선결제 기록'}>
+              <section key={order.orderId} className="history-subsection" aria-label={order.purpose === 'ADDITIONAL' ? '분담금 결제 기록' : '선결제 기록'}>
                 <h4>{order.purpose === 'ADDITIONAL' ? '분담금 결제 기록' : '선결제 기록'}</h4>
                 <PaymentRecord order={order} />
                 {order.refundHeld && <p className="note">{order.holdReason || '환불 보류 중'}</p>}
@@ -325,12 +344,14 @@ function HistoryDetail({ item, showHeader = true, onBoardingCases, onOpenParty, 
         )}
         <div className="history-foot-links">
           {(current.error || current.party || current.orders?.length > 0) && (
-            <Btn className="small quiet" onClick={() => setReload((n) => n + 1)}>결제 기록 다시 확인</Btn>
+            <button type="button" className="history-text-action" onClick={() => setReload((n) => n + 1)}>
+              {current.error ? '다시 시도' : '상태 새로고침'}
+            </button>
           )}
           {id != null && (
-            <Btn className="small quiet" aria-expanded={safetyOpen} onClick={() => setSafetyOpen((v) => !v)}>
-              일행 신고 · 다시 매칭 안 하기
-            </Btn>
+            <button type="button" className="history-text-action" aria-expanded={safetyOpen} onClick={() => setSafetyOpen((v) => !v)}>
+              일행 신고 · 차단
+            </button>
           )}
         </div>
         {id != null && safetyOpen && <MemberActions partyId={id} />}
@@ -339,7 +360,7 @@ function HistoryDetail({ item, showHeader = true, onBoardingCases, onOpenParty, 
   )
 }
 
-/** 이용 내역. PC는 좌측 스캔 목록 + 우측 고정 상세, 모바일은 간결 카드 + 펼침 상세. */
+/** 이용 내역. PC는 좌측 그룹 목록 면 + 우측 고정 상세, 모바일은 간결 그룹 리스트 + 펼침 상세. */
 export default function History({ onHome, admin = false, onBoardingCases, onOpenParty, onOpenMessages, tabBar }) {
   const wide = useWide()
   const [items, setItems] = useState(null)
@@ -396,8 +417,8 @@ export default function History({ onHome, admin = false, onBoardingCases, onOpen
           </div>
         )}
         {items?.length === 0 && (
-          <Empty title="아직 탄 기록이 없어요" action="길 올리기" onAction={onHome}>
-            같이 타면 덜 낸 돈이 여기 쌓여요.
+          <Empty title="아직 탄 기록이 없어요" action="동승 찾기" onAction={onHome}>
+            같이 타면 아낀 금액이 여기에 모여요.
           </Empty>
         )}
         {items?.length > 0 && (
@@ -407,11 +428,9 @@ export default function History({ onHome, admin = false, onBoardingCases, onOpen
                 <span className="history-summary-label">같이 타서 아낀 돈</span>
                 <strong className="history-summary-value">{won(saved)}</strong>
               </div>
-              <div className="history-summary-counts">
-                {ongoingItems.length > 0 && (
-                  <span className="history-count-pill warn">진행 중 {ongoingItems.length}건</span>
-                )}
-                <span className="history-count-pill">완료·종료 {pastItems.length}건</span>
+              <div className="history-summary-meta">
+                {ongoingItems.length > 0 && <span className="warn">진행 중 {ongoingItems.length}건 · </span>}
+                <span>완료·종료 {pastItems.length}건</span>
               </div>
             </div>
 
@@ -435,7 +454,7 @@ export default function History({ onHome, admin = false, onBoardingCases, onOpen
                       className={filter === key ? 'history-filter-btn on' : 'history-filter-btn'}
                       onClick={() => selectFilter(key)}
                     >
-                      {text} ({count})
+                      {text} <span className="history-filter-count">{count}</span>
                     </button>
                   )
                 })}
@@ -448,32 +467,34 @@ export default function History({ onHome, admin = false, onBoardingCases, onOpen
               <div className="history-layout">
                 <div className="history-list">
                   {groups.map(([heading, list]) => (
-                    <section key={heading} aria-label={heading} className="history-list">
+                    <section key={heading} aria-label={heading} className="history-group-block">
                       <h2 className="history-group-heading">{heading}</h2>
-                      {list.map((item) => {
-                        const isSelected = item.id === selected?.id
-                        return (
-                          <div key={item.id} className={isSelected ? 'history-card-wrap is-selected' : 'history-card-wrap'}>
-                            <HistoryCard
-                              item={item}
-                              wide={wide}
-                              selected={isSelected}
-                              onSelect={() => toggleItem(item.id)}
-                            />
-                            {!wide && isSelected && (
-                              <div className="history-card-inline-detail">
-                                <HistoryDetail
-                                  item={item}
-                                  showHeader={false}
-                                  onBoardingCases={onBoardingCases}
-                                  onOpenParty={onOpenParty}
-                                  onOpenMessages={onOpenMessages}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
+                      <div className="history-group-surface">
+                        {list.map((item) => {
+                          const isSelected = item.id === selected?.id
+                          return (
+                            <div key={item.id} className={isSelected ? 'history-card-wrap is-selected' : 'history-card-wrap'}>
+                              <HistoryCard
+                                item={item}
+                                wide={wide}
+                                selected={isSelected}
+                                onSelect={() => toggleItem(item.id)}
+                              />
+                              {!wide && isSelected && (
+                                <div className="history-card-inline-detail">
+                                  <HistoryDetail
+                                    item={item}
+                                    showHeader={false}
+                                    onBoardingCases={onBoardingCases}
+                                    onOpenParty={onOpenParty}
+                                    onOpenMessages={onOpenMessages}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
                     </section>
                   ))}
                 </div>

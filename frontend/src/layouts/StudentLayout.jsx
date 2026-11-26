@@ -1,10 +1,9 @@
 import React from 'react'
-import { User } from 'lucide-react'
-import { Brand, useWide } from '../ui.jsx'
+import { Avatar, Brand, useWide } from '../ui.jsx'
 
 /**
  * 학생용 반응형 레이아웃.
- * PC(1024px+): 상단 1280px 헤더 (홈 / 동승 찾기 / 내 일행 / 메시지 / 이용 내역 + 관리자 권한 시 관리자 + 우측 내 계정).
+ * PC(1024px+): 상단 1280px 헤더 (홈 / 동승 찾기 / 내 일행 / 메시지 / 이용 내역 · 우측 운영/내 정보).
  */
 export default function StudentLayout({ tab, onTab, onMenu, name, unread = 0, admin = false, children }) {
   const wide = useWide()
@@ -36,12 +35,21 @@ export default function StudentLayout({ tab, onTab, onMenu, name, unread = 0, ad
               {navItem('rides', '내 일행')}
               {navItem('messages', '메시지')}
               {navItem('history', '이용 내역')}
-              {admin && navItem('admin', '관리자')}
             </nav>
             <span className="student-nav-spacer" />
             <div className="student-nav-actions">
+              {admin && (
+                <button
+                  type="button"
+                  className={tab === 'admin' ? 'student-nav-admin on' : 'student-nav-admin'}
+                  aria-current={tab === 'admin' ? 'page' : undefined}
+                  onClick={() => onTab('admin')}
+                >
+                  관리자
+                </button>
+              )}
               <button type="button" className="student-account-btn" aria-label="내 정보" onClick={onMenu}>
-                <User size={16} aria-hidden="true" />
+                <Avatar name={name} size={28} />
                 <span>{name}</span>
               </button>
             </div>

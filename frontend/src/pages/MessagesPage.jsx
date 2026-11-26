@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { ChevronLeft, ExternalLink, MessageCircle } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react'
 import { api } from '../api.js'
 import { PartyChat } from '../PartyChat.jsx'
-import { formatDateTime, formatTime, partyLabel, partyRouteLabel } from '../format.js'
+import { formatTime, partyLabel, partyRouteLabel } from '../format.js'
 import { Btn, Empty, useWide } from '../ui.jsx'
 
 /**
@@ -101,7 +101,7 @@ export default function MessagesPage({ state, activePartyId, onSelectParty, onOp
   if (conversations.length === 0) {
     return (
       <div className="messages-empty-wrap">
-        <div className="home-card messages-empty-card">
+        <div className="messages-empty-inner">
           <Empty title="참여 중인 일행 대화가 없어요" action="동승 찾기" onAction={onHome}>
             일행이 확정되면 이곳에서 만남 위치와 도착 소식을 주고받을 수 있어요.
           </Empty>
@@ -111,10 +111,8 @@ export default function MessagesPage({ state, activePartyId, onSelectParty, onOp
     )
   }
 
-  const meta = (c) => [
-    c.lastMessageAt ? formatDateTime(c.lastMessageAt) : c.departureAt ? `${formatTime(c.departureAt)} 출발` : '',
-    c.status ? partyLabel(c.status) : '',
-  ].filter(Boolean).join(' · ')
+  const shortWhen = (c) => (c.lastMessageAt ? formatTime(c.lastMessageAt) : c.departureAt ? formatTime(c.departureAt) : '')
+  const subline = (c) => c.lastMessage || (c.status ? partyLabel(c.status) : '대화를 시작해 보세요')
 
   return (
     <div className="messages-page">
@@ -122,7 +120,6 @@ export default function MessagesPage({ state, activePartyId, onSelectParty, onOp
         <aside className="messages-sidebar" aria-label="대화 목록">
           <header className="messages-sidebar-head">
             <h1>메시지</h1>
-            <span className="home-count">{conversations.length}</span>
           </header>
           <ul className="messages-list">
             {conversations.map((c) => {
@@ -136,11 +133,15 @@ export default function MessagesPage({ state, activePartyId, onSelectParty, onOp
                     onClick={() => onSelectParty(c.id)}
                   >
                     <span className="messages-item-main">
-                      <b>{c.routeLabel}</b>
-                      {c.lastMessage && <span className="messages-item-preview">{c.lastMessage}</span>}
-                      <small>{meta(c)}</small>
+                      <span className="messages-item-top">
+                        <b>{c.routeLabel}</b>
+                        <small className="messages-item-time">{shortWhen(c)}</small>
+                      </span>
+                      <span className="messages-item-row">
+                        <span className="messages-item-preview">{subline(c)}</span>
+                        {badge(c.unreadChat)}
+                      </span>
                     </span>
-                    {badge(c.unreadChat)}
                   </button>
                 </li>
               )
@@ -169,10 +170,10 @@ export default function MessagesPage({ state, activePartyId, onSelectParty, onOp
                     </small>
                   </div>
                 </div>
-                <Btn className="small line" onClick={() => onOpenTrip(selected.id)}>
-                  이용 상세
-                  <ExternalLink size={14} aria-hidden="true" />
-                </Btn>
+                <button type="button" className="messages-trip-link" onClick={() => onOpenTrip(selected.id)}>
+                  <span>이용 상세</span>
+                  <ChevronRight size={15} aria-hidden="true" />
+                </button>
               </header>
               <div className="messages-chat-body">
                 <PartyChat
@@ -187,7 +188,7 @@ export default function MessagesPage({ state, activePartyId, onSelectParty, onOp
             </>
           ) : (
             <div className="messages-placeholder">
-              <MessageCircle size={28} aria-hidden="true" />
+              <MessageCircle size={24} aria-hidden="true" />
               <p>왼쪽에서 대화를 선택해 주세요.</p>
             </div>
           )}

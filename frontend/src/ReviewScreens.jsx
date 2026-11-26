@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { ExternalLink } from 'lucide-react'
 import { api } from './api.js'
 import { formatDateTime, isPaymentParty, won } from './format.js'
-import { BackBar, Btn, Fold, Rows, Say, Screen, toast } from './ui.jsx'
+import { BackBar, Btn, Empty, Fold, Rows, Say, Screen, toast } from './ui.jsx'
 import AdminLayout from './layouts/AdminLayout.jsx'
 import './reviews.css'
 
@@ -114,12 +114,14 @@ export function BoardingCasesScreen({ now, onBack }) {
     return () => { window.removeEventListener('taximate:state', refresh); clearInterval(timer) }
   }, [reload])
   return <Screen><BackBar title="내 탑승 확인·소명" onBack={onBack} /><div className="pad review-stack">
-    <h1 className="head">내 탑승 확인·소명</h1>
+    <div className="admin-head-row">
+      <h1 className="page-heading">내 탑승 확인·소명</h1>
+      <Btn className="small line" onClick={remote.reload}>목록 새로고침</Btn>
+    </div>
     <Say>도착 표시가 없다는 이유만으로 노쇼를 확정하지 않아요. 일행의 확인과 본인 소명을 함께 검토해요.</Say>
     <RemoteState remote={remote} />
-    {remote.data?.length === 0 && <p>확인이 필요한 탑승이 없어요.</p>}
+    {remote.data?.length === 0 && <Empty title="확인이 필요한 탑승이 없어요" />}
     {remote.data?.map((item) => <CaseCard key={item.investigation.id} item={item} currentTime={currentTime} onSaved={remote.reload} />)}
-    <Btn className="line" onClick={remote.reload}>목록 새로고침</Btn>
   </div></Screen>
 }
 
@@ -290,7 +292,7 @@ function MemberRestrictions({ memberId }) {
 
 function Reports({ items }) {
   const [selected, setSelected] = useState(null)
-  return <>{items.length === 0 && <p>접수된 신고가 없어요.</p>}
+  return <>{items.length === 0 && <Empty title="접수된 신고가 없어요" />}
     {items.map((r) => <article className="review-card" key={r.id}>
       <div className="review-card-head">
         <h2>신고 <span className="review-id">#{r.id}</span></h2>
@@ -298,10 +300,13 @@ function Reports({ items }) {
       </div>
       <p className="review-meta-row"><span>일행 {r.partyId}</span><span>신고자 {r.reporterId} → 대상 {r.reportedId}</span><span>{formatDateTime(r.createdAt)}</span></p>
       <p className="review-text">{r.memo || '메모 없음'}</p>
-      <Btn className="line" onClick={() => setSelected(r.reportedId)}>회원 {r.reportedId} 제한 관리</Btn>
+      <Btn className="small line" onClick={() => setSelected(r.reportedId)}>회원 {r.reportedId} 제한 관리</Btn>
     </article>)}
-    <label className="field">관리할 회원 번호<input inputMode="numeric" value={selected ?? ''} onChange={(e) => setSelected(/^\d+$/.test(e.target.value) ? e.target.value : null)} /></label>
-    {Number.isSafeInteger(Number(selected)) && Number(selected) > 0 && <MemberRestrictions key={selected} memberId={Number(selected)} />}
+    <div className="review-card review-subblock">
+      <h3>회원 제한 직접 조회</h3>
+      <label className="field">관리할 회원 번호<input inputMode="numeric" value={selected ?? ''} onChange={(e) => setSelected(/^\d+$/.test(e.target.value) ? e.target.value : null)} /></label>
+      {Number.isSafeInteger(Number(selected)) && Number(selected) > 0 && <MemberRestrictions key={selected} memberId={Number(selected)} />}
+    </div>
   </>
 }
 
@@ -373,7 +378,7 @@ function searchableValues(value, out = []) {
   return out
 }
 
-function AdminList({ tab }) {
+function AdminList({ tab, title, desc }) {
   const remote = useRemote(ADMIN_TABS.find(([id]) => id === tab)[2])
   const [query, setQuery] = useState('')
   const q = query.trim().toLowerCase()
@@ -382,6 +387,13 @@ function AdminList({ tab }) {
     : list)
   const items = filterBy(remote.data)
   return <div className="review-stack"><RemoteState remote={remote} />
+    <div className="admin-head-row">
+      <div>
+        <h1 className="head">{title}</h1>
+        <p className="sub">{desc}</p>
+      </div>
+      <Btn className="small line" onClick={remote.reload}>목록 새로고침</Btn>
+    </div>
     {Array.isArray(remote.data) && remote.data.length > 0 && (
       <div className="admin-filter-row">
         <label className="sr-only" htmlFor="admin-filter">목록 검색</label>
@@ -389,7 +401,7 @@ function AdminList({ tab }) {
       </div>
     )}
     {remote.data && <>
-      {(Array.isArray(items) && items.length === 0) && (!['reports', 'hubs'].includes(tab) || q) && <p>{q ? '검색 조건에 맞는 항목이 없어요.' : '처리할 항목이 없어요.'}</p>}
+      {(Array.isArray(items) && items.length === 0) && (!['reports', 'hubs'].includes(tab) || q) && <p className="admin-empty-msg">{q ? '검색 조건에 맞는 항목이 없어요.' : '처리할 항목이 없어요.'}</p>}
       {tab === 'no-shows' && items.map((c) => <NoShowReview key={c.investigation.id} item={c} onSaved={remote.reload} />)}
       {tab === 'fare' && items.map((r) => <FareReview key={r.partyId} item={r} onSaved={remote.reload} />)}
       {tab === 'reports' && <Reports items={items} />}
@@ -410,7 +422,7 @@ function AdminList({ tab }) {
       {tab === 'reserve' && <article className="review-card" aria-label="정산 적립금">
         <div className="review-card-head">
           <h2>정산 적립금</h2>
-          <span className="badge ok">{won(remote.data.balance)}</span>
+          <strong className="admin-figure">{won(remote.data.balance)}</strong>
         </div>
         <Rows items={[['누적 정산', `${remote.data.settlements}건`], ['부족분 보전 합계', won(remote.data.covered)]]} />
         <p className="note">각자 확정 분담금만 내고, 실제 요금과의 차이를 여기서 맡아요. 초기 기금은 운영 주체가 따로 더해 관리해요.</p>
@@ -429,7 +441,6 @@ function AdminList({ tab }) {
         <p className="review-text">{a.evidence}</p>
       </article>)}
     </>}
-    <Btn className="line" onClick={remote.reload}>목록 새로고침</Btn>
   </div>
 }
 
@@ -440,14 +451,11 @@ export function AdminScreen({ allowed, config, onBack }) {
   // 설정이 늦게 도착해 선택한 탭이 사라지면 첫 탭을 보여 준다.
   const tab = tabs.some(([id]) => id === selected) ? selected : tabs[0][0]
   const currentTitle = tabs.find(([id]) => id === tab)?.[1] || '관리자'
+  const currentDesc = ADMIN_TAB_DESC[tab] || '자료를 확인하고 처리 근거를 남겨 주세요.'
   return (
     <AdminLayout tabs={tabs} activeTab={tab} onSelectTab={setTab} onBack={onBack}>
       <div className="review-stack admin-page">
-        <div>
-          <h1 className="head">{currentTitle}</h1>
-          <p className="sub">{ADMIN_TAB_DESC[tab] || '자료를 확인하고 처리 근거를 남겨 주세요.'}</p>
-        </div>
-        <AdminList key={tab} tab={tab} />
+        <AdminList key={tab} tab={tab} title={currentTitle} desc={currentDesc} />
       </div>
     </AdminLayout>
   )

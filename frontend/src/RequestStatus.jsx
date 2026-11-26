@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { CarFront } from 'lucide-react'
 import MapView from './MapView.jsx'
+import SketchMap from './SketchMap.jsx'
 import { api } from './api.js'
 import { pushUndecided } from './push.js'
 import { formatDateTime, formatTime, routeLabel, won } from './format.js'
@@ -13,11 +14,28 @@ const timeRow = (latest) => (latest.mode==='INSTANT' ? ['출발 준비','지금 
 /** 넓은 화면의 오른쪽. 요청의 내 지점과 학교나 거점을 표시한다. */
 export function RequestMap({ item, edge }) {
   const toSchool = item.direction === 'TO_SCHOOL'
+  const points = [
+    { lat: item.pointLat, lon: item.pointLon, label: toSchool ? '승' : '도', name: item.pointName, tone: 'me' },
+    { lat: item.anchorLat, lon: item.anchorLon, label: toSchool ? '학' : '출', name: item.anchorName, tone: 'end' },
+  ]
+  const valid = points.every((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon))
+  const lines = valid ? [{
+    path: toSchool ? [points[0], points[1]] : [points[1], points[0]],
+    color: '#145a46',
+    style: 'solid',
+    weight: 4,
+  }] : []
   return (
-    <MapView edge={edge} points={[
-      { lat: item.pointLat, lon: item.pointLon, label: toSchool ? '승' : '도', tone: 'me' },
-      { lat: item.anchorLat, lon: item.anchorLon, label: toSchool ? '학' : '출', tone: 'end' },
-    ]} />
+    <MapView
+      edge={edge}
+      points={points}
+      fallback={(
+        <div className="map-stage-fallback">
+          <SketchMap points={points} lines={lines} label="요청 경로 약도" />
+          <span className="map-stage-pill">약도로 경로를 보여 드려요</span>
+        </div>
+      )}
+    />
   )
 }
 

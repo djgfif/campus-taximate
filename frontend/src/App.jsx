@@ -237,30 +237,37 @@ export default function App() {
     }
   }
 
-  /** 내 정보 목록. 넓은 화면은 팝업, 휴대폰은 '내 정보' 탭 화면에서 같은 목록을 쓴다. close는 항목을 누른 뒤 팝업을 닫는다. */
-  const meMenu = (close) => <>
+  /** 내 정보 목록. 넓은 화면 팝업과 모바일 '내 정보' 화면에서 목적에 맞게 구분해 보여 준다. */
+  const meMenu = (close, isSheet = false) => <>
     <div className="me-head"><Avatar name={me.nickname} size={44} /><div><b>{me.nickname}</b><small>{me.email}</small></div></div>
-    {saved > 0 && <div className="rows me-saved"><div><span className="k">같이 타서 덜 낸 돈</span><span className="v">{won(saved)}</span></div></div>}
-    <p className="me-section-title">계정 · 결제</p>
-    <div className="list">
-      <Item title="프로필" detail="학과와 입학 연도를 같이 타는 사람에게 보여 줘요" onClick={() => { close(); setEditingProfile(true) }} />
-      <Item title="결제수단 관리" detail="후불 결제에 쓸 카드를 등록하고 관리해요" onClick={() => { close(); navigate('/app/account/payments') }} />
-    </div>
-    <p className="me-section-title">이용 · 알림</p>
-    <div className="list">
-      <Item title="탑승 확인" detail="탑승 기록이 잘못됐다면 이의를 낼 수 있어요" onClick={() => { close(); setTab('boarding-cases') }} />
-      {pushSupported() && <Item title={pushOn ? '알림 끄기' : '알림 받기'} detail="앱을 닫아도 확정과 승차 안내를 받아요" onClick={togglePush} />}
-    </div>
-    {(me.admin || config?.demo) && <>
-      <p className="me-section-title">운영 · 시연</p>
-      <div className="list">
-        {me.admin && <Item title="관리자" detail="노쇼와 요금 검토, 신고와 제한, 승차 지점 관리" onClick={() => { close(); setTab('admin') }} />}
-        {config?.demo && <Item title="시연 콘솔" detail="시연 계정 전환과 시나리오를 별도 콘솔에서 제어해요" onClick={() => { close(); navigate('/demo') }} />}
+    {saved > 0 && (
+      <div className={isSheet ? 'me-saved-line' : 'me-saved-hero'}>
+        <span>같이 타서 아낀 돈</span>
+        <strong>{won(saved)}</strong>
       </div>
-    </>}
+    )}
+    <div className={isSheet ? '' : 'surface-box me-menu-card'}>
+      <p className="me-section-title">계정</p>
+      <div className="list">
+        <Item title="프로필" detail="학과와 입학 연도를 같이 타는 사람에게 보여 줘요" onClick={() => { close(); setEditingProfile(true) }} />
+        <Item title="결제수단 관리" detail="후불 결제에 쓸 카드를 등록하고 관리해요" onClick={() => { close(); navigate('/app/account/payments') }} />
+      </div>
+      <p className="me-section-title">이용</p>
+      <div className="list">
+        <Item title="탑승 확인" detail="탑승 기록이 잘못됐다면 이의를 낼 수 있어요" onClick={() => { close(); setTab('boarding-cases') }} />
+        {pushSupported() && <Item title={pushOn ? '알림 끄기' : '알림 받기'} detail="앱을 닫아도 확정과 승차 안내를 받아요" onClick={togglePush} />}
+      </div>
+      {(me.admin || config?.demo) && <>
+        <p className="me-section-title">운영</p>
+        <div className="list">
+          {me.admin && <Item title="관리자" detail="노쇼와 요금 검토, 신고와 제한, 승차 지점 관리" onClick={() => { close(); setTab('admin') }} />}
+          {config?.demo && <Item title="시연 콘솔" detail="시연 계정 전환과 시나리오를 별도 콘솔에서 제어해요" onClick={() => { close(); navigate('/demo') }} />}
+        </div>
+      </>}
+    </div>
     <div className="me-out">
       <button type="button" onClick={() => signOut(api.logout)}>로그아웃</button>
-      <button type="button" onClick={() => setLeaving(true)}>모든 기기에서 로그아웃</button>
+      {!isSheet && <button type="button" className="me-out-secondary" onClick={() => setLeaving(true)}>모든 기기에서 로그아웃</button>}
     </div>
   </>
   const demoAccounts = config?.demo ? <DemoAccounts onLogin={async () => { session.current += 1; setState(null); setResetting(false); setMenu(false); setDemoOpen(false); navigate('/'); setMe(await api.me()) }} /> : null
@@ -301,8 +308,8 @@ export default function App() {
           {paymentReturn && <PaymentResult key={me.id + location.search} search={location.search} myId={me.id} onUpdated={refresh}
             onReturn={(id) => navigate(id ? `/parties/${id}` : '/', { replace: true })} />}
           {!paymentReturn && tab === 'history' && <History admin={me.admin} tabBar={tabBar} onHome={() => setTab('home')} onBoardingCases={() => setTab('boarding-cases')} onOpenParty={(id) => navigate('/parties/' + id)} onOpenMessages={(id) => navigate('/app/messages/' + id)} />}
-          {!paymentReturn && tab === 'rides' && <Rides state={state} onOpen={(id) => navigate('/parties/' + id)} onHome={() => setTab('home')} tabBar={tabBar} />}
-          {!paymentReturn && tab === 'me' && <Screen tabBar={tabBar}><header className="bar"><h1 className="bar-title">내 정보</h1></header><div className="pad me-page"><h1 className="page-heading">내 정보</h1>{meMenu(() => {})}</div></Screen>}
+          {!paymentReturn && tab === 'rides' && <Rides state={state} onOpen={(id) => navigate('/parties/' + id)} onFind={() => setTab('find')} tabBar={tabBar} />}
+          {!paymentReturn && tab === 'me' && <Screen tabBar={tabBar}><header className="bar"><h1 className="bar-title">내 정보</h1></header><div className="pad me-page"><h1 className="page-heading">내 정보</h1>{meMenu(() => {}, false)}</div></Screen>}
           {!paymentReturn && tab === 'boarding-cases' && <BoardingCasesScreen now={state?.now} onBack={() => setTab('home')} />}
           {!paymentReturn && tab === 'find' && state && (
             <FindPage
@@ -337,7 +344,7 @@ export default function App() {
           {demo}
           {menu && (
             <Sheet title={me.nickname} className="pop menu" onClose={() => setMenu(false)}>
-              {meMenu(() => setMenu(false))}
+              {meMenu(() => setMenu(false), true)}
             </Sheet>
           )}
           {editingProfile && <ProfileSheet onClose={() => setEditingProfile(false)} />}
@@ -416,33 +423,48 @@ function Flow({ state, config, school, myId, run, refresh, onMenu, onHistory, on
     onReopen={(id) => navigate('/parties/' + id)} />
 }
 
-/** 내 일행: 진행 중인 일행과 최근 정산 일행. 누르면 그 일행의 채팅방으로 간다. */
-function Rides({ state, onOpen, onHome, tabBar }) {
+/** 내 일행: 진행 중인 일행과 최근 정산 일행. 히스토리와 같은 면·행 규격으로 표시한다. */
+function Rides({ state, onOpen, onFind, tabBar }) {
   if (!state) return <LoadingScreen />
   const parties = state.parties || []
+  const hasAny = parties.length > 0 || Boolean(state.settledParty)
   return (
     <Screen tabBar={tabBar}>
       <header className="bar"><h1 className="bar-title">내 일행</h1></header>
-      <div className="pad">
+      <div className="pad rides-page">
         <h1 className="page-heading">내 일행</h1>
-        {parties.length === 0 && !state.settledParty && (
-          <Empty title="같이 타는 일행이 아직 없어요" action="길 올리기" onAction={onHome}>가는 길을 올리면 같은 방향 학생과 이어 드려요.</Empty>
+        {!hasAny && (
+          <Empty title="같이 타는 일행이 아직 없어요" action="동승 찾기" onAction={onFind}>조건이 맞는 학생이 모이면 이곳에서 바로 확인할 수 있어요.</Empty>
         )}
-        <ul className="ride-list">
-          {parties.map((party) => (
-            <li key={party.id}>
-              <button type="button" className="ride-row" onClick={() => onOpen(party.id)}>
-                <span className="ride-main">
-                  <b>{partyRouteLabel(party)}</b>
-                  <small>{party.departureAt ? `${formatTime(party.departureAt)} 출발, ` : ''}{partyLabel(party.status)}</small>
-                </span>
-                {party.unreadChat > 0 && <span className="unread-badge" aria-label={`안 읽은 메시지 ${party.unreadChat}개`}>{party.unreadChat > 99 ? '99+' : party.unreadChat}</span>}
-                <ChevronRight size={18} aria-hidden="true" />
-              </button>
-            </li>
-          ))}
-        </ul>
-        {state.settledParty && <Item title="최근 정산 내역 보기" onClick={() => onOpen(state.settledParty.id)} />}
+        {hasAny && (
+          <div className="surface-box">
+            <ul className="ride-list">
+              {parties.map((party) => (
+                <li key={party.id}>
+                  <button type="button" className="ride-row" onClick={() => onOpen(party.id)}>
+                    <span className="ride-main">
+                      <b>{partyRouteLabel(party)}</b>
+                      <small>{party.departureAt ? `${formatTime(party.departureAt)} 출발 · ` : ''}{partyLabel(party.status)}</small>
+                    </span>
+                    {party.unreadChat > 0 && <span className="unread-badge" aria-label={`안 읽은 메시지 ${party.unreadChat}개`}>{party.unreadChat > 99 ? '99+' : party.unreadChat}</span>}
+                    <ChevronRight size={18} aria-hidden="true" />
+                  </button>
+                </li>
+              ))}
+              {state.settledParty && (
+                <li>
+                  <button type="button" className="ride-row" onClick={() => onOpen(state.settledParty.id)}>
+                    <span className="ride-main">
+                      <b>최근 정산 내역 보기</b>
+                      <small>{partyRouteLabel(state.settledParty)}</small>
+                    </span>
+                    <ChevronRight size={18} aria-hidden="true" />
+                  </button>
+                </li>
+              )}
+            </ul>
+          </div>
+        )}
       </div>
     </Screen>
   )

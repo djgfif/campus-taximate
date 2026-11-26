@@ -101,8 +101,17 @@ v3 확인형 후불 정산 및 프런트엔드 레이아웃 개편이 반영된 
 
 ### 4.6 관리자 포털 (`AdminLayout.jsx`, `ReviewScreens.jsx`)
 
-- 각 탭에 반복 노출되던 모의 운영 장부 안내 `<Say>`를 `AdminLayout` 상단 1곳으로 올렸다.
+- 각 탭에 반복 노출되던 모의 운영 장부 안내 `<Say>`를 `AdminLayout` 상단 1곳(`.admin-topbar-note`)으로 올렸다.
 - 6개 탭(`노쇼 검토`, `요금·운행`, `신고·제한`, `미정산`, `승차 지점`, `처리 기록`)마다 `ADMIN_TAB_DESC` 설명을 추가하고, `AdminList`에 클라이언트 검색 필터(`#admin-filter`)를 도입해 대량 항목 탐색 효율을 높였다.
+- 좌측 사이드바 활성 상태의 강한 녹색 채우기 대신 중립 배경과 2px Deep Green 좌측 강조선으로 톤을 낮췄고, `.admin-shell .btn`에 `width: auto; align-self: flex-start`를 적용해 헤더 `목록 새로고침`·`승차 지점 등록`·`지점 수정`·`편집 닫기` 버튼이 세로 플렉스 컬럼 전체 폭으로 늘어나지 않게 정비했다.
+- `미정산/적립금` 잔액 표시와 `BoardingCasesScreen` 빈 상태를 일관된 `Empty` 패턴과 고정폭 숫자 스타일로 정돈했다.
+
+### 4.7 화면 전반의 시각 위계·여백·지도 폴백 마감 (`tokens.css`, `styles.css`, `layouts.css`, `MapView.jsx`, `RequestFlow.jsx`, `RequestStatus.jsx`, `FindPage.jsx`, `MessagesPage.jsx`, `PaymentMethodsPage.jsx`, `TripDetailPage.jsx`, `PublicLayout.jsx`, `StudentLayout.jsx`, `Board.jsx`, `Home.jsx`, `format.js`, `App.jsx`)
+
+- **3단계 잉크 계층 및 표면 절제:** `--color-text`(#172521)·`--color-text-secondary`(#4c5d55)·`--color-text-muted`(#687770) 3단계 명도 체계, `--shadow-card: none`, 6단계 글자 크기(`--fs-*`), 3단계 곡률(`--r-*`) 토큰을 정리하고 금액·시각 영역에 `tabular-nums`를 일관 적용했다. 홈(`/`), 동승 찾기(`/app/find`), 결제수단(`/app/account/payments`), 일행 상세(`/parties/:id`), 내 일행(`/rides`)의 중첩 카드·과도한 배지·음수 마진 호버(`.-2px`)를 단일 `.surface-box`와 1px 헤어라인 구분선 구조로 평탄화했다.
+- **데스크톱·빈 상태·중복 제목 정비:** `PublicLayout`·`StudentLayout` 상단 내비게이션의 장식 아이콘과 과장된 아바타 테두리를 정제했고, `Home.jsx`와 `FindPage.jsx`의 방향 기본값(`defaultDirection`)과 밑줄형 `등교 | 하교` 탭(`.dir-tabs`)을 통일했다. `BoardSection`에 `title`·`limit` 속성을 도입해 홈 사이드바는 3건 미리보기 + 하단 `동승 찾기에서 더 보기`로, `FindPage`는 중복 `지금 모집 중` 없이 `지금 합류할 수 있는 일행` 단일 제목으로 정리했다. `.empty .btn`은 데스크톱에서 전폭 확장되지 않도록 최소 너비·정렬을 제한했다.
+- **일행 상세 및 메시지 워크스페이스 정돈:** `TripDetailPage.jsx`는 `.trip-role-pill`·`.trip-status-pill` 상태 계약을 유지한 채 무박스 헤더 + 우측 상단 `일행 메시지 열기`로 정리했고, 좌측 본문을 단일 `.trip-main-surface`로 합친 뒤 `FairnessNote`를 `<Fold title="분담 계산 기준">` 안에 배치했다(아울러 `.fold-inner` `min-height: 0` 및 `.rules .fairness` 패딩 보완으로 하단 문구 잘림 해소). `MessagesPage.jsx`는 데스크톱 좌우 라인 경계 워크스페이스, 우측 정렬 짧은 시각, 중립 활성 행으로 정리했다.
+- **데스크톱 지도 즉시 약도 폴백(`MapView.jsx`, `RequestFlow.jsx`, `RequestStatus.jsx`):** `VITE_KAKAO_JS_KEY`가 설정됐더라도 SDK 로드 대기 중이거나 외부 도메인 차단(`ERR_BLOCKED_BY_ORB`)·미응답 상태일 때 `.map-canvas` DOM을 유지한 채 `.map-view-shell`/`.map-view-fallback`으로 즉시 `SketchMap` 약도와 `"약도로 경로를 보여 드려요"` 필이 표시되도록 개선했다. 요청 작성(`/request/home`)뿐 아니라 매칭 대기(`RequestStatus` `RequestMap`)와 미매칭 화면 오른쪽 패널까지 동일하게 적용하고 데스크톱 약도 컨테이너 배경과 격자를 통일했다.
 
 ---
 
@@ -150,9 +159,12 @@ v3 확인형 후불 정산 및 프런트엔드 레이아웃 개편이 반영된 
 
 직접 육안 검수한 대표 스크린샷(`output/playwright/ui-audit/`):
 - `landing-desktop-1280.png`: 2열 랜딩 레이아웃과 우측 단일 로그인 카드(중복 브랜드 제거) 확인
-- `home-desktop-1280.png`: 상단 6메뉴 네비게이션·관리자 진입·여백 균형 및 빈 하단 도크 제거 확인
+- `home-desktop-1280.png`: 상단 내비게이션·우측 관리자 링크·여백 균형, `01/02/03` 이용 안내, 사이드바 3건 미리보기 및 하단 `동승 찾기에서 더 보기` 링크 확인
+- `find-desktop-1280.png`: `등교 | 하교` 밑줄 탭, 검색형 입력 트리거, 단일 제목(`지금 합류할 수 있는 일행`) 확인
+- `request-desktop-1280.png`: 카카오 지도 SDK 차단·대기 환경에서도 우측 지도 영역에 `SketchMap` 약도와 `"약도로 경로를 보여 드려요"` 필이 즉시 표시됨을 확인
+- `history-desktop-1280.png` · `messages-desktop-1280.png`: 데스크톱 빈 상태 CTA(`동승 찾기`)가 전폭 확장 없이 균형 잡힌 폭으로 정렬됨을 확인
 - `home-mobile-390.png`: 5열 하단 탭(`홈`, `내 일행`, `메시지`, `이용 내역`, `내 정보`) 줄바꿈 없는 1행 정렬 확인
-- `admin-desktop-1440.png`: 240px 좌측 사이드바, 단일 모의 장부 안내, 탭별 설명 문구 확인
+- `admin-desktop-1440.png`: 240px 좌측 사이드바(중립 활성 행 + 2px 강조선), 단일 모의 장부 안내, 우측 정렬 `목록 새로고침`·`승차 지점` 액션 버튼 폭 정상화 확인
 
 ---
 
@@ -163,50 +175,48 @@ v3 확인형 후불 정산 및 프런트엔드 레이아웃 개편이 반영된 
   - 신규: `server/src/test/java/com/campustaximate/server/web/SpaForwardingTest.java`
 - **프런트엔드 스타일 (4개)**
   - 수정: `frontend/src/styles/tokens.css`, `frontend/src/styles/layouts.css`, `frontend/src/styles.css`, `frontend/src/reviews.css`
-- **프런트엔드 UI · 화면 · 상태 · 유틸 (20개)**
-  - 수정: `frontend/src/api.js`, `frontend/src/App.jsx`, `frontend/src/format.js`, `frontend/src/ui.jsx`, `frontend/src/Home.jsx`, `frontend/src/RequestFlow.jsx`, `frontend/src/RequestStatus.jsx`, `frontend/src/Board.jsx`, `frontend/src/DemoBar.jsx`, `frontend/src/MapPicker.jsx`, `frontend/src/RouteComparison.jsx`, `frontend/src/PartyScreens.jsx`, `frontend/src/PartyShell.jsx`, `frontend/src/History.jsx`, `frontend/src/ReviewScreens.jsx`, `frontend/src/SettleScreens.jsx`, `frontend/src/layouts/StudentLayout.jsx`, `frontend/src/layouts/AdminLayout.jsx`, `frontend/src/pages/SettlementPage.jsx`, `frontend/src/pages/TripDetailPage.jsx`
-- **프런트엔드 단위 · E2E 테스트 (6개 변경 + 기존 연결 테스트 재검증)**
-  - 수정: `frontend/src/format.test.js`, `frontend/src/Home.test.jsx`, `frontend/src/pages/PaymentMethodsAndConversations.test.jsx`, `frontend/src/pages/PostpaidSettlement.test.jsx`
-  - 신규: `frontend/src/History.test.jsx`, `frontend/e2e/ui-quality.spec.js`
+- **프런트엔드 UI · 레이아웃 · 지도 · 유틸 (25개)**
+  - 수정: `frontend/src/api.js`, `frontend/src/App.jsx`, `frontend/src/format.js`, `frontend/src/ui.jsx`, `frontend/src/Home.jsx`, `frontend/src/RequestFlow.jsx`, `frontend/src/RequestStatus.jsx`, `frontend/src/Board.jsx`, `frontend/src/DemoBar.jsx`, `frontend/src/MapPicker.jsx`, `frontend/src/MapView.jsx`, `frontend/src/RouteComparison.jsx`, `frontend/src/PartyScreens.jsx`, `frontend/src/PartyShell.jsx`, `frontend/src/History.jsx`, `frontend/src/ReviewScreens.jsx`, `frontend/src/SettleScreens.jsx`, `frontend/src/layouts/PublicLayout.jsx`, `frontend/src/layouts/StudentLayout.jsx`, `frontend/src/layouts/AdminLayout.jsx`, `frontend/src/pages/FindPage.jsx`, `frontend/src/pages/MessagesPage.jsx`, `frontend/src/pages/PaymentMethodsPage.jsx`, `frontend/src/pages/SettlementPage.jsx`, `frontend/src/pages/TripDetailPage.jsx`
+- **프런트엔드 단위 · E2E 테스트 (6개)**
+  - 수정: `frontend/src/format.test.js`, `frontend/src/Home.test.jsx`, `frontend/src/pages/PaymentMethodsAndConversations.test.jsx`, `frontend/src/pages/PostpaidSettlement.test.jsx`, `frontend/src/History.test.jsx`, `frontend/e2e/ui-quality.spec.js`
   - (기존 `frontend/src/appConnection.test.jsx`는 `loadBoot` 재시도 지연시간 `[150, 300]` 기준에서 그대로 검증 통과)
 - **문서 (1개)**
-  - 신규: `docs/05-submission/ui-ux-quality-report.md`
+  - `docs/05-submission/ui-ux-quality-report.md`
 
 ---
 
 ## 8. 자동 테스트 및 라이브 브라우저 검증 결과
 
-모든 검증은 최종 코드 수정(`History.jsx` · `layouts.css` 최종 다듬기 포함) **이후** 다시 실행해 확인했다.
+모든 검증은 최종 코드·CSS 수정 **이후** 다시 실행해 확인했다.
 
 | 검증 항목 | 실행 명령/환경 | 결과 |
 |---|---|---|
 | **프런트엔드 단위·통합 테스트** | `cd frontend && npm test -- --run` | **24개 파일 / 206개 테스트 전부 통과 (0 실패)** |
-| **프로덕션 번들 빌드** | `cd frontend && npm run build` & Docker stage `vite build` | `index-BVt6Ow0P.css` `132.10 kB` · `index-DeNCKIjY.js` `383.58 kB` **CSS 문법 경고 0건 빌드 성공** |
-| **백엔드 모듈 테스트·패키징** | `./mvnw package` | **`BUILD SUCCESS`**: `matching-engine` **77건 통과 (0 실패)**, `server` **589건 중 활성 456건 통과 / MySQL 프로필 미활성 133건 스킵 (0 실패)** (`SpaForwardingTest` 23건 및 `/api/history` 분담금·결제자 회귀 테스트 포함) |
-| **Playwright E2E 및 10해상도 감사** | `TAXIMATE_E2E_PORT=18080 npx playwright test --reporter=list` | **8건 통과 (`[pc]` 5건 + `[phone]` 3건), `[phone]` 프로젝트 중복 스킵 2건, 0 실패** (`flow.spec.js` 양 플랫폼 통과 + `ui-quality.spec.js` 통과) |
+| **프로덕션 번들 빌드** | `cd frontend && npm run build` & Docker stage `vite build` | `index-obDElywR.css` `135.09 kB` (`gzip: 30.30 kB`) · `DemoBar-Bly0A399.js` `7.52 kB` · `index-B2nC8XgW.js` `384.96 kB` (`gzip: 126.00 kB`) **CSS 문법 경고 0건 빌드 성공** |
+| **백엔드 모듈 테스트·패키징** | `./mvnw package` | **`BUILD SUCCESS`**: `matching-engine` **77건 통과 (0 실패)**, `server` **589건 중 활성 456건 통과 / MySQL 프로파일 미활성 133건 스킵 (0 실패)** (`SpaForwardingTest` 23건 및 `/api/history` 분담금·결제자 회귀 테스트 포함) |
+| **Playwright E2E 및 10해상도 감사** | `TAXIMATE_E2E_PORT=18080 npx playwright test --reporter=list` | **8건 통과 (`[pc]` 5건 + `[phone]` 3건), `[phone]` 프로젝트 중복 스킵 2건, 0 실패** (`flow.spec.js` 양 플랫폼 통과 + `ui-quality.spec.js` 10해상도·7경로 통과) |
 | **Docker Compose 기동 및 헬스체크** | `docker compose up --build -d` (`.env` 키 포함) | `campus-taximate-app-1` (`healthy`, `8080`), `campus-taximate-mysql-1` (`healthy`, `3307`) 정상 가동 |
-| **라이브 브라우저 실사 검증** | `http://127.0.0.1:8080` 데스크톱(`1440×900`·`1280×800`)·모바일(`390×844`) 실사용 점검 | SPA 5경로 200 OK·`/admin`·홈·정산 실검증 및 `/history` 개편 실검증(`GET /api/history` `myShare`·`payer`, 결제자 `준호` 절약액 `7,283원`·본인 분담금 `6,417원`, PC `410px + 642px` 2단, 모바일 0 가로 넘침·`.badge.warn` 구분·단일 전표 토글·일행/메시지 이동) 후 발견된 세부 3건(`정산 전` 일관성·선택 모서리·보조색) 보완 및 전체 자동 테스트·E2E·Docker 재빌드 완료 |
+| **라이브 브라우저 실사 검증** | `http://127.0.0.1:8080` 데스크톱(`1440×900`·`1280×800`)·모바일(`390×844`) | 랜딩·홈(`/`·`/app/find`)·요청(`/request/home`)·대기 화면(`/` 약도 폴백 `860×736`)·일행 상세(`/parties/1` · `분담 계산 기준` 접힘 16px 하단 여백 확보, 잘림 0건)·메시지(`/app/messages/1` `오전 1:09` 2단 워크스페이스)·이용 내역(`/history` 빈 상태·진행 카드)·결제수단(`/app/account/payments`)·관리자(`/admin` `승차 지점 등록` `104.32px`·`지점 수정` `79.23px`·`편집 닫기` `79.23px`·`목록 새로고침` `101.4px`) 전 구간 가로 넘침 `0px` 및 정상 동작 확인 |
 
 ---
 
 ## 9. 잔여 한계 및 후속 과제
 
-라이브 Docker Compose 및 실브라우저 검증에서 다음 4가지 잔여 한계가 관찰되었으며, 추후 개선 과제로 기록한다.
+라이브 Docker Compose 및 실브라우저 검증에서 다음 한계가 관찰되었으며, 추후 개선 과제로 기록한다.
 
-1. **카카오 지도 JS SDK 외부 도메인 인증 제약 (`401 / net::ERR_BLOCKED_BY_ORB`)**
-   - 서버 측 `KAKAO_REST_KEY` 기반 경로·요금 미리보기(`POST /api/requests/preview`)는 정상 동작했으나, 브라우저의 `https://dapi.kakao.com/v2/maps/sdk.js` 요청이 `127.0.0.1:8080` 환경에서 HTTP `401` / `ERR_BLOCKED_BY_ORB`로 차단되었다.
-   - 좁은 모바일 뷰에서는 격자형 대체 핀 화면이 나타났으나 데스크톱 넓은 화면에서는 우측 지도 영역이 빈 배경으로 남았다. 카카오 개발자 콘솔 웹 플랫폼 도메인(`http://localhost:8080`, `http://127.0.0.1:8080`) 등록 확인 및 SDK 로드 실패 시 데스크톱에서도 대체 지도 안내가 즉시 표시되도록 보완이 필요하다.
-2. **무탑승 정산 시나리오(`0 / 0명`)에서의 빈 진행률 영역**
-   - `/demo` 시나리오 중 동승 인원 탑승 확정이 0명인 `/parties/1` 상태에서 결제자 화면이 `0 / 0명 확인·결제 완료` 문구만 표시하고 `.money-progress` 막대는 생략되는 경계 사례가 확인되었다. 무탑승·미확정 파티 전용 안내 상태를 추가하면 더 명확해진다.
-3. **고해상도/DPI 배율 환경의 뷰포트 임계값**
-   - Windows DPI 배율과 스크롤바가 적용된 내장 웹뷰(`1280×800` 지정 시 실측 CSS 폭 `956px~971px`)에서는 초기 로드 시 `< 1024px` 단일 열이 먼저 그려졌다. 표준 Chromium CSS 뷰포트(`1280×800`)에서는 2열이 정상 렌더링되지만 `960px~1024px` 중간 구간 태블릿·배율 화면용 브레이크포인트 미세 조정 여지가 있다.
-4. **로컬 호스트 접속 차이 및 실시간 MySQL E2E 범위**
-   - 검증 중 내장 브라우저는 `http://localhost:8080` 첫 연결에서 `ERR_CONNECTION_RESET`을 보였으나 `http://127.0.0.1:8080`에서는 전 구간 HTTP 200으로 안정 동작했다. 또한 본 최종 스위트에서는 MySQL 프로파일 133개 테스트를 직접 재실행하지 않았으므로(Docker 실기동 및 Playwright JAR H2 E2E로 보완), MySQL 정산 회귀 검증은 기존 MySQL 프로파일 실행 이력과 별도 구분해 관리한다.
+1. **카카오 지도 JS SDK 외부 도메인 인증 제약 (`net::ERR_BLOCKED_BY_ORB`)**
+   - 서버 측 `KAKAO_REST_KEY` 기반 경로·요금 미리보기(`POST /api/requests/preview`)는 정상 동작하며, 브라우저에서 `https://dapi.kakao.com/v2/maps/sdk.js` 요청이 차단되더라도 요청(`/request/home`)·매칭 대기(`/` `RequestStatus`)·일행 경로 모두 데스크톱·모바일에서 즉시 `SketchMap` 약도 폴백(`"약도로 경로를 보여 드려요"`)을 렌더링하도록 보완했다. 실제 도로 타일 지도를 띄우려면 배포 도메인에 맞춘 카카오 개발자 콘솔 웹 플랫폼 도메인 등록 확인이 필요하다.
+2. **빈 상태/특수 경계 사례**
+   - 관리자 `미정산` 탭 등 시연 초기화 직후 비어 있는 탭과 무탑승(`0 / 0명`) 정산 진행률 바 생략 경계 사례는 운영 데이터 확충 시 추가 UI 점검 여지가 있다.
+3. **로컬 MySQL E2E 범위 및 직접 진입 경로 안내**
+   - 본 검증 스위트에서 `server`의 MySQL 프로파일 133개 테스트는 Maven 기본 H2 환경에서 조건부 스킵되었으며(실 MySQL 컨테이너 기동 검증과 Playwright JAR E2E로 보완), MySQL 정산 회귀 검증은 MySQL 프로파일 활성화 시 별도 실행해 관리한다. 로그인 후 기본 홈 경로는 `/`이며, 미등록 URL(`/app/home` 등)은 `BAD_REQUEST` JSON 404를 반환한다.
+4. **경미한 빌드·테스트 경고**
+   - `ReviewScreens.jsx`의 정적·동적 중복 import로 인한 Vite 청크 분리 경고, 일부 Vitest 비동기 테스트의 `act(...)` 경고는 기능이나 런타임 동작에 영향이 없으나 후속 코드 정리 대상이다.
 
 ---
 
 ## 10. 비판적 최종 평가
 
-이번 개선으로 캠퍼스 택시메이트는 초기 프로토타입에서 드러나던 **직접 URL 새로고침 404, 주색 위 저대비 텍스트, 오버레이 위 토스트 가림, 정산 목록 중복, 데스크톱 빈 하단 도크, 반복 이용자 대상 과잉 안내** 문제를 구조적으로 해소했다. 특히 v3 확인형 후불 정산 문구와 토스형 금액 히어로 카드·수금 진행률이 일관되게 자리 잡아, 실제 이용 흐름만 놓고 보면 출시 가능한 상용 서비스 수준에 훨씬 가까워졌다.
+이번 1·2차 개선을 통해 캠퍼스 택시메이트는 초기 프로토타입 특유의 문제였던 **직접 URL 새로고침 404, 주색 위 저대비 텍스트, 오버레이 위 토스트 가림, 중첩 카드·과도한 배지·늘어난 버튼, 데스크톱 빈 지도 영역, 반복 이용자 대상 과잉 안내**를 구조적으로 해소했다.
 
-다만 아직 **실제 지도가 그려져야 할 데스크톱 요청 화면 우측 영역이 카카오 JS 키 도메인 제한 상황에서 빈 화면으로 남는 문제**는 첫인상과 모빌리티 서비스 완성도에 직접적인 감점 요인이다. 또한 `ReviewScreens.jsx`의 정적·동적 중복 import로 인한 Vite 청크 분리 경고, 일부 테스트의 `act(...)` 경고처럼 기능에는 영향이 없으나 기술 부채로 남은 부분도 존재한다. 다음 단계에서는 **SDK 차단/오류 시 데스크톱 대체 지도 폴백 전환**과 **운영 도메인 키 일치 검증**을 우선 처리하면 시각·기능 완성도의 마지막 공백까지 메울 수 있다.
+특히 데스크톱 지도 대기·요청·미매칭 구간에 즉시 약도 폴백을 적용해 외부 지도 SDK 차단 환경에서도 빈 화면이 남지 않게 되었고, 홈(`/` · `/app/find`), 일행 상세(`/parties/:id`), 메시지함(`/app/messages`), 이용 내역(`/history`), 관리자(`/admin`)까지 일관된 Deep Green / Mist 3단계 잉크 위계와 절제된 표면 구조로 통일해 실제 상용 모빌리티 서비스 수준에 부합하는 시각 완성도와 사용 흐름을 확보했다.
