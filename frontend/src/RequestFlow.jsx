@@ -82,7 +82,7 @@ export function PlaceField({ label, value, center, onChange, samples = [], place
         </span>
       </span>
     </div>
-    {results.length > 0 && <ul className="places">{results.map((place) => <li key={place.id}><button type="button" onClick={() => choose(place)}>{place.name}</button></li>)}</ul>}
+    {results.length > 0 && <ul className="places">{results.map((place) => <li key={place.id}><button type="button" onClick={() => choose(place)}><b>{place.name}</b>{place.address && <small>{place.address}</small>}</button></li>)}</ul>}
     {note && <p className="note" role="status">{note}</p>}
     <div className="place-actions">
       <Btn className="small line" disabled={!center} onClick={() => setOpen(true)}><MapPin size={16} aria-hidden="true" />지도에서<span className="sr-only"> {label} 고르기</span></Btn>
@@ -90,7 +90,7 @@ export function PlaceField({ label, value, center, onChange, samples = [], place
       {samples.length > 0 && <label className="field sample"><span className="sr-only">시연 {label}</span><select aria-label={'시연 ' + label}
         value={picked < 0 ? '' : String(picked)}
         onChange={(e) => choose(samples[Number(e.target.value)])}>
-        <option value="" disabled>시연 지점</option>{samples.map((p, i) => <option key={p.id || p.name} value={i}>{p.name}</option>)}
+        <option value="" disabled>주요 장소</option>{samples.map((p, i) => <option key={p.id || p.name} value={i}>{p.name}</option>)}
       </select></label>}
     </div>
     {open && <MapPicker center={center} value={value.point} title={label + ' 고르기'} onPick={choose} onClose={() => setOpen(false)} />}
@@ -271,7 +271,7 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
         <h2 id="step-where" className="sr-only">어디서 어디로</h2>
         <div className="route-box">
           <PlaceField label="출발지" placeholder="출발지 검색" value={origin} center={center} onChange={changeOrigin} samples={config?.demo ? hubs : []} />
-          <PlaceField label="도착지" placeholder="도착지 검색" value={destination} center={origin.point || center} onChange={setDestination} samples={config?.demo ? config.sampleDropoffs || [] : []} />
+          <PlaceField label="도착지" placeholder="도착지 검색" value={destination} center={origin.point || center} onChange={setDestination} samples={config?.demo && !schoolDestination ? config.sampleDropoffs || [] : []} />
         </div>
         {!wide && origin.point && <div className="mini-map">
           <MapView points={tripPoints} edge={28} fallback={<SketchMap points={tripPoints} lines={tripLine} label="출발지와 도착지 약도" />} />

@@ -85,7 +85,13 @@ export default function MapPicker({ center: origin, value, title, onPick, onClos
         maps.event.addListener(map, 'idle', update)
         update()
       })
-      .catch((e) => setError(e.message))
+      .catch((e) => {
+        if (closed) return
+        const localOnly = typeof window !== 'undefined' && window.location.hostname === '127.0.0.1'
+        setError(localOnly
+          ? '지도는 등록된 주소(http://localhost:8080)에서 볼 수 있어요. 위 검색창에서 장소 검색은 바로 이용할 수 있어요.'
+          : e.message)
+      })
     return () => {
       closed = true
     }
@@ -139,9 +145,23 @@ export const PLACE_SEARCH_URL = 'https://dapi.kakao.com/v2/local/search/keyword.
  * 키가 없거나 오류면 "결과 없음"과 구분할 수 있게 실패로 돌려준다.
  */
 export async function searchPlaces(query, center, key = APP_KEY) {
-  if (!query.trim()) return []
+  const trimmed = query.trim()
+  if (!trimmed) return []
+  if (arguments.length < 3 && typeof window !== 'undefined') {
+    try {
+      const serverParams = new URLSearchParams({ query: trimmed })
+      if (center) {
+        serverParams.set('lat', String(center.lat))
+        serverParams.set('lon', String(center.lon))
+      }
+      const serverRes = await fetch(`/api/places/search?${serverParams}`, { credentials: 'same-origin' })
+      if (serverRes.ok) return await serverRes.json()
+    } catch {
+      // 서버 프록시를 못 쓰면 직접 카카오 로컬 API 호출로 이어간다.
+    }
+  }
   if (!key) throw new Error('장소 검색 키가 없어요.')
-  const params = new URLSearchParams({ query: query.trim(), size: '5' })
+  const params = new URLSearchParams({ query: trimmed, size: '5' })
   if (center) { params.set('x', String(center.lon)); params.set('y', String(center.lat)) }
   const res = await fetch(`${PLACE_SEARCH_URL}?${params}`, {
     headers: { Authorization: `KakaoAK ${key}`, KA: `sdk/1.0 os/javascript origin/${window.location.origin}` },

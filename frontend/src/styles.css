@@ -500,7 +500,9 @@ button.item:active { opacity: 0.6; }
 .place-ok { color: var(--save); }
 .place-clear { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: var(--mist); color: var(--road); }
 .places { display: flex; flex-direction: column; }
-.places button { width: 100%; padding: 12px 0; text-align: left; border-top: 1px solid var(--line); font-size: 15px; font-weight: 600; }
+.places button { display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 10px 0; text-align: left; border-top: 1px solid var(--line); }
+.places button b { font-size: 14px; font-weight: 600; color: var(--ink); }
+.places button small { font-size: 12px; font-weight: 400; color: var(--road); }
 .places li:first-child button { border-top: 0; }
 .place-actions { display: flex; align-items: center; gap: 6px; }
 .place-actions .btn { width: auto; flex: none; gap: 4px; min-height: 32px; padding: 0 10px; border-radius: var(--r-s); background: var(--mist); box-shadow: none; font-size: 13px; color: var(--ink-2); }
