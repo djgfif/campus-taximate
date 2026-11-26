@@ -6,12 +6,17 @@ import com.campustaximate.server.domain.Member;
 import com.campustaximate.server.domain.Party;
 import com.campustaximate.server.domain.PartyStatus;
 import com.campustaximate.server.domain.RequestStatus;
+import com.campustaximate.server.domain.PaymentOrder;
+import com.campustaximate.server.domain.PaymentPurpose;
+import com.campustaximate.server.domain.PaymentStatus;
 import com.campustaximate.server.domain.RideRequest;
 import com.campustaximate.server.domain.Settlement;
 import com.campustaximate.server.domain.TransferRequest;
 import com.campustaximate.server.domain.TransferStatus;
 import com.campustaximate.server.repository.PartyRepository;
+import com.campustaximate.server.repository.PaymentOrderRepository;
 import com.campustaximate.server.repository.RideRequestRepository;
+import com.campustaximate.server.repository.SettlementConfirmationRepository;
 import com.campustaximate.server.repository.SettlementRepository;
 import com.campustaximate.server.repository.TransferRequestRepository;
 import com.campustaximate.settlement.SettlementCalculator;
@@ -43,6 +48,7 @@ public class SettlementService {
     private static final long MAX_AMOUNT = 10_000_000;
     /** 실제 요금을 올린 뒤 요금 이의를 받는 기간. */
     private static final Duration OBJECTION_WINDOW = Duration.ofHours(24);
+    private static final Duration POSTPAID_OBJECTION_WINDOW = Duration.ofHours(6);
     private static final Set<String> RECEIPT_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
 
     @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager entityManager;
@@ -56,6 +62,9 @@ public class SettlementService {
     private final RideConfirmationService rideConfirmations;
     private final com.campustaximate.server.repository.SettlementShareRepository allocations;
     private final com.campustaximate.server.repository.FareObjectionRepository objections;
+    private final PaymentOrderRepository orders;
+    private final SettlementConfirmationRepository confirmations;
+    private final PostpaidOrderSyncService postpaidOrders;
     private final PartyChatService chatLog;
     private final NoShowService noShows;
 
@@ -87,18 +96,27 @@ public class SettlementService {
         create(party, riders, shares(amount, riders, party), amount, null, null, bankName, accountNumber);
     }
 
+    private Duration objectionWindow(Party party) {
+        return party.postpaidFlow() ? POSTPAID_OBJECTION_WINDOW : OBJECTION_WINDOW;
+    }
+
     private void create(Party party, List<RideRequest> riders, List<Long> shares, long amount, String receiptPath,
                         String contentType, String bankName, String accountNumber) {
         if (party.paymentFlow()) {
-            // 저장 시각과 이의 마감은 같은 순간에서 잰다. 시계를 두 번 읽으면 마감이 저장+24시간보다 미세하게 늦어진다.
+            // 저장 시각과 이의 마감은 같은 순간에서 잰다. 시계를 두 번 읽으면 마감이 저장+이의기간보다 미세하게 늦어진다.
             Instant storedAt = clock.now();
             Settlement settlement = settlements.save(new Settlement(party, amount, receiptPath, contentType, null, null, storedAt));
-            settlement.setObjectionDeadlineAt(storedAt.plus(OBJECTION_WINDOW));
+            settlement.setObjectionDeadlineAt(storedAt.plus(objectionWindow(party)));
             saveAllocations(party, settlement, riders, shares);
             if(party.getFareRecoveryAt()==null && rideConfirmations.hasNegativeAnswer(party.getId())) { party.setStatus(PartyStatus.REVIEW_PENDING); party.setAdminReviewRequired(true); party.setReviewReason("RIDE_DISPUTE"); }
             else if(exceptionalFare(party, amount, payerShareOf(party, riders, shares))) { party.setStatus(PartyStatus.REVIEW_PENDING); party.setAdminReviewRequired(true); party.setReviewReason("FARE_EXCEPTION"); }
             else party.setStatus(PartyStatus.OBJECTION_WINDOW);
-            chatLog.system(party, String.format("결제자가 실제 요금 %,d원과 영수증을 올렸어요. 24시간 동안 요금 이의를 낼 수 있어요.", amount));
+            if (party.postpaidFlow()) {
+                postpaidOrders.syncAfterSave(party, settlement, false);
+                chatLog.system(party, String.format("결제자가 실제 요금 %,d원과 영수증을 올렸어요. 6시간 동안 확인·결제하거나 요금 이의를 낼 수 있어요.", amount));
+            } else {
+                chatLog.system(party, String.format("결제자가 실제 요금 %,d원과 영수증을 올렸어요. 24시간 동안 요금 이의를 낼 수 있어요.", amount));
+            }
             return;
         }
         Settlement settlement = settlements.save(new Settlement(party, amount, receiptPath, contentType,
@@ -165,6 +183,13 @@ public class SettlementService {
                     || objections.existsBySettlementId(settlement.getId())) {
                 throw ApiException.conflict("CANNOT_CORRECT", "이의가 없고 이의 기간 안일 때만 금액을 고칠 수 있습니다.");
             }
+            if (party.postpaidFlow() && (confirmations.existsBySettlementId(settlement.getId())
+                    || orders.findByPartyIdOrderById(partyId).stream().anyMatch(o -> o.getPurpose() == PaymentPurpose.POSTPAID
+                            && (o.getStatus() == PaymentStatus.PROCESSING
+                                    || o.getApprovedAmount() > 0
+                                    || (o.getStatus() == PaymentStatus.APPROVED && o.getAmount() > 0))))) {
+                throw ApiException.conflict("ALREADY_PAID", "이미 확인·결제한 일행원이 있어 요금을 고칠 수 없어요.");
+            }
             List<RideRequest> riders = requests.findByPartyOrderByRideOrder(party);
             List<Long> values = shares(amount, riders, party);
             String previous = settlement.getReceiptPath();
@@ -172,10 +197,16 @@ public class SettlementService {
             settlement.setReceiptPath(stored.path()); settlement.setReceiptContentType(stored.contentType());
             Instant storedAt = clock.now();
             settlement.setPaidAmount(amount); settlement.setRevision(settlement.getRevision() + 1); settlement.setStoredAt(storedAt);
-            settlement.setObjectionDeadlineAt(storedAt.plus(OBJECTION_WINDOW)); settlement.clearAccount();
+            settlement.setObjectionDeadlineAt(storedAt.plus(objectionWindow(party))); settlement.clearAccount();
+            if (party.postpaidFlow()) {
+                confirmations.deleteBySettlementId(settlement.getId());
+            }
             saveAllocations(party, settlement, riders, values);
             // 고친 금액도 확정 금액의 1.5배를 넘거나 절반 미만(또는 결제자 확정 몫 미만)이면 관리자 검토로 보낸다.
             if (exceptionalFare(party, amount, payerShareOf(party, riders, values))) { party.setStatus(PartyStatus.REVIEW_PENDING); party.setAdminReviewRequired(true); party.setReviewReason("FARE_EXCEPTION"); }
+            if (party.postpaidFlow()) {
+                postpaidOrders.syncAfterSave(party, settlement, false);
+            }
             media.deleteAfterCommit(previous);
             return;
         }
@@ -212,6 +243,9 @@ public class SettlementService {
         var values=shares(amount,riders,party);
         settlement.setPaidAmount(amount);settlement.setRevision(settlement.getRevision()+1);
         saveAllocations(party,settlement,riders,values);
+        if (party.postpaidFlow()) {
+            postpaidOrders.syncAfterSave(party, settlement, true);
+        }
     }
 
     private void saveAllocations(Party party, Settlement settlement, List<RideRequest> riders, List<Long> values) {
@@ -239,6 +273,14 @@ public class SettlementService {
                 || !List.of(PartyStatus.OBJECTION_WINDOW, PartyStatus.REVIEW_PENDING).contains(party.getStatus())
                 || !clock.now().isBefore(settlement.getObjectionDeadlineAt())) throw ApiException.conflict("OBJECTION_CLOSED", "요금 이의 기간이 끝났습니다.");
         if (reason == null || reason.isBlank() || reason.length() > 500) throw ApiException.badRequest("INVALID_OBJECTION", "이의 사유는 1~500자로 입력해 주세요.");
+        if (party.postpaidFlow() && (confirmations.existsBySettlementIdAndMemberIdAndRevision(settlement.getId(), memberId, settlement.getRevision())
+                || orders.findByPartyIdAndMemberIdAndPurpose(partyId, memberId, PaymentPurpose.POSTPAID)
+                        .map(o -> o.getStatus() == PaymentStatus.PROCESSING
+                                || o.getApprovedAmount() > 0
+                                || (o.getStatus() == PaymentStatus.APPROVED && o.getAmount() > 0))
+                        .orElse(false))) {
+            throw ApiException.conflict("ALREADY_CONFIRMED", "이미 정산을 확인하고 결제한 내역에는 요금 이의를 낼 수 없어요.");
+        }
         if (objections.existsBySettlementIdAndMemberId(settlement.getId(), memberId)) return;
         var objection = new com.campustaximate.server.domain.FareObjection();
         objection.setSettlementId(settlement.getId()); objection.setMemberId(memberId); objection.setReason(reason.strip());
@@ -346,8 +388,8 @@ public class SettlementService {
                 payerIndex = i;
             }
         }
-        // 확정 분담금(S43): 선결제 흐름에서는 실제 미터가 아니라 확정 금액을 나눈다. 미터와의 차이는 정산 적립금이 맡는다.
-        long base = party.paymentFlow() ? party.getExpectedTotal() : amount;
+        // v2 선결제 흐름(S43)은 확정 금액을, v3 후불 정산과 기존 송금은 실제 미터 요금을 구간 비율로 나눈다.
+        long base = party.paymentFlow() && !party.postpaidFlow() ? party.getExpectedTotal() : amount;
         return SettlementCalculator.shares(base, units, payerIndex);
     }
 

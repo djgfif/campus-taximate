@@ -35,6 +35,21 @@ public class CompensationService {
         // 판정이 모두 끝난 뒤 금융 처리와 같은 트랜잭션에서 보류를 해제한다.
         original.forEach(t->t.setRefundHeld(false));
     }
+    /** 후불 일행에서 정산 수정이나 탑승 조사 판정 뒤 기존 보전 장부를 지우고 최신 분담금 기준으로 다시 계산한다. */
+    @Transactional(propagation=Propagation.MANDATORY)
+    public void reapplyForPostpaid(Party party, Settlement settlement, List<SettlementShare> shares) {
+        if (!party.postpaidFlow()) return;
+        for (SettlementShare s : shares) {
+            if (s.getRawAmount() != null) {
+                s.setAmount(s.getRawAmount());
+                s.setRawAmount(null);
+                s.setCompensationCredit(0);
+            }
+        }
+        entries.deleteBySettlementId(settlement.getId());
+        entries.flush();
+        apply(party, settlement, shares);
+    }
     private void save(Party party,Settlement settlement,PartyMemberTerm term,long raw,long credit,long charge,long net) {
         CompensationEntry e=new CompensationEntry();e.setPartyId(party.getId());e.setSettlementId(settlement.getId());e.setRequestId(term.getRequestId());e.setMemberId(term.getMemberId());
         e.setRawShare(raw);e.setCredit(credit);e.setCharge(charge);e.setNetShare(net);entries.save(e);

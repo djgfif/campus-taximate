@@ -342,7 +342,9 @@ public class PaymentService {
         boolean blocked = payouts.existsByPartyId(partyId);
         for (PaymentOrder order : affected) {
             var work = operations.findByPaymentOrderIdOrderById(order.getId());
-            boolean extraCharge = order.getPurpose() == PaymentPurpose.ADDITIONAL
+            boolean extraCharge = (order.getPurpose() == PaymentPurpose.ADDITIONAL
+                    || order.getPurpose() == PaymentPurpose.POSTPAID
+                    || order.getPurpose() == PaymentPurpose.COMPENSATION)
                     && (order.getApprovedAmount() > order.getRefundedAmount()
                     || work.stream().anyMatch(op -> op.getType() == PaymentOperationType.CONFIRM
                     && op.getAttempts() > 0 && op.getStatus() != PaymentOperationStatus.CANCELED
@@ -359,7 +361,9 @@ public class PaymentService {
             var work = operations.findByPaymentOrderIdOrderById(order.getId());
             if (operated) {
                 discardUnsentRefunds(order, work);
-            } else if (order.getPurpose() == PaymentPurpose.ADDITIONAL && order.getApprovedAmount() == 0) {
+            } else if ((order.getPurpose() == PaymentPurpose.ADDITIONAL
+                    || order.getPurpose() == PaymentPurpose.POSTPAID
+                    || order.getPurpose() == PaymentPurpose.COMPENSATION) && order.getApprovedAmount() == 0) {
                 // A quote which has not been sent is no longer collectible after non-operation.
                 work.stream().filter(op -> op.getType() == PaymentOperationType.CONFIRM && isUnsent(op))
                         .forEach(op -> op.setStatus(PaymentOperationStatus.CANCELED));

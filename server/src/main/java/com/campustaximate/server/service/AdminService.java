@@ -188,7 +188,9 @@ public class AdminService {
     public List<PaymentOrder> overdue(long actor) {
         requireAdmin(actor);
         return orders.findAll().stream().filter(order -> order.getStatus() == PaymentStatus.OVERDUE
-                && (order.getPurpose() == PaymentPurpose.ADDITIONAL || order.getPurpose() == PaymentPurpose.COMPENSATION)).toList();
+                && (order.getPurpose() == PaymentPurpose.ADDITIONAL
+                        || order.getPurpose() == PaymentPurpose.COMPENSATION
+                        || order.getPurpose() == PaymentPurpose.POSTPAID)).toList();
     }
     @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void handleOverdue(long actor,long id,String evidence){
