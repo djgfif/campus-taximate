@@ -70,7 +70,7 @@ public class PartyService {
                                  List<SettlementService.ShareView> shares, List<PaymentService.OrderView> payments, Long mockPayoutAmount) {
     }
 
-    public record PartyView(long id, Direction direction, PartyStatus status, String anchorName, String meetingPoint,
+    public record PartyView(long id, Direction direction, PartyStatus status, int paymentFlowVersion, String anchorName, String meetingPoint,
                             Instant departureAt, Instant boardedAt, Instant myBoardAt, Instant arrivalAt,
                             Instant callAt, Instant arriveDeadline, long expectedTotal, long soloTotal,
                             long payerId, String payerNickname, boolean payer, boolean canArrive, boolean canBoard,
@@ -231,7 +231,7 @@ public class PartyService {
                 .findFirst().map(RideRequest::getBoardAt).orElse(null);
         long soloTotal = riders.stream().mapToLong(RideRequest::getSoloFare).sum();
         var ready=readiness.state(party,memberId,riders);
-        return new PartyView(party.getId(), party.getDirection(), party.getStatus(), party.anchorName(),
+        return new PartyView(party.getId(), party.getDirection(), party.getStatus(), party.getPaymentFlowVersion(), party.anchorName(),
                 party.getHub() != null ? party.getHub().getMeetingPoint() : mine.getPointName(),
                 party.getDepartureAt(), party.getBoardedAt(), mine.getBoardAt(),
                 myStart.plusSeconds(mine.getSharedSeconds()),

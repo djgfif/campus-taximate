@@ -44,10 +44,13 @@ public class RideRequestService {
     private final AppClock clock;
     private final MemberSafetyService safety;
     private final PaymentService payments;
+    private final PaymentMethodRepository paymentMethods;
     private final PartyJoinService joins;
     private final com.campustaximate.server.repository.PartyMemberTermRepository partyTerms;
     @Value("${app.features.sequential-pickup:false}")
     private boolean sequentialPickup;
+    @Value("${app.payment.flow-version:2}")
+    private int paymentFlowVersion;
 
     public record Origin(double lat, double lon, String name) {
         public GeoPoint point() { return new GeoPoint(lat, lon); }
@@ -149,6 +152,9 @@ public class RideRequestService {
         if (isTransferRestricted(memberId)) throw ApiException.conflict("TRANSFER_OVERDUE", "24시간이 지나도 보내지 않은 송금이 있어 새 요청을 할 수 없습니다.");
         if (payments.overdue(memberId)) throw ApiException.conflict("ADDITIONAL_PAYMENT_OVERDUE", "추가 결제 기한이 지나 새 요청을 할 수 없습니다. 결제를 마친 뒤 다시 시도해 주세요.");
         if (requests.findByActiveMemberId(memberId).isPresent()) throw ApiException.conflict("ACTIVE_REQUEST", "이미 진행 중인 요청이 있습니다.");
+        if (paymentFlowVersion >= 3 && !paymentMethods.existsByMemberIdAndActiveTrueAndDeletedAtIsNull(memberId)) {
+            throw ApiException.conflict("PAYMENT_METHOD_REQUIRED", "동승 요청 전에 결제수단을 먼저 등록해 주세요.");
+        }
     }
 
     private Prepared prepare(long memberId, NewRequest input) {

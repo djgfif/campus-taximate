@@ -6,6 +6,7 @@ import com.campustaximate.server.route.RouteClient;import com.campustaximate.ser
 import java.time.Instant;import java.util.*;import java.util.concurrent.*;
 import org.junit.jupiter.api.*;import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.test.context.ActiveProfiles;import org.springframework.transaction.PlatformTransactionManager;import org.springframework.jdbc.core.JdbcTemplate;
 
 /** 같은 요청을 포함하는 다른 조합이 별도 트랜잭션에서 동시에 확정을 시도한다. */
@@ -13,11 +14,11 @@ abstract class ConfirmationConcurrencyCase {
     private static final Instant NOW=Instant.parse("2026-11-12T00:00:00Z");
     @Autowired SlotService slots;@Autowired PartyRepository parties;@Autowired RideRequestRepository requests;
     @Autowired MemberRepository members;@Autowired HubRepository hubs;@Autowired PlatformTransactionManager manager;@Autowired JdbcTemplate jdbc;
-    @MockBean AppClock clock;@MockBean RouteClient routes;@MockBean PaymentGateway gateway;
+    @SpyBean AppClock clock;@MockBean RouteClient routes;@MockBean PaymentGateway gateway;
     void clear(){for(String table:new String[]{"party_join_member","party_join","boarding_vote","boarding_explanation","boarding_case","compensation_entry","admin_audit","ride_confirmation","party_change","party_member_term","payment_operation","payout_ledger","fare_objection","settlement_share","payment_order","transfer_request","settlement","party_assignment","ride_request_point","ride_request","party"})jdbc.update("delete from "+table);}
     @AfterEach void cleanup(){clear();}
     @Test @Tag("concurrency") void E03_samePersonInTwoConcurrentConfirmationsHasOnePartyForOneHundredRuns() throws Exception {
-        when(clock.now()).thenReturn(NOW);var pool=Executors.newFixedThreadPool(2);
+        doReturn(NOW).when(clock).now();var pool=Executors.newFixedThreadPool(2);
         try{for(int iteration=0;iteration<100;iteration++){
             clear();
             List<Long> memberIds=java.util.stream.IntStream.rangeClosed(1,3).mapToObj(i->members.findByEmail("demo-f"+i+"@daejin.ac.kr").orElseThrow().getId()).toList();

@@ -1,5 +1,6 @@
 package com.campustaximate.server.service;
 
+import com.campustaximate.matching.Direction;
 import com.campustaximate.server.common.ApiException;
 import com.campustaximate.server.common.AppClock;
 import com.campustaximate.server.domain.*;
@@ -27,6 +28,9 @@ import org.springframework.web.multipart.MultipartFile;
 @RequiredArgsConstructor
 public class PartyChatService {
     private static final int MAX_PER_MINUTE = 10;
+    private static final Set<RequestStatus> CHAT_MEMBER_STATUSES = Set.of(RequestStatus.MATCHED, RequestStatus.COMPLETED);
+    private static final Set<PartyStatus> INACTIVE_PARTIES =
+            Set.of(PartyStatus.CANCELED, PartyStatus.DISSOLVED, PartyStatus.NOT_OPERATED, PartyStatus.FARE_MISSING);
     private static final Set<String> IMAGE_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
     private final PartyRepository parties;
     private final RideRequestRepository requests;
@@ -52,6 +56,39 @@ public class PartyChatService {
         }
     }
     public record ImageFile(Path path, String contentType) { }
+    public record ConversationView(long partyId, String routeLabel, Instant departureAt, PartyStatus status,
+                                   int memberCount, String lastMessage, Instant lastMessageAt, long unreadChat,
+                                   boolean writable) {
+        private Instant activityAt() {
+            return lastMessageAt == null ? departureAt : lastMessageAt;
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<ConversationView> conversations(long actor) {
+        Set<Long> seen = new HashSet<>();
+        List<ConversationView> result = new ArrayList<>();
+        Instant cutoff = clock.now().minus(MediaRetention.KEEP);
+        for (RideRequest mine : requests.findConversationRequests(actor, CHAT_MEMBER_STATUSES,
+                cutoff.minus(MediaRetention.CHAT_AFTER_DEPARTURE), cutoff)) {
+            Party party = mine.getParty();
+            long partyId = party.getId();
+            if (!seen.add(partyId) || INACTIVE_PARTIES.contains(party.getStatus()) || expired(party)) continue;
+
+            PartyMessage latest = messages.findFirstByPartyIdOrderByIdDesc(partyId).orElse(null);
+            String preview = latest == null ? null
+                    : PartyMessage.IMAGE.equals(latest.getKind()) ? "사진을 보냈어요" : latest.getText();
+            String anchor = party.anchorName();
+            String route = party.getDirection() == Direction.FROM_HUB
+                    ? anchor + " → " + mine.getPointName() : mine.getPointName() + " → " + anchor;
+            result.add(new ConversationView(partyId, route, party.getDepartureAt(), party.getStatus(),
+                    requests.countChatMembers(partyId, CHAT_MEMBER_STATUSES), preview,
+                    latest == null ? null : latest.getCreatedAt(),
+                    latest == null ? 0 : unread(actor, partyId), !closed(party)));
+        }
+        return result.stream().sorted(Comparator.comparing(ConversationView::activityAt)
+                .thenComparing(ConversationView::departureAt).thenComparingLong(ConversationView::partyId).reversed()).toList();
+    }
 
     /** 일행 잠금을 첫 읽기로 잡아 취소/정산 완료와 권한 판정을 직렬화한다. before가 있으면 그보다 이전 50개. */
     @Transactional
@@ -149,7 +186,7 @@ public class PartyChatService {
         List<RideRequest> riders = currentMembers(party);
         requireMember(actor, riders);
         if (lastId < 0) throw ApiException.badRequest("INVALID_AFTER", "메시지 번호를 확인해 주세요.");
-        PartyMessage latest = messages.findTop50ByPartyIdOrderByIdDesc(partyId).stream().findFirst().orElse(null);
+        PartyMessage latest = messages.findFirstByPartyIdOrderByIdDesc(partyId).orElse(null);
         long capped = latest == null ? 0 : Math.min(lastId, latest.getId());
         PartyChatRead row = reads.findByPartyIdAndMemberId(partyId, actor).orElseGet(() -> new PartyChatRead(partyId, actor, 0));
         if (capped > row.getLastReadId()) {
@@ -266,7 +303,7 @@ public class PartyChatService {
 
     private List<RideRequest> currentMembers(Party party) {
         return requests.findByPartyOrderByRideOrder(party).stream()
-                .filter(r -> !r.isNoShow() && (r.getStatus() == RequestStatus.MATCHED || r.getStatus() == RequestStatus.COMPLETED))
+                .filter(r -> !r.isNoShow() && CHAT_MEMBER_STATUSES.contains(r.getStatus()))
                 .toList();
     }
 
@@ -300,7 +337,7 @@ public class PartyChatService {
     }
 
     private boolean closed(Party party) {
-        return party.getStatus() == PartyStatus.COMPLETED || List.of(PartyStatus.CANCELED, PartyStatus.DISSOLVED, PartyStatus.NOT_OPERATED, PartyStatus.FARE_MISSING).contains(party.getStatus())
+        return party.getStatus() == PartyStatus.COMPLETED || INACTIVE_PARTIES.contains(party.getStatus())
                 || !clock.now().isBefore(endsAt(party));
     }
 

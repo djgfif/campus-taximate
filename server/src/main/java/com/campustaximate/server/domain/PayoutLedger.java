@@ -20,5 +20,7 @@ public class PayoutLedger {
     private Long partyId;
     private Long memberId;
     private long amount;
+    private long expectedAmount;
+    private long collectedAmount;
     private Instant recordedAt;
 }

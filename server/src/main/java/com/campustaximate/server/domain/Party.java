@@ -66,10 +66,11 @@ public class Party {
     /** 전원 받음 처리 시각. 채팅 보관 기간의 기준이다. */
     private Instant settledAt;
 
-    /** 0은 기존 송금 방식, 2는 선결제 방식이다. 기존 행의 의미를 바꾸지 않는다. */
+    /** 0은 기존 송금 방식, 2는 선결제 방식, 3 이상은 후불 결제 버전이다. */
     private int paymentFlowVersion;
     private Instant confirmedAt;
     private Instant prepayDeadlineAt;
+    private Instant freeCancelUntil;
     private Instant startedAt;
     private Instant fareRemindedAt;
     private Instant fareRecoveryAt;
@@ -104,9 +105,11 @@ public class Party {
     public Instant paymentCheckUntil() { return instant?departureAt:departureAt.minusSeconds(600); }
 
     public boolean paymentFlow() { return paymentFlowVersion >= 2; }
-    /** 무료 취소 마감 = 선결제 기한 [S39]. 결제 기한과 같아서 "출발 20분 전까지 결제, 그때까지 무료 취소" 하나로 기억한다. */
+    public boolean postpaidFlow() { return paymentFlowVersion >= 3; }
+
     public Instant freeCancelUntil() {
-        return prepayDeadlineAt != null ? prepayDeadlineAt : departureAt.minusSeconds(1200);
+        return freeCancelUntil != null ? freeCancelUntil
+                : (prepayDeadlineAt != null ? prepayDeadlineAt : departureAt.minusSeconds(1200));
     }
 
     /** 재계산 버전. JPA 낙관적 잠금 version과 별개다. */

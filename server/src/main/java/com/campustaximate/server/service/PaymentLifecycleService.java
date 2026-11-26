@@ -173,6 +173,8 @@ public class PaymentLifecycleService {
         if (!payouts.existsBySettlementId(settlement.getId())) {
             PayoutLedger ledger = new PayoutLedger(); ledger.setSettlementId(settlement.getId()); ledger.setPartyId(partyId);
             ledger.setMemberId(payer.getMemberId()); ledger.setAmount(payout);
+            ledger.setExpectedAmount(payout);
+            ledger.setCollectedAmount(payout);
             ledger.setRecordedAt(clock.now()); payouts.save(ledger);
         }
         if (!reserve.existsBySettlementId(settlement.getId())) {

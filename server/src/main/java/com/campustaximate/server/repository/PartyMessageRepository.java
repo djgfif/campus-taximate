@@ -17,6 +17,8 @@ public interface PartyMessageRepository extends JpaRepository<PartyMessage, Long
     @EntityGraph(attributePaths = {"member"})
     List<PartyMessage> findTop50ByPartyIdAndIdLessThanOrderByIdDesc(long partyId, long before);
 
+    java.util.Optional<PartyMessage> findFirstByPartyIdOrderByIdDesc(long partyId);
+
     boolean existsByPartyIdAndIdLessThan(long partyId, long before);
 
     java.util.Optional<PartyMessage> findByPartyIdAndMemberIdAndClientId(long partyId, long memberId, String clientId);

@@ -335,6 +335,11 @@ public class ApiController {
                 "settledParty", java.util.Optional.ofNullable(parties.latestSettled(id)).<Object>map(p -> p).orElse(""));
     }
 
+    @GetMapping("/me/conversations")
+    public List<com.campustaximate.server.service.PartyChatService.ConversationView> conversations(HttpSession session) {
+        return chat.conversations(memberId(session));
+    }
+
     public record MessageBody(String text, String clientId) { }
     public record ReadBody(long lastId) { }
 

@@ -37,6 +37,9 @@ class MigrationSchemaTest {
         Integer applied = new JdbcTemplate(dataSource).queryForObject(
                 "select count(*) from flyway_schema_history where success = true", Integer.class);
         assertThat(applied).isPositive();
+        assertThat(new JdbcTemplate(dataSource).queryForObject(
+                "select count(*) from flyway_schema_history where success = true and version = '23'", Integer.class))
+                .isEqualTo(1);
     }
 
     @Test
@@ -142,6 +145,52 @@ class MigrationSchemaTest {
             try(var row=sql.executeQuery("select expected_share,ride_order from party_join_member where 1=0")){assertThat(row.getMetaData().getColumnCount()).isEqualTo(2);}
         }
     }
+    @Test
+    void v23BackfillsLegacyDeadlinesAndPayoutsAndEnforcesConfirmationRevisionUniqueness() throws Exception {
+        String url = "jdbc:h2:mem:migration-v23;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1";
+        verifyV23Upgrade(url, "sa", "");
+    }
+
+    static void verifyV23Upgrade(String url, String user, String password) throws Exception {
+        var flyway = org.flywaydb.core.Flyway.configure().dataSource(url, user, password);
+        flyway.target("22").load().migrate();
+        try (var connection = java.sql.DriverManager.getConnection(url, user, password);
+             var sql = connection.createStatement()) {
+            sql.executeUpdate("insert into school(id,lat,lon,email_domain,gate_name,name) values(1,37,127,'v23.ac.kr','gate','school')");
+            sql.executeUpdate("insert into hub(id,lat,lon,meeting_point,name) values(1,37,127,'gate','hub')");
+            sql.executeUpdate("insert into member(id,school_id,email,login_code_failures,login_failures_today,no_show_count) values(1,1,'a@v23.ac.kr',0,0,0)");
+            sql.executeUpdate("insert into party(id,hub_id,payer_id,departure_at,expected_total,version,direction,status,payment_flow_version,prepay_deadline_at) "
+                    + "values(1,1,1,current_timestamp,13600,0,'FROM_HUB','COMPLETED',2,current_timestamp)");
+            sql.executeUpdate("insert into party(id,hub_id,payer_id,departure_at,expected_total,version,direction,status,payment_flow_version) "
+                    + "values(2,1,1,current_timestamp,13600,0,'FROM_HUB','COMPLETED',0)");
+            sql.executeUpdate("insert into settlement(id,party_id,paid_amount,revision,requested_at,stored_at) values(1,1,13600,1,current_timestamp,current_timestamp)");
+            sql.executeUpdate("insert into payout_ledger(settlement_id,party_id,member_id,amount,recorded_at) values(1,1,1,8800,current_timestamp)");
+
+            flyway.target("23").load().migrate();
+
+            try (var deadlines = sql.executeQuery("select prepay_deadline_at,free_cancel_until,payment_flow_version from party order by id")) {
+                assertThat(deadlines.next()).isTrue();
+                assertThat(deadlines.getTimestamp(2)).isNotNull().isEqualTo(deadlines.getTimestamp(1));
+                assertThat(deadlines.getInt(3)).isEqualTo(2);
+                assertThat(deadlines.next()).isTrue();
+                assertThat(deadlines.getTimestamp(2)).isNull();
+                assertThat(deadlines.getInt(3)).isZero();
+            }
+            try (var ledger = sql.executeQuery("select amount,expected_amount,collected_amount from payout_ledger")) {
+                assertThat(ledger.next()).isTrue();
+                assertThat(ledger.getLong(1)).isEqualTo(8_800);
+                assertThat(ledger.getLong(2)).isEqualTo(8_800);
+                assertThat(ledger.getLong(3)).isEqualTo(8_800);
+            }
+            String confirm = "insert into settlement_confirmation(settlement_id,member_id,revision,confirmed_at) "
+                    + "values(1,1,%d,current_timestamp)";
+            assertThat(sql.executeUpdate(confirm.formatted(1))).isEqualTo(1);
+            org.junit.jupiter.api.Assertions.assertThrows(java.sql.SQLException.class,
+                    () -> sql.executeUpdate(confirm.formatted(1)));
+            assertThat(sql.executeUpdate(confirm.formatted(2))).isEqualTo(1);
+        }
+    }
+
     @Test void v15UpgradeAddsBoardingWithoutReinterpretingExistingArrivalOrStart() throws Exception {
         String url="jdbc:h2:mem:v15_"+java.util.UUID.randomUUID().toString().replace("-","")+";MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1";
         org.flywaydb.core.Flyway.configure().dataSource(url,"sa","").target("15").load().migrate();

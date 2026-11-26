@@ -212,7 +212,10 @@ public class PaymentService {
                 for(int i=0;i<liable.size();i++) saveDissolutionEntry(partyId,liable.get(i),0,0,charges.get(i),charges.get(i));
                 saveDissolutionEntry(partyId,survivorTerm,survivor.getSoloFare(),total,0,survivor.getSoloFare()-total);
                 PayoutLedger ledger=new PayoutLedger();ledger.setPartyId(partyId);ledger.setMemberId(survivor.getMember().getId());
-                ledger.setAmount(total);ledger.setRecordedAt(clock.now());payouts.save(ledger);
+                ledger.setAmount(total);
+                ledger.setExpectedAmount(total);
+                ledger.setCollectedAmount(total);
+                ledger.setRecordedAt(clock.now());payouts.save(ledger);
                 party.setSettledAt(clock.now());
             }
         }

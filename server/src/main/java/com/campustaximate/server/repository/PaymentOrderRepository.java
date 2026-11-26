@@ -9,7 +9,7 @@ import java.util.*;
 public interface PaymentOrderRepository extends JpaRepository<PaymentOrder, Long> {
     @Query("select o.partyId from PaymentOrder o where o.id=:id")
     Optional<Long> findPartyId(long id);
-    @Query("select count(o)>0 from PaymentOrder o where o.memberId=:memberId and o.purpose=com.campustaximate.server.domain.PaymentPurpose.ADDITIONAL and o.status<>com.campustaximate.server.domain.PaymentStatus.APPROVED and o.deadlineAt<=:now")
+    @Query("select count(o)>0 from PaymentOrder o where o.memberId=:memberId and o.purpose in (com.campustaximate.server.domain.PaymentPurpose.ADDITIONAL, com.campustaximate.server.domain.PaymentPurpose.POSTPAID, com.campustaximate.server.domain.PaymentPurpose.COMPENSATION) and o.status in (com.campustaximate.server.domain.PaymentStatus.REQUIRED, com.campustaximate.server.domain.PaymentStatus.OVERDUE) and o.deadlineAt<=:now")
     boolean hasUnpaidAdditional(long memberId, Instant now);
     Optional<PaymentOrder> findByOrderId(String orderId);
     List<PaymentOrder> findByPartyIdOrderById(Long partyId);
@@ -20,4 +20,6 @@ public interface PaymentOrderRepository extends JpaRepository<PaymentOrder, Long
     List<PaymentOrder> findByStatusAndDeadlineAtLessThanEqual(PaymentStatus status, Instant now);
     List<PaymentOrder> findByExcludedAtIsNotNullAndApprovedAtIsNull();
     boolean existsByMemberIdAndPurposeAndStatus(Long memberId, PaymentPurpose purpose, PaymentStatus status);
+    boolean existsByMemberIdAndStatusInAndPurposeIn(long memberId, Collection<PaymentStatus> statuses,
+                                                    Collection<PaymentPurpose> purposes);
 }
