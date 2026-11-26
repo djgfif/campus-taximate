@@ -67,5 +67,6 @@
 - **프런트엔드 (`cd frontend && npm test -- --run && npm run lint`)**: **23개 파일 / 197개 테스트 전원 통과**, ESLint 오류 0건
 - **Playwright E2E (`cd frontend && npx playwright test --reporter=list`)**: **`pc` 3건 + `phone` 3건 총 6건 전원 통과**
 - **매칭 엔진 (`./mvnw test`, JDK 21)**: **77개 실행 / 실패 0 / 오류 0 / 건너뜀 0**
-- **서버 (`./mvnw test`, JDK 21)**: **총 565개 중 432개 실행 전원 통과 (실패 0 / 오류 0)**, 133개 건너뜀(`MYSQL_TEST_URL` 미설정 시 MySQL 전용 통합·마이그레이션 테스트 자동 건너뜀)
+- **서버 (`./mvnw test`, JDK 21)**: **총 565개 중 H2 432개 실행 전원 통과 (실패 0 / 오류 0)**, MySQL 전용 133개(`MYSQL_TEST_URL` 미설정 시 스킵) 포함 전체 실행 환경에서 **MySQL 8.4.3 연동 143건(`MigrationSchemaTest` 10건 + `BoardingMigrationMysqlTest` 3건 + `PaymentFlowMysqlTest` 124건 + `AuthConcurrencyMysqlTest` 5건 + `ConfirmationConcurrencyMysqlTest` 1건) 전원 통과 (실패 0 / 오류 0)**
+- **Docker Compose 라이브 스모크 (`docker compose up --build -d`)**: **MySQL 8.4.3 + 앱 빌드·기동 성공**, Flyway V1~V23(`V23__postpaid_v3_foundation.sql`) 적용 및 Hibernate 검증 통과, `/actuator/health` `UP`, `/api/config` `"paymentFlowVersion":3` 및 `/` `200 OK` 확인 후 컨테이너 정리 완료
 - **전환 완료 요약:** 40개 FR 중 32개 핵심 도메인을 보존하고, **3계층 결제·정산 전환 대상 8개 FR(`FR-R03`, `FR-M05`, `FR-S01`, `FR-S02`, `FR-S04`, `FR-S06`, `FR-S07`, `FR-O05`)** 을 v2.0 후불 일시결제 정책(`app.payment.flow-version=3`)으로 전환 완료하였다.
