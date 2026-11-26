@@ -3,6 +3,7 @@ import { ExternalLink } from 'lucide-react'
 import { api } from './api.js'
 import { formatDateTime, isPaymentParty, won } from './format.js'
 import { BackBar, Btn, Fold, Rows, Say, Screen, toast } from './ui.jsx'
+import AdminLayout from './layouts/AdminLayout.jsx'
 import './reviews.css'
 
 const CASE_LABEL = { PENDING: '소명 기간', REVIEW: '관리자 검토 중', CONFIRMED: '노쇼 확정', EXONERATED: '노쇼 아님' }
@@ -347,6 +348,12 @@ function Hubs({ items, onSaved }) {
 const ADMIN_TABS = [['no-shows', '노쇼 검토', () => api.adminNoShows()], ['fare', '요금·운행', () => api.adminFareReviews()],
   ['reports', '신고·제한', () => api.adminReports()], ['overdue', '미정산', () => api.adminOverdue()], ['reserve', '적립금', () => api.adminReserve()], ['hubs', '승차 지점', () => api.adminHubs()], ['audits', '처리 기록', () => api.adminAudits()]]
 
+/** 미정산 주문의 결제 목적. 후불 정산 v3에서는 후불·보전·추가 분담금이 함께 쌓인다. */
+const OVERDUE_PURPOSE = { POSTPAID: '후불 분담금', COMPENSATION: '이탈 보전금', ADDITIONAL: '추가 정산금' }
+
+/** 후불 정산 v3는 정산 적립금을 쓰지 않으므로 적립금 탭을 감춘다. 설정을 모르면 기존 탭을 그대로 둔다. */
+const adminTabsFor = (config) => (Number(config?.paymentFlowVersion) >= 3 ? ADMIN_TABS.filter(([id]) => id !== 'reserve') : ADMIN_TABS)
+
 function AdminList({ tab }) {
   const remote = useRemote(ADMIN_TABS.find(([id]) => id === tab)[2])
   return <div className="review-stack"><RemoteState remote={remote} />
@@ -359,7 +366,10 @@ function AdminList({ tab }) {
       {tab === 'overdue' && remote.data.map((o) => <article className="review-card" key={o.id}>
         <div className="review-card-head">
           <h2>일행 {o.partyId} · 회원 {o.memberId}</h2>
-          <span className={`badge ${o.adminHandledAt ? 'ok' : 'bad'}`}>{o.adminHandledAt ? '확인 완료' : '미정산'}</span>
+          <span className="review-badges">
+            {OVERDUE_PURPOSE[o.purpose] && <span className="badge">{OVERDUE_PURPOSE[o.purpose]}</span>}
+            <span className={`badge ${o.adminHandledAt ? 'ok' : 'bad'}`}>{o.adminHandledAt ? '확인 완료' : '미정산'}</span>
+          </span>
         </div>
         <Rows items={[['분담금', won(o.amount)], ['결제 기한', formatDateTime(o.deadlineAt)]]} />
         {o.adminHandledAt ? <Say tone="save-tone" title="관리자 확인 완료">{o.adminNote} · {formatDateTime(o.adminHandledAt)}</Say>
@@ -392,15 +402,25 @@ function AdminList({ tab }) {
   </div>
 }
 
-export function AdminScreen({ allowed, onBack }) {
-  const [tab, setTab] = useState('no-shows')
+export function AdminScreen({ allowed, config, onBack }) {
+  const [selected, setTab] = useState('no-shows')
   if (!allowed) return <Screen><BackBar title="관리자" onBack={onBack} /><div className="pad"><Say tone="stop-tone">관리자만 이용할 수 있어요.</Say></div></Screen>
-  return <Screen><BackBar title="관리자" onBack={onBack} /><div className="pad review-stack admin-page">
-    <h1 className="head">관리자</h1><p className="sub">자료를 확인하고 처리 근거를 남겨 주세요.</p>
-    <Say>모의 운영 장부예요. 실제 계좌 송금·지급대행은 연동되지 않으며, 모든 처리 근거는 감사 기록에 남아요.</Say>
-    <nav className="review-nav" aria-label="관리 업무">{ADMIN_TABS.map(([id, label]) => <button type="button" key={id} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}>{label}</button>)}</nav>
-    <AdminList key={tab} tab={tab} />
-  </div></Screen>
+  const tabs = adminTabsFor(config)
+  // 설정이 늦게 도착해 선택한 탭이 사라지면 첫 탭을 보여 준다.
+  const tab = tabs.some(([id]) => id === selected) ? selected : tabs[0][0]
+  const currentTitle = tabs.find(([id]) => id === tab)?.[1] || '관리자'
+  return (
+    <AdminLayout tabs={tabs} activeTab={tab} onSelectTab={setTab} onBack={onBack}>
+      <div className="review-stack admin-page">
+        <div>
+          <h1 className="head">{currentTitle}</h1>
+          <p className="sub">자료를 확인하고 처리 근거를 남겨 주세요.</p>
+        </div>
+        <Say>모의 운영 장부예요. 실제 계좌 송금·지급대행은 연동되지 않으며, 모든 처리 근거는 감사 기록에 남아요.</Say>
+        <AdminList key={tab} tab={tab} />
+      </div>
+    </AdminLayout>
+  )
 }
 
 export function BoardingPanel({ party, now, showEmpty = false }) {

@@ -28,17 +28,22 @@ public class PartyReadinessService {
         boolean phase=party.canChangeBeforeRide() && List.of(PartyStatus.PREPAYING,PartyStatus.READY,PartyStatus.RIDE_UNCONFIRMED).contains(party.getStatus());
         var reasons=new ArrayList<String>();
         boolean paid=true;
-        for(var rider:riders) {
-            if(rider.getMember().getId().equals(party.getPayer().getId())) continue;
-            var order=orders.findByPartyIdAndMemberIdAndPurpose(party.getId(),rider.getMember().getId(),PaymentPurpose.PREPAY).orElse(null);
-            if(party.paymentFlow() && (order==null || order.getStatus()!=PaymentStatus.APPROVED || order.getExcludedAt()!=null)) paid=false;
+        if (party.paymentFlow() && !party.postpaidFlow()) {
+            for (var rider : riders) {
+                if (rider.getMember().getId().equals(party.getPayer().getId())) continue;
+                var order = orders.findByPartyIdAndMemberIdAndPurpose(party.getId(), rider.getMember().getId(), PaymentPurpose.PREPAY).orElse(null);
+                if (order == null || order.getStatus() != PaymentStatus.APPROVED || order.getExcludedAt() != null) {
+                    paid = false;
+                    break;
+                }
+            }
         }
         if(!paid) reasons.add("선결제 승인 또는 미납 제외 처리를 기다리고 있어요.");
         boolean close=riders.stream().allMatch(r->r.isArrived()||r.getNearbyAt()!=null);
         if(party.isInstant()&&!close) reasons.add("아직 도착 또는 2분 안 도착 표시를 하지 않은 일행이 있어요.");
         boolean time= !clock.now().isBefore(party.isInstant()?party.getDepartureAt():party.getDepartureAt().minusSeconds(600));
         if(!party.isInstant()&&!time) reasons.add("예약 일행은 출발 10분 전부터 호출할 수 있어요.");
-        boolean waitingForJoin=party.getPendingJoinId()!=null && joins.activeReservation(party.getPendingJoinId());
+        boolean waitingForJoin=!party.postpaidFlow() && party.getPendingJoinId()!=null && joins.activeReservation(party.getPendingJoinId());
         if(party.isRouteVerificationPending()) reasons.add("일행 변경 경로를 재확인 중이에요. 확인 후 호출과 탑승을 진행해 주세요.");
         if(waitingForJoin)reasons.add("합류 선결제를 기다리고 있어요.");
         boolean clear=phase && paid && !waitingForJoin && !party.isRouteVerificationPending();

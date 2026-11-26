@@ -32,7 +32,7 @@ export default function PaymentResult({ search, myId, onReturn, onUpdated }) {
       {failed && <Say tone="stop-tone">{params.get('message') || '결제가 취소되었거나 완료되지 않았어요.'}</Say>}
       {!failed && !result && !error && <p role="status">잠시만 기다려 주세요. 새 결제를 시작하지 마세요.</p>}
       {approved && <p>{won(result.amount)} 승인 완료</p>}
-      {result?.status === 'PROCESSING' && <Say>서버가 결제 결과를 확인하고 있어요. 중복 결제하지 마세요.</Say>}
+      {(result?.status === 'PROCESSING' || (result?.processing && !approved)) && <Say>서버가 결제 결과를 확인하고 있어요. 중복 결제하지 마세요.</Say>}
       {result?.status === 'ADMIN_REQUIRED' && <Say tone="stop-tone">관리자 확인이 필요해요.</Say>}
       {error && <p role="alert">{error}</p>}
       {!failed && (result || error) && <Btn className="line" disabled={refreshing} onClick={refresh}>승인 상태 다시 확인</Btn>}

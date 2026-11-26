@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react'
-import { ChevronRight, Clock, MapPin } from 'lucide-react'
+import { ArrowRight, ChevronRight, Clock, Compass, MapPin, ShieldCheck, Users } from 'lucide-react'
 import { api } from './api.js'
 import { SettledFeedback } from './MemberSafety.jsx'
 import { BoardSection } from './Board.jsx'
-import MapView from './MapView.jsx'
 import { formatTime, partyLabel, partyRouteLabel, remaining } from './format.js'
 import { Say, Screen, TopBar, useWide } from './ui.jsx'
 
@@ -27,7 +26,7 @@ function defaultDirection(now) {
   return hour < 14 ? 'TO_SCHOOL' : 'FROM_HUB'
 }
 
-/** 홈 맨 위 할 일 줄의 제목. 일행 상태가 아니라 '내가 지금 할 일'을 사람 말로 쓴다. */
+/** 홈 상단 진행 카드의 제목. 서버 상태 이름 대신 '내가 지금 할 일'을 보여 준다. */
 function liveTitle(party, myId) {
   if (party.settlement || party.canSettle) return party.canSettle ? '실제 택시비를 입력해 주세요' : '정산하고 있어요'
   if (party.status === 'PAYER_PENDING') {
@@ -51,116 +50,171 @@ function liveDue(party, now) {
   return party.status === 'PAYER_PENDING' ? `답할 마감까지 ${remaining(due, now)}` : `선결제 마감까지 ${remaining(due, now)}`
 }
 
-/** 학교와 모집 중인 일행의 모이는 곳을 한 지도에. */
-function HomeMap({ school, board, direction }) {
-  if (!school) return <div className="map-canvas" aria-hidden="true" />
-  const sameParties = (board?.parties || []).filter((c) => c.direction === direction)
-  const waitingCount = (board?.waiting || []).filter((w) => w.direction === direction).reduce((sum, w) => sum + (w.count || 0), 0)
-  const dirLabel = direction === 'TO_SCHOOL' ? '등교' : '하교'
-  // 지도 키가 없거나 로드에 실패해도 빈 회색 판 대신 캠퍼스 격자와 현재 모집 현황을 깔끔하게 보여 준다.
-  const fallback = (
-    <div className="map-canvas map-fallback" aria-hidden="true">
-      <div className="mf-grid" />
-      <div className="mf-center">
-        <span className="mf-pulse" />
-        <span className="mf-pin"><i />{school.name}</span>
-      </div>
-      <div className="mf-card">
-        <span className="mf-kicker">{dirLabel} 실시간 현황</span>
-        <strong>{sameParties.length > 0 ? `모집 중 일행 ${sameParties.length}팀` : '지금 바로 일행을 모아 보세요'}</strong>
-        <small>{waitingCount > 0 ? `같은 방향 학생 ${waitingCount}명이 매칭을 기다리고 있어요` : '출발지와 도착지를 입력하면 같은 방향 학생과 이어 드려요'}</small>
-      </div>
-    </div>
-  )
-  const points = [{ lat: school.lat, lon: school.lon, label: '학', tone: 'end' }]
-  for (const card of sameParties) {
-    if (card.anchorLat && card.anchorLon) points.push({ lat: card.anchorLat, lon: card.anchorLon, label: formatTime(card.departureAt).replace(/^오[전후] /, ''), tone: 'time' })
-  }
-  return <MapView points={points} edge={56} fallback={fallback} />
-}
-
-export default function Home({ state, myId, config, school: knownSchool, onStart, onReopen, onChanged, tabBar }) {
+/**
+ * 지도 없는 요청 중심 소비자 홈.
+ * 홈에서는 지도 SDK를 마운트하지 않으며, 새 동승 요청과 진행 중인 이용을 최우선으로 배치한다.
+ */
+export default function Home({ state, myId, config, school, onStart, onReopen, onChanged, onFind, tabBar }) {
   const [history, setHistory] = useState([])
-  const [loadedSchool, setLoadedSchool] = useState(null)
-  const [board, setBoard] = useState(null)
   const [direction, setDirection] = useState(() => defaultDirection(state.now))
   const wide = useWide()
-  // 학교는 App이 한 번 읽어 넘긴다(읽는 중이면 null). school을 아예 넘기지 않은 화면(시험 등)만 여기서 직접 읽는다.
-  const ownsSchool = knownSchool === undefined
-  const school = ownsSchool ? loadedSchool : knownSchool
+
   useEffect(() => {
     let closed = false
     api.history().then((items) => !closed && setHistory(items)).catch(() => !closed && setHistory([]))
     return () => { closed = true }
   }, [])
-  useEffect(() => {
-    if (!ownsSchool) return undefined
-    let closed = false
-    api.school().then((data) => !closed && setLoadedSchool(data)).catch(() => !closed && setLoadedSchool(null))
-    return () => { closed = true }
-  }, [ownsSchool])
+
   const toSchool = direction === 'TO_SCHOOL'
   const recent = recentRoutes(history).filter((item) => item.displayDirection === direction).slice(0, 3)
   const blocked = state.restricted
-  const map = <HomeMap school={school} board={board} direction={direction} />
+  const schoolName = school?.name
 
   return (
-    <Screen aside={map}>
-      {!wide && <div className="home-map">{map}<TopBar floating /></div>}
-      <div className="home-sheet">
-        {state.parties.length > 0 && (
-          <ul className="live-rides" aria-label="내 일행">
-            {state.parties.map((party) => {
-              const due = liveDue(party, state.now)
-              return <li key={party.id}>
-                <button type="button" className="live-ride" onClick={() => onReopen(party.id)}>
-                  <span className="lr-main">
-                    <small>내 일행{party.departureAt ? `, ${formatTime(party.departureAt)} 출발` : ''}</small>
-                    <b>{liveTitle(party, myId)}
-                      {party.unreadChat > 0 && <span className="unread-badge" aria-label={`안 읽은 메시지 ${party.unreadChat}개`}>{party.unreadChat > 99 ? '99+' : party.unreadChat}</span>}</b>
-                    <small>{due || partyRouteLabel(party)}</small>
-                  </span>
-                  <ChevronRight size={20} aria-hidden="true" />
-                </button>
-              </li>
-            })}
-          </ul>
-        )}
+    <Screen tabBar={tabBar}>
+      {!wide && <TopBar />}
+      <div className="home-page">
+        <section className="home-hero" aria-label="동승 요청 시작">
+          <div className="home-hero-head">
+            <p className="home-kicker">{schoolName ? `${schoolName} 통학 동승` : '캠퍼스 통학 동승'}</p>
+            <h1 className="home-title">오늘 어디로 가나요?</h1>
+            <p className="home-lead">같은 방향 학생을 자동으로 매칭하고, 단독 예상 요금 비율로 택시비를 나눠요.</p>
+          </div>
+
+          <div className="home-hero-controls">
+            <div className="seg home-seg" role="tablist" aria-label="방향">
+              <button type="button" role="tab" aria-selected={toSchool} className={toSchool ? 'on' : ''} onClick={() => setDirection('TO_SCHOOL')}>등교</button>
+              <button type="button" role="tab" aria-selected={!toSchool} className={toSchool ? '' : 'on'} onClick={() => setDirection('FROM_HUB')}>하교</button>
+            </div>
+
+            <button type="button" className="home-search-btn" disabled={blocked} onClick={() => onStart({ direction })}>
+              <span className="home-search-left">
+                <MapPin size={20} aria-hidden="true" />
+                <span>{toSchool ? '어디서 출발하세요?' : '어디로 가세요?'}</span>
+              </span>
+              <span className="home-search-cta">
+                일행 찾기
+                <ArrowRight size={16} aria-hidden="true" />
+              </span>
+            </button>
+          </div>
+
+          {!blocked && recent.length > 0 && (
+            <div className="home-recent-wrap">
+              <span className="home-recent-label">최근 경로</span>
+              <ul className="home-recent-list" aria-label="최근 경로">
+                {recent.map((item) => (
+                  <li key={item.id}>
+                    <button type="button" className="home-recent-chip" onClick={() => onStart({ direction: item.displayDirection, initial: item })}>
+                      <Clock size={14} aria-hidden="true" />
+                      <b>{item.pointName}</b>
+                      <small>{item.direction === 'TO_SCHOOL' ? `${item.anchorName}까지` : `${item.anchorName}에서`}</small>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
 
         {state.restriction && <Say tone="stop-tone" title="신고 누적으로 이용이 제한됐어요">{state.restriction.message}</Say>}
-        {(state.transferRestricted || (blocked && !state.restriction)) && <Say tone="stop-tone" title="미납 내역이 있어요">결제 또는 이전 미정산 내역을 확인해 주세요. 해결하면 새 요청을 할 수 있어요.</Say>}
-
-        <div className="seg" role="tablist" aria-label="방향">
-          <button type="button" role="tab" aria-selected={toSchool} className={toSchool ? 'on' : ''} onClick={() => setDirection('TO_SCHOOL')}>등교</button>
-          <button type="button" role="tab" aria-selected={!toSchool} className={toSchool ? '' : 'on'} onClick={() => setDirection('FROM_HUB')}>하교</button>
-        </div>
-
-        <button type="button" className="where" disabled={blocked} onClick={() => onStart({ direction })}>
-          <MapPin size={20} aria-hidden="true" />
-          <span>{toSchool ? '어디서 출발하세요?' : '어디로 가세요?'}</span>
-        </button>
-
-        {!blocked && recent.length > 0 && (
-          <ul className="recent" aria-label="최근 경로">
-            {recent.map((item) => (
-              <li key={item.id}>
-                <button type="button" onClick={() => onStart({ direction: item.displayDirection, initial: item })}>
-                  <Clock size={18} aria-hidden="true" />
-                  <span><b>{item.pointName}</b><small>{item.direction === 'TO_SCHOOL' ? `${item.anchorName}까지` : `${item.anchorName}에서`}</small></span>
-                </button>
-              </li>
-            ))}
-          </ul>
+        {(state.transferRestricted || (blocked && !state.restriction)) && (
+          <Say tone="stop-tone" title="미납 내역이 있어요">결제 또는 이전 미정산 내역을 확인해 주세요. 해결하면 새 요청을 할 수 있어요.</Say>
         )}
 
-        {state.settledParty && <button type="button" className="text-row" onClick={() => onReopen(state.settledParty.id)}>최근 정산 내역 보기<ChevronRight size={18} aria-hidden="true" /></button>}
-        {state.settledParty && <SettledFeedback key={`feedback-${state.settledParty.id}`} party={state.settledParty} myId={myId} />}
+        <div className="home-grid">
+          <div className="home-primary">
+            {state.parties.length > 0 && (
+              <section className="home-card" aria-label="진행 중인 이용">
+                <div className="home-card-head">
+                  <h2 className="section-title">진행 중인 이용</h2>
+                  <span className="home-count">{state.parties.length}건</span>
+                </div>
+                <ul className="live-rides" aria-label="내 일행">
+                  {state.parties.map((party) => {
+                    const due = liveDue(party, state.now)
+                    return (
+                      <li key={party.id}>
+                        <button type="button" className="live-ride" onClick={() => onReopen(party.id)}>
+                          <span className="lr-main">
+                            <small>내 일행{party.departureAt ? `, ${formatTime(party.departureAt)} 출발` : ''}</small>
+                            <b>
+                              {liveTitle(party, myId)}
+                              {party.unreadChat > 0 && (
+                                <span className="unread-badge" aria-label={`안 읽은 메시지 ${party.unreadChat}개`}>
+                                  {party.unreadChat > 99 ? '99+' : party.unreadChat}
+                                </span>
+                              )}
+                            </b>
+                            <small>{due || partyRouteLabel(party)}</small>
+                          </span>
+                          <ChevronRight size={20} aria-hidden="true" />
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </section>
+            )}
 
-        <BoardSection now={state.now} config={config} onJoined={onChanged} disabled={blocked} onLoaded={setBoard} direction={direction}
-          onSwitch={() => setDirection(toSchool ? 'FROM_HUB' : 'TO_SCHOOL')} />
+            {state.settledParty && (
+              <section className="home-card">
+                <button type="button" className="text-row" onClick={() => onReopen(state.settledParty.id)}>
+                  최근 정산 내역 보기
+                  <ChevronRight size={18} aria-hidden="true" />
+                </button>
+                <SettledFeedback key={`feedback-${state.settledParty.id}`} party={state.settledParty} myId={myId} />
+              </section>
+            )}
 
+            <section className="home-card home-guide" aria-label="이용 방법">
+              <h2 className="section-title">이용 방법</h2>
+              <ol className="home-steps">
+                <li>
+                  <span className="home-step-icon"><Compass size={18} aria-hidden="true" /></span>
+                  <div>
+                    <strong>1. 이동 조건 입력</strong>
+                    <p>승차 지점, 목적지, 출발 가능 시간을 한 번만 등록해요.</p>
+                  </div>
+                </li>
+                <li>
+                  <span className="home-step-icon"><Users size={18} aria-hidden="true" /></span>
+                  <div>
+                    <strong>2. 자동 매칭 · 비율 분담</strong>
+                    <p>지연 15분 이하·절약 10% 이상인 동성 일행을 자동으로 찾아드려요.</p>
+                  </div>
+                </li>
+                <li>
+                  <span className="home-step-icon"><ShieldCheck size={18} aria-hidden="true" /></span>
+                  <div>
+                    <strong>3. 탑승 확인 · 투명 정산</strong>
+                    <p>6자리 탑승번호로 탑승을 확인하고, 영수증 기준으로 정산해요.</p>
+                  </div>
+                </li>
+              </ol>
+            </section>
+          </div>
+
+          <aside className="home-secondary">
+            <section className="home-card">
+              <BoardSection
+                now={state.now}
+                config={config}
+                onJoined={onChanged}
+                disabled={blocked}
+                direction={direction}
+                onSwitch={() => setDirection(toSchool ? 'FROM_HUB' : 'TO_SCHOOL')}
+              />
+              {onFind && (
+                <button type="button" className="text-row home-more-link" onClick={onFind}>
+                  동승 찾기에서 더 보기
+                  <ChevronRight size={16} aria-hidden="true" />
+                </button>
+              )}
+            </section>
+          </aside>
+        </div>
       </div>
-      {tabBar}
     </Screen>
   )
 }

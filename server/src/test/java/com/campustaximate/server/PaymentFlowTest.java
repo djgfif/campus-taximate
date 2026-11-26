@@ -20,8 +20,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** 실제 PG 호출 없이 주문·상태·저장된 정산 결과를 검증한다. */
-@SpringBootTest(properties={"spring.datasource.url=jdbc:h2:mem:payment-flow;MODE=MySQL;DB_CLOSE_DELAY=-1", "app.upload-dir=target/test-uploads"})
+/** 실제 PG 호출 없이 v2 선결제(S43) 주문·상태·저장된 정산 결과를 검증한다. */
+@SpringBootTest(properties={"spring.datasource.url=jdbc:h2:mem:payment-flow;MODE=MySQL;DB_CLOSE_DELAY=-1", "app.upload-dir=target/test-uploads", "app.payment.flow-version=2"})
 @ActiveProfiles("demo")
 @org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 class PaymentFlowTest {

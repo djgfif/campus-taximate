@@ -321,11 +321,8 @@ class CommuteFlowTest {
         advanceToDeadline();
         JsonNode party = onlyParty(users.get(2));
         assertThat(party.get("members")).hasSize(4);
-        // S39: 선결제 기한이 출발 20분 전으로 늦어져 이 시점엔 아직 기한 전일 수 있다. 핵심은 모두 기한 전에 결제한 것.
-        assertThat(party.get("status").asText()).isIn("PREPAYING", "READY");
-        assertThat(paymentOrders.findByPartyIdOrderById(party.get("id").asLong())).hasSize(3)
-                .allMatch(order -> order.getStatus() == com.campustaximate.server.domain.PaymentStatus.APPROVED
-                        && order.getApprovedAt().isBefore(order.getDeadlineAt()));
+        assertThat(party.get("status").asText()).isEqualTo("READY");
+        assertThat(paymentOrders.findByPartyIdOrderById(party.get("id").asLong())).isEmpty();
         legacyParty(party.get("id").asLong());
         JsonNode riders = party.get("members");
         moveTo(Instant.parse(riders.get(0).get("arriveDeadline").asText()).plusSeconds(60));
@@ -465,13 +462,18 @@ class CommuteFlowTest {
         for (JsonNode share : shares) {
             sum += share.get("amount").asLong();
         }
-        // 확정 분담금(S43): 입력한 실제 요금과 상관없이 확정 금액을 나눈 몫을 보여 준다.
-        assertThat(sum).isEqualTo(onlyParty(users.get(2)).get("expectedTotal").asLong());
+        // 후불 v3에서는 실제 입력한 요금을 기준으로 분담금을 계산한다.
+        assertThat(sum).isEqualTo(15000L);
         assertThat(shares.get(0).get("payer").asBoolean()).isTrue();
         JsonNode other = read(mvc.perform(get("/api/parties/" + partyId + "/settlement/preview")
                         .param("amount", "30000").session(users.get(2)))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
-        assertThat(other).isEqualTo(shares);
+        long otherSum = 0;
+        for (JsonNode share : other) {
+            otherSum += share.get("amount").asLong();
+        }
+        assertThat(otherSum).isEqualTo(30000L);
+        assertThat(other).isNotEqualTo(shares);
         mvc.perform(get("/api/parties/" + partyId + "/settlement/preview").param("amount", "15000")
                 .session(users.get(0))).andExpect(status().isForbidden());
     }

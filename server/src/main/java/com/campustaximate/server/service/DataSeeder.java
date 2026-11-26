@@ -41,6 +41,7 @@ public class DataSeeder implements ApplicationRunner {
     private final SchoolRepository schools;
     private final HubRepository hubs;
     private final MemberRepository members;
+    private final PaymentMethodService paymentMethods;
     private final org.springframework.core.env.Environment environment;
     private final com.campustaximate.server.common.SchoolSeedConfiguration seeds;
 
@@ -87,7 +88,7 @@ public class DataSeeder implements ApplicationRunner {
         Member admin=members.findByEmail(email).orElseGet(()->new Member(school,email));
         admin.setNickname("시연 관리자");admin.setGender(Gender.FEMALE);admin.setAdmin(true);
         if(admin.getPasswordHash()==null) admin.setPasswordHash(PasswordHasher.hash(DEMO_PASSWORD));
-        members.save(admin);
+        paymentMethods.seedDemo(members.save(admin).getId());
     }
 
     private void seedMember(School school, String id, String nickname, Gender gender, int index) {
@@ -97,7 +98,7 @@ public class DataSeeder implements ApplicationRunner {
             Member old = existing.get();
             if (old.getNickname() == null || OLD_NICKNAMES.contains(old.getNickname())) old.setNickname(nickname);
             if (old.getDepartment() == null) { old.setDepartment(DEPARTMENTS.get(index)); old.setAdmissionYear(YEARS.get(index)); }
-            members.save(old);
+            paymentMethods.seedDemo(members.save(old).getId());
             return;
         }
         Member member = new Member(school, email);
@@ -106,6 +107,6 @@ public class DataSeeder implements ApplicationRunner {
         member.setDepartment(DEPARTMENTS.get(index));
         member.setAdmissionYear(YEARS.get(index));
         member.setPasswordHash(PasswordHasher.hash(DEMO_PASSWORD));
-        members.save(member);
+        paymentMethods.seedDemo(members.save(member).getId());
     }
 }

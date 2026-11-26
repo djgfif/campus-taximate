@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Check, ChevronDown, ChevronLeft, ChevronRight, Home as HomeIcon, Info, MessageCircle, Receipt, User, X } from 'lucide-react'
+import { AlertTriangle, Check, ChevronDown, ChevronLeft, ChevronRight, Home as HomeIcon, Info, MessageCircle, Receipt, User, Users, X } from 'lucide-react'
 
 const WIDE = '(min-width: 1024px)'
 
@@ -59,16 +59,16 @@ export function SideEmpty({ title, children }) {
   return <div className="side-empty"><div><b>{title}</b><p>{children}</p></div></div>
 }
 
-/** 캠퍼스 택시메이트 엠블럼: 노란 배지 위의 택시 지붕등과 동승 실루엣. */
+/** 캠퍼스 택시메이트 엠블럼: 딥 그린 배지 위의 모빌리티 심볼. */
 export function Mark({ size = 24 }) {
   return (
     <svg className="mark" width={size} height={size} viewBox="0 0 28 28" aria-hidden="true">
-      <rect width="28" height="28" rx="8" fill="var(--amber)" />
-      <rect x="10.5" y="5.5" width="7" height="2.4" rx="1.2" fill="var(--ink)" />
-      <path d="M6.8 14.2 8.7 9.8A2.2 2.2 0 0 1 10.7 8.5h6.6a2.2 2.2 0 0 1 2 1.3l1.9 4.4c.7.4 1.3 1.2 1.3 2.1v3.2a1.3 1.3 0 0 1-1.3 1.3h-1.4a1.2 1.2 0 0 1-1.2-1.2v-.8H9.4v.8a1.2 1.2 0 0 1-1.2 1.2H6.8a1.3 1.3 0 0 1-1.3-1.3v-3.2c0-.9.6-1.7 1.3-2.1Z" fill="var(--ink)" />
-      <path d="M10.4 10.4h7.2l1.2 3.1H9.2l1.2-3.1Z" fill="var(--amber)" />
-      <circle cx="9.6" cy="16.4" r="1.25" fill="var(--amber)" />
-      <circle cx="18.4" cy="16.4" r="1.25" fill="var(--amber)" />
+      <rect width="28" height="28" rx="8" fill="var(--color-primary, #145a46)" />
+      <rect x="10.5" y="5.5" width="7" height="2.4" rx="1.2" fill="#ffffff" />
+      <path d="M6.8 14.2 8.7 9.8A2.2 2.2 0 0 1 10.7 8.5h6.6a2.2 2.2 0 0 1 2 1.3l1.9 4.4c.7.4 1.3 1.2 1.3 2.1v3.2a1.3 1.3 0 0 1-1.3 1.3h-1.4a1.2 1.2 0 0 1-1.2-1.2v-.8H9.4v.8a1.2 1.2 0 0 1-1.2 1.2H6.8a1.3 1.3 0 0 1-1.3-1.3v-3.2c0-.9.6-1.7 1.3-2.1Z" fill="#ffffff" />
+      <path d="M10.4 10.4h7.2l1.2 3.1H9.2l1.2-3.1Z" fill="var(--color-primary, #145a46)" />
+      <circle cx="9.6" cy="16.4" r="1.25" fill="var(--color-primary, #145a46)" />
+      <circle cx="18.4" cy="16.4" r="1.25" fill="var(--color-primary, #145a46)" />
     </svg>
   )
 }
@@ -102,12 +102,13 @@ export function TopBar({ onMenu, onHome, floating, actions }) {
 
 const TABS = [
   ['home', '홈', HomeIcon],
-  ['rides', '내 일행', MessageCircle],
+  ['rides', '내 일행', Users],
+  ['messages', '메시지', MessageCircle],
   ['history', '이용 내역', Receipt],
   ['me', '내 정보', User],
 ]
 
-/** 휴대폰 아래 탭바. 넓은 화면은 위쪽 메뉴(.nav)가 같은 일을 한다. unread는 내 일행의 안 읽은 메시지 수다. */
+/** 휴대폰 아래 탭바. 넓은 화면은 위쪽 메뉴(.student-nav)가 같은 일을 한다. unread는 메시지의 안 읽은 수다. */
 export function TabBar({ current, onTab, unread = 0 }) {
   const wide = useWide()
   if (wide) return null
@@ -116,7 +117,7 @@ export function TabBar({ current, onTab, unread = 0 }) {
       {TABS.map(([id, label, Icon]) => (
         <button key={id} type="button" className={current === id ? 'on' : ''} aria-current={current === id ? 'page' : undefined} onClick={() => onTab(id)}>
           <span className="tab-icon"><Icon size={22} aria-hidden="true" />
-            {id === 'rides' && unread > 0 && <span className="unread-badge" aria-label={`안 읽은 메시지 ${unread}개`}>{unread > 99 ? '99+' : unread}</span>}
+            {id === 'messages' && unread > 0 && <span className="unread-badge" aria-label={`안 읽은 메시지 ${unread}개`}>{unread > 99 ? '99+' : unread}</span>}
           </span>
           {label}
         </button>

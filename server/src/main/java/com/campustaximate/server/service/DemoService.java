@@ -213,9 +213,19 @@ public class DemoService {
         for (PartyService.PartyView party : partyService.openParties(memberId)) {
             if (payments.simulated()) {
                 for (var order : paymentOrders.findByPartyIdOrderById(party.id())) {
-                    if (isSample(order.getMemberId(), memberId) && order.getStatus() == com.campustaximate.server.domain.PaymentStatus.REQUIRED) {
+                    if (!isSample(order.getMemberId(), memberId)) continue;
+                    if (order.getStatus() != com.campustaximate.server.domain.PaymentStatus.REQUIRED
+                            && order.getStatus() != com.campustaximate.server.domain.PaymentStatus.OVERDUE) continue;
+                    if (order.getPurpose() == com.campustaximate.server.domain.PaymentPurpose.POSTPAID) {
+                        if (party.settlement() != null && party.settlement().payable()) {
+                            settlementService.confirmAndPay(order.getMemberId(), party.id(),
+                                    party.settlement().revision(), order.getOrderId(), order.getAmount(), null, null);
+                        }
+                    } else {
                         payments.confirm(order.getMemberId(), order.getOrderId(), "demo_" + order.getOrderId(), order.getAmount());
-                        chat.send(order.getMemberId(),party.id(),DemoTalk.paid(order.getMemberId()));
+                        if (order.getPurpose() == com.campustaximate.server.domain.PaymentPurpose.PREPAY) {
+                            chat.send(order.getMemberId(), party.id(), DemoTalk.paid(order.getMemberId()));
+                        }
                     }
                 }
             }
@@ -231,7 +241,10 @@ public class DemoService {
                     chat.send(rider.memberId(),party.id(),DemoTalk.arrived(rider.memberId(),rider.memo()));
                 }
             }
-            if(party.prepayDeadlineAt()!=null && List.of(com.campustaximate.server.domain.PartyStatus.READY,com.campustaximate.server.domain.PartyStatus.RIDE_UNCONFIRMED,com.campustaximate.server.domain.PartyStatus.AWAITING_FARE).contains(party.status())) {
+            if ((party.paymentFlowVersion() >= 2 || party.prepayDeadlineAt() != null)
+                    && List.of(com.campustaximate.server.domain.PartyStatus.READY,
+                            com.campustaximate.server.domain.PartyStatus.RIDE_UNCONFIRMED,
+                            com.campustaximate.server.domain.PartyStatus.AWAITING_FARE).contains(party.status())) {
                 if(isSample(party.payerId(),memberId) && party.startedAt()==null) {
                     var state=boardingCodes.state(party.payerId(),party.id());
                     if(state.canOpen()) boardingCodes.open(party.payerId(),party.id());
@@ -262,6 +275,20 @@ public class DemoService {
                         .forEach(transfer -> settlementService.markReceived(party.payerId(), transfer.id()));
             }
         }
+    }
+
+    /**
+     * 시연에서 결제자가 시연용 학생이면, 동승자인 나는 결제자 폰을 볼 수 없다. 택시 안에서 결제자 화면을 보는 장면 대신
+     * 입력 창이 열려 있는 동안만 그 번호를 알려 준다. 결제자가 실제 사람이거나 내가 결제자면 알려 주지 않는다.
+     */
+    public String samplePayerCode(long memberId, long partyId) {
+        requireEnabled();
+        var mine = boardingCodes.state(memberId, partyId); // 일행원이 아니면 여기서 거절된다
+        long payerId = partyService.view(memberId, partyId).payerId();
+        if (!isSample(payerId, memberId) || mine.confirmed() || !"OPEN".equals(mine.status())) {
+            return null;
+        }
+        return boardingCodes.state(payerId, partyId).code();
     }
 
     public void sampleChat(long memberId,PartyService.PartyView party,String text) {

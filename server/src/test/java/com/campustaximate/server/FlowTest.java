@@ -134,7 +134,7 @@ class FlowTest {
         assertThat(onlyParty(payer).get("status").asText()).isEqualTo("OBJECTION_WINDOW");
         assertThat(transfers.count()).isZero();
         assertThat(payouts.count()).isZero();
-        advance(24 * 60 + 1);
+        confirmPostpaidRiders(id, users, payer);
         assertThat(parties.findById(id).orElseThrow().getStatus()).isEqualTo(com.campustaximate.server.domain.PartyStatus.COMPLETED);
         assertThat(payouts.findAll()).hasSize(1);
         assertThat(allocations.findAll().stream().mapToLong(a -> a.getAmount()).sum()).isEqualTo(total);
@@ -302,9 +302,18 @@ class FlowTest {
         assertThat(extras).hasSize(1);
         var extra = extras.getFirst();
         MockHttpSession sender = sessionOf(users, extra.getMemberId());
+        var postpaid = paymentOrders.findByPartyIdAndMemberIdAndPurpose(id, debtor, com.campustaximate.server.domain.PaymentPurpose.POSTPAID).orElseThrow();
+        var settlement = settlements.findByParty(parties.findById(id).orElseThrow()).orElseThrow();
         assertThat(state(sender).get("restricted").asBoolean()).isTrue();
         createRequest(sender, POINTS[0]).andExpect(status().isConflict());
         payments.confirm(extra.getMemberId(), extra.getOrderId(), "test_" + extra.getOrderId(), extra.getAmount());
+        mvc.perform(post("/api/parties/" + id + "/settlement/confirm-and-pay").session(sender)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of(
+                                "revision", settlement.getRevision(),
+                                "orderId", postpaid.getOrderId(),
+                                "amount", postpaid.getAmount()))))
+                .andExpect(status().isOk());
         assertThat(state(sender).get("restricted").asBoolean()).isFalse();
     }
 
@@ -363,6 +372,9 @@ class FlowTest {
 
         createRequest(session, POINTS[0]).andExpect(status().isBadRequest());
         postJson("/api/auth/profile", "{\"nickname\":\"새학생\",\"gender\":\"FEMALE\"}", session).andExpect(status().isOk());
+        createRequest(session, POINTS[0]).andExpect(status().isConflict());
+        postJson("/api/payment-methods", "{\"provider\":\"SIMULATED\",\"billingKey\":\"flow-new-member\",\"cardLabel\":\"테스트카드 ****1234\"}", session)
+                .andExpect(status().isCreated());
         createRequest(session, POINTS[0]).andExpect(status().isOk());
         postJson("/api/auth/profile", "{\"nickname\":\"바꿈\",\"gender\":\"MALE\"}", session).andExpect(status().isConflict());
     }
@@ -500,6 +512,7 @@ class FlowTest {
         long partyId = party.get("id").asLong();
         long total = party.get("expectedTotal").asLong();
         submit(partyId, total, payer).andExpect(status().isOk());
+        confirmPostpaidRiders(partyId, users, payer);
         mvc.perform(get("/api/parties/" + partyId + "/receipt").session(payer)).andExpect(status().isOk());
         String path = settlements.findAll().get(0).getReceiptPath();
         assertThat(java.nio.file.Path.of(path)).exists();
@@ -711,17 +724,19 @@ class FlowTest {
     @Test
     void historyShowsSettlementStageAndWhatIPaid() throws Exception {
         List<MockHttpSession> users = departedParty();
-        long id = onlyParty(users.get(0)).get("id").asLong();
-        assertThat(history(users.get(0)).get("stage").asText()).isEqualTo("AWAITING_AMOUNT");
-        submit(id, 15000, payerOf(users)).andExpect(status().isOk());
-        JsonNode mine = history(users.get(0));
+        MockHttpSession payer = payerOf(users);
+        MockHttpSession rider = users.stream().filter(u -> u != payer).findFirst().orElseThrow();
+        long id = onlyParty(payer).get("id").asLong();
+        assertThat(history(rider).get("stage").asText()).isEqualTo("AWAITING_AMOUNT");
+        submit(id, 15000, payer).andExpect(status().isOk());
+        JsonNode mine = history(rider);
         assertThat(mine.get("stage").asText()).isEqualTo("OBJECTION_WINDOW");
-        assertThat(mine.get("paid").asLong()).isPositive();
+        assertThat(mine.get("paid").asLong()).isZero();
         assertThat(mine.get("partyPaid").asLong()).isEqualTo(15000);
         assertThat(mine.get("partySize").asInt()).isEqualTo(3);
-        advance(24 * 60 + 1);
-        // 확정 분담금(S43): 각자 몫은 실제 요금(15,000원)이 아니라 확정 금액을 나눈다.
-        assertThat(allocations.findAll().stream().mapToLong(a -> a.getAmount()).sum()).isEqualTo(parties.findById(id).orElseThrow().getExpectedTotal());
+        confirmPostpaidRiders(id, users, payer);
+        assertThat(history(rider).get("paid").asLong()).isPositive();
+        assertThat(allocations.findAll().stream().mapToLong(a -> a.getAmount()).sum()).isEqualTo(15000L);
         assertThat(payouts.findAll()).hasSize(1);
         assertThat(transfers.count()).isZero();
     }
@@ -824,6 +839,22 @@ class FlowTest {
         MockMultipartFile receipt = new MockMultipartFile("receipt", "r.png", "image/png", new byte[] {(byte) 0x89, 80, 78, 71, 13, 10, 26, 10, 1});
         return mvc.perform(multipart("/api/parties/" + partyId + "/settlement").file(receipt)
                 .param("amount", String.valueOf(amount)).param("bankName", "OO은행").param("accountNumber", "000-0000-0000").session(user));
+    }
+
+    private void confirmPostpaidRiders(long partyId, List<MockHttpSession> users, MockHttpSession payer) throws Exception {
+        int revision = settlements.findByParty(parties.findById(partyId).orElseThrow()).orElseThrow().getRevision();
+        for (MockHttpSession user : users) {
+            if (user == payer) continue;
+            long memberId = read(mvc.perform(get("/api/me").session(user)).andReturn().getResponse().getContentAsString()).get("id").asLong();
+            var order = paymentOrders.findByPartyIdAndMemberIdAndPurpose(partyId, memberId, com.campustaximate.server.domain.PaymentPurpose.POSTPAID).orElseThrow();
+            mvc.perform(post("/api/parties/" + partyId + "/settlement/confirm-and-pay").session(user)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(json.writeValueAsString(Map.of(
+                                    "revision", revision,
+                                    "orderId", order.getOrderId(),
+                                    "amount", order.getAmount()))))
+                    .andExpect(status().isOk());
+        }
     }
 
     private org.springframework.test.web.servlet.ResultActions correct(long partyId, long amount, MockHttpSession user) throws Exception {

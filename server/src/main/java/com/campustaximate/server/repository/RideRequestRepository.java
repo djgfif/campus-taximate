@@ -52,6 +52,16 @@ public interface RideRequestRepository extends JpaRepository<RideRequest, Long> 
             + "and coalesce(r.boardAt, p.departureAt) > :now and coalesce(r.boardAt, p.departureAt) <= :until")
     List<RideRequest> findDueReminders(Instant now, Instant until);
 
+    @Query("select r from RideRequest r join fetch r.party p left join fetch p.hub left join fetch p.school "
+            + "where r.member.id = :memberId and r.noShow = false and r.status in :statuses "
+            + "and p.departureAt > :departureCutoff and (p.settledAt is null or p.settledAt > :settlementCutoff) order by r.id desc")
+    List<RideRequest> findConversationRequests(long memberId, Collection<RequestStatus> statuses,
+                                               Instant departureCutoff, Instant settlementCutoff);
+
+    @Query("select count(distinct r.member.id) from RideRequest r "
+            + "where r.party.id = :partyId and r.noShow = false and r.status in :statuses")
+    int countChatMembers(long partyId, Collection<RequestStatus> statuses);
+
     @Query("select count(a) > 0 from RideRequest a, RideRequest b "
             + "where a.party.id = b.party.id and a.member.id = :first and b.member.id = :second")
     boolean shareParty(long first, long second);

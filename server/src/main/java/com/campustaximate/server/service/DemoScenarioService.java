@@ -48,7 +48,8 @@ public class DemoScenarioService {
         var cases=noShows.list(actor,p.id()).stream().map(c->new Investigation(c.investigation().getMemberId(),
                 members.findById(c.investigation().getMemberId()).map(Member::getNickname).orElse(null),
                 c.investigation().getStatus(),c.investigation().getDeadlineAt())).toList();
-        return new Progress(clock.now(),p.id(),label(p.status()),nextName(p),p.payer()?"내가 결제자":"나는 일행원 (선결제 대상)",message,cases);
+        String role = p.payer() ? "내가 결제자" : p.paymentFlowVersion() >= 3 ? "나는 일행원 (후불 결제 대상)" : "나는 일행원 (선결제 대상)";
+        return new Progress(clock.now(),p.id(),label(p.status()),nextName(p),role,message,cases);
     }
     private String label(PartyStatus status) {
         return switch(status) {
@@ -65,7 +66,7 @@ public class DemoScenarioService {
             case PAYER_PENDING -> "승계 수락 또는 거절";
             case RIDE_UNCONFIRMED -> "내 운행 답변";
             case AWAITING_FARE -> p.payer()?"내 실제 요금·영수증 입력":"샘플 결제자 금액 입력";
-            case OBJECTION_WINDOW -> "24시간 뒤 노쇼 판정·정산 확정";
+            case OBJECTION_WINDOW -> p.paymentFlowVersion() >= 3 ? "6시간 뒤 자동 확정 또는 확인 후 결제" : "24시간 뒤 노쇼 판정·정산 확정";
             case REVIEW_PENDING -> "관리자 계정에서 판정";
             case SETTLED -> "정산 처리 확인"; default -> "새 요청 만들기";
         };
@@ -151,7 +152,25 @@ public class DemoScenarioService {
                     for(var c:noShows.list(actor,p.id())) if(c.investigation().pending()&&c.investigation().getDeadlineAt().isAfter(target)) target=c.investigation().getDeadlineAt();
                     moveTo(target);
                 }
-                case SETTLED -> demo.runNow();
+                case SETTLED -> {
+                    if (p.paymentFlowVersion() >= 3 && payments.simulated()) {
+                        for (var o : orders.findByPartyIdOrderById(p.id())) {
+                            if (!sample(o.getMemberId(), actor)) continue;
+                            if (o.getStatus() != PaymentStatus.REQUIRED && o.getStatus() != PaymentStatus.OVERDUE) continue;
+                            if (o.getPurpose() == PaymentPurpose.POSTPAID) {
+                                settlements.confirmAndPay(o.getMemberId(), p.id(), p.settlement().revision(),
+                                        o.getOrderId(), o.getAmount(), null, null);
+                            } else if (o.getPurpose() == PaymentPurpose.COMPENSATION || o.getPurpose() == PaymentPurpose.ADDITIONAL) {
+                                payments.confirm(o.getMemberId(), o.getOrderId(), "demo_" + o.getOrderId(), o.getAmount());
+                            }
+                        }
+                    }
+                    demo.runNow();
+                    if (p.paymentFlowVersion() >= 3 && orders.findByPartyIdOrderById(p.id()).stream()
+                            .anyMatch(o -> o.getMemberId() == actor && (o.getStatus() == PaymentStatus.REQUIRED || o.getStatus() == PaymentStatus.OVERDUE))) {
+                        return progress(actor, "정산 화면에서 내 후불 분담금을 확인하고 결제해 주세요.");
+                    }
+                }
                 default -> { return progress(actor,nextName(p)+"를 진행해 주세요."); }
             }
             return progress(actor,"다음 단계로 진행했어요.");
@@ -199,7 +218,8 @@ public class DemoScenarioService {
             if(scenario!=Scenario.INSTANT) simulatedOnly();
             boolean succession=scenario==Scenario.PAYER_NO_SHOW||scenario==Scenario.MY_SUCCESSION;
             var p=prepare(actor,succession?DemoService.Role.PASSENGER:role,scenario==Scenario.INSTANT);
-            if(scenario==Scenario.INSTANT) return progress(actor,"즉시 매칭됐어요. 선결제와 도착 표시 뒤 호출할 수 있어요.");
+            if(scenario==Scenario.INSTANT) return progress(actor,p.paymentFlowVersion() >= 3
+                    ? "즉시 매칭됐어요. 도착 표시 뒤 호출할 수 있어요." : "즉시 매칭됐어요. 선결제와 도착 표시 뒤 호출할 수 있어요.");
             if(scenario==Scenario.JOIN) {
                 var joiner=members.findAll().stream().filter(m->sample(m.getId(),actor)&&m.getGender()==members.findById(actor).orElseThrow().getGender())
                         .filter(m->requests.findByActiveMemberId(m.getId()).isEmpty()&&!rideRequests.isRestricted(m.getId())).findFirst()
@@ -210,6 +230,7 @@ public class DemoScenarioService {
                 var source=requests.findById(stop.requestId()).orElseThrow();
                 var r=rideRequests.create(joiner.getId(),new RideRequestService.NewRequest(Direction.FROM_HUB,mine.getHub().getId(),mine.getWindowStart(),mine.getWindowEnd(),mine.getArriveBy(),source.getPointName(),source.getPointLat(),source.getPointLon(),"나중 합류",mine.getMode(),mine.getTimeBasis(),null,null,mine.getEarlyArrivalMinutes()));
                 var join=joins.offer(joiner.getId(),p.id(),r.getId());
+                if (p.paymentFlowVersion() >= 3) return progress(actor, "나중 샘플이 바로 합류했어요.");
                 var order=orders.findById(join.getPaymentOrderId()).orElseThrow();
                 payments.confirm(joiner.getId(),order.getOrderId(),"demo_"+order.getOrderId(),order.getAmount());
                 chat.send(joiner.getId(),p.id(),"합류했어요. 결제도 마쳤어요");
@@ -224,7 +245,7 @@ public class DemoScenarioService {
                 throw ApiException.conflict("DEMO_ALREADY_ARRIVED","모두 이미 도착 표시했어요. 새 일행에서 운행 미확인을 실행해 주세요.");
             approve(p,actor,true);
             if(scenario!=Scenario.RIDE_UNCONFIRMED) arrive(p,actor,absent,true);
-            moveTo(p.prepayDeadlineAt());
+            if (p.prepayDeadlineAt() != null) moveTo(p.prepayDeadlineAt());
             if(succession) {
                 moveTo(p.departureAt());
                 noShows.vote(actor,p.id(),p.payerId(),false);

@@ -55,13 +55,14 @@ function BoardingCaseLink({ item, onBoardingCases }) {
  */
 function Detail({ item }) {
   const settled = item.paid != null
+  const payerFullOutlay = settled && item.partyPaid != null && item.paid === item.partyPaid
   return (
     <Rows items={[
       item.partySize != null && ['일행', `${item.partySize}명`],
       settled && item.partyPaid != null && ['실제 택시비', won(item.partyPaid)],
-      settled && ['내가 낸 돈', won(item.paid), 'big'],
+      settled && [payerFullOutlay ? '현장 선결제 (모의 지급 전)' : '내가 낸 돈', won(item.paid), 'big'],
       settled ? ['혼자 탔다면', won(item.soloFare)] : ['혼자 타면(예상)', `약 ${won(item.soloFare)}`],
-      settled && item.soloFare > item.paid && ['같이 타서 덜 낸 돈', won(item.soloFare - item.paid)],
+      settled && !payerFullOutlay && item.soloFare > item.paid && ['같이 타서 덜 낸 돈', won(item.soloFare - item.paid)],
       !settled && ['내가 낸 돈', '정산 전'],
     ]} />
   )

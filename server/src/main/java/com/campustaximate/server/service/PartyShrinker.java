@@ -329,7 +329,7 @@ public class PartyShrinker {
         List<RideRequest> stay = new ArrayList<>();
         for (RideRequest rider : requests.findByPartyOrderByRideOrder(party)) {
             if (leaving.contains(rider.getId())) {
-                if (party.paymentFlow() && FREE_EXITS.contains(effectiveReason)) {
+                if (party.paymentFlow() && !party.postpaidFlow() && FREE_EXITS.contains(effectiveReason)) {
                     payments.refundMember(partyId, rider.getMember().getId(), "무료 이탈 환불");
                 }
                 rider.setPendingExitReason(null);

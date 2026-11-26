@@ -28,6 +28,16 @@ public class PartyChangeService {
             term.setMigratedUnknown(migrated); terms.save(term);
         }
     }
+    /** 후불 일행에서 인원 변동 뒤 기존 탑승자의 현재 예상 분담금을 최신 약정 몫으로 맞춘다. */
+    @Transactional(propagation=Propagation.MANDATORY)
+    public void syncPostpaidShares(Party party, List<RideRequest> riders) {
+        if (!party.postpaidFlow()) return;
+        for (RideRequest rider : riders) {
+            terms.findByPartyIdAndRequestId(party.getId(), rider.getId())
+                    .filter(term -> term.getExitedAt() == null)
+                    .ifPresent(term -> term.setConfirmedShare(rider.getExpectedShare() == null ? 0 : rider.getExpectedShare()));
+        }
+    }
     @Transactional(propagation=Propagation.MANDATORY)
     public String changed(Party party, Set<Long> leaving, String reason, Set<Long> held) {
         return changed(party,leaving,reason,held,clock.now());

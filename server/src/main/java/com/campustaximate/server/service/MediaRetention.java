@@ -8,6 +8,7 @@ import java.time.Instant;
 /** Access and cleanup share an inclusive expiration boundary. */
 final class MediaRetention {
     static final Duration KEEP = Duration.ofDays(7);
+    static final Duration CHAT_AFTER_DEPARTURE = Duration.ofHours(24);
 
     private MediaRetention() { }
 
@@ -16,7 +17,7 @@ final class MediaRetention {
     }
 
     static Instant chatEndsAt(Party party) {
-        Instant limit = party.getDepartureAt().plus(Duration.ofHours(24));
+        Instant limit = party.getDepartureAt().plus(CHAT_AFTER_DEPARTURE);
         Instant settled = party.getSettledAt();
         return settled != null && settled.isBefore(limit) ? settled : limit;
     }

@@ -1,0 +1,91 @@
+/*
+ * 디자인 토큰 — 차분한 도시 모빌리티 (Deep Green / Mist)
+ * 기존 styles.css 변수(--ink, --amber 등)와 호환되도록 매핑하여 전 화면에 일관 적용한다.
+ */
+:root {
+  /* 신규 시맨틱 토큰 */
+  --color-bg: #f7f8f5;
+  --color-surface: #ffffff;
+  --color-surface-subtle: #f0f3f0;
+  --color-text: #172521;
+  --color-text-secondary: #52635b;
+  --color-text-muted: #66766d;
+  --color-border: #d9e1da;
+  --color-border-strong: #c2cec5;
+  --color-input-border: #78877d;
+
+  --color-primary: #145a46;
+  --color-primary-hover: #104735;
+  --color-primary-soft: #e8f3ec;
+  --color-on-primary: #ffffff;
+
+  --color-success: #17653b;
+  --color-success-soft: #e6f4ec;
+  --color-warning: #89520a;
+  --color-warning-soft: #fdf3e3;
+  --color-danger: #a52c2c;
+  --color-danger-hover: #882222;
+  --color-danger-soft: #fbecec;
+  --color-info: #245b83;
+  --color-focus: #276aa2;
+
+  /* 기존 styles.css 호환 별칭 */
+  --ink: var(--color-text);
+  --ink-2: var(--color-text-secondary);
+  --road: var(--color-text-muted);
+  --faint: #84948b;
+  --line: var(--color-border);
+  --line-strong: var(--color-border-strong);
+  --mist: var(--color-bg);
+  --mist-2: var(--color-surface-subtle);
+  --paper: var(--color-surface);
+  --land: #eef1ed;
+
+  --amber: var(--color-primary);
+  --amber-press: var(--color-primary-hover);
+  --amber-deep: var(--color-primary);
+  --amber-soft: var(--color-primary-soft);
+  --ink-press: #243832;
+  --save: var(--color-success);
+  --save-soft: var(--color-success-soft);
+  --stop: var(--color-danger);
+  --stop-press: var(--color-danger-hover);
+  --stop-soft: var(--color-danger-soft);
+  --alone: var(--color-info);
+  --off: #edf0ed;
+  --off-ink: #728279;
+
+  --shadow-card: 0 1px 2px rgb(23 37 33 / 5%), 0 4px 12px rgb(23 37 33 / 4%);
+  --shadow-overlay: 0 12px 36px rgb(23 37 33 / 12%);
+  --container-max: 1280px;
+  --admin-sidebar: 240px;
+}
+
+/* 기본 강조 버튼·채팅 말풍선 대비 보정 (딥 그린 바탕 위 흰 글자, WCAG AA ≥ 7:1) */
+.btn {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+.btn.line {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+.btn.quiet {
+  background: none;
+  color: var(--color-text-secondary);
+}
+.mine .bubble {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+.chat-send {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+.demo-caption b {
+  color: #8be0c0;
+}
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}

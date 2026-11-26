@@ -1,6 +1,7 @@
 package com.campustaximate.server.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
@@ -8,6 +9,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.campustaximate.matching.Direction;
+import com.campustaximate.server.AuthenticatedTestSession;
+import com.campustaximate.server.common.AppClock;
+import com.campustaximate.server.domain.Party;
+import com.campustaximate.server.domain.PartyMessage;
+import com.campustaximate.server.domain.PartyStatus;
+import com.campustaximate.server.domain.RequestStatus;
+import com.campustaximate.server.domain.RideRequest;
+import com.campustaximate.server.repository.HubRepository;
+import com.campustaximate.server.repository.PartyMessageRepository;
+import com.campustaximate.server.repository.PartyRepository;
+import com.campustaximate.server.repository.RideRequestRepository;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -18,7 +32,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 @SpringBootTest
@@ -28,6 +44,74 @@ class ApiSecurityTest {
 
     @Autowired private MockMvc mvc;
     @Autowired @Qualifier("requestMappingHandlerMapping") private RequestMappingHandlerMapping mappings;
+
+    @Autowired private AppClock clock;
+    @Autowired private HubRepository hubs;
+    @Autowired private PartyRepository parties;
+    @Autowired private RideRequestRepository rides;
+    @Autowired private PartyMessageRepository messages;
+
+    @Test
+    void paymentMethodsAndConversationsRequireLogin() throws Exception {
+        for (String path : List.of("/api/payment-methods", "/api/me/conversations")) {
+            assertThat(AccessInterceptor.PUBLIC_PATHS).doesNotContain(path);
+            mvc.perform(get(path)).andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+        }
+        mvc.perform(post("/api/payment-methods").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(delete("/api/payment-methods/1")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @Transactional
+    void memberSeesOnlyOwnActiveAndRecentConversationsInActivityOrder() throws Exception {
+        long actor = members.findByEmail("demo-f1@daejin.ac.kr").orElseThrow().getId();
+        long other = members.findByEmail("demo-f2@daejin.ac.kr").orElseThrow().getId();
+        Instant now = clock.now();
+        Party active = conversation(actor, PartyStatus.READY, RequestStatus.MATCHED, now.plusSeconds(3_600));
+        Party completed = conversation(actor, PartyStatus.COMPLETED, RequestStatus.COMPLETED, now.minusSeconds(3_600));
+        conversation(other, PartyStatus.READY, RequestStatus.MATCHED, now.plusSeconds(7_200));
+        Party expired = conversation(actor, PartyStatus.SETTLED, RequestStatus.COMPLETED, now.minusSeconds(9 * 86_400));
+        conversation(actor, PartyStatus.READY, RequestStatus.CANCELED, now.plusSeconds(7_200));
+        messages.save(PartyMessage.system(completed, "정산 완료", now.minusSeconds(30)));
+        messages.save(PartyMessage.system(active, "일행 확정", now));
+        messages.save(PartyMessage.system(expired, "보관 기한 만료", now.minusSeconds(9 * 86_400)));
+
+        MockHttpSession session = new MockHttpSession();
+        AuthenticatedTestSession.authenticate(session, actor, tokens);
+        mvc.perform(get("/api/me/conversations").session(session)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].partyId").value(active.getId()))
+                .andExpect(jsonPath("$[0].routeLabel").value(active.anchorName() + " → 목적지"))
+                .andExpect(jsonPath("$[0].departureAt").exists())
+                .andExpect(jsonPath("$[0].status").value("READY"))
+                .andExpect(jsonPath("$[0].memberCount").value(1))
+                .andExpect(jsonPath("$[0].lastMessage").value("일행 확정"))
+                .andExpect(jsonPath("$[0].lastMessageAt").exists())
+                .andExpect(jsonPath("$[0].unreadChat").value(1))
+                .andExpect(jsonPath("$[0].writable").value(true))
+                .andExpect(jsonPath("$[1].partyId").value(completed.getId()))
+                .andExpect(jsonPath("$[1].status").value("COMPLETED"))
+                .andExpect(jsonPath("$[1].writable").value(false));
+    }
+
+    private Party conversation(long memberId, PartyStatus status, RequestStatus requestStatus, Instant departure) {
+        var member = members.findById(memberId).orElseThrow();
+        var hub = hubs.findAll().getFirst();
+        Party party = new Party(Direction.FROM_HUB, hub, null, member, departure, 5_000);
+        party.setStatus(status);
+        parties.save(party);
+        RideRequest ride = new RideRequest();
+        ride.setMember(member);
+        ride.setParty(party);
+        ride.setHub(hub);
+        ride.setDirection(Direction.FROM_HUB);
+        ride.setStatus(requestStatus);
+        ride.setPointName("목적지");
+        rides.save(ride);
+        return party;
+    }
 
     /** 공개 목록에 없는 API는 전부 로그인을 요구한다. 새 경로가 생겨도 이 테스트가 잡는다. */
     @Test

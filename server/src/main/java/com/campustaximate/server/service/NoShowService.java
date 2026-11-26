@@ -20,6 +20,7 @@ public class NoShowService {
     @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager entityManager;
     private final MemberRepository members; private final MemberSafetyService safety;
     private final PartyChangeService changes; private final PaymentService payments;
+    private final PostpaidOrderSyncService postpaidOrders;
     private final NotificationService notifications; private final AppClock clock;
     private final PartyChatService chatLog;
 
@@ -201,6 +202,9 @@ public class NoShowService {
         if(noShow) {
             members.findByIdForUpdate(c.getMemberId()).orElseThrow();
             safety.recordNoShow(requests.findById(c.getRequestId()).orElseThrow(),clock.now());
+        }
+        if (!unresolved(c.getPartyId())) {
+            parties.findById(c.getPartyId()).ifPresent(postpaidOrders::refreshOnCaseResolved);
         }
     }
     public boolean unresolved(long partyId){return cases.findByPartyIdOrderByRequestId(partyId).stream().anyMatch(BoardingCase::pending);}

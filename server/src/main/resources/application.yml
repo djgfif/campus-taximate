@@ -62,6 +62,7 @@ app:
     # 0이면 마감 회차까지 모아서 확정(S42, 실험 C11: 매칭률 +2.5%p). 예전 규칙은 10.
     early-confirm-minutes: 0
   payment:
+    flow-version: ${PAYMENT_FLOW_VERSION:3}
     timeout-ms: 3000
   # 확정 분담금(S43, 실험 C11). 견적 = 카카오 예상 요금 × (1 + quote-bias). 일행 확정 금액에는 여유분 quote-margin을 더한다.
   # quote-bias는 0이다(카카오 견적 그대로). 예전 6.57%는 '요금표 공식' 대비 실제 차이라 카카오 견적에 맞지 않았다.

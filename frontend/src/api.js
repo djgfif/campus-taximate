@@ -79,6 +79,10 @@ export const api = {
   paymentOrder: (partyId, purpose) => json('POST', '/payments/orders', { partyId, purpose }),
   confirmPayment: (body) => json('POST', '/payments/confirm', body),
   getPayment: (orderId) => request(`/payments/orders/${encodeURIComponent(orderId)}`),
+  // 후불 정산 v3: 정산 금액 확인과 결제를 한 번에. 200은 처리 완료, 202는 승인 확인 중(processing: true)이다.
+  confirmAndPay: (partyId, body, key) => (key
+    ? idempotent('POST', `/parties/${partyId}/settlement/confirm-and-pay`, body, key)
+    : json('POST', `/parties/${partyId}/settlement/confirm-and-pay`, body)),
   objectToFare: (partyId, reason) => json('POST', `/parties/${partyId}/settlement/objections`, { reason }),
   school: () => request('/school'),
   history: () => request('/history'),
@@ -88,6 +92,12 @@ export const api = {
   myJoins: () => request('/joins'),
   partyPeople: (partyId) => request(`/parties/${partyId}/people`),
   praise: (partyId, targetId, tags) => json('POST', `/parties/${partyId}/praises`, { targetId, tags }),
+  // 후불 정산 v3 결제수단. 응답에는 billingKey가 오지 않는다(id, provider, cardLabel, active, registeredAt).
+  paymentMethods: () => request('/payment-methods'),
+  registerPaymentMethod: (body) => json('POST', '/payment-methods', body),
+  deletePaymentMethod: (id) => request('/payment-methods/' + id, { method: 'DELETE' }),
+  // 독립 메시지함 대화 목록(마지막 메시지 미리보기·안 읽은 수 포함).
+  conversations: () => request('/me/conversations'),
   myProfile: () => request('/me/profile'),
   saveProfile: (body) => json('PUT', '/me/profile', body),
   reportMember: (partyId, memberId, body) => json('POST', `/parties/${partyId}/members/${memberId}/report`, body),
@@ -131,4 +141,5 @@ export const api = {
   demoAdvance: (minutes) => json('POST', '/demo/advance', { minutes }),
   demoSamples: (count) => json('POST', '/demo/samples', { count }),
   demoAct: () => json('POST', '/demo/act'),
+  demoPayerCode: (partyId) => request(`/demo/parties/${partyId}/payer-code`),
 }

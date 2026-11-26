@@ -7,8 +7,29 @@ import { Check, MapPin, X } from 'lucide-react'
 import { formatTime, requestTimeOptions, shareCap, won } from './format.js'
 import { BackBar, Btn, Chips, Fold, Say, Screen, useWide } from './ui.jsx'
 import SketchMap from './SketchMap.jsx'
+import { useSafeRouter } from './routerSafe.js'
 
 const emptyPlace = () => ({ name: '', point: null })
+
+/** 결제수단을 등록하러 다녀오는 동안 작성 중인 요청을 방향별로 잠시 보관한다(탭을 닫으면 사라진다). */
+const DRAFT_PREFIX = 'taximate:request-draft:'
+export function readRequestDraft(direction) {
+  try {
+    const raw = window.sessionStorage.getItem(DRAFT_PREFIX + direction)
+    const draft = raw ? JSON.parse(raw) : null
+    return draft && typeof draft === 'object' && !Array.isArray(draft) ? draft : null
+  } catch { return null }
+}
+export function saveRequestDraft(direction, draft) {
+  try { window.sessionStorage.setItem(DRAFT_PREFIX + direction, JSON.stringify(draft)) } catch { /* 저장소를 못 쓰면 복원만 건너뛴다. */ }
+}
+export function clearRequestDraft(direction) {
+  try { window.sessionStorage.removeItem(DRAFT_PREFIX + direction) } catch { /* 무시 */ }
+}
+const validPlace = (place) => place && typeof place.name === 'string'
+  && (place.point == null || (Number.isFinite(place.point.lat) && Number.isFinite(place.point.lon)))
+  ? { name: place.name, point: place.point ? { lat: place.point.lat, lon: place.point.lon } : null } : null
+const pick = (value, allowed, fallback) => (allowed.includes(value) ? value : fallback)
 const seoulDay = (value) => new Date(new Date(value).getTime() + 9 * 3600000).toISOString().slice(0, 10)
 const dayWord = (value, now) => (seoulDay(value) === seoulDay(now) ? '오늘' : '내일')
 
@@ -77,24 +98,40 @@ export function PlaceField({ label, value, center, onChange, samples = [], place
 }
 
 export function RequestForm({ initial, config, now, run, onClose, schoolDestination = false, schoolOrigin = false }) {
+  const direction = schoolDestination ? 'TO_SCHOOL' : 'FROM_HUB'
+  // 다시 요청하기처럼 초기값을 받은 경우에는 그 값을 쓰고, 아니면 결제수단 등록 전에 보관한 작성 내용을 복원한다.
+  const [draft] = useState(() => (initial ? null : readRequestDraft(direction)))
   const [hubs, setHubs] = useState([])
   const [school, setSchool] = useState(null)
-  const [origin, setOrigin] = useState(emptyPlace)
+  const [origin, setOrigin] = useState(() => validPlace(draft?.origin) || emptyPlace())
   const [destination, setDestination] = useState(() => initial && initial.direction !== 'TO_SCHOOL'
-    ? { name: initial.pointName, point: { lat: initial.pointLat, lon: initial.pointLon } } : emptyPlace())
-  const [mode, setMode] = useState('RESERVATION')
-  const [basis, setBasis] = useState(schoolDestination ? 'ARRIVE' : 'DEPART')
-  const [early, setEarly] = useState(10)
-  const [start, setStart] = useState('')
-  const [endLength, setEndLength] = useState(60)
-  const [windowCustom, setWindowCustom] = useState(false)
-  const [arrival, setArrival] = useState('')
-  const [memo, setMemo] = useState(initial?.memo || '')
+    ? { name: initial.pointName, point: { lat: initial.pointLat, lon: initial.pointLon } } : validPlace(draft?.destination) || emptyPlace())
+  const [mode, setMode] = useState(() => pick(draft?.mode, ['RESERVATION', 'INSTANT'], 'RESERVATION'))
+  const [basis, setBasis] = useState(() => pick(draft?.timeBasis, ['DEPART', 'ARRIVE'], schoolDestination ? 'ARRIVE' : 'DEPART'))
+  const [early, setEarly] = useState(() => pick(draft?.early, [0, 5, 10, 15], 10))
+  const [start, setStart] = useState(() => (typeof draft?.start === 'string' ? draft.start : ''))
+  const [endLength, setEndLength] = useState(() => (Number.isFinite(draft?.endLength) ? draft.endLength : 60))
+  const [windowCustom, setWindowCustom] = useState(() => draft?.windowCustom === true)
+  const [arrival, setArrival] = useState(() => (typeof draft?.arrival === 'string' ? draft.arrival : ''))
+  const [memo, setMemo] = useState(() => initial?.memo || (typeof draft?.memo === 'string' ? draft.memo.slice(0, 100) : ''))
   const [points, setPoints] = useState({ key: '', data: [] })
-  const [selection, setSelection] = useState({ key: '', ids: [] })
+  const [selection, setSelection] = useState(() => (draft?.origin?.point && Array.isArray(draft.pointIds)
+    ? { key: JSON.stringify({ lat: draft.origin.point.lat, lon: draft.origin.point.lon }), ids: draft.pointIds.filter(Number.isFinite).slice(0, 3) }
+    : { key: '', ids: [] }))
   const [error, setError] = useState('')
   const [waiting, setWaiting] = useState({})
-  const direction = schoolDestination ? 'TO_SCHOOL' : 'FROM_HUB'
+  // 후불 정산(v3)은 등록된 결제수단이 있어야 요청할 수 있다. 확인하지 못하면(null) 막지 않고 서버 응답을 따른다.
+  const postpaid = (config?.paymentFlowVersion ?? 0) >= 3
+  const [paymentMissing, setPaymentMissing] = useState(false)
+  const { navigate, location } = useSafeRouter()
+  useEffect(() => {
+    if (!postpaid || typeof api.paymentMethods !== 'function') return undefined
+    let closed = false
+    Promise.resolve().then(() => api.paymentMethods())
+      .then((list) => { if (!closed && Array.isArray(list)) setPaymentMissing(!list.some((m) => m && m.active !== false)) })
+      .catch(() => {})
+    return () => { closed = true }
+  }, [postpaid])
   // 시간대별로 같은 방향에서 이미 기다리는 사람 수(게시판과 같은 집계). 못 읽으면 표시만 생략한다.
   useEffect(() => {
     let closed = false
@@ -171,11 +208,23 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
   const timeSummary = basis === 'DEPART'
     ? (chosenStart ? `${dayWord(chosenStart, now)} ${formatTime(chosenStart)} ~ ${formatTime(new Date(chosenStart).getTime() + chosenLength * 60000)} 출발` : '')
     : (chosenArrival ? `${dayWord(chosenArrival, now)} ${formatTime(chosenArrival)}까지 도착` : '')
+  const close = () => { clearRequestDraft(direction); onClose() }
   const submit = async () => {
     if (!body || !preview.data) return
     setError('')
-    try { await api.createRequest(body); await run(async () => {}, '요청했어요'); onClose() }
-    catch (e) { setError(e.message) }
+    try { await api.createRequest(body); clearRequestDraft(direction); await run(async () => {}, '요청했어요'); onClose() }
+    catch (e) {
+      if (e.code === 'PAYMENT_METHOD_REQUIRED') setPaymentMissing(true)
+      else setError(e.message)
+    }
+  }
+  /** 작성 중인 내용을 보관하고 결제수단 관리로 간다. 등록 뒤 돌아오면 그대로 복원된다. */
+  const registerPayment = () => {
+    saveRequestDraft(direction, {
+      origin, destination, mode, timeBasis: basis, early, start: chosenStart || start, endLength: chosenLength || endLength,
+      windowCustom, arrival: chosenArrival || arrival, memo, pointIds: selected,
+    })
+    navigate('/app/account/payments', { state: { returnTo: location.pathname } })
   }
   const center = hubs[0] || school
   return <Screen aside={origin.point ? <MapView points={[{ ...origin.point, label: '출', tone: 'me' },
@@ -188,10 +237,14 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
       <p className="foot-rule">{preview.data
         ? `${Math.round(minSaving * 100)}% 이상 싸고 ${maxDelay}분 넘게 늦어지지 않을 때만 일행이 돼요. 결과는 ${formatTime(preview.data.resultBy)}까지 알려 드려요.`
         : `늦어져도 ${maxDelay}분 이내, 혼자보다 ${Math.round(minSaving * 100)}% 이상 쌀 때만 일행이 돼요.`}</p>
-      <Btn disabled={!preview.data || !ready} onClick={submit}>일행 찾기</Btn>
+      <Btn disabled={!preview.data || !ready || paymentMissing} onClick={submit}>일행 찾기</Btn>
     </>}>
-    <BackBar onBack={onClose} title={schoolDestination ? '등교' : '하교'} />
+    <BackBar onBack={close} title={schoolDestination ? '등교' : '하교'} />
     <div className="pad request-form">
+      {paymentMissing && <Say tone="stop-tone" title="결제수단을 먼저 등록해 주세요"
+        action={<Btn className="small" onClick={registerPayment}>결제수단 등록하기</Btn>}>
+        요금은 내린 뒤 등록한 카드로 결제돼요. 작성 중인 경로와 시간은 그대로 보관했다가 돌아오면 이어서 쓸 수 있어요.
+      </Say>}
       <Chips label="요청 방식" value={mode} onChange={setMode} options={[{ value: 'RESERVATION', label: '예약' }, { value: 'INSTANT', label: '즉시' }]} />
       {instant && <p className="note mode-note">{matchMinutes}분 동안 같이 탈 사람을 찾아요. 걸어서 {Math.floor(maxWalk / 60)}분 안 지점만 고를 수 있어요.</p>}
 

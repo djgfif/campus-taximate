@@ -11,12 +11,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 
-/** 합류 경로는 잠금 밖에서 확인하고, 승인 전에는 좌석만 예약한다. */
+/** 합류 경로는 잠금 밖에서 확인하고 일행 잠금 아래 다시 검증한다. */
 @Service @RequiredArgsConstructor
 public class PartyJoinService {
     private final PartyRepository parties;private final RideRequestRepository requests;
     private final PartyJoinRepository joins;private final PartyJoinMemberRepository joinMembers;private final PaymentOrderRepository orders;
     private final PartyMemberTermRepository terms;
+    private final PaymentMethodRepository paymentMethods;
+    private final JoinCompletionService joinCompletion;
     private final RoadLegStore legs;private final RouteClient routes;private final RoutePathStore paths;
     private final PaymentService payments;private final MemberSafetyService safety;private final AppClock clock;
     private final MatchingSettings settings;private final PlatformTransactionManager manager;
@@ -29,15 +31,36 @@ public class PartyJoinService {
         if(!p.canAcceptJoin()||p.getDirection()!=Direction.FROM_HUB||p.getHub()==null||!p.getHub().isActive()||!p.getHub().isFieldChecked()
                 ||!clock.now().isBefore(cutoff(p)))throw ApiException.conflict("JOIN_CLOSED","합류 마감이 지났거나 합류할 수 없는 일행이에요.");
     }
+    private void requirePostpaidEligibility(long actor) {
+        safety.requireUnrestricted(actor);
+        if (payments.overdue(actor)) {
+            throw ApiException.conflict("ADDITIONAL_PAYMENT_OVERDUE", "미납 결제를 마친 뒤 합류해 주세요.");
+        }
+        if (!paymentMethods.existsByMemberIdAndActiveTrueAndDeletedAtIsNull(actor)) {
+            throw ApiException.conflict("PAYMENT_METHOD_REQUIRED", "합류 전에 결제수단을 먼저 등록해 주세요.");
+        }
+    }
+
+    private void requireNewMember(Party party, long actor) {
+        if ((!party.postpaidFlow() && orders.findByPartyIdAndMemberIdAndPurpose(party.getId(), actor, PaymentPurpose.PREPAY).isPresent())
+                || terms.existsByPartyIdAndMemberId(party.getId(), actor)) {
+            throw ApiException.conflict("JOIN_ALREADY_ATTEMPTED", party.postpaidFlow()
+                    ? "이 일행의 합류 요청은 이미 처리되었어요." : "이 일행의 합류 주문은 이미 처리되었어요.");
+        }
+    }
+
     private Plan readPlan(long actor,long partyId,long requestId){
         Party p=parties.findById(partyId).orElseThrow(()->ApiException.notFound("없는 일행입니다."));open(p);
         if(p.getPendingJoinId()!=null)throw ApiException.conflict("JOIN_RESERVED","다른 사람의 합류 결제를 기다리고 있어요.");
         RideRequest r=requests.findById(requestId).orElseThrow(()->ApiException.notFound("없는 요청입니다."));
         if(r.getMember().getId()!=actor)throw ApiException.forbidden("본인 요청만 합류할 수 있어요.");
+        if (p.postpaidFlow()) {
+            requireNewMember(p, actor);
+            requirePostpaidEligibility(actor);
+        }
         if(r.getStatus()!=RequestStatus.WAITING)throw ApiException.conflict("JOIN_REQUEST_CHANGED","대기 중인 요청만 합류할 수 있어요.");
         var current=requests.findByPartyOrderByRideOrder(p);if(current.size()>=settings.maxGroupSize())throw ApiException.conflict("JOIN_FULL","일행이 가득 찼어요.");
-        if(orders.findByPartyIdAndMemberIdAndPurpose(partyId,actor,PaymentPurpose.PREPAY).isPresent()
-                || terms.existsByPartyIdAndMemberId(partyId,actor))throw ApiException.conflict("JOIN_ALREADY_ATTEMPTED","이 일행의 합류 주문은 이미 처리되었어요.");
+        if (!p.postpaidFlow()) requireNewMember(p, actor);
         List<MatchRequest> input=new ArrayList<>();Map<Long,Long> expected=new HashMap<>(),fares=new HashMap<>();Map<Long,GeoPoint> origins=new HashMap<>();
         for(var rider:current){
             input.add(SlotService.toEngine(rider).stream().filter(m->m.anchorId()==p.getHub().getId()).findFirst().orElseThrow());
@@ -71,31 +94,46 @@ public class PartyJoinService {
         return tx().execute(s->{
             safety.lockMembers(p.input().stream().map(MatchRequest::memberId).toList());
             Party party=parties.findByIdForUpdate(partyId).orElseThrow();open(party);
-            int walk=p.input().stream().filter(m->m.id()==requestId).findFirst().orElseThrow().walkSeconds();
-            if(clock.now().plusSeconds(walk).isAfter(party.getDepartureAt()))throw ApiException.conflict("JOIN_TIME","기존 출발 시각까지 승차 지점에 도착할 수 없어요.");
+            MatchRequest joining = p.input().stream().filter(m -> m.id() == requestId).findFirst().orElseThrow();
+            if(clock.now().plusSeconds(joining.walkSeconds()).isAfter(party.getDepartureAt()))throw ApiException.conflict("JOIN_TIME","기존 출발 시각까지 승차 지점에 도착할 수 없어요.");
             if(party.getPendingJoinId()!=null||party.getGroupVersion()!=p.groupVersion()||party.getPayer().getId()!=p.payerId())throw ApiException.conflict("JOIN_CHANGED","일행이나 남은 자리가 바뀌었어요.");
-            if(orders.findByPartyIdAndMemberIdAndPurpose(partyId,actor,PaymentPurpose.PREPAY).isPresent()
-                || terms.existsByPartyIdAndMemberId(partyId,actor))throw ApiException.conflict("JOIN_ALREADY_ATTEMPTED","이 일행의 합류 주문은 이미 처리되었어요.");
+            requireNewMember(party, actor);
+            if (party.postpaidFlow()) {
+                requirePostpaidEligibility(actor);
+                if (!TripPlan.of(joining.direction(), settings).eligible(joining, clock.now())) {
+                    throw ApiException.conflict("JOIN_TIME", "요청 모집 마감이 지났어요.");
+                }
+            }
             var newcomer=requests.findById(requestId).orElseThrow();var current=requests.findByPartyOrderByRideOrder(party);
             if(newcomer.getStatus()!=RequestStatus.WAITING||newcomer.getVersion()!=p.requestVersion()||current.size()>=settings.maxGroupSize()
                 ||!current.stream().map(RideRequest::getId).collect(java.util.stream.Collectors.toSet()).equals(p.expected().keySet()))throw ApiException.conflict("JOIN_CHANGED","요청이나 일행이 바뀌었어요.");
             var currentAvoids=safety.avoidMap(p.input().stream().map(MatchRequest::memberId).toList());
             for(var old:current)if(currentAvoids.getOrDefault(old.getMember().getId(),Set.of()).contains(actor))throw ApiException.conflict("JOIN_BLOCKED","함께 매칭할 수 없는 일행이에요.");
             PartyJoin join=new PartyJoin();join.setPartyId(partyId);join.setRequestId(requestId);join.setMemberId(actor);join.setState("PENDING");
-            join.setOfferedAt(clock.now());Instant paymentDeadline=clock.now().plusSeconds(paymentMinutes*60L);join.setDeadlineAt(paymentDeadline.isAfter(party.getDepartureAt())?party.getDepartureAt():paymentDeadline);join.setBaseGroupVersion(p.groupVersion());join.setPayerId(p.payerId());join.setDepartureAt(p.departure());join.setTotalFare(verified.total());joins.save(join);
+            join.setOfferedAt(clock.now());
+            Instant deadline = party.postpaidFlow() ? cutoff(party) : clock.now().plusSeconds(paymentMinutes * 60L);
+            join.setDeadlineAt(deadline.isAfter(party.getDepartureAt()) ? party.getDepartureAt() : deadline);
+            join.setBaseGroupVersion(p.groupVersion());join.setPayerId(p.payerId());join.setDepartureAt(p.departure());join.setTotalFare(verified.total());joins.save(join);
             int newIndex=-1;
             for(int i=0;i<candidate.size();i++){
                 MatchRequest request=candidate.order().get(i);PartyJoinMember row=new PartyJoinMember();row.setJoinId(join.getId());row.setRequestId(request.id());row.setRideOrder(i+1);
                 row.setRideSeconds(verified.rideSeconds().get(i));row.setRatioUnits(units.get(i));row.setExpectedShare(values.get(i));joinMembers.save(row);if(request.id()==requestId)newIndex=i;
             }
-            var order=payments.createObligation(partyId,actor,requestId,null,PaymentPurpose.PREPAY,PaymentService.prepayAmount(values.get(newIndex)),join.getDeadlineAt());
-            join.setPaymentOrderId(order.getId());party.setPendingJoinId(join.getId());newcomer.setPendingJoinId(join.getId());newcomer.setStatus(RequestStatus.JOINING);
+            if (party.postpaidFlow()) {
+                if (!joinCompletion.complete(party, join)) {
+                    throw ApiException.conflict("JOIN_CHANGED", "합류 조건이 바뀌었어요. 일행을 다시 확인해 주세요.");
+                }
+            } else {
+                var order=payments.createObligation(partyId,actor,requestId,null,PaymentPurpose.PREPAY,PaymentService.prepayAmount(values.get(newIndex)),join.getDeadlineAt());
+                join.setPaymentOrderId(order.getId());party.setPendingJoinId(join.getId());newcomer.setPendingJoinId(join.getId());newcomer.setStatus(RequestStatus.JOINING);
+            }
             return join;
         });
     }
     public void offerWaiting(Instant slot,List<RideRequest> waiting){
         for(var request:waiting){if(request.getRequestedAt().isAfter(slot))continue;
-            for(var party:parties.findByStatusIn(List.of(PartyStatus.PREPAYING,PartyStatus.READY))){
+            for(var party:parties.findByStatusIn(List.of(PartyStatus.PREPAYING,PartyStatus.READY,PartyStatus.RIDE_UNCONFIRMED))){
+                if (party.getStatus() == PartyStatus.RIDE_UNCONFIRMED && !party.postpaidFlow()) continue;
                 try{offer(request.getMember().getId(),party.getId(),request.getId());break;}
                 catch(ApiException denied){MatchingDiagnostics.reason(slot,List.of(request.getId()),denied.getCode(),party.getId());}
             }

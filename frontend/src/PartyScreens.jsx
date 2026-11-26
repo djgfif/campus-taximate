@@ -9,7 +9,7 @@ import KakaoTaxi from './KakaoTaxi.jsx'
 import BoardingCodePanel from './BoardingCodePanel.jsx'
 import LegacyParty from './LegacyPartyScreens.jsx'
 import { CancelSheet, DriverView, PartySecondary, PartyShell, REAL_NAME, roleTag } from './PartyShell.jsx'
-import { formatTime, formatDateTime, isPaymentParty, knownPartyStatus, meetPlace, partyLabel, remaining, won } from './format.js'
+import { formatTime, formatDateTime, isPaymentParty, isPostpaidParty, knownPartyStatus, meetPlace, partyLabel, remaining, won } from './format.js'
 import { Avatar, BackBar, Btn, FairnessNote, FareCompare, Fold, Item, Meter, Rail, Rows, Say, Screen, Sheet, useWide } from './ui.jsx'
 
 // 일행 채팅과 공통 방 뼈대는 별도 파일로 분리했다. 다른 화면은 기존 경로에서 그대로 가져온다.
@@ -24,9 +24,10 @@ export function PartyDetail({ party, myId, now, onBack }) {
   const mine = party.members.find((m) => m.memberId === myId)
   const toSchool = party.direction === 'TO_SCHOOL'
   const wide = useWide()
+  const postpaid = isPostpaidParty(party)
   return (
     <Screen aside={mine ? <RouteSide party={party} mine={mine} /> : null}>
-      <BackBar onBack={onBack} title={toSchool ? '확정 분담금과 경로' : '일행과 경로'} />
+      <BackBar onBack={onBack} title={toSchool ? (postpaid ? '예상 분담금과 경로' : '확정 분담금과 경로') : '일행과 경로'} />
       <div className="block"><Rows items={[
         ['모이는 곳', meetPlace(party)], [party.instant?'예상 출발':'출발 시각', formatDateTime(party.departureAt)],
         ['결제자', party.payerNickname],
@@ -45,8 +46,9 @@ export function PartyDetail({ party, myId, now, onBack }) {
       <div className="band" />
       {mine && !wide && <RouteComparison party={party} mine={mine} />}
       <div className="block">
-        {toSchool && <p className="note">승차 시각 3분 뒤까지 도착 표시가 없으면 그 사람을 빼고 갑니다. 확정 분담금은 남은 일행으로 다시 계산하고, 혼자 남으면 일행이 취소됩니다.</p>}
-        <p className="note">{isPaymentParty(party) ? '각자 낼 돈은 확정 분담금 그대로예요. 실제 요금과의 차이는 정산 적립금이 맡아요.' : '실제 요금은 결제 후 같은 비율로 나눕니다. ' + REAL_NAME}</p>
+        {toSchool && <p className="note">승차 시각 3분 뒤까지 도착 표시가 없으면 그 사람을 빼고 갑니다. {postpaid ? '예상 분담금' : '확정 분담금'}은 남은 일행으로 다시 계산하고, 혼자 남으면 일행이 취소됩니다.</p>}
+        <p className="note">{postpaid ? '하차 뒤 실제 요금을 구간 비율로 나눠, 각자 금액을 확인하고 등록한 카드로 결제해요.'
+          : isPaymentParty(party) ? '각자 낼 돈은 확정 분담금 그대로예요. 실제 요금과의 차이는 정산 적립금이 맡아요.' : '실제 요금은 결제 후 같은 비율로 나눕니다. ' + REAL_NAME}</p>
         {new Date(now) >= new Date(party.departureAt) && <MemberActions partyId={party.id} />}
       </div>
     </Screen>
@@ -78,6 +80,13 @@ export function RideConfirmationCard({ party, onUpdated, bare = false }) {
 }
 
 export function PartyFareRows({ party }) {
+  if (isPostpaidParty(party)) {
+    // 후불 정산 v3: 확정 분담금 없이 예상 금액만 보여 주고, 최종 금액은 하차 뒤 실제 요금으로 정한다.
+    return <>
+      <Rows items={[['내 예상 분담금', won(party.myShare), 'big']]} />
+      <p className="note">하차 뒤 실제 요금을 구간 비율로 나눠 최종 금액이 정해져요.</p>
+    </>
+  }
   const increase = party.myConfirmedShare!=null ? party.myShare - party.myConfirmedShare : 0
   return <>
     <Rows items={[
@@ -93,10 +102,18 @@ export function PartyFareRows({ party }) {
 }
 
 const STEPS = ['확정', '선결제', '모이기', '탑승', '정산']
+const POSTPAID_STEPS = ['확정', '모이기', '탑승', '정산·결제']
+const SETTLING_STATUSES = ['AWAITING_FARE', 'OBJECTION_WINDOW', 'REVIEW_PENDING', 'SETTLED', 'COMPLETED', 'FARE_MISSING']
 
-/** 일행 상태를 다섯 단계 중 하나로 보여 준다. 배달 앱처럼 "지금 어디쯤"을 한눈에. */
+/** 일행 상태를 다섯 단계(후불 정산은 네 단계) 중 하나로 보여 준다. 배달 앱처럼 "지금 어디쯤"을 한눈에. */
 function stepOf(party) {
-  if (['AWAITING_FARE', 'OBJECTION_WINDOW', 'REVIEW_PENDING', 'SETTLED', 'COMPLETED', 'FARE_MISSING'].includes(party.status)) return 4
+  if (isPostpaidParty(party)) {
+    if (SETTLING_STATUSES.includes(party.status)) return 3
+    if (party.status === 'RIDE_UNCONFIRMED' || party.startedAt) return 2
+    if (party.status === 'READY' || party.status === 'PAYER_PENDING') return party.calledAt ? 2 : 1
+    return 0
+  }
+  if (SETTLING_STATUSES.includes(party.status)) return 4
   if (party.status === 'RIDE_UNCONFIRMED' || party.startedAt) return 3
   if (party.status === 'READY' || party.status === 'PAYER_PENDING') return party.calledAt ? 3 : 2
   if (party.status === 'PREPAYING') return 1
@@ -105,29 +122,31 @@ function stepOf(party) {
 
 export function PartyStepper({ party, compact = false }) {
   const ended = ['DISSOLVED', 'NOT_OPERATED'].includes(party.status)
+  const steps = isPostpaidParty(party) ? POSTPAID_STEPS : STEPS
   const current = stepOf(party)
   if (compact) {
     return <div className={`stepper-compact${ended ? ' ended' : ''}`}>
       <div className="stepper-meta">
-        <span className="stepper-now">{ended ? partyLabel(party.status) : STEPS[current]}</span>
-        <small>{current + 1} / {STEPS.length}</small>
+        <span className="stepper-now">{ended ? partyLabel(party.status) : steps[current]}</span>
+        <small>{current + 1} / {steps.length}</small>
       </div>
       <ol className={`stepper compact${ended ? ' ended' : ''}`} aria-label="지금 단계">
-        {STEPS.map((step, i) => <li key={step} className={i < current ? 'done' : i === current ? 'now' : ''}
+        {steps.map((step, i) => <li key={step} className={i < current ? 'done' : i === current ? 'now' : ''}
           aria-current={i === current ? 'step' : undefined}><span aria-hidden="true" /><b className="sr-only">{step}</b></li>)}
       </ol>
     </div>
   }
   return <ol className={`stepper${ended ? ' ended' : ''}`} aria-label="진행 단계">
-    {STEPS.map((step, i) => <li key={step} className={i < current ? 'done' : i === current ? 'now' : ''}
+    {steps.map((step, i) => <li key={step} className={i < current ? 'done' : i === current ? 'now' : ''}
       aria-current={i === current ? 'step' : undefined}><span aria-hidden="true" />{step}</li>)}
   </ol>
 }
 
 /** 상태와 역할에 맞는 "지금 할 일" 하나. 제목·한 줄 설명·남은 시간과, 필요하면 그 자리에서 누르는 카드. */
-function NextAction({ party, now, myId, mine, config, run, onUpdated, onDriver }) {
+export function NextAction({ party, now, myId, mine, config, run, onUpdated, onDriver }) {
   // 일행 상태는 모두 결제할 때까지 PREPAYING이라, 내 결제 여부는 내 선결제 주문으로 판단한다.
   const [prepay, setPrepay] = useState(null)
+  const postpaid = isPostpaidParty(party)
   const waiting = ['PREPAYING', 'READY'].includes(party.status)
   const left = (at) => (at && now ? `${remaining(at, now)} 남음` : '')
   let title
@@ -136,13 +155,15 @@ function NextAction({ party, now, myId, mine, config, run, onUpdated, onDriver }
   let tone = ''
   if (party.departureBlockReason === 'ROUTE_VERIFICATION_PENDING') {
     title = '일행 변경 경로를 확인 중이에요'
-    detail = `${formatDateTime(party.routeVerificationDeadlineAt)}까지 확인되지 않으면 일행을 해산하고 선결제 환불을 접수해요.`
+    detail = postpaid
+      ? `${formatDateTime(party.routeVerificationDeadlineAt)}까지 확인되지 않으면 일행을 해산해요. 결제할 금액은 생기지 않아요.`
+      : `${formatDateTime(party.routeVerificationDeadlineAt)}까지 확인되지 않으면 일행을 해산하고 선결제 환불을 접수해요.`
     tone = 'calm'
   } else if (party.status === 'PAYER_PENDING') {
     const me = party.successorId === myId
     title = me ? (party.payerNickname ? `결제자 ${party.payerNickname}님이 안 왔어요` : '결제자가 안 왔어요') : '새 결제자를 정하고 있어요'
     detail = me
-      ? `대신 결제하면 미리 낸 돈은 정산 때 모두 돌려받아요. ${formatTime(party.successionDeadlineAt)}까지 답해 주세요.`
+      ? `${postpaid ? '대신 결제하면 하차 뒤 동승자들이 각자 분담금을 결제해 돌려받아요.' : '대신 결제하면 미리 낸 돈은 정산 때 모두 돌려받아요.'} ${formatTime(party.successionDeadlineAt)}까지 답해 주세요.`
       : '원래 결제자가 오지 않아 다음 사람에게 묻고 있어요.'
     if (me) extra = <div className="btns">
       <Btn onClick={() => run(() => api.payerSuccession(party.id, true), '이제 내가 결제자예요')}>제가 결제할게요</Btn>
@@ -152,7 +173,7 @@ function NextAction({ party, now, myId, mine, config, run, onUpdated, onDriver }
     title = '택시에 탔나요?'
     detail = '운행 시작 표시가 없어 확인하고 있어요. 첫 답변은 바꿀 수 없고, 안 탄 게 확인될 때만 환불해요.'
     extra = <RideConfirmationCard party={party} onUpdated={onUpdated} bare />
-  } else if (party.status === 'PREPAYING' && !party.payer) {
+  } else if (party.status === 'PREPAYING' && !party.payer && !postpaid) {
     const paid = prepay?.status === 'APPROVED'
     title = paid ? '선결제를 마쳤어요' : prepay?.status === 'PROCESSING' ? '결제를 확인하고 있어요' : '선결제를 마쳐 주세요'
     detail = paid ? '모두 결제하면 만날 시간과 장소를 알려 드려요.'
@@ -179,10 +200,10 @@ function NextAction({ party, now, myId, mine, config, run, onUpdated, onDriver }
         </>
       } else if (party.instant) {
         title = '확정 즉시 승차 지점으로 출발해 주세요'
-        detail = reasons || '나는 선결제하지 않아요. 다들 결제하고 도착하면 택시를 부를 수 있어요.'
+        detail = reasons || (postpaid ? '일행이 모두 도착하면 택시를 부를 수 있어요.' : '나는 선결제하지 않아요. 다들 결제하고 도착하면 택시를 부를 수 있어요.')
       } else {
-        title = party.status === 'PREPAYING' ? '다른 사람들이 결제하는 중이에요' : `${formatTime(party.callAt || party.departureAt)}쯤 택시를 불러요`
-        detail = reasons || '결제자는 선결제가 없어요. 부를 때가 되면 여기서 바로 부를 수 있어요.'
+        title = party.status === 'PREPAYING' && !postpaid ? '다른 사람들이 결제하는 중이에요' : `${formatTime(party.callAt || party.departureAt)}쯤 택시를 불러요`
+        detail = reasons || (postpaid ? '부를 때가 되면 여기서 바로 부를 수 있어요.' : '결제자는 선결제가 없어요. 부를 때가 되면 여기서 바로 부를 수 있어요.')
         tone = 'calm'
       }
     }
@@ -204,12 +225,20 @@ function NextAction({ party, now, myId, mine, config, run, onUpdated, onDriver }
       tone = 'calm'
     } else {
       title = party.payer ? '실제 요금을 입력해 주세요' : '결제자의 금액 입력을 기다려요'
-      detail = party.payer ? '영수증 사진과 함께 올리면 내 확정 분담금을 뺀 나머지를 받아요.' : '입력되면 24시간 동안 요금 이의를 낼 수 있어요.'
+      detail = postpaid
+        ? (party.payer ? '영수증 사진과 함께 올리면 동승자들이 실제 요금 기준 분담금을 확인하고 결제해요.' : '입력하면 6시간 동안 확인·결제하거나 이의를 낼 수 있어요.')
+        : party.payer ? '영수증 사진과 함께 올리면 내 확정 분담금을 뺀 나머지를 받아요.' : '입력되면 24시간 동안 요금 이의를 낼 수 있어요.'
       if (!party.payer) tone = 'calm'
     }
   } else if (['DISSOLVED', 'NOT_OPERATED', 'FARE_MISSING'].includes(party.status)) {
     title = party.status === 'DISSOLVED' ? '일행이 해산됐어요' : '운행이 성사되지 않았어요'
-    detail = party.reviewReason === 'ROUTE_VERIFICATION_EXPIRED'
+    detail = postpaid
+      ? (party.reviewReason === 'ROUTE_VERIFICATION_EXPIRED'
+        ? '출발 시각까지 경로를 확인하지 못해 해산했어요. 결제할 금액은 없어요.'
+        : party.reviewReason === 'LATE_CANCELLATION_COMPENSATION'
+          ? '무료가 아닌 이탈 금액은 빠진 사람의 보전 분담금으로 정산해요.'
+          : '운행이 없어 결제할 금액이 없어요.')
+      : party.reviewReason === 'ROUTE_VERIFICATION_EXPIRED'
       ? '출발 시각까지 경로를 확인하지 못해 해산했어요. 승인된 선결제는 환불을 접수했어요.'
       : party.reviewReason === 'LATE_CANCELLATION_COMPENSATION'
       ? '무료가 아닌 이탈 금액은 정산 처리를 기다리고, 나머지 선결제는 환불해요.'
@@ -244,7 +273,9 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
   const waiting = ['PREPAYING', 'READY'].includes(party.status)
   const mine = members.find((m) => m.requestId === party.myRequestId)
   const free = party.freeCancelUntil && new Date(now) <= new Date(party.freeCancelUntil)
-  const owesPrepay = party.status === 'PREPAYING' && !party.payer
+  const postpaid = isPostpaidParty(party)
+  // 후불 정산 v3는 선결제가 없다.
+  const owesPrepay = party.status === 'PREPAYING' && !party.payer && !postpaid
   const canArrive = waiting && !owesPrepay && (party.instant ? !mine?.arrived : party.canArrive)
   // 카드의 굵은 버튼은 하나만: 결제자가 지금 택시를 부를 수 있으면 그게 주 행동이고 도착 표시는 보조 버튼이다.
   const calling = party.payer && waiting && party.canCall && !party.calledAt
@@ -263,10 +294,10 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
               선결제할 차례에는 결제 카드에만 집중하게 숨긴다. */}
           {!owesPrepay && <PartyStepper party={party} compact />}
           <NextAction party={party} now={now} myId={myId} mine={mine} config={config} run={run} onUpdated={onUpdated} onDriver={() => setDriver(true)} />
-          {['READY', 'RIDE_UNCONFIRMED', 'AWAITING_FARE'].includes(party.status) && <BoardingCodePanel party={party} now={now} onUpdated={onUpdated} />}
+          {['READY', 'RIDE_UNCONFIRMED', 'AWAITING_FARE'].includes(party.status) && <BoardingCodePanel party={party} now={now} onUpdated={onUpdated} demo={!!config?.demo} />}
           {party.canLeaveAfterChange && <Say tone="stop-tone" title="일행이 바뀌었어요"
             action={<Btn className="small line" onClick={() => setLeavingChange(true)}>변경돼서 빠지기</Btn>}>
-            현재 내 확정 분담금은 {won(party.myShare)}이에요. 원하지 않으면 {party.changeExitFree ? '호출 전까지 무료로' : ''} 빠질 수 있어요.
+            현재 내 {postpaid ? '예상' : '확정'} 분담금은 {won(party.myShare)}이에요. 원하지 않으면 {party.changeExitFree ? '호출 전까지 무료로' : ''} 빠질 수 있어요.
           </Say>}
           {waiting && party.instant && !mine?.arrived && !owesPrepay && <Btn className="line" disabled={mine?.nearby}
             onClick={() => run(() => api.prepareParty(party.id, 'NEARBY'), '2분 안 도착으로 표시했어요')}>{mine?.nearby ? '2분 안 도착 표시 완료' : '2분 안 도착'}</Btn>}
@@ -309,7 +340,15 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
         ]} />
         <PartyFareRows party={party} />
         <Fold title="규칙 자세히" className="rules">
-          <ul>
+          {postpaid ? <ul>
+            <li>{free ? '무료 취소 마감 전 취소하면 낼 돈이 없어요.' : '무료 취소 마감이 지나 취소하면 남은 일행의 늘어난 금액을 보전 분담금으로 내요.'}</li>
+            <li>누가 오지 않으면 일행·본인 소명을 보고 24시간 뒤 판정해요. 노쇼로 확정되면 남은 일행의 늘어난 금액을 그 사람이 보전하고, 판단할 수 없으면 노쇼로 보지 않아요.</li>
+            <li>하차 뒤 결제자가 실제 요금과 영수증을 올리면, 실제 요금을 구간 비율로 나눠 각자 분담금이 정해져요.</li>
+            <li>동승자는 6시간 안에 금액을 확인하고 결제하거나 이의를 낼 수 있어요. 이의가 없으면 자동으로 확정돼요.</li>
+            <li>택시는 결제자가 카카오T로 직접 불러요. 앱은 부른 사실만 기록해요.</li>
+            <li>운행 시작 표시가 없으면 탔는지 물어보고, 탄 사람만 분담금을 내요.</li>
+            <li>{CHAT_RETENTION}</li>
+          </ul> : <ul>
             <li>{free ? '무료 취소 마감 전 취소하면 승인된 선결제를 전액 환불해요.' : '무료 취소 마감이 지나 취소하면 남은 일행의 늘어난 금액을 보전해요.'}</li>
             <li>누가 오지 않으면 일행·본인 소명을 보고 24시간 뒤 판정해요. 노쇼로 확정되면 남은 일행의 늘어난 금액을 그 사람의 선결제에서 보전하고, 판단할 수 없으면 노쇼로 보지 않아요.</li>
             <li>선결제는 확정 때 정해진 확정 분담금 그대로이고, 그게 최종 금액이에요. 길이 막혀 요금이 더 나와도 더 받지 않아요. 차이는 정산 적립금이 맡아요.</li>
@@ -317,13 +356,15 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
             <li>택시는 결제자가 카카오T로 직접 불러요. 앱은 부른 사실만 기록해요.</li>
             <li>운행 시작 표시가 없으면 탔는지 물어보고, 미운행이 확인될 때만 환불해요.</li>
             <li>{CHAT_RETENTION}</li>
-          </ul>
+          </ul>}
         </Fold>
         <div className="list"><Item title="일행과 경로 자세히" onClick={onDetail} /></div>
         <PartySecondary party={party} onCancel={() => setAsking(true)} />
       </div>} />
     {leavingChange && <Sheet title="변경된 일행에서 빠질까요?" onClose={() => setLeavingChange(false)}>
-      <Say title={party.changeExitFree ? '무료 이탈' : '무료 아님'}>{party.changeExitFree ? '호출 시각 전이라 승인된 선결제를 전액 환불해요.' : '호출 시각이 지나 무료가 아니에요. 선결제는 환불하지 않고 정산 처리를 기다려요.'}</Say>
+      <Say title={party.changeExitFree ? '무료 이탈' : '무료 아님'}>{postpaid
+        ? (party.changeExitFree ? '호출 시각 전이라 낼 돈 없이 빠질 수 있어요.' : '호출 시각이 지나 무료가 아니에요. 남은 일행의 늘어난 금액은 보전 분담금으로 정산해요.')
+        : party.changeExitFree ? '호출 시각 전이라 승인된 선결제를 전액 환불해요.' : '호출 시각이 지나 무료가 아니에요. 선결제는 환불하지 않고 정산 처리를 기다려요.'}</Say>
       <Btn onClick={async () => { await run(() => api.leaveAfterChange(party.id, party.groupVersion), (r) => r.message); setLeavingChange(false) }}>변경 이탈 확인</Btn>
     </Sheet>}
     {asking && <CancelSheet party={party} now={now} run={run} onClose={() => setAsking(false)} />}

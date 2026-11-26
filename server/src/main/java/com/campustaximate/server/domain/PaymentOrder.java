@@ -26,6 +26,7 @@ public class PaymentOrder {
     private Long memberId;
     private Long requestId;
     private Long settlementId;
+    private Integer settlementRevision;
     @Enumerated(EnumType.STRING) @JdbcTypeCode(SqlTypes.VARCHAR)
     private PaymentPurpose purpose;
     @Enumerated(EnumType.STRING) @JdbcTypeCode(SqlTypes.VARCHAR)

@@ -1,3 +1,3 @@
 package com.campustaximate.server.domain;
 
-public enum PaymentPurpose { PREPAY, ADDITIONAL }
+public enum PaymentPurpose { PREPAY, ADDITIONAL, POSTPAID, COMPENSATION }

@@ -82,9 +82,13 @@ export const PARTY_LABEL = {
 }
 export const partyLabel = (status) => PARTY_LABEL[status] || '일행 상태 확인 중'
 export const knownPartyStatus = (status) => PARTY_LABEL[status] != null
-export const isPaymentParty = (party) => party.prepayDeadlineAt != null
+/** 결제 기반(v2 선결제·v3 후불) 일행인지. v3 후불은 선결제 마감이 없어도(prepayDeadlineAt: null) 결제 일행이다. */
+export const isPaymentParty = (party) => Boolean(party && ((party.paymentFlowVersion ?? 0) >= 2
+  || party.prepayDeadlineAt != null
   || ['RIDE_UNCONFIRMED', 'PREPAYING', 'READY', 'AWAITING_FARE', 'OBJECTION_WINDOW', 'REVIEW_PENDING', 'SETTLED', 'DISSOLVED', 'NOT_OPERATED', 'FARE_MISSING'].includes(party.status)
-  || party.settlement?.objectionDeadlineAt != null
+  || party.settlement?.objectionDeadlineAt != null))
+/** 후불 정산 v3 일행인지. 등록된 결제수단으로 하차 뒤 청구한다. */
+export const isPostpaidParty = (party) => (party?.paymentFlowVersion ?? 0) >= 3
 
 /** 5분 단위 선택지는 서울 기준 다음 날 마지막 시각까지만 제공한다. */
 export function requestTimeOptions(now, minimumMinutes = 25) {

@@ -363,7 +363,7 @@ class MatchingConnectionTest {
         slots.runLocked(()->{slots.process(slot);return null;});
         assertThat(parties.findAll()).hasSize(1);var party=parties.findAll().getFirst();
         assertThat(party.isInstant()).isTrue();assertThat(party.getDepartureAt()).isEqualTo(NOW.plusSeconds(720));
-        assertThat(party.getPrepayDeadlineAt()).isEqualTo(NOW.plusSeconds(420));
+        assertThat(party.getPrepayDeadlineAt()).isNull();
         assertThat(party.freeCancelUntil()).isEqualTo(NOW.plusSeconds(420));
         verify(routes,atLeastOnce()).routeAt(any(),anyList(),eq(NOW.plusSeconds(720)));
         assertThat(jdbc.queryForObject("select count(*) from mail_outbox where subject=?",Integer.class,"[캠퍼스 택시메이트] 승차 지점으로 출발")).isEqualTo(1);
@@ -385,7 +385,8 @@ class MatchingConnectionTest {
         Instant slot=NOW.plusSeconds(60);doReturn(slot).when(clock).now();slots.runLocked(()->{slots.process(slot);return null;});
         assertThat(parties.findAll()).hasSize(1);var party=parties.findAll().getFirst();
         assertThat(party.getDepartureAt()).isBetween(slot.plusSeconds(480),slot.plusSeconds(840));
-        assertThat(party.getPrepayDeadlineAt()).isEqualTo(slot.plusSeconds(300));
+        assertThat(party.getPrepayDeadlineAt()).isNull();
+        assertThat(party.freeCancelUntil()).isEqualTo(slot.plusSeconds(300));
         assertThat(requests.findByStatus(RequestStatus.MATCHED)).hasSize(2);
         verify(routes,atLeastOnce()).routeAt(any(),anyList(),eq(party.getDepartureAt()));
     }

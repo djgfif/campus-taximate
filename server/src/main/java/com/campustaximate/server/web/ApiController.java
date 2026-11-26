@@ -34,6 +34,7 @@ import com.campustaximate.server.service.WaitingInsightService;
 import com.campustaximate.server.service.LoginTokenService;
 import com.campustaximate.server.service.MailService;
 import com.campustaximate.server.service.PartyService;
+import com.campustaximate.server.service.PaymentService;
 import com.campustaximate.server.service.RideRequestService;
 import com.campustaximate.server.service.SettlementService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -63,6 +64,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -80,6 +82,7 @@ public class ApiController {
     private final LoginTokenService tokens;
     private final RideRequestService rideRequests;
     private final PartyService parties;
+    private final PaymentService payments;
     private final com.campustaximate.server.common.InstantMatchingConfiguration instantSettings;
     private final com.campustaximate.matching.MatchingSettings matchingSettings;
     private final SettlementService settlements;
@@ -102,6 +105,9 @@ public class ApiController {
 
     @Value("${app.cookie-secure}")
     private boolean secureCookie;
+
+    @Value("${app.payment.flow-version:2}")
+    private int paymentFlowVersion;
 
     public record CodeBody(@Email @NotBlank String email) {
     }
@@ -199,6 +205,7 @@ public class ApiController {
         var schoolList = schools.findAll().stream().sorted(java.util.Comparator.comparing(School::getId))
                 .map(s -> Map.of("name", s.getName(), "emailDomain", s.getEmailDomain())).toList();
         return Map.of("demo", demo.enabled(), "simulatedRoute", routes.simulated(), "now", clock.now(), "schools", schoolList,
+                "paymentFlowVersion", paymentFlowVersion, "simulatedPayment", payments.simulated(),
                 // 화면이 공정 기준(늘어나는 시간 상한, 최소 절약 비율)을 엔진과 같은 값으로 보여 준다.
                 "rules", Map.of("maxDelayMinutes", matchingSettings.maxDelayMinutes(), "minSavingRate", matchingSettings.minSavingRate()),
                 "mailEnabled", mail.enabled(), "sampleDropoffs", dropoffs.getDropoffs(),"instantMatching",Map.of(
@@ -333,6 +340,11 @@ public class ApiController {
                 "restriction", java.util.Optional.ofNullable(safety.activeRestriction(id)).<Object>map(r -> r).orElse(""),
                 "transferRestricted", rideRequests.isTransferRestricted(id),
                 "settledParty", java.util.Optional.ofNullable(parties.latestSettled(id)).<Object>map(p -> p).orElse(""));
+    }
+
+    @GetMapping("/me/conversations")
+    public List<com.campustaximate.server.service.PartyChatService.ConversationView> conversations(HttpSession session) {
+        return chat.conversations(memberId(session));
     }
 
     public record MessageBody(String text, String clientId) { }
@@ -483,9 +495,23 @@ public class ApiController {
 
     public record ObjectionBody(@NotBlank @Size(max=500) String reason) { }
 
+    public record ConfirmAndPayBody(@NotNull Integer revision, @NotBlank String orderId,
+                                    @NotNull Long amount, String paymentKey) { }
+
     @PostMapping("/parties/{id}/settlement/objections")
     public void objectToFare(@PathVariable long id, @Valid @RequestBody ObjectionBody body, HttpSession session) {
         settlements.objectToFare(memberId(session), id, body.reason());
+    }
+
+    @PostMapping("/parties/{id}/settlement/confirm-and-pay")
+    public ResponseEntity<SettlementService.ConfirmAndPayView> confirmAndPay(
+            @PathVariable long id,
+            @Valid @RequestBody ConfirmAndPayBody body,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            HttpSession session) {
+        var result = settlements.confirmAndPay(memberId(session), id, body.revision(), body.orderId(),
+                body.amount(), body.paymentKey(), idempotencyKey);
+        return result.processing() ? ResponseEntity.accepted().body(result) : ResponseEntity.ok(result);
     }
 
     @GetMapping("/parties/{id}/settlement/preview")

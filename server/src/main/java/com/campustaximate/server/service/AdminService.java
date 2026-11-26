@@ -185,7 +185,13 @@ public class AdminService {
     public record ReserveView(long balance,long covered,long settlements,List<com.campustaximate.server.domain.ReserveEntry> recent) {}
     public ReserveView reserve(long actor){requireAdmin(actor);var all=reserve.findAll();
         return new ReserveView(reserve.balance(),all.stream().mapToLong(com.campustaximate.server.domain.ReserveEntry::getCovered).sum(),all.size(),reserve.findTop20ByOrderByIdDesc());}
-    public List<PaymentOrder> overdue(long actor){requireAdmin(actor);return orders.findAll().stream().filter(o->o.getPurpose()==PaymentPurpose.ADDITIONAL&&o.getStatus()==PaymentStatus.OVERDUE).toList();}
+    public List<PaymentOrder> overdue(long actor) {
+        requireAdmin(actor);
+        return orders.findAll().stream().filter(order -> order.getStatus() == PaymentStatus.OVERDUE
+                && (order.getPurpose() == PaymentPurpose.ADDITIONAL
+                        || order.getPurpose() == PaymentPurpose.COMPENSATION
+                        || order.getPurpose() == PaymentPurpose.POSTPAID)).toList();
+    }
     @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void handleOverdue(long actor,long id,String evidence){
         requireAdmin(actor);evidence(evidence);var ref=orders.findById(id).orElseThrow(()->ApiException.notFound("없는 결제입니다."));lockParty(ref.getPartyId());var o=orders.lockById(id).orElseThrow();
