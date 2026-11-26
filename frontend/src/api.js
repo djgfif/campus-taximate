@@ -88,6 +88,12 @@ export const api = {
   myJoins: () => request('/joins'),
   partyPeople: (partyId) => request(`/parties/${partyId}/people`),
   praise: (partyId, targetId, tags) => json('POST', `/parties/${partyId}/praises`, { targetId, tags }),
+  // 후불 정산 v3 결제수단. 응답에는 billingKey가 오지 않는다(id, provider, cardLabel, active, registeredAt).
+  paymentMethods: () => request('/payment-methods'),
+  registerPaymentMethod: (body) => json('POST', '/payment-methods', body),
+  deletePaymentMethod: (id) => request('/payment-methods/' + id, { method: 'DELETE' }),
+  // 독립 메시지함 대화 목록(마지막 메시지 미리보기·안 읽은 수 포함).
+  conversations: () => request('/me/conversations'),
   myProfile: () => request('/me/profile'),
   saveProfile: (body) => json('PUT', '/me/profile', body),
   reportMember: (partyId, memberId, body) => json('POST', `/parties/${partyId}/members/${memberId}/report`, body),

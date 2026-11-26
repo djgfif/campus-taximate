@@ -1085,7 +1085,167 @@
   font-size: 14px;
 }
 
+/* 메시지함 목록의 마지막 메시지 한 줄 미리보기 */
+.messages-item-preview {
+  display: block;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.messages-item.on .messages-item-preview {
+  color: var(--color-text);
+}
+
+/* 결제수단 관리 (/app/account/payments) */
+.payments-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 640px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.payments-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.payments-head h1 {
+  margin: 0;
+  font-size: 22px;
+  color: var(--color-text);
+}
+
+.payments-head p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+}
+
+.payments-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  padding: 6px 10px 6px 4px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-primary);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.payments-back:hover {
+  background: var(--color-primary-soft);
+}
+
+.payments-card h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.payment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.payment-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface-subtle);
+}
+
+.payment-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.payment-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.payment-main b {
+  overflow: hidden;
+  color: var(--color-text);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.payment-main small {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.payment-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.payment-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.payment-hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.payment-hint.bad {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.payments-return .say {
+  border: 1px solid var(--color-success);
+  background: var(--color-success-soft);
+}
+
 @media (min-width: 1024px) {
+  .payments-page {
+    padding-top: 24px;
+  }
   .messages-page {
     max-width: var(--container-max);
     margin: 20px auto;

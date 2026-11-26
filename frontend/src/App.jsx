@@ -11,6 +11,7 @@ import FindPage from './pages/FindPage.jsx'
 import TripDetailPage from './pages/TripDetailPage.jsx'
 import MessagesPage from './pages/MessagesPage.jsx'
 import SettlementPage from './pages/SettlementPage.jsx'
+import PaymentMethodsPage from './pages/PaymentMethodsPage.jsx'
 import { HomeRequest, SchoolRequest } from './RequestFlow.jsx'
 import { Joining } from './Board.jsx'
 import { ProfileSheet } from './People.jsx'
@@ -24,7 +25,7 @@ const DemoBar = lazy(() => import('./DemoBar.jsx'))
 const DemoPresenter = lazy(() => import('./DemoBar.jsx').then((m) => ({ default: m.DemoPresenter })))
 import { isPaymentParty } from './format.js'
 import { NoShow, Unmatched, Waiting } from './RequestStatus.jsx'
-import { Avatar, Btn, HomeLinkContext, Confirm, Empty, Item, LoadingScreen, Say, Screen, Sheet, TabBar, Toaster, toast } from './ui.jsx'
+import { Avatar, Btn, HomeLinkContext, Confirm, Empty, Item, LoadingScreen, Say, Screen, Sheet, TabBar, Toaster, toast, useWide } from './ui.jsx'
 import { formatTime, partyLabel, partyRouteLabel, savedTotal, won } from './format.js'
 import { ChevronRight } from 'lucide-react'
 import { disablePush, enablePush, pushGranted, pushSupported } from './push.js'
@@ -46,6 +47,8 @@ const ROUTE_TAB = {
   '/app/trips': 'rides',
   '/me': 'me',
   '/app/account': 'me',
+  '/app/account/payments': 'payments',
+  '/payments': 'payments',
   '/admin': 'admin',
   '/boarding-cases': 'boarding-cases',
   '/app/account/cases': 'boarding-cases',
@@ -58,6 +61,7 @@ export default function App() {
   const [state, setState] = useState(null)
   const location = useLocation()
   const navigate = useNavigate()
+  const wide = useWide()
   const [down, setDown] = useState(false)
   const [offline, setOffline] = useState(false)
   const [menu, setMenu] = useState(false)
@@ -183,7 +187,8 @@ export default function App() {
   // 휴대폰 탭바: 내 정보는 탭 화면, 넓은 화면은 오른쪽 위 팝업이다.
   const unread = (state?.parties || []).reduce((sum, p) => sum + (p.unreadChat || 0), 0)
   // 일행방(/parties/… 또는 /app/trips/…)은 홈 흐름 안에 있지만 메뉴에서는 '내 일행'으로 켠다.
-  const navTab = /^\/(parties|app\/trips)\//.test(location.pathname) ? 'rides' : tab
+  // 결제수단 관리는 내 정보 아래 화면이라 메뉴에서는 '내 정보'로 켠다.
+  const navTab = /^\/(parties|app\/trips)\//.test(location.pathname) ? 'rides' : tab === 'payments' ? 'me' : tab
   const tabBar = <TabBar current={navTab} onTab={setTab} unread={unread} />
   const [pushOn, setPushOn] = useState(false)
 
@@ -215,6 +220,7 @@ export default function App() {
     {saved > 0 && <div className="rows me-saved"><div><span className="k">같이 타서 덜 낸 돈</span><span className="v">{won(saved)}</span></div></div>}
     <div className="list">
       <Item title="프로필" detail="학과와 입학 연도를 같이 타는 사람에게 보여 줘요" onClick={() => { close(); setEditingProfile(true) }} />
+      <Item title="결제수단 관리" detail="후불 결제에 쓸 카드를 등록하고 관리해요" onClick={() => { close(); navigate('/app/account/payments') }} />
       <Item title="탑승 확인" detail="탑승 기록이 잘못됐다면 이의를 낼 수 있어요" onClick={() => { close(); setTab('boarding-cases') }} />
       {me.admin && <Item title="관리자" detail="노쇼와 요금 검토, 신고와 제한, 승차 지점 관리" onClick={() => { close(); setTab('admin') }} />}
       {config?.demo && <Item title="시연 콘솔" detail="시연 계정 전환과 시나리오를 별도 콘솔에서 제어해요" onClick={() => { close(); navigate('/demo') }} />}
@@ -280,6 +286,7 @@ export default function App() {
           {!paymentReturn && tab === 'messages' && !state && <LoadingScreen />}
           {!paymentReturn && tab === 'messages' && state && (
             <MessagesPage
+              key={me?.id || 'guest'}
               state={state}
               activePartyId={messagesPartyId}
               onSelectParty={(id) => navigate(id ? `/app/messages/${id}` : '/app/messages')}
@@ -287,6 +294,10 @@ export default function App() {
               onHome={() => setTab('find')}
               tabBar={tabBar}
             />
+          )}
+          {/* 계정이 바뀌면 key가 바뀌어 이전 계정의 결제수단·대화 목록을 버리고 새로 읽는다. */}
+          {!paymentReturn && tab === 'payments' && (
+            <PaymentMethodsPage key={me?.id || 'guest'} config={config} onBack={() => navigate(wide ? '/' : '/app/account')} tabBar={tabBar} />
           )}
           {!paymentReturn && tab === 'home' && !state && <LoadingScreen />}
           {!paymentReturn && tab === 'home' && state && (
