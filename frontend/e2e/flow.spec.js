@@ -16,27 +16,14 @@ async function login(page, id, { activeParty = false } = {}) {
   // 홈은 늘 홈이다. 진행 중 일행은 홈 맨 위 '내 일행' 줄을 눌러 들어간다.
   if (activeParty) {
     await page.getByRole('list', { name: '내 일행' }).getByRole('button').first().click({ timeout: 15000 })
-    await expect(page.getByRole('region', { name: '채팅 창' })).toBeVisible({ timeout: 15000 })
+    await expect(page.getByRole('button', { name: /일행 메시지 열기/ })).toBeVisible({ timeout: 15000 })
   }
   else await expect(homeDirections(page)).toBeVisible({ timeout: 15000 })
 }
 
-/** 일행 정보. 휴대폰과 넓은 화면 모두 방 머리의 (i) 단추로 창을 연다. 확인이 끝나면 창을 닫는다. */
-async function withDetails(page, check) {
-  const open = page.getByRole('button', { name: '일행 정보 열기' })
-  const phone = await open.isVisible()
-  if (phone) await open.click()
-  await check(page.getByRole('region', { name: '일행 정보' }))
-  if (phone) await page.getByRole('dialog', { name: '일행 정보' }).getByRole('button', { name: '닫기' }).click()
-}
-
-/** 결제자의 기사님 화면. 채팅 입력창 옆 + 메뉴에 있다. */
+/** 결제자의 기사님 화면. */
 async function openDriver(page) {
-  const more = page.getByRole('button', { name: '더 보기' })
-  if (await more.isVisible()) {
-    await more.click()
-    await page.getByRole('menuitem', { name: '기사님께 보여 주기' }).click()
-  } else await page.getByRole('button', { name: '기사님께 보여 줄 화면' }).click()
+  await page.getByRole('button', { name: '기사님께 보여 줄 화면', exact: true }).click()
 }
 
 /** 홈의 등교·하교 전환. 홈이 떠 있는지 이것으로 확인한다. */
@@ -45,14 +32,17 @@ const homeDirections = (page) => page.getByRole('tablist', { name: '방향' })
 /** 홈에서 하교를 고르고 목적지 입력으로 들어간다. */
 async function startHomeRequest(page) {
   await homeDirections(page).getByRole('tab', { name: '하교', exact: true }).click()
-  await page.getByRole('button', { name: '어디로 가세요?', exact: true }).click()
+  await page.getByRole('button', { name: /어디로 가세요\?/ }).click()
 }
 
 async function demo(page, action) {
   // 휴대폰은 위쪽 '시연' 단추, 넓은 화면은 상단 메뉴의 '시연' 단추로 연다(D 키도 동작).
   const fab = page.getByRole('button', { name: '시연', exact: true })
   if (await fab.isVisible()) await fab.click()
-  else await page.keyboard.press('d')
+  else {
+    await page.evaluate(() => document.activeElement?.blur?.())
+    await page.keyboard.press('d')
+  }
   const sheet = page.getByRole('dialog', { name: '시연' })
   const button = sheet.getByRole('button', { name: action, exact: true })
   // 다른 일행 움직이기와 시각 이동은 '시간 넘기기', 갈래 장면은 '다른 장면 체험' 접힘 안에 있다.
@@ -123,10 +113,10 @@ test('승차 지점 요청부터 이의 기간과 정산 완료까지 화면으�
   await expect(page.getByRole('heading', { name: '같이 탈 학생을 찾고 있어요' })).toBeVisible()
 
   await demo(page, '일행 만들기')
-  await withDetails(page, () => expect(page.getByRole('dialog', { name: '일행 정보' }).getByText('내가 결제자')).toBeVisible())
-  // 마감 시각은 일행 정보에 있다.
-  await withDetails(page, (details) => expect(details.getByText('무료 취소 마감', { exact: true })).toBeVisible())
-  // 샘플 회원의 선결제와 도착을 실제 회원과 같은 API로 처리한다.
+  await expect(page.locator('.trip-role-pill')).toContainText('내가 결제자')
+  await expect(page.locator('.trip-status-pill')).toContainText('모이는 중')
+  await expect(page.getByText('무료 취소 마감', { exact: true })).toBeVisible()
+  // v3는 선결제 없이 즉시 출발 준비(READY)가 열리며, 다른 일행 도착은 실제 회원과 같은 API로 처리한다.
   await demo(page, '다른 일행이 움직이기')
   await openDriver(page)
   await expect(page.getByRole('dialog', { name: '기사님께 보여 줄 화면' })).toBeVisible()
@@ -143,28 +133,30 @@ test('승차 지점 요청부터 이의 기간과 정산 완료까지 화면으�
   const amount = page.getByLabel('실제 요금')
   for (let i = 0; i < 30 && !(await amount.isVisible()); i++) await demo(page, '5분 뒤')
   await expect(amount).toBeVisible()
-  // 예상 합계보다 조금 더 나온 현실적인 요금. 1.5배를 넘으면 관리자 검토로 가므로(S43) 그 안에서 고른다.
+  // 예상 합계보다 조금 더 나온 현실적인 요금. 1.5배를 넘으면 관리자 검토로 가므로 그 안에서 고른다.
   const riding = await currentParty(page)
   await amount.fill(String(riding.expectedTotal + 700))
   await page.getByLabel('영수증 사진').setInputFiles({ name: 'r.png', mimeType: 'image/png', buffer: PNG })
   await expect(page.getByLabel('은행', { exact: true })).toHaveCount(0)
   await expect(page.getByLabel('받을 계좌', { exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: /정산 요청/ }).click()
-  await expect(page.locator('.room-sub')).toContainText('요금 확인 기간')
+  await expect(page.locator('.trip-status-pill')).toContainText('요금 확인 기간')
+  await expect(page.getByText('확인·결제 현황', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText('예정 수령액', { exact: true }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: '요금 이의', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: /^(보냄|받음)$/ })).toHaveCount(0)
   await expect(page.getByText(/앱 정산 기록상 받을 돈/)).toHaveCount(0)
 
   await demo(page, '하루 뒤')
   await demo(page, '5분 뒤')
-  // 다른 샘플 일행도 확정 분담금으로 정산을 마친다(추가 결제 없음).
+  // 샘플 동승자들도 후불 분담금을 확인하고 결제한다.
   await demo(page, '다른 일행이 움직이기')
   await demo(page, '5분 뒤')
   await page.goto('/history')
   await expect(page.getByText('정산 완료', { exact: true }).first()).toBeVisible()
-  await expect(page.getByText(/앱 정산 기록상 받을 돈\(실제 송금 없음\) [\d,]+원/).first()).toBeVisible()
-  await expect(page.getByText('실제 송금 없음').first()).toBeVisible()
-  // 전체 요금 통계는 관리자에게만 보인다(11/12 변경). 학생 계정에는 없어야 한다.
+  await expect(page.getByText('확인·결제 현황', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText('수령 확정액', { exact: true }).first()).toBeVisible()
+  // 전체 요금 통계는 관리자에게만 보인다. 학생 계정에는 없어야 한다.
   await expect(page.getByText(/전체 정산 \d+건 중/)).toHaveCount(0)
 })
 
@@ -187,8 +179,9 @@ test('서로 다른 사용자 화면에서 번호 공개·탑승 인증·명시�
   await page.locator('.foot').getByRole('button', { name: '일행 찾기' }).click()
   await expect(page.getByRole('heading', { name: '같이 탈 학생을 찾고 있어요' })).toBeVisible()
   await demo(page, '일행 만들기')
-  await withDetails(page, () => expect(page.getByRole('dialog', { name: '일행 정보' }).getByText('내가 결제자')).toBeVisible())
-  // 선결제·샘플 도착만 시연 도구로 준비한다. 실제 검증 대상 동작은 각 사용자 UI에서 수행한다.
+  await expect(page.locator('.trip-role-pill')).toContainText('내가 결제자')
+  await expect(page.locator('.trip-status-pill')).toContainText('모이는 중')
+  // 샘플 도착만 시연 도구로 준비한다. 실제 검증 대상 동작은 각 사용자 UI에서 수행한다.
   await demo(page, '다른 일행이 움직이기')
   await page.getByRole('button', { name: '도착했어요', exact: true }).click()
   const party = await currentParty(page)
@@ -265,9 +258,21 @@ test('서로 다른 사용자 화면에서 번호 공개·탑승 인증·명시�
     await amount.fill(String(party.expectedTotal))
     await page.getByLabel('영수증 사진').setInputFiles({ name: 'demo-receipt.png', mimeType: 'image/png', buffer: PNG })
     await page.getByRole('button', { name: /정산 요청/ }).click()
-    await expect(page.locator('.room-sub')).toContainText('요금 확인 기간')
-    await demo(page, '하루 뒤')
-    await demo(page, '5분 뒤')
+    await expect(page.locator('.trip-status-pill')).toContainText('요금 확인 기간')
+
+    // 동승자 화면에서도 실제 요금 기준 후불 분담금 확인과 결제를 직접 누른다.
+    await rider.reload()
+    await expect(rider.locator('.trip-status-pill')).toContainText('요금 확인 기간')
+    const confirmPayBtn = rider.getByRole('button', { name: /확인하고 결제/ })
+    await expect(confirmPayBtn).toBeVisible()
+    const payResponse = rider.waitForResponse((response) => response.url().endsWith(`/parties/${party.id}/settlement/confirm-and-pay`)
+      && response.request().method() === 'POST')
+    await confirmPayBtn.click()
+    expect((await payResponse).status()).toBeLessThan(400)
+    await expect(rider.getByText('정산 확인과 결제를 마쳤어요')).toBeVisible()
+
+    // 남은 샘플 일행도 후불 확인·결제를 마친다.
+    await demo(page, '다른 일행이 움직이기')
     await expect.poll(async () => {
       const response = await page.request.get(`/api/parties/${party.id}`)
       expect(response.ok()).toBeTruthy()
@@ -275,7 +280,7 @@ test('서로 다른 사용자 화면에서 번호 공개·탑승 인증·명시�
     }).toBe('COMPLETED')
     await page.goto('/history')
     await expect(page.getByText('정산 완료', { exact: true }).first()).toBeVisible()
-    await expect(page.getByText('실제 송금 없음').first()).toBeVisible()
+    await expect(page.getByText('확인·결제 현황', { exact: true }).first()).toBeVisible()
     await evidence(page, info.project.name, '05-settlement-completed', info)
     expect(problems, '인증된 다중 사용자 흐름의 콘솔·미처리 오류').toEqual([])
   } finally {

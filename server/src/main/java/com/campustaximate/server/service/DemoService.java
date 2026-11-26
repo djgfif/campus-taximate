@@ -213,9 +213,19 @@ public class DemoService {
         for (PartyService.PartyView party : partyService.openParties(memberId)) {
             if (payments.simulated()) {
                 for (var order : paymentOrders.findByPartyIdOrderById(party.id())) {
-                    if (isSample(order.getMemberId(), memberId) && order.getStatus() == com.campustaximate.server.domain.PaymentStatus.REQUIRED) {
+                    if (!isSample(order.getMemberId(), memberId)) continue;
+                    if (order.getStatus() != com.campustaximate.server.domain.PaymentStatus.REQUIRED
+                            && order.getStatus() != com.campustaximate.server.domain.PaymentStatus.OVERDUE) continue;
+                    if (order.getPurpose() == com.campustaximate.server.domain.PaymentPurpose.POSTPAID) {
+                        if (party.settlement() != null && party.settlement().payable()) {
+                            settlementService.confirmAndPay(order.getMemberId(), party.id(),
+                                    party.settlement().revision(), order.getOrderId(), order.getAmount(), null, null);
+                        }
+                    } else {
                         payments.confirm(order.getMemberId(), order.getOrderId(), "demo_" + order.getOrderId(), order.getAmount());
-                        chat.send(order.getMemberId(),party.id(),DemoTalk.paid(order.getMemberId()));
+                        if (order.getPurpose() == com.campustaximate.server.domain.PaymentPurpose.PREPAY) {
+                            chat.send(order.getMemberId(), party.id(), DemoTalk.paid(order.getMemberId()));
+                        }
                     }
                 }
             }
@@ -231,7 +241,10 @@ public class DemoService {
                     chat.send(rider.memberId(),party.id(),DemoTalk.arrived(rider.memberId(),rider.memo()));
                 }
             }
-            if(party.prepayDeadlineAt()!=null && List.of(com.campustaximate.server.domain.PartyStatus.READY,com.campustaximate.server.domain.PartyStatus.RIDE_UNCONFIRMED,com.campustaximate.server.domain.PartyStatus.AWAITING_FARE).contains(party.status())) {
+            if ((party.paymentFlowVersion() >= 2 || party.prepayDeadlineAt() != null)
+                    && List.of(com.campustaximate.server.domain.PartyStatus.READY,
+                            com.campustaximate.server.domain.PartyStatus.RIDE_UNCONFIRMED,
+                            com.campustaximate.server.domain.PartyStatus.AWAITING_FARE).contains(party.status())) {
                 if(isSample(party.payerId(),memberId) && party.startedAt()==null) {
                     var state=boardingCodes.state(party.payerId(),party.id());
                     if(state.canOpen()) boardingCodes.open(party.payerId(),party.id());

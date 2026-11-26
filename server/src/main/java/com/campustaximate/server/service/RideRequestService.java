@@ -84,14 +84,14 @@ public class RideRequestService {
         Instant requestedAt = clock.now();
         TransactionTemplate tx = new com.campustaximate.server.common.RetryingTransactionTemplate(transactionManager);
         Prepared prepared = tx.execute(status -> {
-            members.findByIdForUpdate(memberId).orElseThrow(ApiException::unauthorized);
-            requireAvailable(memberId);
+            Member member = members.findByIdForUpdate(memberId).orElseThrow(ApiException::unauthorized);
+            requireAvailable(member);
             return prepare(memberId, input);
         });
         Quote quote = quote(memberId, input, prepared, false);
         return tx.execute(status -> {
             Member member = members.findByIdForUpdate(memberId).orElseThrow(ApiException::unauthorized);
-            requireAvailable(memberId);
+            requireAvailable(member);
             prepare(memberId, input); // 조회 중 지점 비활성화·시간 경과도 다시 검사한다.
             requireTimely(input, quote.solo());
             RideRequest request = new RideRequest();
@@ -147,11 +147,13 @@ public class RideRequestService {
         return new Preview(quote.solo().fare(), (quote.solo().seconds() + 59) / 60, deadline);
     }
 
-    private void requireAvailable(long memberId) {
+    private void requireAvailable(Member member) {
+        long memberId = member.getId();
         safety.requireUnrestricted(memberId);
         if (isTransferRestricted(memberId)) throw ApiException.conflict("TRANSFER_OVERDUE", "24시간이 지나도 보내지 않은 송금이 있어 새 요청을 할 수 없습니다.");
         if (payments.overdue(memberId)) throw ApiException.conflict("ADDITIONAL_PAYMENT_OVERDUE", "추가 결제 기한이 지나 새 요청을 할 수 없습니다. 결제를 마친 뒤 다시 시도해 주세요.");
         if (requests.findByActiveMemberId(memberId).isPresent()) throw ApiException.conflict("ACTIVE_REQUEST", "이미 진행 중인 요청이 있습니다.");
+        if (!member.hasProfile()) throw ApiException.badRequest("PROFILE_REQUIRED", "닉네임과 성별을 먼저 입력해 주세요.");
         if (paymentFlowVersion >= 3 && !paymentMethods.existsByMemberIdAndActiveTrueAndDeletedAtIsNull(memberId)) {
             throw ApiException.conflict("PAYMENT_METHOD_REQUIRED", "동승 요청 전에 결제수단을 먼저 등록해 주세요.");
         }

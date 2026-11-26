@@ -69,9 +69,9 @@ class PeopleBoardFlowTest {
         // 실제 시계처럼 분 중간(초가 있는 시각)에 합류해도 된다.
         clock.moveTo(clock.now().plusSeconds(17));
         var join = board.join(me, card.id(), new BoardService.JoinInput("시장 입구", 37.8330, 127.1460, "검은 백팩"));
-        assertThat(join.getState()).isEqualTo("PENDING");
-        assertThat(requests.findByActiveMemberId(me)).get().extracting(RideRequest::getStatus).isEqualTo(RequestStatus.JOINING);
-        // 합류 중인 일행은 다른 사람의 게시판에서 빠진다.
+        assertThat(join.getState()).isEqualTo("CONFIRMED");
+        assertThat(requests.findByActiveMemberId(me)).get().extracting(RideRequest::getStatus).isEqualTo(RequestStatus.MATCHED);
+        // 합류한 일행은 다른 사람의 게시판에서 빠진다.
         assertThat(board.of(me).parties()).isEmpty();
     }
 

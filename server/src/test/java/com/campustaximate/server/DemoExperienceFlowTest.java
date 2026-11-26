@@ -74,20 +74,20 @@ class DemoExperienceFlowTest {
     @Test void roleChoiceCreatesFartherSampleAndKeepsMyPrepaymentForMe() {
         request();demo.matchNow(me,DemoService.Role.PASSENGER);
         var p=current();assertThat(p.payer()).isFalse();
+        assertThat(p.status()).isEqualTo(PartyStatus.READY);
+        assertThat(orders.findByPartyIdOrderById(p.id())).isEmpty();
         var mine=requests.findById(p.myRequestId()).orElseThrow();
         var payer=requests.findById(p.members().stream().filter(m->m.memberId()==p.payerId()).findFirst().orElseThrow().requestId()).orElseThrow();
         assertThat(mine.origin().distanceKm(payer.point())).isGreaterThan(mine.origin().distanceKm(mine.point()));
-        var before=clock.now();var progress=scenarios.next(me);
-        assertThat(clock.now()).isEqualTo(before);assertThat(progress.message()).contains("내 선결제");
-        assertThat(orders.findByPartyIdAndMemberIdAndPurpose(p.id(),me,PaymentPurpose.PREPAY).orElseThrow().getStatus()).isEqualTo(PaymentStatus.REQUIRED);
+        scenarios.next(me);
+        assertThat(clock.now()).isEqualTo(p.departureAt().minusSeconds(600));
         assertThat(chat.read(me,p.id(),null).messages()).anyMatch(m->m.memberId()!=null && m.memberId()!=me); // 샘플 계정의 첫인사
-        assertThat(chat.read(me,p.id(),null).messages()).anyMatch(m->m.text().contains("결제"));
     }
     @Autowired BoardingCodeService boardingCodes;
     @Autowired PartyReadinessService readiness;
     @Test void payerRoleAndNextStepReachCallDepartureAndSettlement() {
         request();demo.matchNow(me,DemoService.Role.PAYER);assertThat(current().payer()).isTrue();
-        scenarios.next(me);assertThat(current().status()).isEqualTo(PartyStatus.READY);
+        assertThat(current().status()).isEqualTo(PartyStatus.READY);
         scenarios.next(me);assertThat(clock.now()).isEqualTo(current().departureAt().minusSeconds(600));
         views.arrive(me,current().id());scenarios.next(me);
         assertThat(current().status()).isEqualTo(PartyStatus.READY);
@@ -102,8 +102,6 @@ class DemoExperienceFlowTest {
         request();demo.matchNow(me,DemoService.Role.PASSENGER);
         long id=current().id(),payer=current().payerId();
         assertThat(demo.samplePayerCode(me,id)).isNull(); // 결제자가 아직 타지 않았다
-        var order=orders.findByPartyIdAndMemberIdAndPurpose(id,me,PaymentPurpose.PREPAY).orElseThrow();
-        payments.confirm(me,order.getOrderId(),"demo_"+order.getOrderId(),order.getAmount()); // 내 선결제
         for(int i=0;i<8 && !"OPEN".equals(boardingCodes.state(me,id).status());i++) scenarios.next(me);
         assertThat(boardingCodes.state(me,id).status()).isEqualTo("OPEN");
         String code=demo.samplePayerCode(me,id);
@@ -149,7 +147,7 @@ class DemoExperienceFlowTest {
         var p=current();assertThat(p.payer()).isTrue();assertThat(p.successionStatus()).isEqualTo("ACCEPTED");
         assertThat(p.status()).isEqualTo(PartyStatus.READY);
         assertThat(p.startedAt()).isNull();
-        assertThat(orders.findByPartyIdAndMemberIdAndPurpose(p.id(),me,PaymentPurpose.PREPAY).orElseThrow().getRefundedAmount()).isZero();
+        assertThat(orders.findByPartyIdOrderById(p.id())).isEmpty();
     }
     @Test void tPlusFiveAsksRideConfirmationWithoutRefund() {
         scenarios.scenario(me,DemoScenarioService.Scenario.RIDE_UNCONFIRMED,DemoService.Role.PAYER);
