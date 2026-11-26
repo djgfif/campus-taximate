@@ -48,7 +48,8 @@ public class DemoScenarioService {
         var cases=noShows.list(actor,p.id()).stream().map(c->new Investigation(c.investigation().getMemberId(),
                 members.findById(c.investigation().getMemberId()).map(Member::getNickname).orElse(null),
                 c.investigation().getStatus(),c.investigation().getDeadlineAt())).toList();
-        return new Progress(clock.now(),p.id(),label(p.status()),nextName(p),p.payer()?"내가 결제자":"나는 일행원 (선결제 대상)",message,cases);
+        String role = p.payer() ? "내가 결제자" : p.paymentFlowVersion() >= 3 ? "나는 일행원 (후불 결제 대상)" : "나는 일행원 (선결제 대상)";
+        return new Progress(clock.now(),p.id(),label(p.status()),nextName(p),role,message,cases);
     }
     private String label(PartyStatus status) {
         return switch(status) {
@@ -199,7 +200,8 @@ public class DemoScenarioService {
             if(scenario!=Scenario.INSTANT) simulatedOnly();
             boolean succession=scenario==Scenario.PAYER_NO_SHOW||scenario==Scenario.MY_SUCCESSION;
             var p=prepare(actor,succession?DemoService.Role.PASSENGER:role,scenario==Scenario.INSTANT);
-            if(scenario==Scenario.INSTANT) return progress(actor,"즉시 매칭됐어요. 선결제와 도착 표시 뒤 호출할 수 있어요.");
+            if(scenario==Scenario.INSTANT) return progress(actor,p.paymentFlowVersion() >= 3
+                    ? "즉시 매칭됐어요. 도착 표시 뒤 호출할 수 있어요." : "즉시 매칭됐어요. 선결제와 도착 표시 뒤 호출할 수 있어요.");
             if(scenario==Scenario.JOIN) {
                 var joiner=members.findAll().stream().filter(m->sample(m.getId(),actor)&&m.getGender()==members.findById(actor).orElseThrow().getGender())
                         .filter(m->requests.findByActiveMemberId(m.getId()).isEmpty()&&!rideRequests.isRestricted(m.getId())).findFirst()
@@ -210,6 +212,7 @@ public class DemoScenarioService {
                 var source=requests.findById(stop.requestId()).orElseThrow();
                 var r=rideRequests.create(joiner.getId(),new RideRequestService.NewRequest(Direction.FROM_HUB,mine.getHub().getId(),mine.getWindowStart(),mine.getWindowEnd(),mine.getArriveBy(),source.getPointName(),source.getPointLat(),source.getPointLon(),"나중 합류",mine.getMode(),mine.getTimeBasis(),null,null,mine.getEarlyArrivalMinutes()));
                 var join=joins.offer(joiner.getId(),p.id(),r.getId());
+                if (p.paymentFlowVersion() >= 3) return progress(actor, "나중 샘플이 바로 합류했어요.");
                 var order=orders.findById(join.getPaymentOrderId()).orElseThrow();
                 payments.confirm(joiner.getId(),order.getOrderId(),"demo_"+order.getOrderId(),order.getAmount());
                 chat.send(joiner.getId(),p.id(),"합류했어요. 결제도 마쳤어요");
@@ -224,7 +227,7 @@ public class DemoScenarioService {
                 throw ApiException.conflict("DEMO_ALREADY_ARRIVED","모두 이미 도착 표시했어요. 새 일행에서 운행 미확인을 실행해 주세요.");
             approve(p,actor,true);
             if(scenario!=Scenario.RIDE_UNCONFIRMED) arrive(p,actor,absent,true);
-            moveTo(p.prepayDeadlineAt());
+            if (p.prepayDeadlineAt() != null) moveTo(p.prepayDeadlineAt());
             if(succession) {
                 moveTo(p.departureAt());
                 noShows.vote(actor,p.id(),p.payerId(),false);

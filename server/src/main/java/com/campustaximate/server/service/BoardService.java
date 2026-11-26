@@ -66,7 +66,7 @@ public class BoardService {
         Long viewerSchoolId = viewer.getSchool() == null ? null : viewer.getSchool().getId();
         Instant now = clock.now();
         List<PartyCard> cards = new ArrayList<>();
-        for (Party party : parties.findByStatusIn(List.of(PartyStatus.PREPAYING, PartyStatus.READY))) {
+        for (Party party : parties.findByStatusIn(List.of(PartyStatus.PREPAYING, PartyStatus.READY, PartyStatus.RIDE_UNCONFIRMED))) {
             if (!joinable(party, now)) continue;
             if (viewerSchoolId != null && party.getHub().getSchools().stream().noneMatch(s -> s.getId().equals(viewerSchoolId))) continue;
             List<RideRequest> riders = requests.findByPartyOrderByRideOrder(party);

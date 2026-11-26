@@ -9,6 +9,8 @@ import com.campustaximate.server.route.RouteClient;
 import com.campustaximate.server.common.AppClock;
 import com.campustaximate.server.domain.Party;
 import com.campustaximate.server.domain.PartyStatus;
+import com.campustaximate.server.domain.PaymentPurpose;
+import com.campustaximate.server.domain.PaymentStatus;
 import com.campustaximate.server.domain.RequestStatus;
 import com.campustaximate.server.domain.RideRequest;
 import com.campustaximate.server.domain.Settlement;
@@ -222,8 +224,7 @@ public class PartyService {
                         termList.stream().filter(t->t.getRequestId().equals(r.getId())).map(com.campustaximate.server.domain.PartyMemberTerm::getConfirmedPrepay).findFirst().orElse(null),
                         termList.stream().anyMatch(t->t.getRequestId().equals(r.getId())&&t.isMigratedUnknown()),
                         termList.stream().anyMatch(t->t.getRequestId().equals(r.getId())&&t.getBoardingUnconfirmedAt()!=null),r.getNearbyAt()!=null,
-                        paymentOrders.findByPartyIdAndMemberIdAndPurpose(party.getId(), r.getMember().getId(), com.campustaximate.server.domain.PaymentPurpose.PREPAY)
-                                .map(o -> o.getStatus() == com.campustaximate.server.domain.PaymentStatus.APPROVED).orElse(false)))
+                        prepaid(party, r.getMember().getId())))
                 .toList();
         Instant myStart = mine.getBoardAt() != null ? mine.getBoardAt() : party.getDepartureAt();
         Instant payerBoardAt = riders.stream()
@@ -238,7 +239,9 @@ public class PartyService {
                 payerBoardAt == null ? null : payerBoardAt.minus(CALL_BEFORE), mine.arriveDeadline(),
                 party.getExpectedTotal(), soloTotal, party.getPayer().getId(), party.getPayer().getNickname(), payer,
                 !mine.isArrived() && canMarkArrival(mine),
-                toSchool && payer && party.getBoardedAt() == null && canMarkBoarding(mine),
+                payer && party.getBoardedAt() == null && (party.postpaidFlow()
+                        ? boardingCodes.ready(party) && mine.getStatus() == RequestStatus.MATCHED && !mine.isNoShow()
+                        : toSchool && canMarkBoarding(mine)),
                 mine.canCancelAt(clock.now()),
                 payer && settlement == null && (party.getBoardingDeadlineAt()==null || !clock.now().isBefore(party.getBoardingDeadlineAt())) && (party.paymentFlow()
                     ? party.getStartedAt() != null && List.of(PartyStatus.AWAITING_FARE,PartyStatus.RIDE_UNCONFIRMED).contains(party.getStatus())
@@ -254,8 +257,12 @@ public class PartyService {
                 party.isInstant(),party.getCalledAt(),ready.callReady(),ready.canCall(),ready.notReadyReasons(),party.getSuccessorId(),party.getSuccessionDeadlineAt(),party.getSuccessionStatus(),
                 chatMessages.countUnread(party.getId(), memberId, chatReads.findByPartyIdAndMemberId(party.getId(), memberId)
                         .map(com.campustaximate.server.domain.PartyChatRead::getLastReadId).orElse(0L)),
-                paymentOrders.findByPartyIdAndMemberIdAndPurpose(party.getId(), memberId, com.campustaximate.server.domain.PaymentPurpose.PREPAY)
-                        .map(o -> o.getStatus() == com.campustaximate.server.domain.PaymentStatus.APPROVED).orElse(false));
+                prepaid(party, memberId));
+    }
+
+    private boolean prepaid(Party party, long memberId) {
+        return !party.postpaidFlow() && paymentOrders.findByPartyIdAndMemberIdAndPurpose(party.getId(), memberId, PaymentPurpose.PREPAY)
+                .map(order -> order.getStatus() == PaymentStatus.APPROVED).orElse(false);
     }
 
     private SettlementView toView(Settlement settlement, Party party, boolean payer, long memberId) {

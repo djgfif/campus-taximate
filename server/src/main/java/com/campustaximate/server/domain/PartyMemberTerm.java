@@ -12,7 +12,7 @@ public class PartyMemberTerm {
     @Column(nullable=false,updatable=false) private Long partyId;
     @Column(nullable=false,updatable=false) private Long requestId;
     @Column(nullable=false,updatable=false) private Long memberId;
-    @Column(nullable=false,updatable=false) private long confirmedShare;
+    @Column(nullable=false) private long confirmedShare;
     @Column(nullable=false,updatable=false) private long confirmedPrepay;
     @Column(nullable=false,updatable=false) private boolean migratedUnknown;
     private Instant boardingUnconfirmedAt;

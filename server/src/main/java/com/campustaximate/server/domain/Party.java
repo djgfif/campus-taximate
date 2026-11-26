@@ -91,13 +91,14 @@ public class Party {
     public boolean canChangeBeforeRide() {
         if (startedAt != null) return false;
         return paymentFlow()
-                ? status == PartyStatus.PREPAYING || status == PartyStatus.READY || status == PartyStatus.RIDE_UNCONFIRMED
+                ? status == PartyStatus.READY || status == PartyStatus.RIDE_UNCONFIRMED
+                    || (!postpaidFlow() && status == PartyStatus.PREPAYING)
                 : status == PartyStatus.CONFIRMED || status == PartyStatus.READY;
     }
 
     public boolean canAcceptJoin() {
         return paymentFlow() && canChangeBeforeRide() && calledAt == null && !routeVerificationPending
-                && (status == PartyStatus.PREPAYING || status == PartyStatus.READY);
+                && (postpaidFlow() || status == PartyStatus.PREPAYING || status == PartyStatus.READY);
     }
     /** 즉시 요청자가 나중에 빠져도 확정 때의 시간표를 유지한다. */
     @Column(name="instant_group",nullable=false) private boolean instant;
@@ -108,6 +109,8 @@ public class Party {
     public boolean postpaidFlow() { return paymentFlowVersion >= 3; }
 
     public Instant freeCancelUntil() {
+        // v2 retains the prepayment deadline as its cancellation cutoff.
+        if (paymentFlowVersion == 2 && prepayDeadlineAt != null) return prepayDeadlineAt;
         return freeCancelUntil != null ? freeCancelUntil
                 : (prepayDeadlineAt != null ? prepayDeadlineAt : departureAt.minusSeconds(1200));
     }

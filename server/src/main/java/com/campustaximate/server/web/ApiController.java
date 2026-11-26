@@ -34,6 +34,7 @@ import com.campustaximate.server.service.WaitingInsightService;
 import com.campustaximate.server.service.LoginTokenService;
 import com.campustaximate.server.service.MailService;
 import com.campustaximate.server.service.PartyService;
+import com.campustaximate.server.service.PaymentService;
 import com.campustaximate.server.service.RideRequestService;
 import com.campustaximate.server.service.SettlementService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -80,6 +81,7 @@ public class ApiController {
     private final LoginTokenService tokens;
     private final RideRequestService rideRequests;
     private final PartyService parties;
+    private final PaymentService payments;
     private final com.campustaximate.server.common.InstantMatchingConfiguration instantSettings;
     private final com.campustaximate.matching.MatchingSettings matchingSettings;
     private final SettlementService settlements;
@@ -102,6 +104,9 @@ public class ApiController {
 
     @Value("${app.cookie-secure}")
     private boolean secureCookie;
+
+    @Value("${app.payment.flow-version:2}")
+    private int paymentFlowVersion;
 
     public record CodeBody(@Email @NotBlank String email) {
     }
@@ -199,6 +204,7 @@ public class ApiController {
         var schoolList = schools.findAll().stream().sorted(java.util.Comparator.comparing(School::getId))
                 .map(s -> Map.of("name", s.getName(), "emailDomain", s.getEmailDomain())).toList();
         return Map.of("demo", demo.enabled(), "simulatedRoute", routes.simulated(), "now", clock.now(), "schools", schoolList,
+                "paymentFlowVersion", paymentFlowVersion, "simulatedPayment", payments.simulated(),
                 // 화면이 공정 기준(늘어나는 시간 상한, 최소 절약 비율)을 엔진과 같은 값으로 보여 준다.
                 "rules", Map.of("maxDelayMinutes", matchingSettings.maxDelayMinutes(), "minSavingRate", matchingSettings.minSavingRate()),
                 "mailEnabled", mail.enabled(), "sampleDropoffs", dropoffs.getDropoffs(),"instantMatching",Map.of(

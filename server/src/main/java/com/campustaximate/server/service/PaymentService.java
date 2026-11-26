@@ -7,7 +7,9 @@ import com.campustaximate.server.payment.PaymentGateway;
 import java.time.*;
 import java.util.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -34,6 +36,8 @@ public class PaymentService {
     private final NotificationService notifications;
     private final PlatformTransactionManager transactionManager;
     private final PartyChatService chatLog;
+    @Value("${app.payment.flow-version:2}")
+    private int paymentFlowVersion;
 
     public record OrderView(String orderId, long amount, PaymentPurpose purpose, PaymentStatus status,
                             Instant deadlineAt, long approvedAmount, long refundedAmount, long refundRequestedAmount, boolean simulated, boolean refundHeld, String holdReason) { }
@@ -58,16 +62,25 @@ public class PaymentService {
 
     @Transactional
     public void preparePrepayments(Party party, List<RideRequest> riders, Instant slot) {
-        party.setPaymentFlowVersion(2);
+        party.setPaymentFlowVersion(paymentFlowVersion >= 3 ? 3 : 2);
         if(party.getOriginalPayerId()==null) party.setOriginalPayerId(party.getPayer().getId());
         party.setConfirmedAt(slot);
         party.setInstant(riders.stream().anyMatch(r -> r.getMode() == RequestMode.INSTANT));
-        party.setPrepayDeadlineAt(party.isInstant()?slot.plusSeconds(matchingSettings.instantPrepMinutes()*60L):prepayDeadline(slot,party.getDepartureAt(),false));
-        party.setStatus(PartyStatus.PREPAYING);
-        for (RideRequest rider : riders) {
-            if (!rider.getMember().getId().equals(party.getPayer().getId())) {
-                createObligation(party.getId(), rider.getMember().getId(), rider.getId(), null,
-                        PaymentPurpose.PREPAY, prepayAmount(rider.getExpectedShare()), party.getPrepayDeadlineAt());
+        Instant freeCancel = party.isInstant()
+                ? slot.plusSeconds(matchingSettings.instantPrepMinutes() * 60L)
+                : prepayDeadline(slot, party.getDepartureAt(), false);
+        party.setFreeCancelUntil(freeCancel);
+        if (party.postpaidFlow()) {
+            party.setPrepayDeadlineAt(null);
+            party.setStatus(PartyStatus.READY);
+        } else {
+            party.setPrepayDeadlineAt(freeCancel);
+            party.setStatus(PartyStatus.PREPAYING);
+            for (RideRequest rider : riders) {
+                if (!rider.getMember().getId().equals(party.getPayer().getId())) {
+                    createObligation(party.getId(), rider.getMember().getId(), rider.getId(), null,
+                            PaymentPurpose.PREPAY, prepayAmount(rider.getExpectedShare()), party.getPrepayDeadlineAt());
+                }
             }
         }
         partyChanges.capture(party, riders, false);
@@ -122,6 +135,9 @@ public class PaymentService {
         Long operationId = tx().execute(status -> {
             Party party = parties.findByIdForUpdate(reference.getPartyId()).orElseThrow();
             PaymentOrder order = orders.lockById(reference.getId()).orElseThrow();
+            if (party.postpaidFlow() && order.getPurpose() == PaymentPurpose.PREPAY) {
+                throw ApiException.conflict("PAYMENT_EXPIRED", "후불 일행에는 선결제 주문이 없어요.");
+            }
             if (order.getAmount() != amount) throw ApiException.badRequest("PAYMENT_AMOUNT_MISMATCH", "서버의 주문 금액과 다릅니다.");
             if (order.getPaymentKey() != null && !order.getPaymentKey().equals(paymentKey)) throw ApiException.conflict("PAYMENT_KEY_CHANGED", "이미 등록된 결제 키와 다릅니다.");
             if (order.getStatus() == PaymentStatus.APPROVED) return null;
@@ -211,10 +227,11 @@ public class PaymentService {
                         liable.stream().map(PartyMemberTerm::getConfirmedShare).toList(),liable.stream().map(PartyMemberTerm::getRequestId).toList());
                 for(int i=0;i<liable.size();i++) saveDissolutionEntry(partyId,liable.get(i),0,0,charges.get(i),charges.get(i));
                 saveDissolutionEntry(partyId,survivorTerm,survivor.getSoloFare(),total,0,survivor.getSoloFare()-total);
+                long collected = party.postpaidFlow() ? 0 : total;
                 PayoutLedger ledger=new PayoutLedger();ledger.setPartyId(partyId);ledger.setMemberId(survivor.getMember().getId());
-                ledger.setAmount(total);
+                ledger.setAmount(collected);
                 ledger.setExpectedAmount(total);
-                ledger.setCollectedAmount(total);
+                ledger.setCollectedAmount(collected);
                 ledger.setRecordedAt(clock.now());payouts.save(ledger);
                 party.setSettledAt(clock.now());
             }
@@ -230,9 +247,19 @@ public class PaymentService {
     /** 재처리는 확정된 부담액을 사용하며 전액 환불로 덮어쓰지 않는다. */
     @Transactional
     public void refundForDissolution(long partyId) {
-        parties.findByIdForUpdate(partyId).orElseThrow();
+        Party party = parties.findByIdForUpdate(partyId).orElseThrow();
+        if (party.postpaidFlow() && (party.getStatus() != PartyStatus.DISSOLVED || party.getStartedAt() != null)) return;
         var journal=dissolutionEntries.findByPartyIdOrderByRequestId(partyId);
         terms.findByPartyIdOrderById(partyId).forEach(t->t.setRefundHeld(false));
+        if (party.postpaidFlow()) {
+            for (var entry : journal) {
+                if (entry.getCharge() > 0) {
+                    createObligation(partyId, entry.getMemberId(), entry.getRequestId(), null,
+                            PaymentPurpose.COMPENSATION, entry.getCharge(), clock.now().plusSeconds(86400));
+                }
+            }
+            return;
+        }
         for(PaymentOrder order:orders.findByPartyIdOrderById(partyId)) {
             if(order.getPurpose()!=PaymentPurpose.PREPAY) continue;
             long charge=journal.stream().filter(e->e.getMemberId().equals(order.getMemberId())).mapToLong(CompensationEntry::getCharge).sum();
@@ -482,6 +509,24 @@ public class PaymentService {
                 && payment.canceledAmount() >= 0 && payment.canceledAmount() <= payment.amount()
                 && (work.type() == PaymentOperationType.CONFIRM ? payment.canceledAmount() == 0 : payment.canceledAmount() >= work.targetRefund());
     }
+    /** 후불 일행의 수납 장부를 실제 승인·환불 합계와 맞춘다. 호출자는 일행 잠금을 보유해야 한다. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void syncPostpaidPayoutLedger(long partyId) {
+        payouts.findByPartyId(partyId).ifPresent(ledger -> {
+            long collected = orders.findByPartyIdOrderById(partyId).stream()
+                    .filter(o -> o.getPurpose() == PaymentPurpose.POSTPAID
+                            || o.getPurpose() == PaymentPurpose.COMPENSATION
+                            || o.getPurpose() == PaymentPurpose.ADDITIONAL)
+                    .mapToLong(o -> Math.max(0L, o.getApprovedAmount() - o.getRefundedAmount()))
+                    .sum();
+            long capped = ledger.getExpectedAmount() >= 0
+                    ? Math.min(ledger.getExpectedAmount(), collected)
+                    : collected;
+            ledger.setCollectedAmount(capped);
+            ledger.setAmount(capped);
+        });
+    }
+
     private void finish(Work work, PaymentGateway.Payment result) {
         tx().executeWithoutResult(status -> {
             Party party = parties.findByIdForUpdate(orders.findPartyId(work.orderId()).orElseThrow()).orElseThrow();
@@ -498,7 +543,14 @@ public class PaymentService {
             if (work.type() == PaymentOperationType.CONFIRM && !wasExpired && order.getPurpose() == PaymentPurpose.PREPAY
                     && List.of(PartyStatus.PREPAYING, PartyStatus.READY).contains(party.getStatus()))
                 chatLog.system(party, order.getMemberId(), "%s님이 선결제를 마쳤어요.");
-            if(work.type()==PaymentOperationType.CONFIRM && joinCompletion.approved(order,party)) {
+            if (party.postpaidFlow()
+                    && List.of(PartyStatus.SETTLED, PartyStatus.DISSOLVED).contains(party.getStatus())
+                    && List.of(PaymentPurpose.POSTPAID, PaymentPurpose.COMPENSATION, PaymentPurpose.ADDITIONAL)
+                            .contains(order.getPurpose())) {
+                syncPostpaidPayoutLedger(party.getId());
+            }
+            if(work.type()==PaymentOperationType.CONFIRM && order.getPurpose()==PaymentPurpose.PREPAY
+                    && !party.postpaidFlow() && joinCompletion.approved(order,party)) {
                 order.setExcludedAt(clock.now());refundTo(order.getId(),order.getAmount(),"합류 만료 또는 일행 변경 뒤 승인 전액 환불");
             } else if(work.type()==PaymentOperationType.CONFIRM && party.getStatus()==PartyStatus.DISSOLVED && order.getPurpose()==PaymentPurpose.PREPAY) {
                 refundForDissolution(party.getId());
@@ -515,7 +567,9 @@ public class PaymentService {
         if (party.getStatus() != PartyStatus.SETTLED) return;
         List<PaymentOrder> list = orders.findByPartyIdOrderById(party.getId());
         if (list.stream().anyMatch(o -> o.getStatus() == PaymentStatus.ADMIN_REQUIRED
-                || (o.getPurpose() == PaymentPurpose.ADDITIONAL && o.getStatus() != PaymentStatus.APPROVED)
+                || ((o.getPurpose() == PaymentPurpose.ADDITIONAL
+                        || o.getPurpose() == PaymentPurpose.POSTPAID
+                        || o.getPurpose() == PaymentPurpose.COMPENSATION) && o.getStatus() != PaymentStatus.APPROVED)
                 || o.getRefundedAmount() < o.getRefundTarget()
                 || operations.findByPaymentOrderIdOrderById(o.getId()).stream().anyMatch(op -> op.getStatus() != PaymentOperationStatus.SUCCEEDED
                         && !discardedRefund(op)

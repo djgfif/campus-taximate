@@ -40,11 +40,12 @@ public class PaymentLifecycleService {
         shrinker.retryPending();
         payments.reconcileExcludedPrepayments();
         // V10에서 해산 후 남겨 둔 직전 취소 보류도 다음 회차에 같은 원칙으로 해제한다.
-        for(var party:parties.findByStatus(PartyStatus.DISSOLVED)) if(party.paymentFlow() && party.getStartedAt()==null
+        for(var party:parties.findByStatus(PartyStatus.DISSOLVED)) if(party.paymentFlow() && !party.postpaidFlow() && party.getStartedAt()==null
                 && orders.findByPartyIdOrderById(party.getId()).stream().anyMatch(payments::refundHeld)) payments.refundForDissolution(party.getId());
         for(var party:parties.findByStatus(PartyStatus.PAYER_PENDING)) noShows.expireSuccession(party.getId());
         for (Party candidate : parties.findByStatus(PartyStatus.PREPAYING)) {
-            if (!candidate.paymentFlow() || candidate.isRouteVerificationPending() || clock.now().isBefore(candidate.getPrepayDeadlineAt())) continue;
+            if (!candidate.paymentFlow() || candidate.postpaidFlow() || candidate.isRouteVerificationPending()
+                    || clock.now().isBefore(candidate.getPrepayDeadlineAt())) continue;
             // PG 조회는 일행 트랜잭션 밖에서 하고 적용 직전에 잠금으로 최신 상태를 확인한다.
             for(PaymentOrder order:orders.findByPartyIdOrderById(candidate.getId())) {
                 if(order.getPurpose()==PaymentPurpose.PREPAY && order.getStatus()!=PaymentStatus.APPROVED && order.getExcludedAt()==null) payments.reconcilePrepay(order.getId());
@@ -121,7 +122,7 @@ public class PaymentLifecycleService {
             tx().executeWithoutResult(status -> finalizeSettlement(candidate.getId()));
         }
         for(PaymentOrder candidate:orders.findByStatusAndDeadlineAtLessThanEqual(PaymentStatus.REQUIRED,clock.now())) {
-            if(candidate.getPurpose()!=PaymentPurpose.ADDITIONAL) continue;
+            if(candidate.getPurpose()!=PaymentPurpose.ADDITIONAL && candidate.getPurpose()!=PaymentPurpose.COMPENSATION) continue;
             tx().executeWithoutResult(status->{
                 parties.findByIdForUpdate(candidate.getPartyId()).orElseThrow();
                 PaymentOrder order=orders.lockById(candidate.getId()).orElseThrow();
@@ -144,6 +145,18 @@ public class PaymentLifecycleService {
         List<SettlementShare> allocations = shares.findBySettlementIdOrderByRideOrder(settlement.getId());
         compensation.apply(party,settlement,allocations);
         var compensations=compensationEntries.findBySettlementIdOrderByRequestId(settlement.getId());
+        if (party.postpaidFlow()) {
+            Set<Long> activeMemberIds = allocations.stream().map(SettlementShare::getMemberId)
+                    .collect(java.util.stream.Collectors.toSet());
+            for (CompensationEntry entry : compensations) {
+                if (entry.getCharge() <= 0 || activeMemberIds.contains(entry.getMemberId())) continue;
+                payments.createObligation(partyId, entry.getMemberId(), entry.getRequestId(), settlement.getId(),
+                        PaymentPurpose.COMPENSATION, entry.getCharge(), clock.now().plusSeconds(24 * 3600));
+                requests.findById(entry.getRequestId())
+                        .ifPresent(r -> notifications.toMember(r.getMember(), "[캠퍼스 택시메이트] 보전 분담금 결제 요청",
+                                "확정된 보전 분담금 " + entry.getCharge() + "원을 24시간 안에 결제해 주세요."));
+            }
+        }
         // 확정 분담금(S43): 각자 낼 돈은 확정 몫(보전 반영) 그대로다. 선결제가 그보다 적으면(일행 축소·보전 면제 등)
         // 추가 결제를 만들지 않고 정산 적립금이 메운다(covered). 남는 선결제는 돌려준다.
         long collected=0,covered=0;
@@ -166,21 +179,31 @@ public class PaymentLifecycleService {
                     PaymentPurpose.ADDITIONAL, share.getAmount(), clock.now().plusSeconds(24 * 3600));
             collected += share.getAmount();
             requests.findByPartyOrderByRideOrder(party).stream().filter(r -> r.getMember().getId().equals(share.getMemberId())).findFirst()
-                    .ifPresent(r -> notifications.toMember(r.getMember(), "[캠퍼스 택시메이트] 분담금 결제 요청", "선결제하지 않은 분담금 " + share.getAmount() + "원을 24시간 안에 결제해 주세요."));
+                    .ifPresent(r -> notifications.toMember(r.getMember(), "[캠퍼스 택시메이트] 분담금 결제 요청",
+                            (party.postpaidFlow() ? "확정 분담금 " : "선결제하지 않은 분담금 ") + share.getAmount() + "원을 24시간 안에 결제해 주세요."));
         }
         SettlementShare payer = allocations.stream().filter(SettlementShare::isPayer).findFirst().orElseThrow();
         long payout = Math.max(0, settlement.getPaidAmount() - payer.getAmount());
         if (!payouts.existsBySettlementId(settlement.getId())) {
+            long alreadyCollected = party.postpaidFlow()
+                    ? Math.min(payout, orders.findByPartyIdOrderById(partyId).stream()
+                            .filter(o -> o.getPurpose() == PaymentPurpose.POSTPAID
+                                    || o.getPurpose() == PaymentPurpose.COMPENSATION
+                                    || o.getPurpose() == PaymentPurpose.ADDITIONAL)
+                            .mapToLong(o -> Math.max(0L, o.getApprovedAmount() - o.getRefundedAmount()))
+                            .sum())
+                    : payout;
             PayoutLedger ledger = new PayoutLedger(); ledger.setSettlementId(settlement.getId()); ledger.setPartyId(partyId);
-            ledger.setMemberId(payer.getMemberId()); ledger.setAmount(payout);
+            ledger.setMemberId(payer.getMemberId()); ledger.setAmount(alreadyCollected);
             ledger.setExpectedAmount(payout);
-            ledger.setCollectedAmount(payout);
+            ledger.setCollectedAmount(alreadyCollected);
             ledger.setRecordedAt(clock.now()); payouts.save(ledger);
         }
-        if (!reserve.existsBySettlementId(settlement.getId())) {
+        if (!party.postpaidFlow() && !reserve.existsBySettlementId(settlement.getId())) {
             ReserveEntry entry=new ReserveEntry(); entry.setSettlementId(settlement.getId()); entry.setPartyId(partyId);
             entry.setAmount(collected-payout); entry.setCovered(covered); entry.setPaidAmount(settlement.getPaidAmount());
             entry.setFixedTotal(party.getExpectedTotal()); entry.setRecordedAt(clock.now()); reserve.save(entry);
         }
+        payments.completeIfDone(party);
     }
 }

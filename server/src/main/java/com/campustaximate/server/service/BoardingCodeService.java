@@ -30,7 +30,7 @@ public class BoardingCodeService {
         return requests.findByPartyOrderByRideOrder(p).stream().filter(r->r.getMember().getId()==actor).findFirst()
             .orElseThrow(()->ApiException.forbidden("현재 일행원만 사용할 수 있어요."));
     }
-    private boolean ready(Party p) {
+    boolean ready(Party p) {
         return p.paymentFlow() && p.canChangeBeforeRide() && List.of(PartyStatus.READY,PartyStatus.RIDE_UNCONFIRMED).contains(p.getStatus())
             && p.getCalledAt()!=null && p.getPendingJoinId()==null && !p.isRouteVerificationPending();
     }
@@ -39,7 +39,8 @@ public class BoardingCodeService {
         Party p=lock(id); RideRequest r=member(p,actor);
         if(p.getPayer().getId()!=actor) throw ApiException.forbidden("결제자만 실제 탑승을 표시할 수 있어요.");
         if(p.getBoardingCode()!=null && ready(p) && r.getStatus()==RequestStatus.MATCHED) return; // retries never rotate or extend a generation
-        if(!ready(p) || r.isNoShow() || r.getStatus()!=RequestStatus.MATCHED) throw ApiException.conflict("BOARDING_NOT_READY","선결제와 호출을 확인해 주세요.");
+        if(!ready(p) || r.isNoShow() || r.getStatus()!=RequestStatus.MATCHED) throw ApiException.conflict("BOARDING_NOT_READY",
+                p.postpaidFlow() ? "택시 호출과 일행 상태를 확인해 주세요." : "선결제와 호출을 확인해 주세요.");
         p.setBoardingGeneration(p.getBoardingGeneration()+1);
         p.setBoardingCode(formatCode(RANDOM.nextInt(1_000_000)));
         p.setBoardedAt(clock.now()); p.setBoardingDeadlineAt(p.getBoardedAt().plusSeconds(300)); p.setBoardingClosedAt(null);
