@@ -364,12 +364,21 @@ const OVERDUE_PURPOSE = { POSTPAID: '후불 분담금', COMPENSATION: '이탈 �
 /** 후불 정산 v3는 정산 적립금을 쓰지 않으므로 적립금 탭을 감춘다. 설정을 모르면 기존 탭을 그대로 둔다. */
 const adminTabsFor = (config) => (Number(config?.paymentFlowVersion) >= 3 ? ADMIN_TABS.filter(([id]) => id !== 'reserve') : ADMIN_TABS)
 
+/** 관리자 목록 검색 대상. 키 이름(id, partyId 등)은 빼고 문자열·숫자 값만 모아 비교한다. */
+function searchableValues(value, out = []) {
+  if (value == null) return out
+  if (typeof value === 'string' || typeof value === 'number') out.push(String(value).toLowerCase())
+  else if (Array.isArray(value)) value.forEach((v) => searchableValues(v, out))
+  else if (typeof value === 'object') Object.values(value).forEach((v) => searchableValues(v, out))
+  return out
+}
+
 function AdminList({ tab }) {
   const remote = useRemote(ADMIN_TABS.find(([id]) => id === tab)[2])
   const [query, setQuery] = useState('')
   const q = query.trim().toLowerCase()
   const filterBy = (list) => (q && Array.isArray(list)
-    ? list.filter((item) => JSON.stringify(item).toLowerCase().includes(q))
+    ? list.filter((item) => searchableValues(item).some((value) => value.includes(q)))
     : list)
   const items = filterBy(remote.data)
   return <div className="review-stack"><RemoteState remote={remote} />

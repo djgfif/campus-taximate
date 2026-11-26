@@ -246,7 +246,7 @@ export function PostpaidConfirmCard({ party, myId, now, onUpdated, clientKey = i
       <span className="money-hero-label" aria-hidden="true">내 분담금</span>
       <strong className="money-hero-value" aria-hidden="true"><Money value={order.amount} /></strong>
       {party.mySoloFare > order.amount && (
-        <span className="payment-hint">혼자 탈 때보다 {won(party.mySoloFare - order.amount)} 아꼈어요</span>
+        <span className="payment-hint">혼자 탈 때 예상 요금보다 {won(party.mySoloFare - order.amount)} 덜 내요</span>
       )}
     </div>
     <p>실제 요금을 구간 비율로 나눈 금액이에요. 확인하면 바로 결제돼요.</p>
