@@ -260,7 +260,7 @@ export default function App() {
         </DemoLayout>
       )}
       {me && !me.needsPassword && !resetting && !me.needsProfile && !presenter && !paymentReturn && tab === 'admin' && (
-        <Suspense fallback={<LoadingScreen />}><AdminScreen allowed={me.admin} onBack={() => setTab('home')} /></Suspense>
+        <Suspense fallback={<LoadingScreen />}><AdminScreen allowed={me.admin} config={config} onBack={() => setTab('home')} /></Suspense>
       )}
       {me && !me.needsPassword && !resetting && !me.needsProfile && !presenter && (paymentReturn || tab !== 'admin') && (
         <StudentLayout tab={navTab} onTab={setTab} onMenu={openMenu} name={me.nickname} unread={unread}>

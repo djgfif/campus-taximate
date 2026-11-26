@@ -267,6 +267,28 @@
   background: rgb(255 255 255 / 22%);
 }
 
+/* 넓은 화면의 .app은 100dvh 고정이므로 시연 콘솔은 그 높이를 채우고, 스크롤은 발표자 본문 안에서만 생긴다.
+   격자 칸의 긴 내용이 최소 너비를 밀어 가로 스크롤바를 만들지 않도록 칸의 최소 너비를 풀어 준다. */
+@media (min-width: 1024px) {
+  .app > .demo-shell,
+  .demo-shell {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .demo-shell .presenter,
+  .presenter {
+    box-sizing: border-box;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .demo-grid > * {
+    min-width: 0;
+  }
+}
+
 /* ── 4. Public Layout (인증 / 공개 랜딩 + 로그인) ───────── */
 .public-shell {
   flex: 1;

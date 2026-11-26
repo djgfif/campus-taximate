@@ -5,9 +5,9 @@ import { PartyStepper, RideConfirmationCard } from '../PartyScreens.jsx'
 import PaymentCard from '../PaymentCard.jsx'
 import { roleTag } from '../PartyShell.jsx'
 import { PraiseSection } from '../People.jsx'
-import { FinancialDetails, LegacySettlement, ReceiptPaper } from '../SettleScreens.jsx'
+import { FinancialDetails, LegacySettlement, PostpaidSettlementPanel, ReceiptPaper, SettlementNotices, settlementWindow } from '../SettleScreens.jsx'
 import { toTripViewModel } from '../domain/tripViewModel.js'
-import { formatDateTime, formatTime, isPaymentParty, meetPlace, partyLabel, remaining } from '../format.js'
+import { formatTime, isPaymentParty, isPostpaidParty, meetPlace, partyLabel } from '../format.js'
 import { Btn, Say, Screen, Sheet } from '../ui.jsx'
 
 /**
@@ -23,9 +23,11 @@ export default function SettlementPage({ party, myId, now, config, onUpdated, on
 
   const vm = toTripViewModel(party, myId)
   const settlement = party.settlement
-  const deadline = settlement?.objectionDeadlineAt
-  const financialHold = party.reviewReason === 'RIDE_FINANCIAL_HOLD'
-  const open = settlement && !financialHold && ['OBJECTION_WINDOW', 'REVIEW_PENDING'].includes(party.status) && new Date(now) < new Date(deadline)
+  const postpaid = isPostpaidParty(party)
+  const { open, canObject } = settlementWindow(party, now)
+  const pendingPayment = postpaid
+    ? settlement?.payments?.some((o) => ['POSTPAID', 'COMPENSATION', 'ADDITIONAL'].includes(o.purpose) && ['REQUIRED', 'OVERDUE', 'PROCESSING'].includes(o.status))
+    : settlement?.payments?.some((o) => o.purpose === 'ADDITIONAL' && o.status === 'REQUIRED')
 
   const send = async () => {
     setError('')
@@ -88,36 +90,13 @@ export default function SettlementPage({ party, myId, now, config, onUpdated, on
             <section className="home-card trip-action-card" aria-label="정산 확인 및 조치">
               <h2 className="block-title">정산 진행</h2>
 
-              {settlement?.warning && (
-                <Say tone="stop-tone">
-                  실제 요금이 예상과 {Math.abs(settlement.differencePercent)}% 달라요. 영수증을 확인해 주세요.
-                </Say>
-              )}
-
-              {open && (
-                <Say title={`요금 이의 기간 ${remaining(deadline, now)} 남음`}>
-                  {formatDateTime(deadline)}까지 이의를 낼 수 있어요.{' '}
-                  {party.status === 'REVIEW_PENDING'
-                    ? '접수된 이의는 관리자 검토를 기다려요.'
-                    : '이의가 없으면 정산을 확정해요.'}
-                </Say>
-              )}
-
-              {party.status === 'REVIEW_PENDING' && (
-                <Say>
-                  {financialHold
-                    ? '운행 판정은 저장됐어요. 관리자가 결제 기록을 확인할 때까지 정산을 보류해요.'
-                    : party.reviewReason === 'RIDE_DISPUTE'
-                      ? '운행 여부를 관리자 검토 중이에요. 환불을 보류해요.'
-                      : party.reviewReason === 'FARE_EXCEPTION'
-                        ? '실제 요금이 확정 금액과 크게 달라 관리자가 영수증을 확인하고 있어요. 각자 낼 돈은 그대로예요.'
-                        : '요금 이의가 있어 관리자 검토 중이에요. 환불과 받을 돈의 정산을 보류해요.'}
-                </Say>
-              )}
+              <SettlementNotices party={party} now={now} />
 
               <RideConfirmationCard party={party} onUpdated={onUpdated} />
 
-              {settlement?.finalizedAt && settlement.payments?.filter((o) => o.purpose === 'ADDITIONAL').map((order) => (
+              {postpaid && <PostpaidSettlementPanel party={party} myId={myId} now={now} config={config} onUpdated={onUpdated} />}
+
+              {!postpaid && settlement?.finalizedAt && settlement.payments?.filter((o) => o.purpose === 'ADDITIONAL').map((order) => (
                 <PaymentCard
                   key={order.orderId}
                   knownOrder={order}
@@ -130,14 +109,14 @@ export default function SettlementPage({ party, myId, now, config, onUpdated, on
                 />
               ))}
 
-              {!open && party.status === 'SETTLED' && !settlement?.payments?.some((o) => o.purpose === 'ADDITIONAL' && o.status === 'REQUIRED') && (
+              {!open && party.status === 'SETTLED' && !pendingPayment && (
                 <Say tone="save-tone" title="정산이 완료됐어요">
                   모든 분담금 정산 기록이 확정됐어요. 이용 내역에서 언제든 다시 확인할 수 있어요.
                 </Say>
               )}
 
               <div className="trip-tool-row">
-                {open && <Btn className="line" onClick={() => setAsking(true)}>요금 이의</Btn>}
+                {canObject && <Btn className="line" onClick={() => setAsking(true)}>요금 이의</Btn>}
                 {settlement?.canCorrect && onCorrect && <Btn className="line" onClick={onCorrect}>금액 고치기</Btn>}
               </div>
             </section>

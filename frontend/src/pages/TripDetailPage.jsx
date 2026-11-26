@@ -10,7 +10,7 @@ import { trustLine, usePeople } from '../People.jsx'
 import { BoardingPanel } from '../ReviewScreens.jsx'
 import RouteComparison, { figures } from '../RouteComparison.jsx'
 import { toTripViewModel } from '../domain/tripViewModel.js'
-import { formatDateTime, formatTime, isPaymentParty, meetPlace, partyLabel, won } from '../format.js'
+import { formatDateTime, formatTime, isPaymentParty, isPostpaidParty, meetPlace, partyLabel, won } from '../format.js'
 import { Avatar, Btn, FairnessNote, FareCompare, Fold, Rail, Rows, Say, Screen, Sheet } from '../ui.jsx'
 
 /**
@@ -30,7 +30,9 @@ export default function TripDetailPage({ party, now, myId, config, run, onUpdate
   const mine = members.find((m) => m.requestId === party.myRequestId)
   const waiting = ['PREPAYING', 'READY'].includes(party.status)
   const free = party.freeCancelUntil && new Date(now) <= new Date(party.freeCancelUntil)
-  const owesPrepay = party.status === 'PREPAYING' && !party.payer
+  const postpaid = isPostpaidParty(party)
+  // 후불 정산 v3는 선결제가 없다.
+  const owesPrepay = party.status === 'PREPAYING' && !party.payer && !postpaid
   const canArrive = waiting && !owesPrepay && (party.instant ? !mine?.arrived : party.canArrive)
   const calling = party.payer && waiting && party.canCall && !party.calledAt
   const [people] = usePeople(party.id, party.groupVersion)
@@ -122,7 +124,10 @@ export default function TripDetailPage({ party, now, myId, config, run, onUpdate
               <BoardingPanel party={party} now={now} />
               <Fold title="이용 규칙 자세히" className="rules">
                 <ul>
-                  <li>{free ? '무료 취소 마감 전 취소하면 승인된 결제를 전액 환불해요.' : '무료 취소 마감이 지나 취소하면 남은 일행의 늘어난 금액을 보전해요.'}</li>
+                  <li>{postpaid
+                    ? (free ? '무료 취소 마감 전 취소하면 낼 돈이 없어요.' : '무료 취소 마감이 지나 취소하면 남은 일행의 늘어난 금액을 보전 분담금으로 내요.')
+                    : free ? '무료 취소 마감 전 취소하면 승인된 결제를 전액 환불해요.' : '무료 취소 마감이 지나 취소하면 남은 일행의 늘어난 금액을 보전해요.'}</li>
+                  {postpaid && <li>하차 뒤 실제 요금을 구간 비율로 나누고, 동승자는 6시간 안에 금액을 확인하고 결제하거나 이의를 낼 수 있어요.</li>}
                   <li>번호 미입력만으로 노쇼를 확정하지 않아요. 24시간 소명과 관리자 심사를 거쳐 판단 불가는 노쇼 면책해요.</li>
                   <li>택시는 결제자가 직접 호출해요. 앱은 호출·탑승·정산 기록을 관리해요.</li>
                   <li>{CHAT_RETENTION}</li>
@@ -211,7 +216,7 @@ export default function TripDetailPage({ party, now, myId, config, run, onUpdate
       {leavingChange && (
         <Sheet title="변경된 일행에서 빠질까요?" onClose={() => setLeavingChange(false)}>
           <Say title={party.changeExitFree ? '무료 이탈' : '무료 아님'}>
-            {party.changeExitFree ? '호출 시각 전이라 승인된 결제를 전액 환불해요.' : '호출 시각이 지나 무료가 아니에요.'}
+            {party.changeExitFree ? (postpaid ? '호출 시각 전이라 낼 돈 없이 빠질 수 있어요.' : '호출 시각 전이라 승인된 결제를 전액 환불해요.') : '호출 시각이 지나 무료가 아니에요.'}
           </Say>
           <Btn
             onClick={async () => {

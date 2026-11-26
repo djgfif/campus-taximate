@@ -26,10 +26,22 @@ export function loadToss() {
   return sdkPromise
 }
 
+const ORDER_NAME = {
+  POSTPAID: '택시메이트 후불 분담금 결제',
+  COMPENSATION: '택시메이트 보전 분담금 결제',
+  ADDITIONAL: '택시메이트 추가 분담금 결제',
+}
+
+const storedPayment = (orderId) => {
+  try { return JSON.parse(sessionStorage.getItem('taximate-payment:' + orderId)) || null } catch { return null }
+}
+
 export async function startPayment(order, myId, partyId, clientKey) {
   if (!clientKey) throw new Error('카드 결제를 준비하지 못했어요. 잠시 뒤 다시 확인해 주세요.')
   if (!Number.isSafeInteger(Number(myId)) || Number(myId) <= 0) throw new Error('로그인 정보를 다시 확인해 주세요.')
-  try { sessionStorage.setItem('taximate-payment:' + order.orderId, JSON.stringify({ partyId, purpose: order.purpose })) } catch { /* 저장 불가 시에도 같은 출처 콜백으로 돌아온다. */ }
+  try {
+    sessionStorage.setItem('taximate-payment:' + order.orderId, JSON.stringify({ partyId, purpose: order.purpose, revision: order.settlementRevision ?? 0 }))
+  } catch { /* 저장 불가 시에도 같은 출처 콜백으로 돌아온다. */ }
   const success = new URL('/', window.location.origin)
   success.searchParams.set('payment', 'success')
   success.searchParams.set('partyId', String(partyId))
@@ -38,7 +50,7 @@ export async function startPayment(order, myId, partyId, clientKey) {
   const TossPayments = await loadToss()
   return TossPayments(clientKey).payment({ customerKey: 'taximate_member_' + myId }).requestPayment({
     method: 'CARD', amount: { currency: 'KRW', value: order.amount }, orderId: order.orderId,
-    orderName: order.purpose === 'ADDITIONAL' ? '택시메이트 분담금 결제' : '택시메이트 선결제',
+    orderName: ORDER_NAME[order.purpose] || '택시메이트 선결제',
     successUrl: success.href, failUrl: failure.href,
   })
 }
@@ -64,7 +76,13 @@ export function confirmCallback(search, myId) {
     const promise = api.getPayment(body.orderId).then((order) => {
       if (order.amount !== body.amount) throw new Error('주문 금액과 결제 결과 금액이 달라요.')
       // 재방문도 같은 승인 API를 사용해 서버가 paymentKey·금액의 일치 여부를 검증한다.
-      return api.confirmPayment(body)
+      if (order.purpose !== 'POSTPAID') return api.confirmPayment(body)
+      // 후불 분담금은 정산 확인과 결제를 함께 처리한다. 결제를 시작할 때 본 정산 차수를 보내 금액이 바뀌었으면 서버가 거절한다.
+      const stored = storedPayment(body.orderId)
+      const partyId = Number(stored?.partyId) || callbackPartyId(search)
+      const revision = stored?.revision ?? order.settlementRevision ?? 0
+      return api.confirmAndPay(partyId, { revision, orderId: body.orderId, amount: body.amount, paymentKey: body.paymentKey })
+        .then((res) => ({ ...(res?.order || order), processing: Boolean(res?.processing), settled: Boolean(res?.settled) }))
     }).catch((e) => { approvals.delete(key); throw e })
     approvals.set(key, promise)
   }

@@ -1,4 +1,4 @@
-import { partyLabel } from '../format.js'
+import { isPostpaidParty, partyLabel } from '../format.js'
 
 /**
  * 16개 내부 PartyStatus를 사용자 중심 진행 단계와 역할별 행동으로 투영한다.
@@ -14,6 +14,21 @@ export const TRIP_STAGES = [
   { id: 'DONE', label: '이용 완료' },
 ]
 
+/** 후불 정산 v3는 선결제 단계가 없고, 하차 뒤 정산 금액을 확인하며 결제한다. */
+export const POSTPAID_TRIP_STAGES = [
+  { id: 'CONFIRMED', label: '일행 확정' },
+  { id: 'PREPARATION', label: '승차 준비' },
+  { id: 'BOARDING', label: '탑승 인증' },
+  { id: 'RIDE', label: '운행' },
+  { id: 'SETTLEMENT', label: '정산·결제' },
+  { id: 'DONE', label: '이용 완료' },
+]
+
+export function stagesForParty(party) {
+  return isPostpaidParty(party) ? POSTPAID_TRIP_STAGES : TRIP_STAGES
+}
+
+/** v3 일행에는 PREPAYING이 오지 않으므로 같은 투영이 POSTPAID_TRIP_STAGES 안의 단계만 돌려준다. */
 export function stageOfParty(party) {
   if (!party) return 'CONFIRMED'
   const status = party.status
@@ -36,6 +51,15 @@ export function nextActionOf(party, myId) {
       return { kind: 'SUCCESSION', label: '결제자 승계 응답이 필요해요', deadlineAt: party.successionDeadlineAt || null }
     }
     return { kind: 'WAIT_SUCCESSION', label: '새 결제자를 정하고 있어요', deadlineAt: party.successionDeadlineAt || null }
+  }
+  if (isPostpaidParty(party) && party.settlement) {
+    const deadlineAt = party.settlement.autoFinalizeAt || party.settlement.objectionDeadlineAt || null
+    if (!party.payer && !party.settlement.myConfirmed && party.settlement.payable) {
+      return { kind: 'CONFIRM_AND_PAY', label: '정산 금액을 확인하고 결제해 주세요', deadlineAt }
+    }
+    if (party.payer && !party.canSettle) {
+      return { kind: 'VIEW_SETTLEMENT', label: '동승자 확인·결제 현황을 확인해 주세요', deadlineAt }
+    }
   }
   if (party.canSettle) {
     return { kind: 'SUBMIT_FARE', label: '실제 택시요금과 영수증을 입력해 주세요', deadlineAt: null }

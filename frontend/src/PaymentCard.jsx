@@ -15,7 +15,15 @@ export function PaymentRecord({ order }) {
   ]} />
 }
 
-export default function PaymentCard({ partyId, purpose = 'PREPAY', myId, now, config, onUpdated, onOrder, knownOrder, readOnly = false, compact = false, clientKey = import.meta.env.VITE_TOSS_CLIENT_KEY || '' }) {
+/** 결제 목적별 카드 제목. v2 일행의 추가 결제는 기존 문구('분담금 결제')를 그대로 쓴다. */
+export function paymentTitle(purpose, postpaid = false) {
+  if (purpose === 'COMPENSATION') return '보전 분담금 결제'
+  if (purpose === 'ADDITIONAL') return postpaid ? '추가 분담금 결제' : '분담금 결제'
+  if (purpose === 'POSTPAID') return '후불 분담금 결제'
+  return '선결제'
+}
+
+export default function PaymentCard({ partyId, purpose = 'PREPAY', myId, now, config, onUpdated, onOrder, knownOrder, readOnly = false, compact = false, postpaid = false, clientKey = import.meta.env.VITE_TOSS_CLIENT_KEY || '' }) {
   const key = [partyId, purpose, myId].join(':')
   const [loaded, setLoaded] = useState({})
   const [reload, setReload] = useState(0)
@@ -34,7 +42,9 @@ export default function PaymentCard({ partyId, purpose = 'PREPAY', myId, now, co
   const error = actionError || (loaded.key === key ? loaded.error : '')
   // 부모(지금 할 일 카드)가 내 주문 상태에 맞춰 제목을 바꿀 수 있게 알려 준다.
   useEffect(() => { if (order) onOrderRef.current?.(order) }, [order])
-  const extra = purpose === 'ADDITIONAL'
+  // 추가·보전 분담금은 기한이 지나도(미납) 결제할 수 있다. 선결제만 기한 뒤 결제를 막는다.
+  const extra = purpose === 'ADDITIONAL' || purpose === 'COMPENSATION'
+  const title = paymentTitle(purpose, postpaid)
   const late = order && now && new Date(order.deadlineAt) <= new Date(now)
   const payable = order && ['REQUIRED', 'OVERDUE'].includes(order.status) && (extra || !late) && !readOnly
   const pay = async (simulated) => {
@@ -52,8 +62,8 @@ export default function PaymentCard({ partyId, purpose = 'PREPAY', myId, now, co
   const settled = compact && order && order.status === 'APPROVED' && !(order.refundRequestedAmount > 0) && !(order.refundedAmount > 0)
   const minutesLeft = order && now ? (new Date(order.deadlineAt) - new Date(now)) / 60000 : null
   const urgent = minutesLeft != null && minutesLeft > 0 && minutesLeft <= 10
-  return <section className={compact ? 'payment-card compact' : 'payment-card'} aria-label={extra ? '분담금 결제' : '선결제'}>
-    <h2>{extra ? '분담금 결제' : '선결제'}{order ? ' ' + won(order.amount) : ''}</h2>
+  return <section className={compact ? 'payment-card compact' : 'payment-card'} aria-label={title}>
+    <h2>{title}{order ? ' ' + won(order.amount) : ''}</h2>
     {!extra && !compact && <p>확정 분담금을 선결제해요. 나중에 더 내는 일은 없어요.</p>}
     {!order && !error && <p role="status">주문을 확인하고 있어요.</p>}
     {order && <>
