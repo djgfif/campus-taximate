@@ -7,7 +7,12 @@ export class ApiError extends Error {
 }
 
 async function request(path, options = {}) {
-  const response = await fetch(`/api${path}`, { credentials: 'same-origin', ...options })
+  let response
+  try {
+    response = await fetch(`/api${path}`, { credentials: 'same-origin', ...options })
+  } catch {
+    throw new ApiError(0, 'NETWORK_ERROR', '네트워크 연결이 불안정합니다. 잠시 후 다시 시도해 주세요.')
+  }
   if (!response.ok) {
     const body = await response.json().catch(() => ({}))
     throw new ApiError(response.status, body.code, body.message || '요청을 처리하지 못했습니다.')

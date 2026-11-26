@@ -37,7 +37,9 @@ function guide(party) {
     case 'RIDE_UNCONFIRMED': return ['택시 탔는지 물어봐요', '일행방 아래 카드에서 "탔어요"나 "못 탔어요"를 눌러 보세요.']
     case 'AWAITING_FARE': return ['실제 요금을 입력해요', payer ? '실제 택시비와 영수증을 입력해 보세요.' : '결제자가 요금을 입력하면 정산이 시작돼요. "다음 장면 보기"로 넘겨 보세요.']
     case 'OBJECTION_WINDOW':
-    case 'REVIEW_PENDING': return ['요금을 확인하는 시간이에요', '요금이 이상하면 이의를 낼 수 있어요. "다음 장면 보기"를 누르면 24시간이 지나요.']
+    case 'REVIEW_PENDING': return ['요금을 확인하는 시간이에요', party.paymentFlowVersion >= 3
+      ? '요금이 맞으면 확인하고 결제해요. 이상하면 이의를 낼 수 있어요.'
+      : '요금이 이상하면 이의를 낼 수 있어요. "다음 장면 보기"를 누르면 24시간이 지나요.']
     default: return ['정산이 끝났어요', '혼자 탈 때보다 얼마 덜 냈는지 일행방에서 확인해 보세요.']
   }
 }
@@ -65,7 +67,9 @@ async function readScene() {
  * 시연 창 본문. 장면을 바꾸는 동작(일행 만들기, 다음 장면, 다른 장면)은 끝나면 onScene으로 새 장면을 알린다.
  * 시간 넘기기 같은 보조 동작은 창을 연 채로 둔다.
  */
-export function DemoPanel({ now, run, parties = [], accounts = null, onScene }) {
+export function DemoPanel({ now, run, parties = [], accounts = null, onScene, config = null }) {
+  const postpaid = Number(config?.paymentFlowVersion || 0) >= 3
+  const passengerLabel = postpaid ? '후불 결제 동승자' : '선결제하는 일행'
   const [role, setRole] = useState('PAYER')
   const [progress, setProgress] = useState(null)
   const [message, setMessage] = useState('')
@@ -107,7 +111,7 @@ export function DemoPanel({ now, run, parties = [], accounts = null, onScene }) 
     {message && <Say>{message}</Say>}{error && <p role="alert">{error}</p>}
     {party ? <Btn disabled={busy} onClick={act(() => api.demoNext(role))}>다음 장면 보기</Btn> : <>
       <Chips label="내 역할" value={role} onChange={setRole} options={[
-        { value: 'PAYER', label: '내가 결제자' }, { value: 'PASSENGER', label: '선결제하는 일행' },
+        { value: 'PAYER', label: '내가 결제자' }, { value: 'PASSENGER', label: passengerLabel },
       ]} />
       <Btn disabled={busy} onClick={act(() => api.demoMatch(role))}>일행 만들기</Btn>
     </>}

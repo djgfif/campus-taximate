@@ -171,7 +171,9 @@ export function NextAction({ party, now, myId, mine, config, run, onUpdated, onD
     </div>
   } else if (party.status === 'RIDE_UNCONFIRMED' || party.canConfirmRide) {
     title = '택시에 탔나요?'
-    detail = '운행 시작 표시가 없어 확인하고 있어요. 첫 답변은 바꿀 수 없고, 안 탄 게 확인될 때만 환불해요.'
+    detail = postpaid
+      ? '운행 시작 표시가 없어 확인하고 있어요. 첫 답변은 바꿀 수 없고, 탄 사람만 실제 요금을 나눠 내요.'
+      : '운행 시작 표시가 없어 확인하고 있어요. 첫 답변은 바꿀 수 없고, 안 탄 게 확인될 때만 환불해요.'
     extra = <RideConfirmationCard party={party} onUpdated={onUpdated} bare />
   } else if (party.status === 'PREPAYING' && !party.payer && !postpaid) {
     const paid = prepay?.status === 'APPROVED'
@@ -326,7 +328,7 @@ function PaymentParty({ party, now, myId, config, run, onUpdated, onHome, onDeta
         <div className="block">
           {party.mySoloFare > party.myShare && <FareCompare solo={party.mySoloFare} share={party.myShare} />}
           {mine && party.mySoloFare > 0 && <FairnessNote delay={figures(mine).delay} solo={party.mySoloFare} share={party.myShare}
-            rules={config?.rules} walkExcluded={isPaymentParty(party)} />}
+            rules={config?.rules} walkExcluded={isPaymentParty(party)} postpaid={postpaid} />}
           {/* 넓은 화면은 오른쪽 지도가 경로를 크게 보여 주므로 작은 지도는 휴대폰에만 둔다. */}
           {!wide && mine && <PartyMiniMap party={party} mine={mine} />}
         </div>

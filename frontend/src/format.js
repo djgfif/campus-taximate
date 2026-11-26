@@ -41,9 +41,21 @@ export function remaining(target, now) {
   return rest ? `${Math.floor(minutes / 60)}시간 ${rest}분` : `${Math.floor(minutes / 60)}시간`
 }
 
+/** 이용 내역 항목의 실제 본인 분담금. 서버가 myShare를 주면 우선 쓰고, 결제자 전액(paid === partyPaid)만 있는 구형 데이터는 null을 돌려준다. */
+export function historyMyShare(item) {
+  if (!item) return null
+  if (item.myShare != null) return item.myShare
+  if (item.paid == null) return null
+  if (item.payer && item.partyPaid != null && item.paid === item.partyPaid) return null
+  return item.paid
+}
+
 /** 정산이 끝난 건에서 혼자 탈 때보다 아낀 금액의 합. */
-export const savedTotal = (items) => items.filter((item) => item.stage === 'SETTLED' && item.paid != null)
-  .reduce((sum, item) => sum + Math.max(0, item.soloFare - item.paid), 0)
+export const savedTotal = (items) => items.filter((item) => item.stage === 'SETTLED')
+  .reduce((sum, item) => {
+    const share = historyMyShare(item)
+    return share == null ? sum : sum + Math.max(0, item.soloFare - share)
+  }, 0)
 
 export const routeLabel = (item) =>
   item.direction === 'TO_SCHOOL' ? `${item.pointName}에서 ${item.anchorName}` : `${item.anchorName}에서 ${item.pointName}`
@@ -67,6 +79,12 @@ export function formatDateTime(value) {
 }
 
 export const won = (value) => `${Number(value).toLocaleString()}원`
+
+/** 서울 시각 오후 2시 전에는 등교, 그 뒤에는 하교를 기본 방향으로 고른다. */
+export function defaultDirection(now) {
+  const hour = Number(new Date(now || Date.now()).toLocaleString('en-US', { hour: 'numeric', hour12: false, timeZone: 'Asia/Seoul' }))
+  return hour < 14 ? 'TO_SCHOOL' : 'FROM_HUB'
+}
 
 /**
  * 요청 전에 보여 줄 "같이 타면 이 금액 이하". 서버는 일행 합계가 혼자 요금 합의 (1 - 최소 절약률) 이하일 때만 묶고,

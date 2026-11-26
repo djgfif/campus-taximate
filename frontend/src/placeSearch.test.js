@@ -23,6 +23,17 @@ describe('장소 검색', () => {
     expect(places).toEqual([{ id: '8122492', name: '포천시청', address: '경기 포천시 중앙로 87', lat: 37.8949, lon: 127.2003 }])
   })
 
+  it('브라우저 기본 호출은 서버 /api/places/search 프록시를 우선 사용한다', async () => {
+    const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify([
+      { id: '8122492', name: '포천시청', address: '경기 포천시 중앙로 87', lat: 37.8949, lon: 127.2003 },
+    ]), { status: 200 }))
+    const places = await searchPlaces('포천시청', { lat: 37.875, lon: 127.155 })
+    const [url, init] = fetch.mock.calls[0]
+    expect(url).toBe('/api/places/search?query=%ED%8F%AC%EC%B2%9C%EC%8B%9C%EC%B2%AD&lat=37.875&lon=127.155')
+    expect(init.credentials).toBe('same-origin')
+    expect(places).toEqual([{ id: '8122492', name: '포천시청', address: '경기 포천시 중앙로 87', lat: 37.8949, lon: 127.2003 }])
+  })
+
   it('결과 없음은 빈 목록, 오류와 키 없음은 실패로 구분한다', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({ documents: [] }), { status: 200 }))
       .mockResolvedValueOnce(new Response('{}', { status: 401 }))

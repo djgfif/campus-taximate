@@ -82,7 +82,7 @@ export function PlaceField({ label, value, center, onChange, samples = [], place
         </span>
       </span>
     </div>
-    {results.length > 0 && <ul className="places">{results.map((place) => <li key={place.id}><button type="button" onClick={() => choose(place)}>{place.name}</button></li>)}</ul>}
+    {results.length > 0 && <ul className="places">{results.map((place) => <li key={place.id}><button type="button" onClick={() => choose(place)}><b>{place.name}</b>{place.address && <small>{place.address}</small>}</button></li>)}</ul>}
     {note && <p className="note" role="status">{note}</p>}
     <div className="place-actions">
       <Btn className="small line" disabled={!center} onClick={() => setOpen(true)}><MapPin size={16} aria-hidden="true" />지도에서<span className="sr-only"> {label} 고르기</span></Btn>
@@ -90,7 +90,7 @@ export function PlaceField({ label, value, center, onChange, samples = [], place
       {samples.length > 0 && <label className="field sample"><span className="sr-only">시연 {label}</span><select aria-label={'시연 ' + label}
         value={picked < 0 ? '' : String(picked)}
         onChange={(e) => choose(samples[Number(e.target.value)])}>
-        <option value="" disabled>시연 지점</option>{samples.map((p, i) => <option key={p.id || p.name} value={i}>{p.name}</option>)}
+        <option value="" disabled>주요 장소</option>{samples.map((p, i) => <option key={p.id || p.name} value={i}>{p.name}</option>)}
       </select></label>}
     </div>
     {open && <MapPicker center={center} value={value.point} title={label + ' 고르기'} onPick={choose} onClose={() => setOpen(false)} />}
@@ -204,7 +204,7 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
     origin.point && { ...origin.point, label: '출', name: origin.name, tone: 'me' },
     destination.point && { ...destination.point, label: '도', name: destination.name, tone: 'end' },
   ].filter(Boolean)
-  const tripLine = tripPoints.length === 2 ? [{ path: tripPoints, style: 'dash', color: '#8a5a00' }] : []
+  const tripLine = tripPoints.length === 2 ? [{ path: tripPoints, style: 'dash', color: '#145a46' }] : []
   const timeSummary = basis === 'DEPART'
     ? (chosenStart ? `${dayWord(chosenStart, now)} ${formatTime(chosenStart)} ~ ${formatTime(new Date(chosenStart).getTime() + chosenLength * 60000)} 출발` : '')
     : (chosenArrival ? `${dayWord(chosenArrival, now)} ${formatTime(chosenArrival)}까지 도착` : '')
@@ -227,8 +227,25 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
     navigate('/app/account/payments', { state: { returnTo: location.pathname } })
   }
   const center = hubs[0] || school
-  return <Screen aside={origin.point ? <MapView points={[{ ...origin.point, label: '출', tone: 'me' },
-    ...(destination.point ? [{ ...destination.point, label: '도', tone: 'end' }] : [])]} /> : undefined}
+  const mapPoints = tripPoints.length > 0 ? tripPoints : (center ? [{ ...center, label: '학', name: center.name || '캠퍼스', tone: 'me' }] : [])
+  const desktopMapAside = origin.point ? (
+    <MapView
+      points={tripPoints}
+      lines={tripLine}
+      fallback={(
+        <div className="map-stage-fallback">
+          <SketchMap points={mapPoints} lines={tripLine} label="출발지와 도착지 약도" />
+          <span className="map-stage-pill">약도로 경로를 보여 드려요</span>
+        </div>
+      )}
+    />
+  ) : (
+    <div className="map-stage-empty" role="region" aria-label="경로 미리보기">
+      {mapPoints.length > 0 && <SketchMap points={mapPoints} lines={[]} label="기준 캠퍼스 위치 약도" />}
+      <span className="map-stage-pill">출발지와 도착지를 고르면 경로가 표시돼요</span>
+    </div>
+  )
+  return <Screen aside={desktopMapAside}
     foot={<>
       {/* 요청 전에 정확한 몫은 알 수 없다(누구와 묶일지 모름). 대신 매칭 규칙이 보장하는 상한을 보여 준다. */}
       <p className="foot-sum" aria-live="polite">{preview.data
@@ -237,7 +254,9 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
       <p className="foot-rule">{preview.data
         ? `${Math.round(minSaving * 100)}% 이상 싸고 ${maxDelay}분 넘게 늦어지지 않을 때만 일행이 돼요. 결과는 ${formatTime(preview.data.resultBy)}까지 알려 드려요.`
         : `늦어져도 ${maxDelay}분 이내, 혼자보다 ${Math.round(minSaving * 100)}% 이상 쌀 때만 일행이 돼요.`}</p>
-      <Btn disabled={!preview.data || !ready || paymentMissing} onClick={submit}>일행 찾기</Btn>
+      {paymentMissing
+        ? <Btn onClick={registerPayment}>결제수단 등록하고 이어서 요청</Btn>
+        : <Btn disabled={!preview.data || !ready} onClick={submit}>일행 찾기</Btn>}
     </>}>
     <BackBar onBack={close} title={schoolDestination ? '등교' : '하교'} />
     <div className="pad request-form">
@@ -252,7 +271,7 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
         <h2 id="step-where" className="sr-only">어디서 어디로</h2>
         <div className="route-box">
           <PlaceField label="출발지" placeholder="출발지 검색" value={origin} center={center} onChange={changeOrigin} samples={config?.demo ? hubs : []} />
-          <PlaceField label="도착지" placeholder="도착지 검색" value={destination} center={origin.point || center} onChange={setDestination} samples={config?.demo ? config.sampleDropoffs || [] : []} />
+          <PlaceField label="도착지" placeholder="도착지 검색" value={destination} center={origin.point || center} onChange={setDestination} samples={config?.demo && !schoolDestination ? config.sampleDropoffs || [] : []} />
         </div>
         {!wide && origin.point && <div className="mini-map">
           <MapView points={tripPoints} edge={28} fallback={<SketchMap points={tripPoints} lines={tripLine} label="출발지와 도착지 약도" />} />
@@ -291,6 +310,7 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
         </> : <>
           <RequestTimePicker label="늦어도 도착 시각" options={arrivals} value={chosenArrival} now={now} onChange={setArrival} waiting={waiting} waitingLabel={waitingLabel} />
           <Chips label="일찍 도착 허용" value={early} onChange={setEarly} options={[0, 5, 10, 15].map((m) => ({ value: m, label: m + '분' }))} />
+          <p className="note">희망 시각보다 최대 {early}분 먼저 도착하는 일행까지 함께 찾아요.</p>
         </>}
       </details>}
       {/* 같은 이유(같이 탈 사람이 적다)의 안내는 한 문장으로 묶는다. */}

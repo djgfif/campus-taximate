@@ -6,17 +6,17 @@
   /* 신규 시맨틱 토큰 */
   --color-bg: #f7f8f5;
   --color-surface: #ffffff;
-  --color-surface-subtle: #f0f3f0;
+  --color-surface-subtle: #f0f2ef;
   --color-text: #172521;
-  --color-text-secondary: #52635b;
-  --color-text-muted: #66766d;
-  --color-border: #d9e1da;
-  --color-border-strong: #c2cec5;
-  --color-input-border: #78877d;
+  --color-text-secondary: #4c5d55;
+  --color-text-muted: #687770;
+  --color-border: #e1e6e1;
+  --color-border-strong: #c8d1ca;
+  --color-input-border: #7a887f;
 
   --color-primary: #145a46;
   --color-primary-hover: #104735;
-  --color-primary-soft: #e8f3ec;
+  --color-primary-soft: #e8f2ed;
   --color-on-primary: #ffffff;
 
   --color-success: #17653b;
@@ -29,17 +29,28 @@
   --color-info: #245b83;
   --color-focus: #276aa2;
 
+  /* 6단계 타이포 · 3단계 곡률 체계 */
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-base: 15px;
+  --fs-sub: 17px;
+  --fs-title: 24px;
+  --fs-hero: 32px;
+  --r-s: 8px;
+  --r-m: 12px;
+  --r-l: 16px;
+
   /* 기존 styles.css 호환 별칭 */
   --ink: var(--color-text);
   --ink-2: var(--color-text-secondary);
-  --road: var(--color-text-muted);
-  --faint: #84948b;
+  --road: var(--color-text-secondary);
+  --faint: var(--color-text-muted);
   --line: var(--color-border);
   --line-strong: var(--color-border-strong);
   --mist: var(--color-bg);
   --mist-2: var(--color-surface-subtle);
   --paper: var(--color-surface);
-  --land: #eef1ed;
+  --land: #edf0ec;
 
   --amber: var(--color-primary);
   --amber-press: var(--color-primary-hover);
@@ -52,19 +63,29 @@
   --stop-press: var(--color-danger-hover);
   --stop-soft: var(--color-danger-soft);
   --alone: var(--color-info);
-  --off: #edf0ed;
-  --off-ink: #728279;
+  --off: #edf0ec;
+  --off-ink: #57675f;
 
-  --shadow-card: 0 1px 2px rgb(23 37 33 / 5%), 0 4px 12px rgb(23 37 33 / 4%);
-  --shadow-overlay: 0 12px 36px rgb(23 37 33 / 12%);
+  /* 일반 면·카드에는 그림자를 올리지 않고 선으로 구분하며, 뜨는 시트·모달만 그림자를 쓴다. */
+  --shadow-card: none;
+  --shadow-elevated: 0 8px 24px rgb(23 37 33 / 9%);
+  --shadow-overlay: 0 12px 32px rgb(23 37 33 / 12%);
   --container-max: 1280px;
   --admin-sidebar: 240px;
 }
 
-/* 기본 강조 버튼·채팅 말풍선 대비 보정 (딥 그린 바탕 위 흰 글자, WCAG AA ≥ 7:1) */
-.btn {
+/* 기본 강조 버튼·채팅 말풍선·강조 배지 대비 보정 (딥 그린 바탕 위 흰 글자, WCAG AA >= 7:1) */
+.btn,
+.rail li.me .pin,
+.mk.me,
+.mk.time,
+.road-car,
+.driver li span {
   background: var(--color-primary);
   color: var(--color-on-primary);
+}
+.toast svg {
+  color: #a8d5c2;
 }
 .btn.line {
   background: var(--color-surface);
@@ -83,7 +104,7 @@
   color: var(--color-on-primary);
 }
 .demo-caption b {
-  color: #8be0c0;
+  color: #a8d5c2;
 }
 :focus-visible {
   outline: 2px solid var(--color-focus);

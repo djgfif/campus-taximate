@@ -217,7 +217,8 @@ describe('요청 작성 중 결제수단 가드', () => {
     expect(screen.getByLabelText('일행이 알아볼 메모 (선택)').value).toBe('검은 백팩')
     const choices = await screen.findAllByRole('checkbox')
     expect(choices.map((c) => c.checked)).toEqual([false, true])
-    expect(screen.getByRole('button', { name: '일행 찾기' }).disabled).toBe(true)
+    expect(screen.queryByRole('button', { name: '일행 찾기' })).toBeNull()
+    expect(screen.getByRole('button', { name: '결제수단 등록하고 이어서 요청' }).disabled).toBe(false)
     // 닫으면 보관한 작성 내용을 지운다.
     fireEvent.click(screen.getByRole('button', { name: '뒤로' }))
     expect(props.onClose).toHaveBeenCalledOnce()

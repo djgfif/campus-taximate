@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, Copy, Info, X } from 'lucide-react'
 import { api } from './api.js'
 import { PartyChat } from './PartyChat.jsx'
 import { BoardingPanel } from './ReviewScreens.jsx'
-import { formatDateTime, formatTime, isPaymentParty, partyLabel, won } from './format.js'
+import { formatDateTime, formatTime, isPaymentParty, isPostpaidParty, partyLabel, won } from './format.js'
 import { Btn, Confirm, Screen, toast, useDialog, useWide } from './ui.jsx'
 
 export const REAL_NAME = '송금할 때 서로의 실명이 표시될 수 있습니다.'
@@ -18,12 +18,17 @@ export function PartySecondary({ party, onCancel }) {
 }
 
 export function CancelSheet({ party, now, run, onClose }) {
+  const postpaid = isPostpaidParty(party)
   return (
     <Confirm title="탑승을 취소할까요?" action="탑승 취소" onClose={onClose}
       onConfirm={() => run(() => api.cancelRequest(party.myRequestId), '탑승을 취소했어요')}>
       {party.freeCancelUntil && <span>{formatDateTime(party.freeCancelUntil)}까지 무료 취소예요.
-        {now && new Date(now) <= new Date(party.freeCancelUntil) ? ' 선결제했으면 전액 환불해요.' : ' 무료 취소 마감이 지났어요.'}<br /></span>}
-      남은 일행의 확정 분담금을 다시 계산하고, 한 명만 남으면 해산해요.
+        {now && new Date(now) <= new Date(party.freeCancelUntil)
+          ? (postpaid ? ' 무료 취소 기간이라 낼 돈이 없어요.' : ' 선결제했으면 전액 환불해요.')
+          : ' 무료 취소 마감이 지났어요.'}<br /></span>}
+      {postpaid
+        ? '남은 일행의 예상 분담금을 다시 계산하고, 한 명만 남으면 해산해요.'
+        : '남은 일행의 확정 분담금을 다시 계산하고, 한 명만 남으면 해산해요.'}
     </Confirm>
   )
 }
@@ -61,6 +66,7 @@ export function DriverView({ party, onClose }) {
         <b>{callTo}</b>
         <Btn className="small line" onClick={copy}><Copy size={16} aria-hidden="true" />복사</Btn>
       </div>
+      <Btn onClick={onClose}>확인했어요 · 탑승 화면으로</Btn>
     </div>
   )
 }

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import SettlementPage from './SettlementPage.jsx'
 import { AdminScreen } from '../ReviewScreens.jsx'
+import { FairnessNote } from '../ui.jsx'
 import { api, ApiError } from '../api.js'
 
 const now = '2026-11-25T10:00:00Z'
@@ -231,5 +232,40 @@ describe('후불 정산 v3 관리자 화면', () => {
 
     expect(screen.getByRole('button', { name: '적립금' })).toBeTruthy()
     await screen.findByText('처리할 항목이 없어요.')
+  })
+
+  it('결제자 정산 화면은 수납 현황을 중복 표시하지 않고 FairnessNote는 후불 실요금 기준을 안내한다', () => {
+    renderPage(withSettlement({ expectedPayoutAmount: 8800, collectedPayoutAmount: 3200, unpaidAmount: 5600, confirmedCount: 1, totalRidersToConfirm: 2, payments: [] },
+      { payer: true, myRequestId: 103 }))
+
+    expect(screen.getAllByText('예정 수령액')).toHaveLength(1)
+    expect(screen.queryByText('동승자 결제 수납')).toBeNull()
+
+    render(<FairnessNote delay={5} solo={10000} share={5000} postpaid />)
+    expect(screen.getByText(/하차 뒤 실제 요금을 각자 혼자 탈 때 요금 비율대로 나눠요/)).toBeTruthy()
+    expect(screen.queryByText(/실제 요금이 더 나와도 더 내지 않아요/)).toBeNull()
+  })
+
+  it('후불 안내는 절약률을 설정값으로 보이고 실제 절약을 보장하지 않는다', () => {
+    render(<FairnessNote delay={5} solo={10000} share={5000} rules={{ minSavingRate: 0.2 }} postpaid />)
+    expect(screen.getByText(/예상 요금 기준 20% 이상 아낄 때만 일행이 되지만, 실제 요금에 따라 내는 돈은 달라질 수 있어요/)).toBeTruthy()
+    expect(screen.getByText('80% 이하일 때만 일행이 돼요')).toBeTruthy()
+    expect(screen.queryByText(/최소 10% 이상 절약돼요/)).toBeNull()
+  })
+
+  it('관리자 검색은 키 이름이 아니라 값으로만 거른다', async () => {
+    vi.spyOn(api, 'adminNoShows').mockResolvedValue([])
+    vi.spyOn(api, 'adminOverdue').mockResolvedValue(overdue)
+    render(<AdminScreen allowed config={{ paymentFlowVersion: 3 }} onBack={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: '미정산' }))
+    await screen.findByText('후불 분담금')
+    const search = screen.getByRole('searchbox', { name: '목록 검색' })
+
+    fireEvent.change(search, { target: { value: 'partyId' } })
+    expect(screen.getByText('검색 조건에 맞는 항목이 없어요.')).toBeTruthy()
+
+    fireEvent.change(search, { target: { value: '연락 완료' } })
+    expect(screen.getByRole('heading', { name: '일행 57 · 회원 4' })).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: '일행 55 · 회원 1' })).toBeNull()
   })
 })

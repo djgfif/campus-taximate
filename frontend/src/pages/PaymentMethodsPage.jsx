@@ -50,7 +50,6 @@ export default function PaymentMethodsPage({ config, onBack, tabBar }) {
   const alive = useRef(true)
   const latest = useRef(0)
 
-  // 운영 환경에서는 모의 결제를 고를 수 없다.
   const chosenProvider = simulated ? provider : 'TOSS_BILLING'
 
   const load = useCallback(async () => {
@@ -126,12 +125,12 @@ export default function PaymentMethodsPage({ config, onBack, tabBar }) {
     <Screen tabBar={tabBar}>
       <div className="pad payments-page">
         <header className="payments-head">
-          <button type="button" className="payments-back" onClick={back}>
-            <ChevronLeft size={18} aria-hidden="true" />
-            {returnTo ? '요청 화면으로 돌아가기' : '돌아가기'}
+          <button type="button" className="back-link" onClick={back}>
+            <ChevronLeft size={16} aria-hidden="true" />
+            <span>{returnTo ? '요청 화면으로 돌아가기' : '돌아가기'}</span>
           </button>
           <h1>결제수단 관리</h1>
-          <p>요금은 내린 뒤 등록한 카드로 결제돼요. 카드번호와 결제 키는 다시 보여 주지 않아요.</p>
+          <p>하차 뒤 등록한 카드로 정산 금액이 자동 결제돼요.</p>
         </header>
 
         {notice && <Say tone={notice.tone} title={notice.title}>{notice.text}</Say>}
@@ -148,69 +147,71 @@ export default function PaymentMethodsPage({ config, onBack, tabBar }) {
           <Say title="요청을 보내려면 결제수단이 필요해요">등록을 마치면 작성하던 요청으로 바로 돌아갈 수 있어요.</Say>
         )}
 
-        <section className="home-card payments-card" aria-labelledby="payments-list-title">
-          <div className="home-card-head">
-            <h2 id="payments-list-title">등록된 결제수단</h2>
-            {active.length > 0 && <span className="home-count">{active.length}</span>}
-          </div>
-          {methods === null && <p className="note" role="status">결제수단을 불러오는 중이에요.</p>}
-          {loadError && <p role="alert" className="note">{loadError}</p>}
-          {methods !== null && active.length === 0 && !loadError && (
-            <Empty title="등록된 결제수단이 없어요">아래에서 카드를 등록하면 바로 요청할 수 있어요.</Empty>
-          )}
-          {active.length > 0 && (
-            <ul className="payment-list">
-              {active.map((method) => (
-                <li key={method.id} className="payment-row">
-                  <span className="payment-icon" aria-hidden="true"><CreditCard size={20} /></span>
-                  <span className="payment-main">
-                    <b>{method.cardLabel || '등록 카드'}</b>
-                    <small>
-                      <span className="payment-badge">{PROVIDER_LABEL[method.provider] || method.provider}</span>
-                      {method.registeredAt ? `${formatDateTime(method.registeredAt)} 등록` : ''}
-                    </small>
-                  </span>
-                  <Btn className="small line" aria-label={`${method.cardLabel || '등록 카드'} 삭제`} onClick={() => setDeleting(method)}>삭제</Btn>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        <div className="surface-box surface-pad payments-surface">
+          <section className="payments-section" aria-labelledby="payments-list-title">
+            <div className="home-section-head">
+              <h2 id="payments-list-title" className="section-title">등록된 결제수단</h2>
+              {active.length > 0 && <span className="section-count">{active.length}</span>}
+            </div>
+            {methods === null && <p className="note" role="status">결제수단을 불러오는 중이에요.</p>}
+            {loadError && <p role="alert" className="note">{loadError}</p>}
+            {methods !== null && active.length === 0 && !loadError && (
+              <Empty title="등록된 결제수단이 없어요">아래에서 카드를 등록하면 바로 요청할 수 있어요.</Empty>
+            )}
+            {active.length > 0 && (
+              <ul className="payment-list">
+                {active.map((method) => (
+                  <li key={method.id} className="payment-row">
+                    <span className="payment-icon" aria-hidden="true"><CreditCard size={18} /></span>
+                    <span className="payment-main">
+                      <b>{method.cardLabel || '등록 카드'}</b>
+                      <small>
+                        <span className="payment-provider">{PROVIDER_LABEL[method.provider] || method.provider}</span>
+                        {method.registeredAt ? ` · ${formatDateTime(method.registeredAt)} 등록` : ''}
+                      </small>
+                    </span>
+                    <button type="button" className="payment-delete" aria-label={`${method.cardLabel || '등록 카드'} 삭제`} onClick={() => setDeleting(method)}>삭제</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
 
-        <section className="home-card payments-card" aria-labelledby="payments-new-title">
-          <div className="home-card-head"><h2 id="payments-new-title">새 결제수단 등록</h2></div>
-          {simulated && (
-            <Chips label="결제수단 종류" value={chosenProvider} onChange={setProvider}
-              options={[{ value: 'SIMULATED', label: '테스트 카드' }, { value: 'TOSS_BILLING', label: '토스 자동결제' }]} />
-          )}
-          {chosenProvider === 'SIMULATED' ? (
-            <div className="payment-form">
-              <p className="note">시연용 모의 카드예요. 실제로 돈이 나가지 않아요.</p>
-              <label className="field">
-                <span className="field-label">카드 이름</span>
-                <input value={testLabel} maxLength={40} onChange={(e) => setTestLabel(e.target.value)} />
-              </label>
-              <Btn onClick={registerTest}>테스트 카드 등록</Btn>
-            </div>
-          ) : (
-            <div className="payment-form">
-              <label className="field">
-                <span className="field-label">빌링 키</span>
-                <input value={billingKey} maxLength={200} autoComplete="off" spellCheck={false}
-                  placeholder="토스페이먼츠에서 발급한 빌링 키" onChange={(e) => setBillingKey(e.target.value)} />
-              </label>
-              {keyIsCardNumber
-                ? <p className="payment-hint bad" role="alert">카드번호는 입력하지 마세요. 토스페이먼츠가 발급한 빌링 키만 넣어 주세요.</p>
-                : <p className="payment-hint">카드번호 원문은 보내지 않아요. 발급받은 빌링 키만 입력해 주세요.</p>}
-              <label className="field">
-                <span className="field-label">카드 이름 (선택)</span>
-                <input value={cardLabel} maxLength={40} placeholder="예: 국민카드 ****1234" onChange={(e) => setCardLabel(e.target.value)} />
-              </label>
-              {labelIsCardNumber && <p className="payment-hint bad" role="alert">카드 이름에는 뒤 4자리만 남겨 주세요.</p>}
-              <Btn disabled={!billingKey.trim() || keyIsCardNumber || labelIsCardNumber} onClick={registerBilling}>결제수단 등록</Btn>
-            </div>
-          )}
-        </section>
+          <section className="payments-section" aria-labelledby="payments-new-title">
+            <h2 id="payments-new-title" className="section-title">새 결제수단 등록</h2>
+            {simulated && (
+              <Chips label="결제수단 종류" value={chosenProvider} onChange={setProvider}
+                options={[{ value: 'SIMULATED', label: '테스트 카드' }, { value: 'TOSS_BILLING', label: '토스 자동결제' }]} />
+            )}
+            {chosenProvider === 'SIMULATED' ? (
+              <div className="payment-form">
+                <p className="note">시연용 모의 카드예요. 실제로 돈이 나가지 않아요.</p>
+                <label className="field">
+                  <span className="field-label">카드 이름</span>
+                  <input value={testLabel} maxLength={40} onChange={(e) => setTestLabel(e.target.value)} />
+                </label>
+                <Btn onClick={registerTest}>테스트 카드 등록</Btn>
+              </div>
+            ) : (
+              <div className="payment-form">
+                <label className="field">
+                  <span className="field-label">빌링 키</span>
+                  <input value={billingKey} maxLength={200} autoComplete="off" spellCheck={false}
+                    placeholder="토스페이먼츠에서 발급한 빌링 키" onChange={(e) => setBillingKey(e.target.value)} />
+                </label>
+                {keyIsCardNumber
+                  ? <p className="payment-hint bad" role="alert">카드번호는 입력하지 마세요. 토스페이먼츠가 발급한 빌링 키만 넣어 주세요.</p>
+                  : <p className="payment-hint">카드번호 원문은 저장하지 않으며, 발급받은 빌링 키만 입력해 주세요.</p>}
+                <label className="field">
+                  <span className="field-label">카드 이름 (선택)</span>
+                  <input value={cardLabel} maxLength={40} placeholder="예: 국민카드 ****1234" onChange={(e) => setCardLabel(e.target.value)} />
+                </label>
+                {labelIsCardNumber && <p className="payment-hint bad" role="alert">카드 이름에는 뒤 4자리만 남겨 주세요.</p>}
+                <Btn disabled={!billingKey.trim() || keyIsCardNumber || labelIsCardNumber} onClick={registerBilling}>결제수단 등록</Btn>
+              </div>
+            )}
+          </section>
+        </div>
       </div>
       {deleting && (
         <Confirm title="결제수단을 삭제할까요?" action="삭제하기" onClose={() => setDeleting(null)} onConfirm={() => remove(deleting)}>

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { CarFront } from 'lucide-react'
 import MapView from './MapView.jsx'
+import SketchMap from './SketchMap.jsx'
 import { api } from './api.js'
 import { pushUndecided } from './push.js'
 import { formatDateTime, formatTime, routeLabel, won } from './format.js'
@@ -13,11 +14,28 @@ const timeRow = (latest) => (latest.mode==='INSTANT' ? ['출발 준비','지금 
 /** 넓은 화면의 오른쪽. 요청의 내 지점과 학교나 거점을 표시한다. */
 export function RequestMap({ item, edge }) {
   const toSchool = item.direction === 'TO_SCHOOL'
+  const points = [
+    { lat: item.pointLat, lon: item.pointLon, label: toSchool ? '승' : '도', name: item.pointName, tone: 'me' },
+    { lat: item.anchorLat, lon: item.anchorLon, label: toSchool ? '학' : '출', name: item.anchorName, tone: 'end' },
+  ]
+  const valid = points.every((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon))
+  const lines = valid ? [{
+    path: toSchool ? [points[0], points[1]] : [points[1], points[0]],
+    color: '#145a46',
+    style: 'solid',
+    weight: 4,
+  }] : []
   return (
-    <MapView edge={edge} points={[
-      { lat: item.pointLat, lon: item.pointLon, label: toSchool ? '승' : '도', tone: 'me' },
-      { lat: item.anchorLat, lon: item.anchorLon, label: toSchool ? '학' : '출', tone: 'end' },
-    ]} />
+    <MapView
+      edge={edge}
+      points={points}
+      fallback={(
+        <div className="map-stage-fallback">
+          <SketchMap points={points} lines={lines} label="요청 경로 약도" />
+          <span className="map-stage-pill">약도로 경로를 보여 드려요</span>
+        </div>
+      )}
+    />
   )
 }
 
@@ -108,7 +126,7 @@ export function NoShow({ latest, onRetry, onHome, onMenu }) {
   )
 }
 
-export function Unmatched({ latest, onRetry, onHome, onMenu }) {
+export function Unmatched({ latest, config, onRetry, onHome, onMenu }) {
   if (latest.endReason === 'LEFT_ALONE') {
     return (
       <Screen aside={<RequestMap item={latest} />} foot={<Btn className="line" onClick={onHome}>홈으로</Btn>}>
@@ -123,6 +141,7 @@ export function Unmatched({ latest, onRetry, onHome, onMenu }) {
   }
   const canceled = latest.endReason === 'PARTY_CANCELED'
   const routeExpired = latest.endReason === 'ROUTE_VERIFICATION_EXPIRED'
+  const postpaid = Number(config?.paymentFlowVersion || 0) >= 3
   return (
     <Screen aside={<RequestMap item={latest} />} foot={(
       <>
@@ -133,7 +152,9 @@ export function Unmatched({ latest, onRetry, onHome, onMenu }) {
       <TopBar onMenu={onMenu} />
       <div className="pad">
         <h1 className="head">{routeExpired ? '경로를 확인하지 못해 일행이 해산됐어요' : canceled ? '일행이 취소됐어요' : <>이번엔 같이 탈<br />일행을 못 찾았어요</>}</h1>
-        <p className="sub">{routeExpired ? '예정 출발 시각까지 경로를 확인하지 못했어요. 승인된 선결제는 이용 내역에서 환불 상태를 확인해 주세요.' : canceled ? '다른 일행이 빠져 나만 남았습니다.' : `${formatTime(latest.resultBy)}까지 조건이 맞는 학생이 없었습니다.`}</p>
+        <p className="sub">{routeExpired
+          ? (postpaid ? '예정 출발 시각까지 경로를 확인하지 못해 해산했어요. 결제할 금액은 없어요.' : '예정 출발 시각까지 경로를 확인하지 못했어요. 승인된 선결제는 이용 내역에서 환불 상태를 확인해 주세요.')
+          : canceled ? '다른 일행이 빠져 나만 남았습니다.' : `${formatTime(latest.resultBy)}까지 조건이 맞는 학생이 없었습니다.`}</p>
         <Rows items={[
           ['지난 요청', routeLabel(latest)],
           timeRow(latest),

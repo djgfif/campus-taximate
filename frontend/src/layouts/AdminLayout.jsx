@@ -13,10 +13,11 @@ export default function AdminLayout({ tabs, activeTab, onSelectTab, onBack, chil
         <div className="admin-topbar-left">
           <Brand />
           <span className="admin-badge">운영 포털</span>
+          <span className="admin-topbar-note">모의 운영 장부예요 · 실제 계좌 송금은 연동되지 않아요</span>
         </div>
-        <button type="button" className="btn small line" onClick={onBack}>
-          <ArrowLeft size={16} aria-hidden="true" />
-          학생 화면
+        <button type="button" className="admin-back-btn" onClick={onBack}>
+          <ArrowLeft size={15} aria-hidden="true" />
+          <span>학생 화면</span>
         </button>
       </header>
       <div className="admin-body">
@@ -36,7 +37,9 @@ export default function AdminLayout({ tabs, activeTab, onSelectTab, onBack, chil
           </nav>
         </aside>
         <section className="admin-content">
-          <div className="admin-content-inner">{children}</div>
+          <div className="admin-content-inner">
+            {children}
+          </div>
         </section>
       </div>
     </div>

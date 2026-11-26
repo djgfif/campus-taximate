@@ -160,25 +160,26 @@ public class ApiController {
                               String memo, WaitingInsightService.Insight insight,
                               RideHistoryService.Stage stage, Long paid, EndReason endReason,
                               double anchorLat, double anchorLon, Long partyPaid, Integer partySize, Long partyId, List<Long> partyIds, RequestMode mode, TimeBasis timeBasis,
-                              Direction displayDirection) {
+                              Direction displayDirection, Long myShare, Boolean payer) {
         RequestView withPartyIds(List<Long> ids) {
             return new RequestView(id, status, direction, hubId, anchorName, windowStart, windowEnd, arriveBy,
                     resultBy, pointName, pointLat, pointLon, soloFare, soloMinutes, memo, insight, stage, paid,
-                    endReason, anchorLat, anchorLon, partyPaid, partySize, partyId, ids.isEmpty() ? partyIds : ids, mode, timeBasis, displayDirection);
+                    endReason, anchorLat, anchorLon, partyPaid, partySize, partyId, ids.isEmpty() ? partyIds : ids, mode, timeBasis, displayDirection, myShare, payer);
         }
 
         /** school: 이 요청을 한 회원(로그인한 본인)의 학교. 응답은 트랜잭션 밖에서 만들어 요청의 회원을 지연 로딩할 수 없어 따로 받는다. */
         static RequestView of(RideHistoryService.Entry e, School school) {
-            return of(e.request(), null, e.stage(), e.paid(), e.partyPaid(), e.partySize(), school);
+            return of(e.request(), null, e.stage(), e.paid(), e.partyPaid(), e.partySize(), school, e.myShare(), e.payer());
         }
 
         static RequestView of(RideRequest r, WaitingInsightService.Insight insight,
                               RideHistoryService.Stage stage, Long paid, School school) {
-            return of(r, insight, stage, paid, null, null, school);
+            return of(r, insight, stage, paid, null, null, school, null, null);
         }
 
         private static RequestView of(RideRequest r, WaitingInsightService.Insight insight,
-                                      RideHistoryService.Stage stage, Long paid, Long partyPaid, Integer partySize, School school) {
+                                      RideHistoryService.Stage stage, Long paid, Long partyPaid, Integer partySize, School school,
+                                      Long myShare, Boolean payer) {
             String anchor = r.getHub() != null ? r.getHub().getName() : r.getSchool().getGateName();
             return new RequestView(r.getId(), r.getStatus(), r.getDirection(),
                     r.getHub() == null ? null : r.getHub().getId(), anchor, r.getWindowStart(), r.getWindowEnd(),
@@ -189,7 +190,7 @@ public class ApiController {
                     r.getHub() != null ? r.getHub().getLon() : r.getSchool().getLon(), partyPaid, partySize, r.getParty() == null ? null : r.getParty().getId(),
                     r.getParty() == null ? List.of() : List.of(r.getParty().getId()),r.getMode(),r.getTimeBasis(),
                     // 홈 등교/하교 탭이 쓰는 표시 방향. 규칙은 BoardService.displayDirection 한 곳에만 있다.
-                    com.campustaximate.server.service.BoardService.displayDirection(r, school));
+                    com.campustaximate.server.service.BoardService.displayDirection(r, school), myShare, payer);
         }
     }
 

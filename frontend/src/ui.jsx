@@ -22,12 +22,13 @@ export function useWide() {
 export function Screen({ children, foot, aside, tabBar }) {
   const wide = useWide()
   const footer = foot && <div className="foot">{foot}</div>
+  const showTabBar = Boolean(tabBar) && !wide
   return (
     <div className={aside === undefined ? 'screen solo' : 'screen'}>
       <div className="pane">
         <div className="body">{children}</div>
         {/* 행동 줄과 탭바는 한 덩어리로 아래에 붙인다. 따로 붙이면 둘 다 bottom: 0이라 겹친다. */}
-        {tabBar ? <div className="dock">{footer}{tabBar}</div> : footer}
+        {showTabBar ? <div className="dock">{footer}{tabBar}</div> : footer}
       </div>
       {wide && aside !== undefined && <aside className="aside">{aside}</aside>}
     </div>
@@ -157,9 +158,10 @@ export function FareCompare({ solo, share }) {
  * 이 일행이 정해진 이유. 매칭의 두 기준(늘어나는 시간, 내 몫의 비율)을 내 숫자와 나란히 보이고,
  * 실제 요금을 어떻게 나누는지 한 줄로 말한다. 기준 값은 서버 설정(config.rules)을 따른다.
  */
-export function FairnessNote({ delay, solo, share, rules, walkExcluded = false }) {
+export function FairnessNote({ delay, solo, share, rules, walkExcluded = false, postpaid = false }) {
   const maxDelay = rules?.maxDelayMinutes ?? 15
-  const maxShare = Math.round((1 - (rules?.minSavingRate ?? 0.1)) * 100)
+  const minSaving = Math.round((rules?.minSavingRate ?? 0.1) * 100)
+  const maxShare = 100 - minSaving
   const pct = solo > 0 ? Math.round((share / solo) * 100) : 100
   return <section className="fairness" aria-label="이 일행이 정해진 이유">
     <h2>이 일행이 정해진 이유</h2>
@@ -167,7 +169,9 @@ export function FairnessNote({ delay, solo, share, rules, walkExcluded = false }
       <div><span>같이 가서 늘어나는 시간</span><b>{delay}분</b><small>{maxDelay}분 이내만 묶어요{walkExcluded ? ', 걷는 시간 제외' : ''}</small></div>
       <div><span>혼자 요금 중 내가 내는 비율</span><b>{pct}%</b><small>{maxShare}% 이하일 때만 일행이 돼요</small></div>
     </div>
-    <p>확정 금액을 각자 혼자 탈 때 요금의 비율대로 나눠요. 멀리 가는 사람이 더 내고, 실제 요금이 더 나와도 더 내지 않아요.</p>
+    <p>{postpaid
+      ? `하차 뒤 실제 요금을 각자 혼자 탈 때 요금 비율대로 나눠요. 멀리 가는 사람이 더 내요. 예상 요금 기준 ${minSaving}% 이상 아낄 때만 일행이 되지만, 실제 요금에 따라 내는 돈은 달라질 수 있어요.`
+      : '확정 금액을 각자 혼자 탈 때 요금의 비율대로 나눠요. 멀리 가는 사람이 더 내고, 실제 요금이 더 나와도 더 내지 않아요.'}</p>
   </section>
 }
 
