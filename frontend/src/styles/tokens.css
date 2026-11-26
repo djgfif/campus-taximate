@@ -9,7 +9,7 @@
   --color-surface-subtle: #f0f3f0;
   --color-text: #172521;
   --color-text-secondary: #52635b;
-  --color-text-muted: #66766d;
+  --color-text-muted: #52635a;
   --color-border: #d9e1da;
   --color-border-strong: #c2cec5;
   --color-input-border: #78877d;
@@ -33,7 +33,7 @@
   --ink: var(--color-text);
   --ink-2: var(--color-text-secondary);
   --road: var(--color-text-muted);
-  --faint: #84948b;
+  --faint: #64746b;
   --line: var(--color-border);
   --line-strong: var(--color-border-strong);
   --mist: var(--color-bg);
@@ -53,18 +53,27 @@
   --stop-soft: var(--color-danger-soft);
   --alone: var(--color-info);
   --off: #edf0ed;
-  --off-ink: #728279;
+  --off-ink: #57675f;
 
   --shadow-card: 0 1px 2px rgb(23 37 33 / 5%), 0 4px 12px rgb(23 37 33 / 4%);
+  --shadow-elevated: 0 8px 28px rgb(23 37 33 / 10%);
   --shadow-overlay: 0 12px 36px rgb(23 37 33 / 12%);
   --container-max: 1280px;
   --admin-sidebar: 240px;
 }
 
-/* 기본 강조 버튼·채팅 말풍선 대비 보정 (딥 그린 바탕 위 흰 글자, WCAG AA ≥ 7:1) */
-.btn {
+/* 기본 강조 버튼·채팅 말풍선·강조 배지 대비 보정 (딥 그린 바탕 위 흰 글자, WCAG AA >= 7:1) */
+.btn,
+.rail li.me .pin,
+.mk.me,
+.mk.time,
+.road-car,
+.driver li span {
   background: var(--color-primary);
   color: var(--color-on-primary);
+}
+.toast svg {
+  color: #7ee0ba;
 }
 .btn.line {
   background: var(--color-surface);

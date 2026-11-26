@@ -204,7 +204,7 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
     origin.point && { ...origin.point, label: '출', name: origin.name, tone: 'me' },
     destination.point && { ...destination.point, label: '도', name: destination.name, tone: 'end' },
   ].filter(Boolean)
-  const tripLine = tripPoints.length === 2 ? [{ path: tripPoints, style: 'dash', color: '#8a5a00' }] : []
+  const tripLine = tripPoints.length === 2 ? [{ path: tripPoints, style: 'dash', color: '#145a46' }] : []
   const timeSummary = basis === 'DEPART'
     ? (chosenStart ? `${dayWord(chosenStart, now)} ${formatTime(chosenStart)} ~ ${formatTime(new Date(chosenStart).getTime() + chosenLength * 60000)} 출발` : '')
     : (chosenArrival ? `${dayWord(chosenArrival, now)} ${formatTime(chosenArrival)}까지 도착` : '')
@@ -237,7 +237,9 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
       <p className="foot-rule">{preview.data
         ? `${Math.round(minSaving * 100)}% 이상 싸고 ${maxDelay}분 넘게 늦어지지 않을 때만 일행이 돼요. 결과는 ${formatTime(preview.data.resultBy)}까지 알려 드려요.`
         : `늦어져도 ${maxDelay}분 이내, 혼자보다 ${Math.round(minSaving * 100)}% 이상 쌀 때만 일행이 돼요.`}</p>
-      <Btn disabled={!preview.data || !ready || paymentMissing} onClick={submit}>일행 찾기</Btn>
+      {paymentMissing
+        ? <Btn onClick={registerPayment}>결제수단 등록하고 이어서 요청</Btn>
+        : <Btn disabled={!preview.data || !ready} onClick={submit}>일행 찾기</Btn>}
     </>}>
     <BackBar onBack={close} title={schoolDestination ? '등교' : '하교'} />
     <div className="pad request-form">
@@ -291,6 +293,7 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
         </> : <>
           <RequestTimePicker label="늦어도 도착 시각" options={arrivals} value={chosenArrival} now={now} onChange={setArrival} waiting={waiting} waitingLabel={waitingLabel} />
           <Chips label="일찍 도착 허용" value={early} onChange={setEarly} options={[0, 5, 10, 15].map((m) => ({ value: m, label: m + '분' }))} />
+          <p className="note">희망 시각보다 최대 {early}분 먼저 도착하는 일행까지 함께 찾아요.</p>
         </>}
       </details>}
       {/* 같은 이유(같이 탈 사람이 적다)의 안내는 한 문장으로 묶는다. */}

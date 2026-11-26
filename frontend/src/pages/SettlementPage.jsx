@@ -64,7 +64,7 @@ export default function SettlementPage({ party, myId, now, config, onUpdated, on
           <div className="trip-main">
             <section className="home-card" aria-label="정산 내역">
               <h2 className="section-title">정산 요약</h2>
-              <FinancialDetails party={party} />
+              <FinancialDetails party={party} hideCollection />
             </section>
 
             {settlement && (

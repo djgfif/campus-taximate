@@ -106,19 +106,42 @@ export default function App() {
 
   const signOut = useCallback(async (request) => {
     session.current += 1
-    setState(null)
-    navigate('/')
     setMenu(false)
     setDemoOpen(false)
-    await request()
+    try {
+      await request()
+    } catch {
+      // 세션 정리는 서버 응답과 무관하게 로컬에서도 마친다.
+    }
+    setState(null)
     setMe(null)
+    navigate('/', { replace: true })
   }, [navigate])
 
-  useEffect(() => {
-    // 설정과 로그인 정보는 같은 서버에서 온다. 연결 실패는 아래 전체 화면 카드 하나로만 알린다(알림과 카드가 겹치지 않게).
-    api.config().then(setConfig).catch((e) => setDown(e.status === 429 ? 'busy' : true))
-    api.me().then(setMe).catch((e) => (e.status === 401 ? setMe(null) : setDown(e.status === 429 ? 'busy' : true)))
+  const loadBoot = useCallback(() => {
+    let active = true
+    setDown(false)
+    setMe(undefined)
+    const retry = async (fn, delays = [150, 300]) => {
+      for (let i = 0; ; i++) {
+        try {
+          return await fn()
+        } catch (e) {
+          if (e.status === 401 || e.status === 429 || i >= delays.length) throw e
+          await new Promise((r) => setTimeout(r, delays[i]))
+        }
+      }
+    }
+    retry(() => api.config())
+      .then((next) => { if (active) setConfig(next) })
+      .catch((e) => { if (active) setDown(e.status === 429 ? 'busy' : true) })
+    retry(() => api.me())
+      .then((next) => { if (active) setMe(next) })
+      .catch((e) => { if (active) (e.status === 401 ? setMe(null) : setDown(e.status === 429 ? 'busy' : true)) })
+    return () => { active = false }
   }, [])
+
+  useEffect(() => loadBoot(), [loadBoot])
 
   useEffect(() => {
     if (!me || me.needsProfile) return undefined
@@ -218,21 +241,30 @@ export default function App() {
   const meMenu = (close) => <>
     <div className="me-head"><Avatar name={me.nickname} size={44} /><div><b>{me.nickname}</b><small>{me.email}</small></div></div>
     {saved > 0 && <div className="rows me-saved"><div><span className="k">같이 타서 덜 낸 돈</span><span className="v">{won(saved)}</span></div></div>}
+    <p className="me-section-title">계정 · 결제</p>
     <div className="list">
       <Item title="프로필" detail="학과와 입학 연도를 같이 타는 사람에게 보여 줘요" onClick={() => { close(); setEditingProfile(true) }} />
       <Item title="결제수단 관리" detail="후불 결제에 쓸 카드를 등록하고 관리해요" onClick={() => { close(); navigate('/app/account/payments') }} />
+    </div>
+    <p className="me-section-title">이용 · 알림</p>
+    <div className="list">
       <Item title="탑승 확인" detail="탑승 기록이 잘못됐다면 이의를 낼 수 있어요" onClick={() => { close(); setTab('boarding-cases') }} />
-      {me.admin && <Item title="관리자" detail="노쇼와 요금 검토, 신고와 제한, 승차 지점 관리" onClick={() => { close(); setTab('admin') }} />}
-      {config?.demo && <Item title="시연 콘솔" detail="시연 계정 전환과 시나리오를 별도 콘솔에서 제어해요" onClick={() => { close(); navigate('/demo') }} />}
       {pushSupported() && <Item title={pushOn ? '알림 끄기' : '알림 받기'} detail="앱을 닫아도 확정과 승차 안내를 받아요" onClick={togglePush} />}
     </div>
+    {(me.admin || config?.demo) && <>
+      <p className="me-section-title">운영 · 시연</p>
+      <div className="list">
+        {me.admin && <Item title="관리자" detail="노쇼와 요금 검토, 신고와 제한, 승차 지점 관리" onClick={() => { close(); setTab('admin') }} />}
+        {config?.demo && <Item title="시연 콘솔" detail="시연 계정 전환과 시나리오를 별도 콘솔에서 제어해요" onClick={() => { close(); navigate('/demo') }} />}
+      </div>
+    </>}
     <div className="me-out">
       <button type="button" onClick={() => signOut(api.logout)}>로그아웃</button>
       <button type="button" onClick={() => setLeaving(true)}>모든 기기에서 로그아웃</button>
     </div>
   </>
   const demoAccounts = config?.demo ? <DemoAccounts onLogin={async () => { session.current += 1; setState(null); setResetting(false); setMenu(false); setDemoOpen(false); navigate('/'); setMe(await api.me()) }} /> : null
-  const demo = config?.demo && me ? <Suspense fallback={null}><DemoBar now={state?.now} run={run} refresh={refresh} parties={state?.parties || []} accounts={demoAccounts} wide open={demoOpen} onOpenChange={setDemoOpen} /></Suspense> : null
+  const demo = config?.demo && me ? <Suspense fallback={null}><DemoBar config={config} now={state?.now} run={run} refresh={refresh} parties={state?.parties || []} accounts={demoAccounts} wide open={demoOpen} onOpenChange={setDemoOpen} /></Suspense> : null
   const presenter = config?.demo && (location.pathname === '/presenter' || location.pathname === '/demo')
   const goHome = useCallback(() => navigate('/'), [navigate])
   
@@ -246,7 +278,7 @@ export default function App() {
           {down === 'busy'
             ? <Say tone="stop-tone" title="요청이 많아 잠시 멈췄어요">1분 뒤 다시 시도해 주세요.</Say>
             : <Say tone="stop-tone" title="서버에 연결하지 못했습니다">인터넷 연결을 확인한 뒤 다시 시도해 주세요.</Say>}
-          <Btn onClick={() => window.location.reload()}>다시 시도</Btn>
+          <Btn onClick={loadBoot}>다시 시도</Btn>
         </div>
       )}
       {me === null && <PublicLayout><AuthScreen config={config} onLogin={(verified) => { setResetting(verified); return api.me().then(setMe) }} /></PublicLayout>}
@@ -263,15 +295,14 @@ export default function App() {
         <Suspense fallback={<LoadingScreen />}><AdminScreen allowed={me.admin} config={config} onBack={() => setTab('home')} /></Suspense>
       )}
       {me && !me.needsPassword && !resetting && !me.needsProfile && !presenter && (paymentReturn || tab !== 'admin') && (
-        <StudentLayout tab={navTab} onTab={setTab} onMenu={openMenu} name={me.nickname} unread={unread}>
+        <StudentLayout tab={navTab} onTab={setTab} onMenu={openMenu} name={me.nickname} unread={unread} admin={Boolean(me.admin)}>
           {offline && <Say tone="stop-tone">연결이 끊겼습니다. 다시 연결하는 중입니다.</Say>}
           {config?.simulatedRoute && <p className="demo-strip" role="note">시연 모드: 금액과 시간은 예시예요</p>}
           {paymentReturn && <PaymentResult key={me.id + location.search} search={location.search} myId={me.id} onUpdated={refresh}
             onReturn={(id) => navigate(id ? `/parties/${id}` : '/', { replace: true })} />}
-          {!paymentReturn && tab === 'history' && <History admin={me.admin} onHome={() => setTab('home')} onBoardingCases={() => setTab('boarding-cases')} />}
+          {!paymentReturn && tab === 'history' && <History admin={me.admin} tabBar={tabBar} onHome={() => setTab('home')} onBoardingCases={() => setTab('boarding-cases')} />}
           {!paymentReturn && tab === 'rides' && <Rides state={state} onOpen={(id) => navigate('/parties/' + id)} onHome={() => setTab('home')} tabBar={tabBar} />}
-          {!paymentReturn && tab === 'me' && <Screen><header className="bar"><h1 className="bar-title">내 정보</h1></header><div className="pad me-page">{meMenu(() => {})}</div>{tabBar}</Screen>}
-          {!paymentReturn && tab === 'history' && tabBar}
+          {!paymentReturn && tab === 'me' && <Screen tabBar={tabBar}><header className="bar"><h1 className="bar-title">내 정보</h1></header><div className="pad me-page"><h1 className="page-heading">내 정보</h1>{meMenu(() => {})}</div></Screen>}
           {!paymentReturn && tab === 'boarding-cases' && <BoardingCasesScreen now={state?.now} onBack={() => setTab('home')} />}
           {!paymentReturn && tab === 'find' && state && (
             <FindPage
@@ -377,7 +408,7 @@ function Flow({ state, config, school, myId, run, refresh, onMenu, onHistory, on
   const routeExpired = latest?.endReason === 'ROUTE_VERIFICATION_EXPIRED'
   if ((left || routeExpired || latest?.status === 'UNMATCHED') && seenRequest !== latest.id) {
     const Ended = left ? NoShow : Unmatched
-    return <Ended latest={latest} onMenu={onMenu} onHome={() => setSeenRequest(latest.id)} onRetry={() => {
+    return <Ended latest={latest} config={config} onMenu={onMenu} onHome={() => setSeenRequest(latest.id)} onRetry={() => {
       setSeenRequest(latest.id); startRequest({ direction: latest.direction, initial: latest })
     }} />
   }
@@ -390,9 +421,10 @@ function Rides({ state, onOpen, onHome, tabBar }) {
   if (!state) return <LoadingScreen />
   const parties = state.parties || []
   return (
-    <Screen>
+    <Screen tabBar={tabBar}>
       <header className="bar"><h1 className="bar-title">내 일행</h1></header>
       <div className="pad">
+        <h1 className="page-heading">내 일행</h1>
         {parties.length === 0 && !state.settledParty && (
           <Empty title="같이 타는 일행이 아직 없어요" action="길 올리기" onAction={onHome}>가는 길을 올리면 같은 방향 학생과 이어 드려요.</Empty>
         )}
@@ -412,7 +444,6 @@ function Rides({ state, onOpen, onHome, tabBar }) {
         </ul>
         {state.settledParty && <Item title="최근 정산 내역 보기" onClick={() => onOpen(state.settledParty.id)} />}
       </div>
-      {tabBar}
     </Screen>
   )
 }

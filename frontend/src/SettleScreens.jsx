@@ -7,7 +7,7 @@ import { PraiseSection } from './People.jsx'
 import { BoardingPanel } from './ReviewScreens.jsx'
 import { startPayment } from './payments.js'
 import { formatDateTime, isPaymentParty, isPostpaidParty, partyLabel, remaining, TRANSFER_LABEL, won } from './format.js'
-import { BackBar, Btn, Paper, Rows, Say, Screen, Sheet, SidePlain, TopBar, useWide } from './ui.jsx'
+import { BackBar, Btn, Money, Paper, Rows, Say, Screen, Sheet, SidePlain, TopBar, useWide } from './ui.jsx'
 
 const RECEIPT_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 const RECEIPT_MAX_BYTES = 5 * 1024 * 1024
@@ -25,11 +25,13 @@ function ReceiptField({ file, onChange }) {
     if (!next) { setNote(''); onChange(null); return }
     if (next.type && !RECEIPT_TYPES.includes(next.type)) {
       setNote('JPG, PNG, WEBP 사진만 올릴 수 있어요.')
+      onChange(null)
       if (inputRef.current) inputRef.current.value = ''
       return
     }
     if (next.size > RECEIPT_MAX_BYTES) {
       setNote('영수증 사진은 5MB 이하만 올릴 수 있어요.')
+      onChange(null)
       if (inputRef.current) inputRef.current.value = ''
       return
     }
@@ -124,6 +126,11 @@ export function PayerInput({ party, now, run, onDone, onLater, onUpdated }) {
       {(error || preview.value === value && preview.error) && <p role="alert">{error || preview.error}</p>}
       <p className="note">{postpaid ? '입력하면 6시간 동안 동승자가 확인·결제하거나 이의를 낼 수 있어요. 사진은 7일 뒤 지워져요.'
         : '입력하면 24시간 동안 일행이 이의를 낼 수 있고, 그 뒤 정산이 확정돼요. 사진은 7일 뒤 지워져요.'}</p>
+      {!locked && !ready && (
+        <p className="payment-hint">
+          {!value || !Number.isSafeInteger(value) ? '실제 요금을 숫자로 입력해 주세요.' : !receipt ? '영수증 사진을 올리면 정산을 요청할 수 있어요.' : ''}
+        </p>
+      )}
       <Btn className="line" aria-expanded={checkingBoarding} onClick={() => setCheckingBoarding((value) => !value)}>일행 탑승 확인</Btn>
       {checkingBoarding && <BoardingPanel party={party} now={now} showEmpty />}
     </div>
@@ -234,7 +241,14 @@ export function PostpaidConfirmCard({ party, myId, now, onUpdated, clientKey = i
     } finally { sending.current = false; setBusy(false) }
   }
   return <section className="payment-card" aria-label="정산 확인과 결제">
-    <h2>내 분담금 {won(order.amount)}</h2>
+    <div className="money-hero">
+      <h2 className="sr-only">내 분담금 {won(order.amount)}</h2>
+      <span className="money-hero-label" aria-hidden="true">내 분담금</span>
+      <strong className="money-hero-value" aria-hidden="true"><Money value={order.amount} /></strong>
+      {party.mySoloFare > order.amount && (
+        <span className="payment-hint">혼자 탈 때보다 {won(party.mySoloFare - order.amount)} 아꼈어요</span>
+      )}
+    </div>
     <p>실제 요금을 구간 비율로 나눈 금액이에요. 확인하면 바로 결제돼요.</p>
     <Rows items={[
       objection && autoAt && ['6시간 자동 확정 마감', formatDateTime(autoAt)],
@@ -258,6 +272,21 @@ export function PostpaidSettlementPanel({ party, myId, now, config, onUpdated })
     {party.payer
       ? <section className="payment-card" aria-label="동승자 확인·결제 현황">
         <h2>{`${settlement.confirmedCount ?? 0} / ${settlement.totalRidersToConfirm ?? 0}명 확인·결제 완료`}</h2>
+        {(settlement.totalRidersToConfirm ?? 0) > 0 && (
+          <div
+            className="money-progress"
+            role="progressbar"
+            aria-label="확인·결제 진행률"
+            aria-valuemin={0}
+            aria-valuemax={settlement.totalRidersToConfirm}
+            aria-valuenow={settlement.confirmedCount ?? 0}
+          >
+            <div
+              className="money-progress-fill"
+              style={{ width: `${Math.min(100, Math.round(((settlement.confirmedCount ?? 0) / settlement.totalRidersToConfirm) * 100))}%` }}
+            />
+          </div>
+        )}
         <PostpaidCollection settlement={settlement} />
       </section>
       : <PostpaidConfirmCard party={party} myId={myId} now={now} onUpdated={onUpdated} />}
@@ -267,7 +296,7 @@ export function PostpaidSettlementPanel({ party, myId, now, config, onUpdated })
 }
 
 /** 현재 응답에 있는 금융 기록만 표시한다. 앱 정산 기록상 받을 돈(실제 송금 없음)은 현금 입금으로 표현하지 않는다. */
-export function FinancialDetails({ party }) {
+export function FinancialDetails({ party, hideCollection = false }) {
   const settlement = party.settlement
   if (!settlement) return <p className="note">아직 정산 기록이 없어요.</p>
   const ownId = party.members?.find((m) => m.requestId === party.myRequestId)?.memberId
@@ -288,8 +317,8 @@ export function FinancialDetails({ party }) {
       <h3>{recordLabel(order.purpose)}</h3><PaymentRecord order={order} />
       {(order.refundRequestedAmount > 0 || order.refundedAmount > 0) && <p className="note">환불은 카드 반영까지 3~4영업일 정도 걸려요.</p>}
     </section>)}
-    {collection && <Paper title="동승자 결제 수납"><PostpaidCollection settlement={settlement} /></Paper>}
-    {!collection && party.payer && settlement.finalizedAt && settlement.mockPayoutAmount != null && (
+    {!hideCollection && collection && <Paper title="동승자 결제 수납"><PostpaidCollection settlement={settlement} /></Paper>}
+    {!hideCollection && !collection && party.payer && settlement.finalizedAt && settlement.mockPayoutAmount != null && (
       <Say tone="calm" title={'앱 정산 기록상 받을 돈(실제 송금 없음) ' + won(settlement.mockPayoutAmount)}>
         <span className="mock-payout-meta"><span className="badge">실제 송금 없음</span> 장부 기록용 금액으로 실제 계좌 송금은 진행되지 않아요.</span>
       </Say>

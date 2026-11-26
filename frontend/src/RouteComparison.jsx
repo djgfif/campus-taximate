@@ -5,7 +5,7 @@ import { api } from './api.js'
 import { formatTime, isPaymentParty, won } from './format.js'
 import { Paper, Rows, Say, SidePlain } from './ui.jsx'
 
-const LEGEND = '노란 실선은 같이 가는 길, 회색 점선은 혼자 가는 길이에요.'
+const LEGEND = '초록 실선은 같이 가는 길, 회색 점선은 혼자 가는 길이에요.'
 
 /** 같이 가는 경로와 혼자 가는 경로를 함께 받는다. 일행이 바뀌면 다시 읽는다. */
 function useRoutes(party) {
@@ -29,9 +29,9 @@ function useRoutes(party) {
   return { routes, failed }
 }
 
-// 같이 가는 길은 굵은 노란 실선, 혼자 가는 길은 그 위에 가는 회색 점선. 겹치는 구간에서도 둘 다 보인다.
+// 같이 가는 길은 굵은 딥 그린 실선, 혼자 가는 길은 그 위에 가는 회색 점선. 겹치는 구간에서도 둘 다 보인다.
 const toLines = (routes) => [
-  { path: routes.shared, style: 'solid', color: '#f5b800', weight: 7 },
+  { path: routes.shared, style: 'solid', color: '#145a46', weight: 7 },
   { path: routes.solo, style: 'shortdash', color: '#474d56', weight: 3 },
 ]
 

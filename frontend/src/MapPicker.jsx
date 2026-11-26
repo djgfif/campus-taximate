@@ -98,7 +98,7 @@ export default function MapPicker({ center: origin, value, title, onPick, onClos
     return (
       <>
         <div ref={container} className="map-canvas" role="application" aria-label="지도를 움직여 위치를 맞춰 주세요" />
-        <span className="map-pin"><MapPin size={44} fill="#f5b301" strokeWidth={1.6} aria-hidden="true" /></span>
+        <span className="map-pin"><MapPin size={44} fill="#145a46" color="#ffffff" strokeWidth={1.6} aria-hidden="true" /></span>
         <div className="floater">
           <div className="addr"><b>{error || spot?.name || '위치를 확인하는 중'}</b><small>지도를 움직여 핀을 맞춰 주세요</small></div>
           <Btn disabled={!spot || !!error} onClick={pick}>이 위치로 정하기</Btn>
@@ -117,7 +117,7 @@ export default function MapPicker({ center: origin, value, title, onPick, onClos
       </header>
       <div className="map-full">
         <div ref={container} className="map-canvas" role="application" aria-label="지도를 움직여 위치를 맞춰 주세요" />
-        <span className="map-pin"><MapPin size={40} fill="#f5b301" strokeWidth={1.6} aria-hidden="true" /></span>
+        <span className="map-pin"><MapPin size={40} fill="#145a46" color="#ffffff" strokeWidth={1.6} aria-hidden="true" /></span>
       </div>
       <div className="picked">
         <b>{error || spot?.name || '위치를 확인하는 중'}</b>

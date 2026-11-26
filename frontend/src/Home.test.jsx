@@ -49,4 +49,34 @@ describe('홈', () => {
     expect(container.querySelector('.map-canvas')).toBeNull()
     expect(container.querySelector('.home-map')).toBeNull()
   })
+
+  it('미확인 후불 정산이 있으면 진행 중인 이용에서 확인·결제 안내를 먼저 보여 준다', async () => {
+    vi.spyOn(api, 'history').mockResolvedValue([])
+    vi.spyOn(api, 'board').mockResolvedValue({ parties: [], waiting: [] })
+    const activeParty = {
+      id: 91,
+      paymentFlowVersion: 3,
+      status: 'OBJECTION_WINDOW',
+      direction: 'FROM_HUB',
+      anchorName: '역전 정류장',
+      meetingPoint: '정문 앞',
+      departureAt: '2026-11-12T09:30:00Z',
+      payer: false,
+      myRequestId: 10,
+      unreadChat: 0,
+      members: [{ requestId: 10, pointName: '사거리 편의점' }],
+      settlement: {
+        myConfirmed: false,
+        payable: true,
+        autoFinalizeAt: '2026-11-12T15:30:00Z',
+        objectionDeadlineAt: '2026-11-12T15:30:00Z',
+      },
+    }
+    const view = render(<Home myId={1} onStart={vi.fn()} onReopen={vi.fn()} state={{ now: '2026-11-12T10:00:00Z', parties: [activeParty], restricted: false }} />)
+    expect(await screen.findByText('정산 금액을 확인하고 결제해 주세요')).toBeTruthy()
+    expect(screen.getByText(/확인 마감까지/)).toBeTruthy()
+    expect(screen.queryByRole('region', { name: '이용 방법' })).toBeNull()
+    const html = view.container.innerHTML
+    expect(html.indexOf('정산 금액을 확인하고 결제해 주세요')).toBeLessThan(html.indexOf('이용 방법') === -1 ? Infinity : html.indexOf('이용 방법'))
+  })
 })

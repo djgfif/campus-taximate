@@ -108,6 +108,7 @@ export default function TripDetailPage({ party, now, myId, config, run, onUpdate
                   share={party.myShare}
                   rules={config?.rules}
                   walkExcluded={isPaymentParty(party)}
+                  postpaid={postpaid}
                 />
               )}
               <div className="trip-tool-row">

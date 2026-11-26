@@ -3,7 +3,7 @@ import { ArrowRight, ChevronRight, Clock, Compass, MapPin, ShieldCheck, Users } 
 import { api } from './api.js'
 import { SettledFeedback } from './MemberSafety.jsx'
 import { BoardSection } from './Board.jsx'
-import { formatTime, partyLabel, partyRouteLabel, remaining } from './format.js'
+import { formatTime, isPostpaidParty, partyLabel, partyRouteLabel, remaining } from './format.js'
 import { Say, Screen, TopBar, useWide } from './ui.jsx'
 
 /**
@@ -28,7 +28,16 @@ function defaultDirection(now) {
 
 /** 홈 상단 진행 카드의 제목. 서버 상태 이름 대신 '내가 지금 할 일'을 보여 준다. */
 function liveTitle(party, myId) {
-  if (party.settlement || party.canSettle) return party.canSettle ? '실제 택시비를 입력해 주세요' : '정산하고 있어요'
+  if (party.canSettle) return '실제 택시비를 입력해 주세요'
+  if (party.settlement) {
+    if (isPostpaidParty(party)) {
+      if (!party.payer && !party.settlement.myConfirmed) {
+        return party.settlement.payable ? '정산 금액을 확인하고 결제해 주세요' : '정산 검토 결과를 기다려요'
+      }
+      if (party.payer) return '동승자 확인·결제 현황 확인'
+    }
+    return '정산하고 있어요'
+  }
   if (party.status === 'PAYER_PENDING') {
     if (party.successorId !== myId) return '새 결제자를 정하고 있어요'
     return party.payerNickname ? `결제자 ${party.payerNickname}님이 아직 안 왔어요` : '결제자가 아직 안 왔어요'
@@ -44,10 +53,17 @@ function liveTitle(party, myId) {
 
 /** 답할 마감이 있으면 남은 시간을 붙인다. */
 function liveDue(party, now) {
-  const due = party.status === 'PAYER_PENDING' ? party.successionDeadlineAt
-    : party.status === 'PREPAYING' && !party.payer && !party.myPrepaid ? party.prepayDeadlineAt : null
-  if (!due) return ''
-  return party.status === 'PAYER_PENDING' ? `답할 마감까지 ${remaining(due, now)}` : `선결제 마감까지 ${remaining(due, now)}`
+  if (party.status === 'PAYER_PENDING' && party.successionDeadlineAt) {
+    return `답할 마감까지 ${remaining(party.successionDeadlineAt, now)}`
+  }
+  if (party.status === 'PREPAYING' && !party.payer && !party.myPrepaid && party.prepayDeadlineAt) {
+    return `선결제 마감까지 ${remaining(party.prepayDeadlineAt, now)}`
+  }
+  if (party.settlement && isPostpaidParty(party) && !party.payer && !party.settlement.myConfirmed) {
+    const due = party.settlement.autoFinalizeAt || party.settlement.objectionDeadlineAt
+    if (due) return `확인 마감까지 ${remaining(due, now)}`
+  }
+  return ''
 }
 
 /**
@@ -122,41 +138,41 @@ export default function Home({ state, myId, config, school, onStart, onReopen, o
           <Say tone="stop-tone" title="미납 내역이 있어요">결제 또는 이전 미정산 내역을 확인해 주세요. 해결하면 새 요청을 할 수 있어요.</Say>
         )}
 
+        {state.parties.length > 0 && (
+          <section className="home-card" aria-label="진행 중인 이용">
+            <div className="home-card-head">
+              <h2 className="section-title">진행 중인 이용</h2>
+              <span className="home-count">{state.parties.length}건</span>
+            </div>
+            <ul className="live-rides" aria-label="내 일행">
+              {state.parties.map((party) => {
+                const due = liveDue(party, state.now)
+                return (
+                  <li key={party.id}>
+                    <button type="button" className="live-ride" onClick={() => onReopen(party.id)}>
+                      <span className="lr-main">
+                        <small>내 일행{party.departureAt ? `, ${formatTime(party.departureAt)} 출발` : ''}</small>
+                        <b>
+                          {liveTitle(party, myId)}
+                          {party.unreadChat > 0 && (
+                            <span className="unread-badge" aria-label={`안 읽은 메시지 ${party.unreadChat}개`}>
+                              {party.unreadChat > 99 ? '99+' : party.unreadChat}
+                            </span>
+                          )}
+                        </b>
+                        <small>{due || partyRouteLabel(party)}</small>
+                      </span>
+                      <ChevronRight size={20} aria-hidden="true" />
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+        )}
+
         <div className="home-grid">
           <div className="home-primary">
-            {state.parties.length > 0 && (
-              <section className="home-card" aria-label="진행 중인 이용">
-                <div className="home-card-head">
-                  <h2 className="section-title">진행 중인 이용</h2>
-                  <span className="home-count">{state.parties.length}건</span>
-                </div>
-                <ul className="live-rides" aria-label="내 일행">
-                  {state.parties.map((party) => {
-                    const due = liveDue(party, state.now)
-                    return (
-                      <li key={party.id}>
-                        <button type="button" className="live-ride" onClick={() => onReopen(party.id)}>
-                          <span className="lr-main">
-                            <small>내 일행{party.departureAt ? `, ${formatTime(party.departureAt)} 출발` : ''}</small>
-                            <b>
-                              {liveTitle(party, myId)}
-                              {party.unreadChat > 0 && (
-                                <span className="unread-badge" aria-label={`안 읽은 메시지 ${party.unreadChat}개`}>
-                                  {party.unreadChat > 99 ? '99+' : party.unreadChat}
-                                </span>
-                              )}
-                            </b>
-                            <small>{due || partyRouteLabel(party)}</small>
-                          </span>
-                          <ChevronRight size={20} aria-hidden="true" />
-                        </button>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </section>
-            )}
-
             {state.settledParty && (
               <section className="home-card">
                 <button type="button" className="text-row" onClick={() => onReopen(state.settledParty.id)}>
@@ -167,32 +183,34 @@ export default function Home({ state, myId, config, school, onStart, onReopen, o
               </section>
             )}
 
-            <section className="home-card home-guide" aria-label="이용 방법">
-              <h2 className="section-title">이용 방법</h2>
-              <ol className="home-steps">
-                <li>
-                  <span className="home-step-icon"><Compass size={18} aria-hidden="true" /></span>
-                  <div>
-                    <strong>1. 이동 조건 입력</strong>
-                    <p>승차 지점, 목적지, 출발 가능 시간을 한 번만 등록해요.</p>
-                  </div>
-                </li>
-                <li>
-                  <span className="home-step-icon"><Users size={18} aria-hidden="true" /></span>
-                  <div>
-                    <strong>2. 자동 매칭 · 비율 분담</strong>
-                    <p>지연 15분 이하·절약 10% 이상인 동성 일행을 자동으로 찾아드려요.</p>
-                  </div>
-                </li>
-                <li>
-                  <span className="home-step-icon"><ShieldCheck size={18} aria-hidden="true" /></span>
-                  <div>
-                    <strong>3. 탑승 확인 · 투명 정산</strong>
-                    <p>6자리 탑승번호로 탑승을 확인하고, 영수증 기준으로 정산해요.</p>
-                  </div>
-                </li>
-              </ol>
-            </section>
+            {state.parties.length === 0 && !state.settledParty && (
+              <section className="home-card home-guide" aria-label="이용 방법">
+                <h2 className="section-title">이용 방법</h2>
+                <ol className="home-steps">
+                  <li>
+                    <span className="home-step-icon"><Compass size={18} aria-hidden="true" /></span>
+                    <div>
+                      <strong>1. 이동 조건 입력</strong>
+                      <p>승차 지점, 목적지, 출발 가능 시간을 한 번만 등록해요.</p>
+                    </div>
+                  </li>
+                  <li>
+                    <span className="home-step-icon"><Users size={18} aria-hidden="true" /></span>
+                    <div>
+                      <strong>2. 자동 매칭 · 비율 분담</strong>
+                      <p>지연 15분 이하·절약 10% 이상인 동성 일행을 자동으로 찾아드려요.</p>
+                    </div>
+                  </li>
+                  <li>
+                    <span className="home-step-icon"><ShieldCheck size={18} aria-hidden="true" /></span>
+                    <div>
+                      <strong>3. 탑승 확인 · 투명 정산</strong>
+                      <p>6자리 탑승번호로 탑승을 확인하고, 영수증 기준으로 정산해요.</p>
+                    </div>
+                  </li>
+                </ol>
+              </section>
+            )}
           </div>
 
           <aside className="home-secondary">

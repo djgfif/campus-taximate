@@ -1,6 +1,6 @@
 import React from 'react'
 import { ArrowLeft } from 'lucide-react'
-import { Brand } from '../ui.jsx'
+import { Brand, Say } from '../ui.jsx'
 
 /**
  * 관리자 전용 업무 포털 레이아웃.
@@ -36,7 +36,10 @@ export default function AdminLayout({ tabs, activeTab, onSelectTab, onBack, chil
           </nav>
         </aside>
         <section className="admin-content">
-          <div className="admin-content-inner">{children}</div>
+          <div className="admin-content-inner">
+            <Say>모의 운영 장부예요. 실제 계좌 송금·지급대행은 연동되지 않으며, 모든 처리 근거는 감사 기록에 남아요.</Say>
+            {children}
+          </div>
         </section>
       </div>
     </div>

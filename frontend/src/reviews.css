@@ -5,15 +5,11 @@
 .review-card h2 { font-size: 17px; font-weight: 700; letter-spacing: -0.02em; }
 .review-card h3 { font-size: 15px; font-weight: 700; }
 .review-id { font-size: 13px; font-weight: 600; color: var(--road); }
-.review-badges { display: flex; flex-wrap: wrap; gap: 6px; }
 .review-meta-row { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 13px; color: var(--road); }
 .review-text { padding: 10px 12px; border-radius: var(--r-s); background: var(--mist); font-size: 14px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
 .review-vote { font-size: 13px; color: var(--ink-2); }
-.review-actions, .review-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+.review-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .review-actions > .btn { flex: 1 1 140px; }
-.review-nav { border-bottom: 1px solid var(--line); padding-bottom: 12px; }
-.review-nav button { min-height: 40px; padding: 0 14px; border-radius: 999px; background: var(--mist); font-size: 14px; font-weight: 600; color: var(--ink-2); transition: background 0.12s, color 0.12s; }
-.review-nav button[aria-current="page"] { background: var(--ink); color: #fff; }
 .review-action-form { display: flex; flex-direction: column; gap: 12px; }
 .review-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .review-card .field { margin: 0; }
@@ -25,7 +21,7 @@
 .review-chat small { display: block; margin-bottom: 4px; font-size: 12px; color: var(--road); }
 
 @media (hover: hover) and (pointer: fine) {
-  .review-nav button:not([aria-current="page"]):hover, .review-link:hover { background: var(--mist-2); color: var(--ink); }
+  .review-link:hover { background: var(--mist-2); color: var(--ink); }
 }
 @media (max-width: 520px) {
   .review-grid { grid-template-columns: 1fr; }

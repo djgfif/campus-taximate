@@ -319,8 +319,15 @@
   .public-shell {
     align-items: center;
     justify-content: center;
+    overflow-y: auto;
     padding: 40px 32px;
     background: radial-gradient(circle at 12% 18%, #e6f2ec 0%, var(--color-bg) 56%);
+  }
+  .public-card .auth-hero {
+    padding-top: 24px;
+  }
+  .public-card .auth-hero .brand {
+    display: none;
   }
   .public-frame {
     flex: none;
@@ -1238,8 +1245,95 @@
   background: var(--color-surface);
   border: 1px solid var(--color-border-strong);
   color: var(--color-text-secondary);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
+}
+
+.page-heading {
+  display: none;
+}
+
+.me-section-title {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  letter-spacing: 0.02em;
+}
+
+.money-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--color-surface-subtle);
+}
+
+.money-hero-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.money-hero-value {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  font-variant-numeric: tabular-nums;
+  font-size: 32px;
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--color-text);
+}
+
+.money-hero-value small {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+}
+
+.money-progress {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-border);
+  overflow: hidden;
+}
+
+.money-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-primary);
+  transition: width 0.2s ease;
+}
+
+.admin-filter-row {
+  margin-bottom: 12px;
+}
+
+.admin-filter-row input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+@media (min-width: 1024px) {
+  .page-heading {
+    display: block;
+    margin: 12px 0 4px;
+    font-size: 24px;
+    line-height: 1.3;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: var(--color-text);
+  }
 }
 
 .payment-form {

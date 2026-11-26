@@ -4,10 +4,9 @@ import { Brand, useWide } from '../ui.jsx'
 
 /**
  * 학생용 반응형 레이아웃.
- * PC(1024px+): 상단 1280px 헤더 (홈 / 내 일행 / 이용 내역 + 우측 내 계정).
- * 학생 헤더에 시연 버튼이나 관리자 메뉴를 직접 노출하지 않는다.
+ * PC(1024px+): 상단 1280px 헤더 (홈 / 동승 찾기 / 내 일행 / 메시지 / 이용 내역 + 관리자 권한 시 관리자 + 우측 내 계정).
  */
-export default function StudentLayout({ tab, onTab, onMenu, name, unread = 0, children }) {
+export default function StudentLayout({ tab, onTab, onMenu, name, unread = 0, admin = false, children }) {
   const wide = useWide()
   const navItem = (id, label) => (
     <button
@@ -37,6 +36,7 @@ export default function StudentLayout({ tab, onTab, onMenu, name, unread = 0, ch
               {navItem('rides', '내 일행')}
               {navItem('messages', '메시지')}
               {navItem('history', '이용 내역')}
+              {admin && navItem('admin', '관리자')}
             </nav>
             <span className="student-nav-spacer" />
             <div className="student-nav-actions">

@@ -60,7 +60,7 @@ function Detail({ item }) {
     <Rows items={[
       item.partySize != null && ['일행', `${item.partySize}명`],
       settled && item.partyPaid != null && ['실제 택시비', won(item.partyPaid)],
-      settled && [payerFullOutlay ? '현장 선결제 (모의 지급 전)' : '내가 낸 돈', won(item.paid), 'big'],
+      settled && [payerFullOutlay ? '현장 결제 금액' : '내가 낸 돈', won(item.paid), 'big'],
       settled ? ['혼자 탔다면', won(item.soloFare)] : ['혼자 타면(예상)', `약 ${won(item.soloFare)}`],
       settled && !payerFullOutlay && item.soloFare > item.paid && ['같이 타서 덜 낸 돈', won(item.soloFare - item.paid)],
       !settled && ['내가 낸 돈', '정산 전'],
@@ -72,7 +72,7 @@ function Detail({ item }) {
 const ongoing = (item) => (HISTORY_LABEL[item.stage] || [])[1] === 'warn'
 
 /** 이용 내역. 휴대폰과 넓은 화면 모두 지도 없이 한 칸으로, 고른 줄 아래에 금액과 결제 기록을 펼친다. */
-export default function History({ onHome, admin = false, onBoardingCases }) {
+export default function History({ onHome, admin = false, onBoardingCases, tabBar }) {
   const [items, setItems] = useState(null)
   const [selectedId, setSelectedId] = useState(undefined)
   const [accuracy, setAccuracy] = useState(null)
@@ -88,8 +88,9 @@ export default function History({ onHome, admin = false, onBoardingCases }) {
     return current === id ? null : id
   })
   return (
-    <Screen>
+    <Screen tabBar={tabBar}>
       <header className="bar"><h1 className="bar-title">이용 내역</h1></header>
+      <div className="pad"><h1 className="page-heading">이용 내역</h1></div>
       {!items && <div className="pad"><Bone height={60} /><Bone height={60} /><Bone height={60} /></div>}
       {items?.length === 0 && <div className="pad"><Empty title="아직 탄 기록이 없어요" action="길 올리기" onAction={onHome}>같이 타면 덜 낸 돈이 여기 쌓여요.</Empty></div>}
       {items?.length > 0 && (

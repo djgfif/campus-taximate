@@ -348,6 +348,16 @@ function Hubs({ items, onSaved }) {
 const ADMIN_TABS = [['no-shows', '노쇼 검토', () => api.adminNoShows()], ['fare', '요금·운행', () => api.adminFareReviews()],
   ['reports', '신고·제한', () => api.adminReports()], ['overdue', '미정산', () => api.adminOverdue()], ['reserve', '적립금', () => api.adminReserve()], ['hubs', '승차 지점', () => api.adminHubs()], ['audits', '처리 기록', () => api.adminAudits()]]
 
+const ADMIN_TAB_DESC = {
+  'no-shows': '소명, 일행 표시, 최근 대화를 대조해 노쇼 여부를 판정해요. 판단 불가 시 면책 처리돼요.',
+  fare: '실제 요금과 영수증을 대조하고, 운행 분쟁 또는 요금 이의를 판정해요.',
+  reports: '신고된 회원의 이용 제한 기간을 조회하고 해제하거나 새 제한을 등록해요.',
+  overdue: '결제 기한이 지난 후불·보전·추가 분담금을 확인하고 안내 이력을 남겨요.',
+  reserve: 'v2 확정 분담금 방식의 정산 적립금 잔액과 보전 내역을 조회해요.',
+  hubs: '캠퍼스 거점 위치와 현장 승차 가능 여부를 관리해요.',
+  audits: '관리자 판정과 처리 근거 이력을 최신 순으로 감사 조회해요.',
+}
+
 /** 미정산 주문의 결제 목적. 후불 정산 v3에서는 후불·보전·추가 분담금이 함께 쌓인다. */
 const OVERDUE_PURPOSE = { POSTPAID: '후불 분담금', COMPENSATION: '이탈 보전금', ADDITIONAL: '추가 정산금' }
 
@@ -356,14 +366,26 @@ const adminTabsFor = (config) => (Number(config?.paymentFlowVersion) >= 3 ? ADMI
 
 function AdminList({ tab }) {
   const remote = useRemote(ADMIN_TABS.find(([id]) => id === tab)[2])
+  const [query, setQuery] = useState('')
+  const q = query.trim().toLowerCase()
+  const filterBy = (list) => (q && Array.isArray(list)
+    ? list.filter((item) => JSON.stringify(item).toLowerCase().includes(q))
+    : list)
+  const items = filterBy(remote.data)
   return <div className="review-stack"><RemoteState remote={remote} />
+    {Array.isArray(remote.data) && remote.data.length > 0 && (
+      <div className="admin-filter-row">
+        <label className="sr-only" htmlFor="admin-filter">목록 검색</label>
+        <input id="admin-filter" type="search" value={query} placeholder="일행 번호, 회원 번호, 지점명, 내용 검색" onChange={(e) => setQuery(e.target.value)} />
+      </div>
+    )}
     {remote.data && <>
-      {remote.data.length === 0 && !['reports', 'hubs'].includes(tab) && <p>처리할 항목이 없어요.</p>}
-      {tab === 'no-shows' && remote.data.map((c) => <NoShowReview key={c.investigation.id} item={c} onSaved={remote.reload} />)}
-      {tab === 'fare' && remote.data.map((r) => <FareReview key={r.partyId} item={r} onSaved={remote.reload} />)}
-      {tab === 'reports' && <Reports items={remote.data} />}
-      {tab === 'hubs' && <Hubs items={remote.data} onSaved={remote.reload} />}
-      {tab === 'overdue' && remote.data.map((o) => <article className="review-card" key={o.id}>
+      {(Array.isArray(items) && items.length === 0) && (!['reports', 'hubs'].includes(tab) || q) && <p>{q ? '검색 조건에 맞는 항목이 없어요.' : '처리할 항목이 없어요.'}</p>}
+      {tab === 'no-shows' && items.map((c) => <NoShowReview key={c.investigation.id} item={c} onSaved={remote.reload} />)}
+      {tab === 'fare' && items.map((r) => <FareReview key={r.partyId} item={r} onSaved={remote.reload} />)}
+      {tab === 'reports' && <Reports items={items} />}
+      {tab === 'hubs' && <Hubs items={items} onSaved={remote.reload} />}
+      {tab === 'overdue' && items.map((o) => <article className="review-card" key={o.id}>
         <div className="review-card-head">
           <h2>일행 {o.partyId} · 회원 {o.memberId}</h2>
           <span className="review-badges">
@@ -385,7 +407,7 @@ function AdminList({ tab }) {
         <p className="note">각자 확정 분담금만 내고, 실제 요금과의 차이를 여기서 맡아요. 초기 기금은 운영 주체가 따로 더해 관리해요.</p>
         {remote.data.recent?.length > 0 && <Rows items={remote.data.recent.map((e) => ['일행 ' + e.partyId, (e.amount >= 0 ? '+' : '') + won(e.amount) + ' (확정 ' + won(e.fixedTotal) + ' / 실제 ' + won(e.paidAmount) + ')'])} />}
       </article>}
-      {tab === 'audits' && [...remote.data].reverse().map((a) => <article className="review-card" key={a.id}>
+      {tab === 'audits' && [...items].reverse().map((a) => <article className="review-card" key={a.id}>
         <div className="review-card-head">
           <h2>{AUDIT_ACTION[a.action] || a.action} <span className="review-id">#{a.id}</span></h2>
           {a.decision && <span className="badge">{AUDIT_DECISION[a.decision] || a.decision}</span>}
@@ -414,9 +436,8 @@ export function AdminScreen({ allowed, config, onBack }) {
       <div className="review-stack admin-page">
         <div>
           <h1 className="head">{currentTitle}</h1>
-          <p className="sub">자료를 확인하고 처리 근거를 남겨 주세요.</p>
+          <p className="sub">{ADMIN_TAB_DESC[tab] || '자료를 확인하고 처리 근거를 남겨 주세요.'}</p>
         </div>
-        <Say>모의 운영 장부예요. 실제 계좌 송금·지급대행은 연동되지 않으며, 모든 처리 근거는 감사 기록에 남아요.</Say>
         <AdminList key={tab} tab={tab} />
       </div>
     </AdminLayout>

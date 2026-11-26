@@ -80,11 +80,12 @@ function JoinSheet({ card, config, onClose, onJoined }) {
   const [memo, setMemo] = useState('')
   const [error, setError] = useState('')
   const center = { lat: card.anchorLat, lon: card.anchorLon }
+  const postpaid = Number(config?.paymentFlowVersion || 0) >= 3
   const submit = async () => {
     setError('')
     try {
       await api.boardJoin(card.id, { pointName: place.name, pointLat: place.point.lat, pointLon: place.point.lon, memo })
-      toast('합류를 신청했어요. 선결제하면 일행에 들어가요')
+      toast(postpaid ? '일행에 바로 합류했어요' : '합류를 신청했어요. 선결제하면 일행에 들어가요')
       onClose()
       await onJoined?.()
     } catch (e) { setError(e.message) }
@@ -98,7 +99,9 @@ function JoinSheet({ card, config, onClose, onJoined }) {
       <PlaceField label="내릴 곳" value={place} center={center.lat ? center : null} onChange={setPlace} samples={config?.demo ? config.sampleDropoffs || [] : []} />
       <label className="field">일행에게 한마디 (선택)<input maxLength={100} value={memo} placeholder="예: 검은 백팩 멨어요" onChange={(e) => setMemo(e.target.value)} /></label>
       {error && <p role="alert">{error}</p>}
-      <p className="note">기존 일행의 확정 분담금이 오르지 않고 경로가 맞을 때만 합류돼요. {formatTime(card.joinUntil)}까지 신청할 수 있어요.</p>
+      <p className="note">{postpaid
+        ? `경로가 맞으면 선결제 없이 바로 합류하고, 실제 요금 기준으로 분담해요. ${formatTime(card.joinUntil)}까지 신청할 수 있어요.`
+        : `기존 일행의 확정 분담금이 오르지 않고 경로가 맞을 때만 합류돼요. ${formatTime(card.joinUntil)}까지 신청할 수 있어요.`}</p>
       <Btn disabled={!place.point || !place.name.trim()} onClick={submit}>합류 신청</Btn>
     </Sheet>
   )
