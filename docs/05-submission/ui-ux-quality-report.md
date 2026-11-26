@@ -81,11 +81,17 @@ v3 확인형 후불 정산 및 프런트엔드 레이아웃 개편이 반영된 
 - 도착 기준(`ARRIVE`) 선택 시 여유 도착 가능성에 대한 보조 안내 문구를 추가했다.
 - `RequestStatus`, `Board`, `DemoBar`에서 v2 선결제 잔여 표현을 v3 확인형 후불 기준 문구로 분기·정리했다.
 
-### 4.4 일행방 · 기사님 안내 · 이용 상세 · 이용 내역 (`PartyScreens.jsx`, `PartyShell.jsx`, `TripDetailPage.jsx`, `History.jsx`, `ui.jsx`)
+### 4.4 일행방 · 기사님 안내 · 이용 상세 · 이용 내역 (`PartyScreens.jsx`, `PartyShell.jsx`, `TripDetailPage.jsx`, `History.jsx`, `RideHistoryService.java`, `ApiController.java`, `format.js`, `ui.jsx`)
 
 - `FairnessNote`에 `postpaid` 분기를 추가해 하차 후 실제 요금을 혼자 탈 때 예상 요금 비율대로 나누는 v3 정산 원칙을 명확히 설명했다.
 - `DriverView` 하단에 명시적 닫기 CTA(`'확인했어요 · 탑승 화면으로'`)를 추가하고 `.toasts` 레이어 충돌을 해소했다.
-- `History`에 `tabBar`와 데스크톱 `page-heading`을 반영하고 `'현장 결제 금액'` 용어를 통일했다.
+- **이용 내역 백엔드·공통 계산 정합화 (`RideHistoryService.java`, `ApiController.java`, `format.js`):** 기존 `paid` 계약을 유지하면서 `Entry`·`RequestView`에 `myShare`(확정 본인 분담금)와 `payer`(결제자 여부)를 추가했고, `historyMyShare`와 `savedTotal`로 결제자도 본인 분담금 기준 절약액을 정확히 합산·표시하도록 수정했다.
+- **이용 내역 정보 구조 및 레이아웃 개편 (`History.jsx`, `App.jsx`, `layouts.css`, `styles.css`):**
+  - 상단 요약 배너(`같이 타서 아낀 돈`, `진행 중`·`완료·종료` 건수)와 상태 필터 탭(`전체`·`진행 중`·`지난 이용`)을 도입하고, `진행 중` 항목이 `지난 이용`보다 먼저 노출·선택되도록 우선순위를 변경했다.
+  - 데스크톱(`>= 1024px`)에서는 `.item.sel` 좌우 폭 점프를 제거하고 좌측 목록 + 우측 고정 상세(`.history-detail-pane`) 2단 마스터-디테일로 전환했으며, 모바일 펼침 상태에서는 카드 상단 정보를 중복 출력하지 않고 `.history-money-hero`부터 표시하도록 정리했다.
+  - 중복 요금 표(`FinancialDetails` 이중 출력) 대신 단일 `내 분담금`·`실제 택시비 (현장 결제)`·`각자 분담금`으로 압축하고, 정상 승인 단일 전표(`PaymentVoucherBox`)는 1줄 요약 + `결제 전표 보기` 접힘으로 정리했다(환불·보류·미승인 건은 자동 펼침).
+  - 정산 전(`settlement == null`) 단계에서는 결제자도 동승자와 동일하게 `정산 전`으로 표시하며, 아코디언 내 중첩 채팅 대신 `일행·정산 화면 열기` / `일행 상세 보기` 및 `메시지 열기` 바로가기를 배치했다. 후불 빈 주문(`BOARDING_*`)에서는 모순된 `"선결제는 조사 중 보류돼요"` 문구를 실제 `PREPAY`/`refundHeld` 주문이 있을 때만 표시하도록 제한했다.
+  - `.badge.warn`을 경고 시맨틱 토큰(`--color-warning-soft`, `--color-warning`)으로 분리해 진행·확인 필요 상태가 완료(초록) 배지와 명확히 구분되도록 했다.
 
 ### 4.5 결제 및 정산 (`SettlementPage.jsx`, `SettleScreens.jsx`)
 
@@ -123,6 +129,7 @@ v3 확인형 후불 정산 및 프런트엔드 레이아웃 개편이 반영된 
 | **정산 화면 정보 위계** | 결제자 수금 목록 중복, 일반 항목과 금액 숫자 비중 동일 | `.money-hero` 단일 핵심 금액 + `.money-progress` + 중복 수금 표 제거 |
 | **홈 정보 우선순위** | 진행 중인 이용보다 3단계 소개 카드가 앞서거나 반복 노출 | 진행 중인 이용 최상단 우선 노출 + 기존 이용자 온보딩 카드 숨김 |
 | **모바일 하단 탭·데스크톱 도크** | 데스크톱에서도 빈 `.dock` 렌더, CSS 정의 혼재 | 데스크톱 `.dock` 미출력, 모바일 5열 `.tabbar` 균등 정렬 |
+| **이용 내역 (`/history`)** | 금액 3~5회 중복, 결제자 전액(`partyPaid`) 오인·절약액 누락, PC 1단 `.item.sel` 폭 점프, 완료 우선 펼침 | PC 2단 마스터-디테일·모바일 카드, `myShare` 기반 분담금·절약액 표시, `.badge.warn` 구분, 일행·메시지 바로가기 제공 |
 
 ### 6.2 10개 해상도 자동 E2E 및 시각 검수
 
@@ -151,16 +158,16 @@ v3 확인형 후불 정산 및 프런트엔드 레이아웃 개편이 반영된 
 
 ## 7. 수정 및 신규 파일 목록
 
-- **백엔드 및 테스트 (2개)**
-  - 수정: `server/src/main/java/com/campustaximate/server/web/WebConfig.java`
+- **백엔드 및 테스트 (5개)**
+  - 수정: `server/src/main/java/com/campustaximate/server/web/WebConfig.java`, `server/src/main/java/com/campustaximate/server/service/RideHistoryService.java`, `server/src/main/java/com/campustaximate/server/web/ApiController.java`, `server/src/test/java/com/campustaximate/server/PostpaidSettlementCalculationTest.java`
   - 신규: `server/src/test/java/com/campustaximate/server/web/SpaForwardingTest.java`
 - **프런트엔드 스타일 (4개)**
   - 수정: `frontend/src/styles/tokens.css`, `frontend/src/styles/layouts.css`, `frontend/src/styles.css`, `frontend/src/reviews.css`
-- **프런트엔드 UI · 화면 · 상태 (19개)**
-  - 수정: `frontend/src/api.js`, `frontend/src/App.jsx`, `frontend/src/ui.jsx`, `frontend/src/Home.jsx`, `frontend/src/RequestFlow.jsx`, `frontend/src/RequestStatus.jsx`, `frontend/src/Board.jsx`, `frontend/src/DemoBar.jsx`, `frontend/src/MapPicker.jsx`, `frontend/src/RouteComparison.jsx`, `frontend/src/PartyScreens.jsx`, `frontend/src/PartyShell.jsx`, `frontend/src/History.jsx`, `frontend/src/ReviewScreens.jsx`, `frontend/src/SettleScreens.jsx`, `frontend/src/layouts/StudentLayout.jsx`, `frontend/src/layouts/AdminLayout.jsx`, `frontend/src/pages/SettlementPage.jsx`, `frontend/src/pages/TripDetailPage.jsx`
-- **프런트엔드 단위 · E2E 테스트 (4개 변경 + 기존 연결 테스트 재검증)**
-  - 수정: `frontend/src/Home.test.jsx`, `frontend/src/pages/PaymentMethodsAndConversations.test.jsx`, `frontend/src/pages/PostpaidSettlement.test.jsx`
-  - 신규: `frontend/e2e/ui-quality.spec.js`
+- **프런트엔드 UI · 화면 · 상태 · 유틸 (20개)**
+  - 수정: `frontend/src/api.js`, `frontend/src/App.jsx`, `frontend/src/format.js`, `frontend/src/ui.jsx`, `frontend/src/Home.jsx`, `frontend/src/RequestFlow.jsx`, `frontend/src/RequestStatus.jsx`, `frontend/src/Board.jsx`, `frontend/src/DemoBar.jsx`, `frontend/src/MapPicker.jsx`, `frontend/src/RouteComparison.jsx`, `frontend/src/PartyScreens.jsx`, `frontend/src/PartyShell.jsx`, `frontend/src/History.jsx`, `frontend/src/ReviewScreens.jsx`, `frontend/src/SettleScreens.jsx`, `frontend/src/layouts/StudentLayout.jsx`, `frontend/src/layouts/AdminLayout.jsx`, `frontend/src/pages/SettlementPage.jsx`, `frontend/src/pages/TripDetailPage.jsx`
+- **프런트엔드 단위 · E2E 테스트 (6개 변경 + 기존 연결 테스트 재검증)**
+  - 수정: `frontend/src/format.test.js`, `frontend/src/Home.test.jsx`, `frontend/src/pages/PaymentMethodsAndConversations.test.jsx`, `frontend/src/pages/PostpaidSettlement.test.jsx`
+  - 신규: `frontend/src/History.test.jsx`, `frontend/e2e/ui-quality.spec.js`
   - (기존 `frontend/src/appConnection.test.jsx`는 `loadBoot` 재시도 지연시간 `[150, 300]` 기준에서 그대로 검증 통과)
 - **문서 (1개)**
   - 신규: `docs/05-submission/ui-ux-quality-report.md`
@@ -169,16 +176,16 @@ v3 확인형 후불 정산 및 프런트엔드 레이아웃 개편이 반영된 
 
 ## 8. 자동 테스트 및 라이브 브라우저 검증 결과
 
-모든 검증은 최종 코드 수정(`layouts.css` 미디어 쿼리 괄호 복구 포함) **이후** 다시 실행해 확인했다.
+모든 검증은 최종 코드 수정(`History.jsx` · `layouts.css` 최종 다듬기 포함) **이후** 다시 실행해 확인했다.
 
 | 검증 항목 | 실행 명령/환경 | 결과 |
 |---|---|---|
-| **프런트엔드 단위·통합 테스트** | `cd frontend && npm test -- --run` | **23개 파일 / 199개 테스트 전부 통과 (0 실패)** |
-| **프로덕션 번들 빌드** | `cd frontend && npm run build` & Docker stage `vite build` | `index-CISdidWH.css` `125.49 kB` · `index-BImPEBX5.js` `376.07 kB` **CSS 문법 경고 0건 빌드 성공** |
-| **백엔드 모듈 테스트·패키징** | `./mvnw package` | **`BUILD SUCCESS`**: `matching-engine` **77건 통과 (0 실패)**, `server` **588건 중 활성 455건 통과 / MySQL 프로필 미활성 133건 스킵 (0 실패)**, `SpaForwardingTest` **23건 전부 통과** |
+| **프런트엔드 단위·통합 테스트** | `cd frontend && npm test -- --run` | **24개 파일 / 206개 테스트 전부 통과 (0 실패)** |
+| **프로덕션 번들 빌드** | `cd frontend && npm run build` & Docker stage `vite build` | `index-BVt6Ow0P.css` `132.10 kB` · `index-DeNCKIjY.js` `383.58 kB` **CSS 문법 경고 0건 빌드 성공** |
+| **백엔드 모듈 테스트·패키징** | `./mvnw package` | **`BUILD SUCCESS`**: `matching-engine` **77건 통과 (0 실패)**, `server` **589건 중 활성 456건 통과 / MySQL 프로필 미활성 133건 스킵 (0 실패)** (`SpaForwardingTest` 23건 및 `/api/history` 분담금·결제자 회귀 테스트 포함) |
 | **Playwright E2E 및 10해상도 감사** | `TAXIMATE_E2E_PORT=18080 npx playwright test --reporter=list` | **8건 통과 (`[pc]` 5건 + `[phone]` 3건), `[phone]` 프로젝트 중복 스킵 2건, 0 실패** (`flow.spec.js` 양 플랫폼 통과 + `ui-quality.spec.js` 통과) |
 | **Docker Compose 기동 및 헬스체크** | `docker compose up --build -d` (`.env` 키 포함) | `campus-taximate-app-1` (`healthy`, `8080`), `campus-taximate-mysql-1` (`healthy`, `3307`) 정상 가동 |
-| **라이브 브라우저 실사 검증** | `http://127.0.0.1:8080` 데스크톱(`~1280×800`)·모바일(`390×844`) 실사용 점검 | SPA 직접 진입·새로고침 5경로 200 OK, `/admin` 단일 배너·6탭 설명·`#admin-filter` 검색 동작, `/demo` 기반 생성 일행에서 홈 우선순위 전환·온보딩 숨김·`FairnessNote` v3 문구·`DriverView` 닫기 CTA·토스트 상위 레이어·`SettlementPage` `.money-hero`/`.money-progress`/중복 제거·깨끗한 로그아웃·모바일 5열 하단 탭 바(`y=783`, `scrollWidth <= innerWidth`) 모두 실확인 |
+| **라이브 브라우저 실사 검증** | `http://127.0.0.1:8080` 데스크톱(`1440×900`·`1280×800`)·모바일(`390×844`) 실사용 점검 | SPA 5경로 200 OK·`/admin`·홈·정산 실검증 및 `/history` 개편 실검증(`GET /api/history` `myShare`·`payer`, 결제자 `준호` 절약액 `7,283원`·본인 분담금 `6,417원`, PC `410px + 642px` 2단, 모바일 0 가로 넘침·`.badge.warn` 구분·단일 전표 토글·일행/메시지 이동) 후 발견된 세부 3건(`정산 전` 일관성·선택 모서리·보조색) 보완 및 전체 자동 테스트·E2E·Docker 재빌드 완료 |
 
 ---
 

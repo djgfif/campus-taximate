@@ -1,134 +1,132 @@
 import React, { useEffect, useState } from 'react'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronUp } from 'lucide-react'
 import { api } from './api.js'
-import { PartyChat } from './PartyScreens.jsx'
-import { FinancialDetails } from './SettleScreens.jsx'
+import { POSTPAID_RECORD_LABEL, PostpaidCollection } from './SettleScreens.jsx'
 import { PaymentRecord } from './PaymentCard.jsx'
-import { HistoryMemberActions } from './MemberSafety.jsx'
-import { HISTORY_LABEL, formatDateTime, routeLabel, savedTotal, won } from './format.js'
-import { Bone, Btn, Empty, Rows, Screen } from './ui.jsx'
+import { MemberActions } from './MemberSafety.jsx'
+import { HISTORY_LABEL, formatDateTime, historyMyShare, isPostpaidParty, routeLabel, savedTotal, won } from './format.js'
+import { Bone, Btn, Empty, Say, Screen, useWide } from './ui.jsx'
 
-function HistoryChat({ partyId }) {
-  const [open, setOpen] = useState(false)
+const ongoing = (item) => (HISTORY_LABEL[item.stage] || [])[1] === 'warn'
+
+const FILTER_TABS = [
+  ['ALL', '전체'],
+  ['ONGOING', '진행 중'],
+  ['PAST', '지난 이용'],
+]
+
+function PaymentVoucherBox({ order, label }) {
+  const needsAttention = order.status !== 'APPROVED'
+    || (order.refundedAmount || 0) > 0
+    || (order.refundRequestedAmount || 0) > 0
+    || Boolean(order.refundHeld)
+  const [open, setOpen] = useState(needsAttention)
+  const amountText = order.approvedAmount > 0 ? won(order.approvedAmount) : won(order.amount)
+  const statusText = ({
+    REQUIRED: '결제 대기',
+    PROCESSING: '확인 중',
+    APPROVED: '승인 완료',
+    EXPIRED: '기한 종료',
+    OVERDUE: '기한 지남',
+    ADMIN_REQUIRED: '관리자 확인 필요',
+  })[order.status] || '확인 중'
+
   return (
-    <div>
-      <Btn className="small quiet" aria-expanded={open} onClick={() => setOpen((value) => !value)}>일행 채팅 보기</Btn>
-      {open && <PartyChat key={partyId} partyId={partyId} />}
+    <div className="history-voucher-box">
+      <div className="history-voucher-summary">
+        <span><strong>{label}</strong> · {statusText} ({amountText})</span>
+        <button
+          type="button"
+          className="history-voucher-toggle"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+        >
+          {open ? '전표 접기' : '결제 전표 보기'}
+        </button>
+      </div>
+      {open && (
+        <div>
+          <PaymentRecord order={order} />
+          {(order.refundRequestedAmount > 0 || order.refundedAmount > 0) && (
+            <p className="note">환불은 카드 반영까지 3~4영업일 정도 걸려요.</p>
+          )}
+        </div>
+      )}
     </div>
   )
 }
 
-function Row({ item, selected, onSelect }) {
+function HistoryCard({ item, wide, selected, onSelect }) {
   const [label, tone] = HISTORY_LABEL[item.stage] || ['상태 확인 중', '']
-  const content = (
-    <>
-      <div>
-        <b>{routeLabel(item)}</b>
-        <small>{formatDateTime(item.arriveBy || item.windowStart)}</small>
-      </div>
-      <div className="money">
-        <span className={`badge ${tone}`}>{label}</span>
-        {item.paid != null && <span>{won(item.paid)}</span>}
-      </div>
-      {onSelect && (selected ? <ChevronUp size={18} aria-hidden="true" /> : <ChevronDown size={18} aria-hidden="true" />)}
-    </>
-  )
-  if (!onSelect) return <div className="item">{content}</div>
+  const myShare = historyMyShare(item)
+  const saved = myShare != null && item.soloFare > myShare ? item.soloFare - myShare : 0
+  const isActionPending = ongoing(item) || item.stage?.startsWith('BOARDING_') || item.stage?.startsWith('RIDE_')
+
+  const cardProps = wide
+    ? { 'aria-pressed': selected }
+    : { 'aria-expanded': selected }
+
   return (
-    <button type="button" className={selected ? 'item sel' : 'item'} aria-expanded={selected} onClick={onSelect}>
-      {content}
+    <button type="button" className="history-card" {...cardProps} onClick={onSelect}>
+      <div className="history-card-top">
+        <div className="history-card-badges">
+          <span className={`badge ${tone}`}>{label}</span>
+          {item.payer && <span className="history-role-tag">결제자</span>}
+        </div>
+        <span className="history-card-date">
+          {formatDateTime(item.arriveBy || item.windowStart)}
+          {wide
+            ? <ChevronRight size={16} aria-hidden="true" />
+            : selected ? <ChevronUp size={16} aria-hidden="true" /> : <ChevronDown size={16} aria-hidden="true" />}
+        </span>
+      </div>
+      <div className="history-card-bottom">
+        <div className="history-card-route">
+          <b>{routeLabel(item)}</b>
+          {item.partySize != null && <small>{item.partySize}명 동승</small>}
+        </div>
+        <div className="history-card-money">
+          {myShare != null ? (
+            <>
+              <strong>{won(myShare)}</strong>
+              {saved > 0 && <span>{won(saved)} 절약</span>}
+            </>
+          ) : item.partyPaid != null ? (
+            <strong>총 {won(item.partyPaid)}</strong>
+          ) : isActionPending ? (
+            <span className="history-card-pending">정산 전</span>
+          ) : null}
+        </div>
+      </div>
     </button>
   )
 }
 
 function BoardingCaseLink({ item, onBoardingCases }) {
   if (!item.stage?.startsWith('BOARDING_')) return null
-  return <div className="case-link">
-    {item.stage === 'BOARDING_UNCONFIRMED' && <p className="note">번호 미입력만으로 노쇼를 확정하지 않아요. 24시간 안에 당시 상황을 소명할 수 있어요.</p>}
-    <Btn className="small line" onClick={onBoardingCases || (() => window.location.assign('/boarding-cases'))}>탑승 확인</Btn>
-  </div>
-}
-
-/**
- * 고른 이용 내역의 거래 명세. 위에서 아래로 실제 택시비 → 내가 낸 돈 → 혼자 탔다면 → 덜 낸 돈.
- * 정산 전이면 확정된 금액이 없다고 밝히고 예상 금액만 보인다. 결제와 환불 줄은 아래 결제 기록에 있다.
- */
-function Detail({ item }) {
-  const settled = item.paid != null
-  const payerFullOutlay = settled && item.partyPaid != null && item.paid === item.partyPaid
   return (
-    <Rows items={[
-      item.partySize != null && ['일행', `${item.partySize}명`],
-      settled && item.partyPaid != null && ['실제 택시비', won(item.partyPaid)],
-      settled && [payerFullOutlay ? '현장 결제 금액' : '내가 낸 돈', won(item.paid), 'big'],
-      settled ? ['혼자 탔다면', won(item.soloFare)] : ['혼자 타면(예상)', `약 ${won(item.soloFare)}`],
-      settled && !payerFullOutlay && item.soloFare > item.paid && ['같이 타서 덜 낸 돈', won(item.soloFare - item.paid)],
-      !settled && ['내가 낸 돈', '정산 전'],
-    ]} />
-  )
-}
-
-/** 아직 끝나지 않은 이용(선결제 전, 모이는 중 등)과 끝난 이용을 나눈다. */
-const ongoing = (item) => (HISTORY_LABEL[item.stage] || [])[1] === 'warn'
-
-/** 이용 내역. 휴대폰과 넓은 화면 모두 지도 없이 한 칸으로, 고른 줄 아래에 금액과 결제 기록을 펼친다. */
-export default function History({ onHome, admin = false, onBoardingCases, tabBar }) {
-  const [items, setItems] = useState(null)
-  const [selectedId, setSelectedId] = useState(undefined)
-  const [accuracy, setAccuracy] = useState(null)
-  useEffect(() => {
-    api.history().then(setItems).catch(() => setItems([]))
-    if (admin) api.fareAccuracy().then(setAccuracy).catch(() => setAccuracy(null))
-  }, [admin])
-  const saved = savedTotal(items || [])
-  const activeId = selectedId === undefined ? items?.[0]?.id : selectedId
-  const selected = activeId != null ? items?.find((item) => item.id === activeId) : null
-  const toggleItem = (id) => setSelectedId((prev) => {
-    const current = prev === undefined ? items?.[0]?.id : prev
-    return current === id ? null : id
-  })
-  return (
-    <Screen tabBar={tabBar}>
-      <header className="bar"><h1 className="bar-title">이용 내역</h1></header>
-      <div className="pad"><h1 className="page-heading">이용 내역</h1></div>
-      {!items && <div className="pad"><Bone height={60} /><Bone height={60} /><Bone height={60} /></div>}
-      {items?.length === 0 && <div className="pad"><Empty title="아직 탄 기록이 없어요" action="길 올리기" onAction={onHome}>같이 타면 덜 낸 돈이 여기 쌓여요.</Empty></div>}
-      {items?.length > 0 && (
-        <div className="block">
-          {saved > 0 && <div className="rows"><div><span className="k">같이 타서 덜 낸 돈</span><span className="v">{won(saved)}</span></div></div>}
-          {admin && accuracy?.settled > 0 && (
-            <section aria-label="관리자 요금 통계"><h2 className="block-title">관리자 요금 통계</h2><p className="note">전체 정산 {accuracy.settled}건 중 {accuracy.within}건이 예상 요금의 15% 이내였어요.</p></section>
-          )}
-          {[['진행 중', items.filter(ongoing)], ['지난 이용', items.filter((item) => !ongoing(item))]].filter(([, list]) => list.length > 0).map(([heading, list]) => <section key={heading} aria-label={heading}>
-          <h2 className="block-title history-group">{heading}</h2>
-          <div className="list">
-            {list.map((item) => (
-              <React.Fragment key={item.id}>
-                <Row item={item} selected={item.id === selected?.id}
-                  onSelect={() => toggleItem(item.id)} />
-                {item.id === selected?.id && <div className="history-open">
-                  <Detail item={item} />
-                  <BoardingCaseLink item={item} onBoardingCases={onBoardingCases} />
-                  <HistoryFinance item={item} />
-                  {item.partyId && (item.partyIds || [item.partyId]).map((id) => <React.Fragment key={id}><HistoryChat partyId={id} /><HistoryMemberActions partyId={id} /></React.Fragment>)}
-                </div>}
-              </React.Fragment>
-            ))}
-          </div>
-          </section>)}
-        </div>
+    <div className="case-link">
+      {item.stage === 'BOARDING_UNCONFIRMED' && (
+        <Say tone="stop-tone">번호 미입력만으로 노쇼를 확정하지 않아요. 24시간 안에 당시 상황을 소명할 수 있어요.</Say>
       )}
-    </Screen>
+      <Btn className="small line" onClick={onBoardingCases || (() => window.location.assign('/boarding-cases'))}>탑승 확인</Btn>
+    </div>
   )
 }
 
-function HistoryFinance({ item }) {
+function HistoryDetail({ item, showHeader = true, onBoardingCases, onOpenParty, onOpenMessages }) {
   const id = item.partyId
   const own = !id
   const available = Boolean(id || item.partyIds?.length || item.endReason)
   const key = `${item.id}:${id || 'own'}`
   const [result, setResult] = useState({})
   const [reload, setReload] = useState(0)
+  const [safetyOpen, setSafetyOpen] = useState(false)
+
+  useEffect(() => {
+    setSafetyOpen(false)
+  }, [key])
+
   useEffect(() => {
     if (!available) return undefined
     let closed = false
@@ -137,23 +135,364 @@ function HistoryFinance({ item }) {
       .catch((e) => !closed && setResult({ key, error: e.message }))
     return () => { closed = true }
   }, [id, item.id, own, available, key, reload])
-  if (!available) return <p className="note">이 요청에서 조회할 수 있는 결제 상세가 없어요.</p>
+
   const current = result.key === key ? result : {}
-  return <section className="history-finance" aria-label="결제와 환불 기록">
-    <h3>결제와 환불 기록</h3>
-    {own && item.stage?.startsWith('BOARDING_') && <p className="note">선결제는 조사 중 보류돼요. 노쇼가 아니면 전액, 노쇼면 보전 부담금을 뺀 나머지를 돌려받아요.</p>}
-    {current.party ? <FinancialDetails party={current.party} />
-      : current.orders ? <>
-        {current.orders.length === 0 && <p className="note">내 결제 주문이 없어요.</p>}
-        {current.orders.map((order) => <section key={order.orderId} aria-label={order.purpose === 'ADDITIONAL' ? '분담금 결제 기록' : '선결제 기록'}>
-          <h4>{order.purpose === 'ADDITIONAL' ? '분담금 결제 기록' : '선결제 기록'}</h4>
-          <PaymentRecord order={order} />
-          {order.refundHeld && <p className="note">{order.holdReason || '환불 보류 중'}</p>}
-          {order.simulated && <p className="note">시연용 모의 결제 기록이에요. 실제 돈은 나가지 않아요.</p>}
-        </section>)}
-      </>
-      : current.error ? <p role="status">결제 상세를 읽지 못했어요. {current.error}</p> : <p role="status">결제 기록을 읽고 있어요.</p>}
-    {current.party?.canConfirmRide && <a href={'/parties/' + id}>일행 화면에서 운행 답변하기</a>}
-    {(current.error || current.party || current.orders?.length > 0) && <Btn className="small quiet" onClick={() => setReload((n) => n + 1)}>결제 기록 다시 확인</Btn>}
-  </section>
+  const party = current.party || null
+  const settlement = party?.settlement || null
+  const ownId = party?.members?.find((m) => m.requestId === party?.myRequestId)?.memberId
+  const ownShareRow = settlement?.shares?.find((s) => s.memberId === ownId)
+  const isPayer = party ? Boolean(party.payer) : Boolean(item.payer)
+  const myShare = settlement
+    ? (ownShareRow?.amount ?? (isPayer && party?.myShare != null ? party.myShare : null) ?? historyMyShare(item))
+    : historyMyShare(item)
+  const partyPaid = settlement?.paidAmount ?? item.partyPaid ?? null
+  const saving = myShare != null && item.soloFare > myShare ? item.soloFare - myShare : 0
+  const [label, tone] = HISTORY_LABEL[item.stage] || ['상태 확인 중', '']
+  const isOngoing = ongoing(item)
+  const postpaid = party ? isPostpaidParty(party) : true
+  const collection = Boolean(postpaid && party?.payer && settlement?.expectedPayoutAmount != null)
+  const hasPrepayHold = item.stage?.startsWith('BOARDING_') && current.orders?.some((o) => o.purpose === 'PREPAY' || o.refundHeld)
+
+  const recordLabel = (purpose) => (postpaid
+    ? POSTPAID_RECORD_LABEL[purpose] || '결제 기록'
+    : purpose === 'ADDITIONAL' ? '분담금 결제 기록' : '선결제 기록')
+
+  return (
+    <div className="history-detail-panel">
+      {showHeader && (
+        <div className="history-detail-head">
+          <div className="history-detail-badges">
+            <span className={`badge ${tone}`}>{label}</span>
+            {isPayer && <span className="history-role-tag">결제자</span>}
+            {item.partySize != null && <span className="history-role-tag">{item.partySize}명 동승</span>}
+          </div>
+          <h2 className="history-detail-route">{routeLabel(item)}</h2>
+          <p className="history-detail-meta">{formatDateTime(item.arriveBy || item.windowStart)}</p>
+        </div>
+      )}
+
+      <div className="history-money-hero">
+        <div className="history-money-top">
+          <span className="history-money-label">
+            {myShare != null ? '내 분담금' : isOngoing || item.stage?.startsWith('BOARDING_') ? '정산 현황' : '이용 금액'}
+          </span>
+          {myShare != null ? (
+            <strong className="history-money-amount">{won(myShare)}</strong>
+          ) : partyPaid != null ? (
+            <strong className="history-money-amount">{won(partyPaid)}</strong>
+          ) : isOngoing || item.stage?.startsWith('BOARDING_') || item.stage?.startsWith('RIDE_') ? (
+            <strong className="history-money-amount">정산 전</strong>
+          ) : (
+            <strong className="history-money-amount">청구 요금 없음</strong>
+          )}
+          {saving > 0 && (
+            <span className="history-money-saving">혼자 탈 때({won(item.soloFare)})보다 {won(saving)} 아꼈어요</span>
+          )}
+          {myShare == null && item.soloFare > 0 && (isOngoing || item.stage?.startsWith('BOARDING_')) && (
+            <span className="history-money-label">혼자 타면 약 {won(item.soloFare)}</span>
+          )}
+        </div>
+        {(partyPaid != null && partyPaid !== myShare) || settlement?.finalizedAt ? (
+          <div className="history-money-meta">
+            {partyPaid != null && partyPaid !== myShare && (
+              <div>
+                <span>{isPayer ? '실제 택시비 (현장 결제)' : '실제 택시비'}</span>
+                <strong>{won(partyPaid)}</strong>
+              </div>
+            )}
+            {settlement?.finalizedAt && (
+              <div>
+                <span>정산 확정</span>
+                <strong>{formatDateTime(settlement.finalizedAt)}</strong>
+              </div>
+            )}
+          </div>
+        ) : null}
+      </div>
+
+      {id != null && (
+        <div className="history-detail-actions">
+          <Btn
+            className={isOngoing ? '' : 'line'}
+            onClick={() => (onOpenParty ? onOpenParty(id) : window.location.assign(`/parties/${id}`))}
+          >
+            {isOngoing ? '일행·정산 화면 열기' : '일행 상세 보기'}
+          </Btn>
+          {onOpenMessages && (
+            <Btn className="line" onClick={() => onOpenMessages(id)}>메시지 열기</Btn>
+          )}
+        </div>
+      )}
+
+      <BoardingCaseLink item={item} onBoardingCases={onBoardingCases} />
+
+      <section className="history-finance" aria-label="결제와 환불 기록">
+        <h3>결제와 환불 기록</h3>
+        {!available && <p className="note">이 요청에서 조회할 수 있는 결제 상세가 없어요.</p>}
+        {available && !current.party && !current.orders && !current.error && (
+          <p role="status" className="note">결제 기록을 읽고 있어요.</p>
+        )}
+        {current.error && <p role="status">결제 상세를 읽지 못했어요. {current.error}</p>}
+
+        {settlement && (
+          <>
+            {settlement.shares?.length > 0 && (
+              <div className="history-section-card">
+                <h4>각자 분담금</h4>
+                <div className="history-shares-list">
+                  {settlement.shares.map((s) => {
+                    const isMe = s.memberId === ownId
+                    const name = isMe ? '나' : party.members?.find((m) => m.memberId === s.memberId)?.nickname || '일행'
+                    return (
+                      <div key={s.memberId} className={isMe ? 'history-share-row me' : 'history-share-row'}>
+                        <span>{name}{s.payer ? ' (결제자)' : ''}</span>
+                        <span>{won(s.amount)}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {collection && (
+              <div className="history-section-card">
+                <h4>동승자 결제 수납</h4>
+                {(settlement.totalRidersToConfirm ?? 0) > 0 ? (
+                  <div
+                    className="money-progress"
+                    role="progressbar"
+                    aria-label="확인·결제 진행률"
+                    aria-valuemin={0}
+                    aria-valuemax={settlement.totalRidersToConfirm}
+                    aria-valuenow={settlement.confirmedCount ?? 0}
+                  >
+                    <div
+                      className="money-progress-fill"
+                      style={{ width: `${Math.min(100, Math.round(((settlement.confirmedCount ?? 0) / settlement.totalRidersToConfirm) * 100))}%` }}
+                    />
+                  </div>
+                ) : (
+                  <p className="note">탑승 확정한 동승자가 없어 수납할 금액이 없어요.</p>
+                )}
+                <PostpaidCollection settlement={settlement} />
+              </div>
+            )}
+
+            {!collection && party.payer && settlement.finalizedAt && settlement.mockPayoutAmount != null && (
+              <Say tone="calm" title={'앱 정산 기록상 받을 돈(실제 송금 없음) ' + won(settlement.mockPayoutAmount)}>
+                <span className="mock-payout-meta">
+                  <span className="badge">실제 송금 없음</span> 장부 기록용 금액으로 실제 계좌 송금은 진행되지 않아요.
+                </span>
+              </Say>
+            )}
+
+            {settlement.payments?.map((order) => (
+              <PaymentVoucherBox key={order.orderId} order={order} label={recordLabel(order.purpose)} />
+            ))}
+          </>
+        )}
+
+        {party && !settlement && <p className="note">아직 정산 기록이 없어요.</p>}
+
+        {current.orders && (
+          <>
+            {hasPrepayHold && (
+              <p className="note">선결제는 조사 중 보류돼요. 노쇼가 아니면 전액, 노쇼면 보전 부담금을 뺀 나머지를 돌려받아요.</p>
+            )}
+            {current.orders.length === 0 && (
+              <p className="note">{item.stage?.startsWith('BOARDING_') ? '후불 정산 방식이거나 결제된 주문이 없어요.' : '내 결제 주문이 없어요.'}</p>
+            )}
+            {current.orders.map((order) => (
+              <section key={order.orderId} className="history-section-card" aria-label={order.purpose === 'ADDITIONAL' ? '분담금 결제 기록' : '선결제 기록'}>
+                <h4>{order.purpose === 'ADDITIONAL' ? '분담금 결제 기록' : '선결제 기록'}</h4>
+                <PaymentRecord order={order} />
+                {order.refundHeld && <p className="note">{order.holdReason || '환불 보류 중'}</p>}
+                {order.simulated && <p className="note">시연용 모의 결제 기록이에요. 실제 돈은 나가지 않아요.</p>}
+              </section>
+            ))}
+          </>
+        )}
+      </section>
+
+      <div className="history-detail-foot">
+        {party?.canConfirmRide && (
+          <Btn
+            className="small line"
+            onClick={() => (onOpenParty ? onOpenParty(id) : window.location.assign(`/parties/${id}`))}
+          >
+            일행 화면에서 운행 답변하기
+          </Btn>
+        )}
+        <div className="history-foot-links">
+          {(current.error || current.party || current.orders?.length > 0) && (
+            <Btn className="small quiet" onClick={() => setReload((n) => n + 1)}>결제 기록 다시 확인</Btn>
+          )}
+          {id != null && (
+            <Btn className="small quiet" aria-expanded={safetyOpen} onClick={() => setSafetyOpen((v) => !v)}>
+              일행 신고 · 다시 매칭 안 하기
+            </Btn>
+          )}
+        </div>
+        {id != null && safetyOpen && <MemberActions partyId={id} />}
+      </div>
+    </div>
+  )
+}
+
+/** 이용 내역. PC는 좌측 스캔 목록 + 우측 고정 상세, 모바일은 간결 카드 + 펼침 상세. */
+export default function History({ onHome, admin = false, onBoardingCases, onOpenParty, onOpenMessages, tabBar }) {
+  const wide = useWide()
+  const [items, setItems] = useState(null)
+  const [selectedId, setSelectedId] = useState(undefined)
+  const [filter, setFilter] = useState('ALL')
+  const [accuracy, setAccuracy] = useState(null)
+
+  useEffect(() => {
+    api.history().then(setItems).catch(() => setItems([]))
+    if (admin) api.fareAccuracy().then(setAccuracy).catch(() => setAccuracy(null))
+  }, [admin])
+
+  const saved = savedTotal(items || [])
+  const ongoingItems = items ? items.filter(ongoing) : []
+  const pastItems = items ? items.filter((item) => !ongoing(item)) : []
+  const ordered = [...ongoingItems, ...pastItems]
+  const visibleItems = filter === 'ONGOING' ? ongoingItems : filter === 'PAST' ? pastItems : ordered
+
+  const activeId = selectedId === undefined
+    ? visibleItems[0]?.id ?? null
+    : selectedId != null && visibleItems.some((item) => item.id === selectedId)
+      ? selectedId
+      : wide ? (visibleItems[0]?.id ?? null) : null
+  const selected = activeId != null ? visibleItems.find((item) => item.id === activeId) || null : null
+
+  const toggleItem = (id) => {
+    if (wide) {
+      setSelectedId(id)
+      return
+    }
+    setSelectedId((prev) => {
+      const current = prev === undefined ? visibleItems[0]?.id ?? null : prev
+      return current === id ? null : id
+    })
+  }
+
+  const selectFilter = (next) => {
+    setFilter(next)
+    setSelectedId(undefined)
+  }
+
+  const groups = filter === 'ALL'
+    ? [['진행 중', ongoingItems], ['지난 이용', pastItems]].filter(([, list]) => list.length > 0)
+    : [[filter === 'ONGOING' ? '진행 중' : '지난 이용', visibleItems]].filter(([, list]) => list.length > 0)
+
+  return (
+    <Screen tabBar={tabBar}>
+      <header className="bar"><h1 className="bar-title">이용 내역</h1></header>
+      <div className="history-page">
+        <h1 className="page-heading">이용 내역</h1>
+        {!items && (
+          <div className="history-list">
+            <Bone height={76} /><Bone height={76} /><Bone height={76} />
+          </div>
+        )}
+        {items?.length === 0 && (
+          <Empty title="아직 탄 기록이 없어요" action="길 올리기" onAction={onHome}>
+            같이 타면 덜 낸 돈이 여기 쌓여요.
+          </Empty>
+        )}
+        {items?.length > 0 && (
+          <>
+            <div className="history-summary">
+              <div className="history-summary-main">
+                <span className="history-summary-label">같이 타서 아낀 돈</span>
+                <strong className="history-summary-value">{won(saved)}</strong>
+              </div>
+              <div className="history-summary-counts">
+                {ongoingItems.length > 0 && (
+                  <span className="history-count-pill warn">진행 중 {ongoingItems.length}건</span>
+                )}
+                <span className="history-count-pill">완료·종료 {pastItems.length}건</span>
+              </div>
+            </div>
+
+            {admin && accuracy?.settled > 0 && (
+              <section className="history-admin-note" aria-label="관리자 요금 통계">
+                <h2>관리자 요금 통계</h2>
+                <p>전체 정산 {accuracy.settled}건 중 {accuracy.within}건이 예상 요금의 15% 이내였어요.</p>
+              </section>
+            )}
+
+            {items.length >= 2 && (
+              <div className="history-filters" role="tablist" aria-label="이용 내역 필터">
+                {FILTER_TABS.map(([key, text]) => {
+                  const count = key === 'ALL' ? ordered.length : key === 'ONGOING' ? ongoingItems.length : pastItems.length
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      role="tab"
+                      aria-selected={filter === key}
+                      className={filter === key ? 'history-filter-btn on' : 'history-filter-btn'}
+                      onClick={() => selectFilter(key)}
+                    >
+                      {text} ({count})
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
+            {visibleItems.length === 0 ? (
+              <Empty title={filter === 'ONGOING' ? '진행 중인 이용이 없어요' : '지난 이용이 없어요'} />
+            ) : (
+              <div className="history-layout">
+                <div className="history-list">
+                  {groups.map(([heading, list]) => (
+                    <section key={heading} aria-label={heading} className="history-list">
+                      <h2 className="history-group-heading">{heading}</h2>
+                      {list.map((item) => {
+                        const isSelected = item.id === selected?.id
+                        return (
+                          <div key={item.id} className={isSelected ? 'history-card-wrap is-selected' : 'history-card-wrap'}>
+                            <HistoryCard
+                              item={item}
+                              wide={wide}
+                              selected={isSelected}
+                              onSelect={() => toggleItem(item.id)}
+                            />
+                            {!wide && isSelected && (
+                              <div className="history-card-inline-detail">
+                                <HistoryDetail
+                                  item={item}
+                                  showHeader={false}
+                                  onBoardingCases={onBoardingCases}
+                                  onOpenParty={onOpenParty}
+                                  onOpenMessages={onOpenMessages}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </section>
+                  ))}
+                </div>
+
+                {wide && selected && (
+                  <aside className="history-detail-pane" aria-label="선택한 이용 상세">
+                    <HistoryDetail
+                      item={selected}
+                      onBoardingCases={onBoardingCases}
+                      onOpenParty={onOpenParty}
+                      onOpenMessages={onOpenMessages}
+                    />
+                  </aside>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </Screen>
+  )
 }

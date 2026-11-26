@@ -137,7 +137,7 @@ export function PayerInput({ party, now, run, onDone, onLater, onUpdated }) {
   </Screen>
 }
 
-const POSTPAID_RECORD_LABEL = {
+export const POSTPAID_RECORD_LABEL = {
   POSTPAID: '후불 분담금 결제 기록',
   COMPENSATION: '보전 분담금 결제 기록',
   ADDITIONAL: '추가 분담금 결제 기록',

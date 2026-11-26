@@ -6,9 +6,11 @@ import com.campustaximate.server.domain.PartyStatus;
 import com.campustaximate.server.domain.RequestStatus;
 import com.campustaximate.server.domain.RideRequest;
 import com.campustaximate.server.domain.Settlement;
+import com.campustaximate.server.domain.SettlementShare;
 import com.campustaximate.server.domain.TransferRequest;
 import com.campustaximate.server.repository.RideRequestRepository;
 import com.campustaximate.server.repository.SettlementRepository;
+import com.campustaximate.server.repository.SettlementShareRepository;
 import com.campustaximate.server.repository.TransferRequestRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -24,15 +26,17 @@ public class RideHistoryService {
         PARTY_CANCELED, LEFT_ALONE, PREPAYING, READY, OBJECTION_WINDOW, REVIEW_PENDING, NOT_OPERATED, FARE_MISSING, DISSOLVED, RIDE_UNCONFIRMED,
         BOARDING_UNCONFIRMED, BOARDING_REVIEW, BOARDING_NO_SHOW, BOARDING_EXONERATED }
 
-    /** paid는 내가 낸 돈, partyPaid는 실제 결제 금액이고, 정산 전에는 null이다. */
-    public record Entry(RideRequest request, Stage stage, Long paid, Long partyPaid, Integer partySize) {
+    /** paid는 기존 계약 금액(결제자는 현장 결제 합계), myShare는 정산 확정된 본인 분담금, payer는 결제자 여부다. 정산 전에는 null이다. */
+    public record Entry(RideRequest request, Stage stage, Long paid, Long partyPaid, Integer partySize,
+                        Long myShare, Boolean payer) {
         Entry(RideRequest request, Stage stage) {
-            this(request, stage, null, null, null);
+            this(request, stage, null, null, null, null, null);
         }
     }
 
     private final RideRequestRepository requests;
     private final SettlementRepository settlements;
+    private final SettlementShareRepository shares;
     private final TransferRequestRepository transfers;
     private final com.campustaximate.server.repository.PaymentOrderRepository paymentOrders;
     private final com.campustaximate.server.repository.BoardingCaseRepository boardingCases;
@@ -63,13 +67,17 @@ public class RideHistoryService {
         if (r.getEndReason() == EndReason.LEFT_ALONE) {
             return new Entry(r, Stage.LEFT_ALONE);
         }
-        if(party!=null && List.of(PartyStatus.NOT_OPERATED,PartyStatus.RIDE_UNCONFIRMED,PartyStatus.REVIEW_PENDING).contains(party.getStatus())) return new Entry(r,stage(r,party));
+        if (party != null && List.of(PartyStatus.NOT_OPERATED, PartyStatus.RIDE_UNCONFIRMED, PartyStatus.REVIEW_PENDING).contains(party.getStatus())) {
+            return new Entry(r, stage(r, party), null, null, null, null, isPayer(party, memberId));
+        }
         if (party == null || r.getStatus() == RequestStatus.CANCELED || r.getStatus() == RequestStatus.UNMATCHED) {
             return new Entry(r, withoutParty(r.getStatus()));
         }
-        Long partyPaid = settlements.findByParty(party).map(Settlement::getPaidAmount).orElse(null);
-        return new Entry(r, stage(r, party), paid(party, memberId), partyPaid,
-                requests.findByPartyOrderByRideOrder(party).size());
+        Settlement settlement = settlements.findByParty(party).orElse(null);
+        Long partyPaid = settlement == null ? null : settlement.getPaidAmount();
+        Long paid = paid(party, settlement, memberId);
+        return new Entry(r, stage(r, party), paid, partyPaid,
+                requests.findByPartyOrderByRideOrder(party).size(), shareOf(settlement, memberId, paid), isPayer(party, memberId));
     }
 
     private static Stage withoutParty(RequestStatus status) {
@@ -102,8 +110,22 @@ public class RideHistoryService {
         };
     }
 
-    private Long paid(Party party, long memberId) {
-        Settlement settlement = settlements.findByParty(party).orElse(null);
+    private static Boolean isPayer(Party party, long memberId) {
+        return party.getPayer() != null && Long.valueOf(memberId).equals(party.getPayer().getId());
+    }
+
+    private Long shareOf(Settlement settlement, long memberId, Long fallbackPaid) {
+        if (settlement == null) {
+            return null;
+        }
+        return shares.findBySettlementIdOrderByRideOrder(settlement.getId()).stream()
+                .filter(s -> Long.valueOf(memberId).equals(s.getMemberId()))
+                .map(SettlementShare::getAmount)
+                .findFirst()
+                .orElse(fallbackPaid);
+    }
+
+    private Long paid(Party party, Settlement settlement, long memberId) {
         if (settlement == null) {
             return null;
         }

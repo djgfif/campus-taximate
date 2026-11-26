@@ -32,6 +32,12 @@ describe('savedTotal', () => {
       { stage: 'SETTLING', soloFare: 9000, paid: 1000 },
     ])).toBe(3600)
   })
+  it('결제자 항목도 myShare가 있으면 본인 분담금 기준으로 절약액을 합산한다', () => {
+    expect(savedTotal([
+      { stage: 'SETTLED', payer: true, soloFare: 11100, paid: 14100, partyPaid: 14100, myShare: 5796 },
+      { stage: 'SETTLED', payer: true, soloFare: 11100, paid: 14100, partyPaid: 14100 },
+    ])).toBe(5304)
+  })
 })
 
 describe('routeLabel', () => {

@@ -257,7 +257,7 @@ summary::-webkit-details-marker { display: none; }
 button.item:active { opacity: 0.6; }
 .badge { display: inline-block; flex: none; padding: 3px 8px; border-radius: 7px; background: var(--mist); color: var(--ink-2); font-size: 12px; font-weight: 700; }
 .badge.ok { background: var(--save-soft); color: var(--save); }
-.badge.warn { background: var(--amber-soft); color: var(--amber-deep); }
+.badge.warn { background: var(--color-warning-soft, var(--amber-soft)); color: var(--color-warning, var(--amber-deep)); }
 .badge.bad { background: var(--stop-soft); color: var(--stop); }
 .money { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; font-size: 15px; font-weight: 700; }
 .unread-badge { display: inline-block; min-width: 18px; margin-left: 6px; padding: 0 5px; border-radius: 999px; font-size: 12px; font-weight: 700; line-height: 18px; text-align: center; color: #fff; background: var(--stop); vertical-align: 1px; }
@@ -744,16 +744,10 @@ button.item:active { opacity: 0.6; }
 .chat-count { align-self: flex-end; font-size: 12px; color: var(--road); }
 
 /* 6-7 정산·이용 내역 */
-.history-finance { display: flex; flex-direction: column; gap: 8px; padding: 16px 0; border-bottom: 1px solid var(--line); }
-.history-finance h3 { font-size: 17px; font-weight: 700; }
-.history-finance h4 { margin-top: 8px; font-size: 15px; font-weight: 700; }
 .financial-details section { margin: 16px 0; }
 .case-link { display: flex; flex-direction: column; gap: 8px; padding: 4px 0 8px; }
 .mini { position: relative; height: 240px; overflow: hidden; border-radius: var(--r-l); background: var(--line); }
 .receipt { display: block; max-width: 100%; max-height: 420px; margin: 0 auto; border-radius: var(--r-s); box-shadow: 0 0 0 1px var(--line); }
-@media (min-width: 1024px) {
-  .item.sel { width: calc(100% + 2 * var(--gutter)); margin: 0 calc(-1 * var(--gutter)); padding-inline: var(--gutter); background: var(--mist); }
-}
 
 /* 6-8 내 일행 */
 .ride-list { display: flex; flex-direction: column; }
@@ -766,8 +760,6 @@ button.item:active { opacity: 0.6; }
 .empty b { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
 .empty p { font-size: 14px; color: var(--road); }
 .empty .btn { margin-top: 14px; }
-.history-open { display: flex; flex-direction: column; gap: 12px; padding: 4px 0 16px; }
-.history-group { margin-top: 16px; color: var(--road); font-size: 13px; }
 
 /* 6-9 내 정보 메뉴 */
 .me-page { gap: 8px; }

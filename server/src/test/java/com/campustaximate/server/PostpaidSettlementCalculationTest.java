@@ -1,7 +1,9 @@
 package com.campustaximate.server;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.campustaximate.matching.Direction;
@@ -273,6 +275,38 @@ class PostpaidSettlementCalculationTest {
         assertThat(rotated.getOrderId()).isNotEqualTo(initialOrderId);
         assertThat(rotated.getAmount()).isGreaterThan(initialAmount);
         assertThat(rotated.getSettlementRevision()).isEqualTo(1);
+    }
+
+    @Test
+    void historyExposesPersonalShareAndPayerFlagAlongsideLegacyPaidContract() throws Exception {
+        Party party = boardAndStartTwoRiders();
+        long payerId = party.getPayer().getId();
+        long passengerId = otherMember(party).getMember().getId();
+        long actualFare = party.getExpectedTotal();
+
+        settlements.submit(payerId, party.getId(), actualFare, receipt(), null, null);
+        Settlement settlement = settlementRecords.findByParty(party).orElseThrow();
+        long payerShare = shares.findBySettlementIdOrderByRideOrder(settlement.getId()).stream()
+                .filter(SettlementShare::isPayer).mapToLong(SettlementShare::getAmount).findFirst().orElseThrow();
+        long passengerShare = shares.findBySettlementIdOrderByRideOrder(settlement.getId()).stream()
+                .filter(s -> !s.isPayer()).mapToLong(SettlementShare::getAmount).findFirst().orElseThrow();
+
+        MockHttpSession payerSession = new MockHttpSession();
+        AuthenticatedTestSession.authenticate(payerSession, payerId, loginTokens);
+        mvc.perform(get("/api/history").session(payerSession))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].payer").value(true))
+                .andExpect(jsonPath("$[0].partyPaid").value(actualFare))
+                .andExpect(jsonPath("$[0].paid").value(actualFare))
+                .andExpect(jsonPath("$[0].myShare").value(payerShare));
+
+        MockHttpSession riderSession = new MockHttpSession();
+        AuthenticatedTestSession.authenticate(riderSession, passengerId, loginTokens);
+        mvc.perform(get("/api/history").session(riderSession))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].payer").value(false))
+                .andExpect(jsonPath("$[0].partyPaid").value(actualFare))
+                .andExpect(jsonPath("$[0].myShare").value(passengerShare));
     }
 
     private Party matchReservation() {

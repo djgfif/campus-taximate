@@ -41,9 +41,21 @@ export function remaining(target, now) {
   return rest ? `${Math.floor(minutes / 60)}시간 ${rest}분` : `${Math.floor(minutes / 60)}시간`
 }
 
+/** 이용 내역 항목의 실제 본인 분담금. 서버가 myShare를 주면 우선 쓰고, 결제자 전액(paid === partyPaid)만 있는 구형 데이터는 null을 돌려준다. */
+export function historyMyShare(item) {
+  if (!item) return null
+  if (item.myShare != null) return item.myShare
+  if (item.paid == null) return null
+  if (item.payer && item.partyPaid != null && item.paid === item.partyPaid) return null
+  return item.paid
+}
+
 /** 정산이 끝난 건에서 혼자 탈 때보다 아낀 금액의 합. */
-export const savedTotal = (items) => items.filter((item) => item.stage === 'SETTLED' && item.paid != null)
-  .reduce((sum, item) => sum + Math.max(0, item.soloFare - item.paid), 0)
+export const savedTotal = (items) => items.filter((item) => item.stage === 'SETTLED')
+  .reduce((sum, item) => {
+    const share = historyMyShare(item)
+    return share == null ? sum : sum + Math.max(0, item.soloFare - share)
+  }, 0)
 
 export const routeLabel = (item) =>
   item.direction === 'TO_SCHOOL' ? `${item.pointName}에서 ${item.anchorName}` : `${item.anchorName}에서 ${item.pointName}`

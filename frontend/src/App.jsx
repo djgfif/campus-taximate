@@ -300,7 +300,7 @@ export default function App() {
           {config?.simulatedRoute && <p className="demo-strip" role="note">시연 모드: 금액과 시간은 예시예요</p>}
           {paymentReturn && <PaymentResult key={me.id + location.search} search={location.search} myId={me.id} onUpdated={refresh}
             onReturn={(id) => navigate(id ? `/parties/${id}` : '/', { replace: true })} />}
-          {!paymentReturn && tab === 'history' && <History admin={me.admin} tabBar={tabBar} onHome={() => setTab('home')} onBoardingCases={() => setTab('boarding-cases')} />}
+          {!paymentReturn && tab === 'history' && <History admin={me.admin} tabBar={tabBar} onHome={() => setTab('home')} onBoardingCases={() => setTab('boarding-cases')} onOpenParty={(id) => navigate('/parties/' + id)} onOpenMessages={(id) => navigate('/app/messages/' + id)} />}
           {!paymentReturn && tab === 'rides' && <Rides state={state} onOpen={(id) => navigate('/parties/' + id)} onHome={() => setTab('home')} tabBar={tabBar} />}
           {!paymentReturn && tab === 'me' && <Screen tabBar={tabBar}><header className="bar"><h1 className="bar-title">내 정보</h1></header><div className="pad me-page"><h1 className="page-heading">내 정보</h1>{meMenu(() => {})}</div></Screen>}
           {!paymentReturn && tab === 'boarding-cases' && <BoardingCasesScreen now={state?.now} onBack={() => setTab('home')} />}
