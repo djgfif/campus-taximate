@@ -1,7 +1,7 @@
-"""C12: 지금 서비스 그대로(마감 확정 S42 + 확정 분담금 S43)를 수요 곡선 위에서 다시 잰다.
+"""C12: 지금 서비스 그대로(마감 확정 + v3 후불 1회 결제, 실효 여유분 0%)를 수요 곡선 위에서 다시 잰다.
 
 - 매칭·검증·정산은 현재 체크아웃의 운영 코드(matching-engine, server)를 그대로 컴파일해 쓴다.
-- 여유분은 server/src/main/resources/application.yml의 app.fare 기본값을 읽는다. 견적 보정은 읽지 않는다(fare_config 참고).
+- 실효 여유분은 server/src/main/resources/application.yml의 payment.flow-version과 fare.quote-margin을 RouteConfig 규칙대로 읽는다. 견적 보정은 SIM_QUOTE_BIAS를 쓴다(fare_config 참고).
 - 수요는 C10과 같은 생성기(같은 씨앗)로 하루 15~400건, 30일. 100건은 C10과 같은 요청 흐름이다.
 - 학교 앞 실제 택시 이용량(TIMS 2025, 정문 반경 약 1.5km 격자 9칸)을 곡선 위 관측 구간으로 표시한다.
 """
@@ -40,14 +40,17 @@ SIM_QUOTE_BIAS = 0.0657
 
 
 def fare_config(path=ROOT / 'server/src/main/resources/application.yml'):
-    """(실험 견적 보정, 앱 여유분). 보정은 SIM_QUOTE_BIAS, 여유분은 app.fare.quote-margin 기본값을 읽는다."""
+    """(실험 견적 보정, 앱 실효 여유분). RouteConfig와 같이 flow-version >= 3이면 여유분은 0.0이다."""
     text = path.read_text(encoding='utf-8')
     def value(key):
         m = re.search(key + r':\s*\$\{[A-Z_]+:([0-9.]+)\}', text)
         if not m:
             raise ValueError('app.fare.' + key + ' missing')
         return float(m.group(1))
-    return SIM_QUOTE_BIAS, value('quote-margin')
+    fv = re.search(r'flow-version:\s*\$\{[A-Z_]+:(\d+)\}', text)
+    flow_version = int(fv.group(1)) if fv else 2
+    effective_margin = 0.0 if flow_version >= 3 else value('quote-margin')
+    return SIM_QUOTE_BIAS, effective_margin
 
 
 def tims_grid(lon, lat):
@@ -202,6 +205,8 @@ def summarize(groups, days, fixed):
                 if people:
                     per.append(dict(saving=sum(float(r['fixed_saving_actual_sum']) for r in rr) / people,
                                     saving_krw=sum(int(r['fixed_saving_krw']) for r in rr) / people,
+                                    postpaid_saving=sum(float(r['current_saving_actual_sum']) for r in rr) / people,
+                                    postpaid_saving_krw=sum(int(r['current_saving_krw']) for r in rr) / people,
                                     harmed_vs_solo_meter=sum(int(r['fixed_harmed_actual']) for r in rr) / people,
                                     harmed_vs_quote=sum(int(r['fixed_harmed_quote']) for r in rr) / people,
                                     extra=sum(int(r['extra']) for r in rr), refund=sum(int(r['refund']) for r in rr),
@@ -210,6 +215,7 @@ def summarize(groups, days, fixed):
             stats, _ = c11.path_statistics(totals, minima, paths)
             stats.pop('trajectory', None)
             level['money'][str(sp)] = dict({k: c10.ci([x[k] for x in per]) for k in per[0]}, reserve=stats,
+                                           normal_payments_per_rider=1, operator_reserve=0,
                                            extra_total=sum(x['extra'] for x in per), refund_total=sum(x['refund'] for x in per),
                                            conservation_total=sum(x['conservation'] for x in per))
         out.append(level)
@@ -221,9 +227,9 @@ def pct(x):
 
 
 def report(levels, observed, bias, margin, provenance):
-    L = ['# C12 지금 서비스 그대로: 수요에 따른 매칭과 확정 분담금', '', ATTRIBUTION, '',
+    L = ['# C12 지금 서비스 그대로: 수요에 따른 매칭과 후불 1회 정산', '', ATTRIBUTION, '',
          f'운영 코드 {provenance["git_head"][:7]}{" (작업 중 변경 있음)" if provenance["production_dirty"] else ""}를 그대로 컴파일했다. '
-         f'매칭은 모집 마감까지 모아 확정(S42), 요금은 확정 분담금(S43, 견적 보정 {100 * bias:.2f}% + 여유 {100 * margin:.0f}%).', '',
+         f'매칭은 모집 마감까지 모아 확정하며, 정산은 확인형 후불 1회 결제(실효 여유분 {100 * margin:.0f}% · 실험 견적 보정 {100 * bias:.2f}% · 실제 요금 비율 배분)다.', '',
          '출발점은 대진대 정문(37.8707, 127.1561)이다. 11/20 이전 C7~C12 값은 포천 시내(37.874, 127.205)에서 출발한 값이라 이 결과로 대체한다.', '',
          f"운영은 같은 성별끼리만 묶는다. 요청자 성별은 대진대 재학생 남성 비율 {100 * __import__('campus_survey').male_shares()[('대진대학교', '본교')]:.1f}%(대학알리미 2026)로 뽑았다. "
          '11/21 이전 C7~C13은 전원 남성으로 계산해 매칭률이 높게 나왔다.', '',
@@ -232,24 +238,25 @@ def report(levels, observed, bias, margin, provenance):
          f'방학 하루 {observed["vacation_per_day"]:.1f}건, 연평균 {observed["year_per_day"]:.1f}건.', '',
          observed['meaning'], '',
          '## 수요에 따른 결과 (오차 1배, 30일 평균, 괄호는 95% CI)', '',
-         '| 하루 요청 | 매칭률 | 1인 절약(매칭된 사람) | 1인 절약(요청자 전체) | 1인 절약액(매칭된 사람) | 평균 지연(분) | 확정까지(분) | 더 낸 사람 | 환불 |',
+         '| 하루 요청 | 매칭률 | 1인 절약(매칭된 사람) | 1인 절약(요청자 전체) | 1인 절약액(매칭된 사람) | 평균 지연(분) | 확정까지(분) | 정상 이용 결제 횟수 | 운영자 적립금 |',
          '|---:|---:|---:|---:|---:|---:|---:|---:|---:|']
     for lv in levels:
         m = lv['matching']; f = lv['money']['1.0']
         L.append(f"| {lv['requests']} | {pct(m['match_rate']['mean'])} [{pct(m['match_rate']['ci95_low'])}, {pct(m['match_rate']['ci95_high'])}] | "
-                 f"{pct(f['saving']['mean'])} | {pct(m['match_rate']['mean'] * f['saving']['mean'])} | {f['saving_krw']['mean']:,.0f}원 | "
-                 f"{m['mean_delay']['mean']:.1f} | {m['mean_wait']['mean']:.1f} | {f['extra_total']} | {f['refund_total']} |")
-    L += ['', '- 더 낸 사람·환불은 일행 전체에서 센 건수다. 확정 분담금이라 0이어야 한다.',
-          '- 1인 절약은 실제 미터 요금이 붙은 혼자 탈 때 요금과 비교한 값이다. 요청자 전체는 매칭되지 못한 사람(절약 0)까지 넣은 평균(매칭률 × 매칭된 사람 절약)이다.', '',
-          '## 정산 적립금 (한 학기 80일, 2,000경로)', '',
-          '| 하루 요청 | 오차 배수 | 학기 말 평균 | 99% 초기 기금 | 95% 초기 기금 | 확정 금액 1.5배 초과(관리자 확인) |', '|---:|---:|---:|---:|---:|---:|']
+                 f"{pct(f['postpaid_saving']['mean'])} | {pct(m['match_rate']['mean'] * f['postpaid_saving']['mean'])} | {f['postpaid_saving_krw']['mean']:,.0f}원 | "
+                 f"{m['mean_delay']['mean']:.1f} | {m['mean_wait']['mean']:.1f} | {f['normal_payments_per_rider']}회 | {f['operator_reserve']}원 |")
+    L += ['', '- 1인 절약은 실제 미터 요금이 붙은 혼자 탈 때 요금 대비 후불 1회 정산 분담금(P_i = 실제 요금 × 혼자 요금 비율)의 절약률·절약액이다.',
+          '- 요청자 전체는 매칭되지 못한 사람(절약 0)까지 포함한 평균(매칭률 × 매칭된 사람 절약)이다.',
+          '- 정상 이용 시 동승자는 영수증 확인 후 1회만 결제하며 운영자 적립금(0원)·추가 결제(0건)·부분 환불(0건)이 없다.', '',
+          '## 오차 배수별 1.5배 초과(관리자 심사) 및 합계 보존 검증', '',
+          '| 하루 요청 | 오차 배수 | 매칭자 1인 절약 | 매칭자 1인 절약액 | 예상 1.5배 초과(관리자 심사) | 원 단위 합계 오류 |', '|---:|---:|---:|---:|---:|---:|']
     for lv in levels:
         for sp in SPREADS:
-            f = lv['money'][str(sp)]; r = f['reserve']
-            L.append(f"| {lv['requests']} | {sp:g} | {r['end_mean']:,.0f}원 | {r['seed99']:,}원 | {r['seed95']:,}원 | {pct(f['exception_rate']['mean'])} |")
+            f = lv['money'][str(sp)]
+            L.append(f"| {lv['requests']} | {sp:g} | {pct(f['postpaid_saving']['mean'])} | {f['postpaid_saving_krw']['mean']:,.0f}원 | {pct(f['exception_rate']['mean'])} | {f['conservation_total']}건 |")
     L += ['', '## 가정과 한계', '',
           '- 요청 수는 시나리오다. 관측된 학교 앞 택시 이용량을 곡선 위에 표시할 뿐, 앱 이용 비율은 가정하지 않는다.',
-          '- 요금 오차는 TIMS 격자·월 평균 잔차를 대리값으로 쓴다(1·1.5·2배). 확정 분담금에서는 오차가 이용자 부담이 아니라 적립금 기금 크기를 바꾼다.',
+          '- 요금 오차는 TIMS 격자·월 평균 잔차를 대리값으로 쓴다(1·1.5·2배). 후불 1회 정산에서는 실제 요금을 비율대로 나누며, 1.5배를 초과하는 이상 요금만 관리자 심사로 자동 확정을 차단한다.',
           '- 수요·목적지·경로는 C7과 같다(생활이동 2026-10, TIMS 격자, OSRM + 카카오 400건 보정).',
           f'- 운영 검증기 재실행 일치 그룹 {sum(l["production_parity_groups"] for l in levels):,}개, 1초 탐색 한도 경고 {sum(l["budget_warnings"] for l in levels)}회.', '']
     (REPORTS / 'c12-current-service.md').write_text('\n'.join(L), encoding='utf-8')
