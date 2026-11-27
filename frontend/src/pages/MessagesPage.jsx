@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react'
 import { api } from '../api.js'
 import { PartyChat } from '../PartyChat.jsx'
 import { formatTime, partyLabel, partyRouteLabel } from '../format.js'
-import { Btn, Empty, useWide } from '../ui.jsx'
+import { Empty, useWide } from '../ui.jsx'
 
 /**
  * 서버 대화 목록(/api/me/conversations)을 읽는다. 늦게 온 응답이나 실패가 최신 목록을 덮지 않고,
