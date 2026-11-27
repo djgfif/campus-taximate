@@ -105,13 +105,13 @@ flowchart LR
 
 ---
 
-## 6. 현행 저장소 코드(S43) → v2.0 전환 델타 요약
+## 6. 현행 저장소 코드(`main`) v2.0 후불 1회 결제 전환 완료 요약
 
-현재 저장소 `main`은 직전 S43(확정 분담금 선결제 + 적립금)으로 구현·테스트되어 있다. 향후 구현 단계로 넘어갈 때 변경 대상과 보존 대상은 아래와 같다.
+현재 저장소 `main`(`3c4ff3c`, `app.payment.flow-version=3`)은 기존 1·2계층 핵심 도메인을 보존하면서 3계층 확인형 후불 1회 결제와 프런트엔드 리뉴얼 전환을 완료하였다.
 
 | 영역 | 조치 | 세부 대상 |
 |---|---|---|
-| **보존 (변경 없음)** | 1·2계층 핵심 엔진, 인증·채팅·탑승번호·관리자 | `matching-engine/`, `BoardingCodeService`, `PartyChatService`, `AdminService`, `MemberSafetyService`, `NoShowService` |
-| **수정 (3계층 전환)** | 선결제·적립금 제거 → 결제수단 등록 + 확인형 후불 1회 결제 | `PaymentService`, `PaymentLifecycleService`, `SettlementService`(확인·버전·6시간 자동확정), `ReserveEntry` 비활성화 |
-| **UI/IA 개편** | 소비자 예약형 정보 구조 + 4레이아웃 격리 + 후불 확인 화면 | `frontend/src/` (PR 1~6) |
-| **제거/정리 대상** | 과거 구 방식 잔재 | `LegacyPartyScreens.jsx`, 구 송금 API(`/transfers/{id}/sent|received`), 적립금 안내 문구 |
+| **보존 (회귀 금지)** | 1·2계층 핵심 엔진, 인증·채팅·탑승번호·관리자 | `matching-engine/`, `BoardingCodeService`, `PartyChatService`, `AdminService`, `MemberSafetyService`, `NoShowService` |
+| **전환 완료 (3계층)** | 선결제·적립금 제거 → 결제수단 등록 + 확인형 후불 1회 결제 | `PaymentMethodService`, `PaymentService`, `PaymentLifecycleService`, `SettlementService`(확인·버전·6시간 자동확정), `PostpaidOrderSyncService`, `PayoutLedger` |
+| **UI/IA 개편 완료** | 소비자 예약형 정보 구조 + 4레이아웃 격리 + 후불 확인 화면 | `frontend/src/` (`Public/Student/Admin/Demo` 4레이아웃, 개편된 내 이용, 독립 메시지함, 서버 대리 장소 검색) |
+| **정리 완료 대상** | 과거 구 방식 코드·경로 제거/격리 | 구 송금·선결제 UI 제거 및 호환 리다이렉트 처리 완료 |
