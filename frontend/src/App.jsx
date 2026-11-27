@@ -18,9 +18,8 @@ import { ProfileSheet } from './People.jsx'
 import { PartyDetail, PartyScreen } from './PartyScreens.jsx'
 import { PayerInput } from './SettleScreens.jsx'
 import PaymentResult from './PaymentScreens.jsx'
-import { BoardingCasesScreen } from './ReviewScreens.jsx'
+import { AdminScreen, BoardingCasesScreen } from './ReviewScreens.jsx'
 
-const AdminScreen = lazy(() => import('./ReviewScreens.jsx').then((m) => ({ default: m.AdminScreen })))
 const DemoBar = lazy(() => import('./DemoBar.jsx'))
 const DemoPresenter = lazy(() => import('./DemoBar.jsx').then((m) => ({ default: m.DemoPresenter })))
 import { isPaymentParty } from './format.js'

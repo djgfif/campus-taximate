@@ -14,8 +14,12 @@ import org.springframework.context.annotation.Configuration;
 @Configuration @ConfigurationProperties(prefix = "app.demo") @Getter @Setter
 public class DemoDropoffConfiguration {
     private List<Dropoff> dropoffs = new ArrayList<>();
+    private List<DemoHub> hubs = new ArrayList<>();
 
     public record Dropoff(String name, double lat, double lon) {
+    }
+
+    public record DemoHub(String name, String meetingPoint, double lat, double lon) {
     }
 
     /** index번째 시연 지점. 목록보다 큰 번호는 처음부터 돌아가며 고른다. */

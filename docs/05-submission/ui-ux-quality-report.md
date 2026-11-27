@@ -74,12 +74,13 @@ v3 확인형 후불 정산 및 프런트엔드 레이아웃 개편이 반영된 
 - `진행 중인 이용` 카드를 `.home-grid` 상단으로 올려 탑승 확인·후불 확인(`CONFIRM_AND_PAY`)·수금 대기 행동을 가장 먼저 인지할 수 있게 배치했다.
 - 이미 `parties` 또는 `settledParty` 기록이 있는 이용자에게는 3단계 온보딩(`이용 방법`) 카드를 숨겨 반복 이용 화면 밀도를 개선했다.
 
-### 4.3 동승 요청 및 지도 (`RequestFlow.jsx`, `MapPicker.jsx`, `RouteComparison.jsx`, `RequestStatus.jsx`, `Board.jsx`, `DemoBar.jsx`)
+### 4.3 동승 요청 및 지도 (`RequestFlow.jsx`, `MapPicker.jsx`, `RouteComparison.jsx`, `RequestStatus.jsx`, `Board.jsx`, `DemoBar.jsx`, `PlaceSearchController.java`, `DataSeeder.java`)
 
 - 지도 핀·폴리라인 잔여 노란색을 `#145a46`으로 통일하고 `RouteComparison` 범례 문구를 `"초록 실선은 같이 가는 길..."`로 일치시켰다.
 - 결제수단이 미등록(`paymentMissing`)된 경우 비활성 막힘 대신 `'결제수단 등록하고 이어서 요청'` 버튼으로 즉시 이동·복귀할 수 있게 개선했다.
 - 도착 기준(`ARRIVE`) 선택 시 여유 도착 가능성에 대한 보조 안내 문구를 추가했다.
 - `RequestStatus`, `Board`, `DemoBar`에서 v2 선결제 잔여 표현을 v3 확인형 후불 기준 문구로 분기·정리했다.
+- **서버 대리 장소 검색 및 등교 거점 보강:** `GET /api/places/search` (`PlaceSearchController`)가 서버 `KAKAO_REST_KEY`로 카카오 로컬 키워드 검색을 대리 호출하도록 추가해 미등록 로컬 호스트(`127.0.0.1:8080`)에서도 검색이 동작하며, 검색 결과에 도로명·지번 주소를 함께 표시했다. 또한 프리셋 기본 문구를 `'시연 지점'` → `'주요 장소'`로 다듬고 등교(`schoolDestination`) 화면 도착지의 불필요한 드롭다운을 제거했으며, 시연 프로필에 외부 승차 거점(`역전 버스 정류장`, `포천시청 앞`)을 추가 시드(`DataSeeder`, `DemoDropoffConfiguration`, `application-demo.yml`)해 등교 경로 시연 시에도 도보 10분 이내 승차 지점 선택이 가능하도록 했다.
 
 ### 4.4 일행방 · 기사님 안내 · 이용 상세 · 이용 내역 (`PartyScreens.jsx`, `PartyShell.jsx`, `TripDetailPage.jsx`, `History.jsx`, `RideHistoryService.java`, `ApiController.java`, `format.js`, `ui.jsx`)
 
@@ -170,33 +171,32 @@ v3 확인형 후불 정산 및 프런트엔드 레이아웃 개편이 반영된 
 
 ## 7. 수정 및 신규 파일 목록
 
-- **백엔드 및 테스트 (5개)**
-  - 수정: `server/src/main/java/com/campustaximate/server/web/WebConfig.java`, `server/src/main/java/com/campustaximate/server/service/RideHistoryService.java`, `server/src/main/java/com/campustaximate/server/web/ApiController.java`, `server/src/test/java/com/campustaximate/server/PostpaidSettlementCalculationTest.java`
-  - 신규: `server/src/test/java/com/campustaximate/server/web/SpaForwardingTest.java`
+- **백엔드 및 테스트 (12개)**
+  - 수정: `server/src/main/resources/application.yml`, `server/src/main/resources/application-demo.yml`, `server/src/main/java/com/campustaximate/server/common/DemoDropoffConfiguration.java`, `server/src/main/java/com/campustaximate/server/service/DataSeeder.java`, `server/src/main/java/com/campustaximate/server/web/WebConfig.java`, `server/src/main/java/com/campustaximate/server/service/RideHistoryService.java`, `server/src/main/java/com/campustaximate/server/web/ApiController.java`, `server/src/test/java/com/campustaximate/server/PostpaidSettlementCalculationTest.java`, `server/src/test/java/com/campustaximate/server/web/BoardingPointControllerTest.java`
+  - 신규: `server/src/main/java/com/campustaximate/server/web/PlaceSearchController.java`, `server/src/test/java/com/campustaximate/server/web/PlaceSearchControllerTest.java`, `server/src/test/java/com/campustaximate/server/web/SpaForwardingTest.java`
 - **프런트엔드 스타일 (4개)**
   - 수정: `frontend/src/styles/tokens.css`, `frontend/src/styles/layouts.css`, `frontend/src/styles.css`, `frontend/src/reviews.css`
 - **프런트엔드 UI · 레이아웃 · 지도 · 유틸 (25개)**
   - 수정: `frontend/src/api.js`, `frontend/src/App.jsx`, `frontend/src/format.js`, `frontend/src/ui.jsx`, `frontend/src/Home.jsx`, `frontend/src/RequestFlow.jsx`, `frontend/src/RequestStatus.jsx`, `frontend/src/Board.jsx`, `frontend/src/DemoBar.jsx`, `frontend/src/MapPicker.jsx`, `frontend/src/MapView.jsx`, `frontend/src/RouteComparison.jsx`, `frontend/src/PartyScreens.jsx`, `frontend/src/PartyShell.jsx`, `frontend/src/History.jsx`, `frontend/src/ReviewScreens.jsx`, `frontend/src/SettleScreens.jsx`, `frontend/src/layouts/PublicLayout.jsx`, `frontend/src/layouts/StudentLayout.jsx`, `frontend/src/layouts/AdminLayout.jsx`, `frontend/src/pages/FindPage.jsx`, `frontend/src/pages/MessagesPage.jsx`, `frontend/src/pages/PaymentMethodsPage.jsx`, `frontend/src/pages/SettlementPage.jsx`, `frontend/src/pages/TripDetailPage.jsx`
-- **프런트엔드 단위 · E2E 테스트 (6개)**
-  - 수정: `frontend/src/format.test.js`, `frontend/src/Home.test.jsx`, `frontend/src/pages/PaymentMethodsAndConversations.test.jsx`, `frontend/src/pages/PostpaidSettlement.test.jsx`, `frontend/src/History.test.jsx`, `frontend/e2e/ui-quality.spec.js`
+- **프런트엔드 단위 · E2E 테스트 (7개)**
+  - 수정: `frontend/src/format.test.js`, `frontend/src/Home.test.jsx`, `frontend/src/placeSearch.test.js`, `frontend/src/pages/PaymentMethodsAndConversations.test.jsx`, `frontend/src/pages/PostpaidSettlement.test.jsx`, `frontend/src/History.test.jsx`, `frontend/e2e/ui-quality.spec.js`
   - (기존 `frontend/src/appConnection.test.jsx`는 `loadBoot` 재시도 지연시간 `[150, 300]` 기준에서 그대로 검증 통과)
-- **문서 (1개)**
-  - `docs/05-submission/ui-ux-quality-report.md`
+- **문서 (2개)**
+  - `docs/05-submission/ui-ux-quality-report.md`, `docs/02-requirements/traceability.md`
 
 ---
 
 ## 8. 자동 테스트 및 라이브 브라우저 검증 결과
 
-모든 검증은 최종 코드·CSS 수정 **이후** 다시 실행해 확인했다.
+모든 검증은 최종 코드·CSS 수정(`ReviewScreens.jsx` 중복 import 정리 및 등교 시연 거점 추가 포함) **이후** 다시 실행해 확인했다.
 
 | 검증 항목 | 실행 명령/환경 | 결과 |
 |---|---|---|
-| **프런트엔드 단위·통합 테스트** | `cd frontend && npm test -- --run` | **24개 파일 / 206개 테스트 전부 통과 (0 실패)** |
-| **프로덕션 번들 빌드** | `cd frontend && npm run build` & Docker stage `vite build` | `index-obDElywR.css` `135.09 kB` (`gzip: 30.30 kB`) · `DemoBar-Bly0A399.js` `7.52 kB` · `index-B2nC8XgW.js` `384.96 kB` (`gzip: 126.00 kB`) **CSS 문법 경고 0건 빌드 성공** |
-| **백엔드 모듈 테스트·패키징** | `./mvnw package` | **`BUILD SUCCESS`**: `matching-engine` **77건 통과 (0 실패)**, `server` **589건 중 활성 456건 통과 / MySQL 프로파일 미활성 133건 스킵 (0 실패)** (`SpaForwardingTest` 23건 및 `/api/history` 분담금·결제자 회귀 테스트 포함) |
+| **프런트엔드 단위·통합 테스트** | `cd frontend && npm test -- --run` | **24개 파일 / 207개 테스트 전부 통과 (0 실패)** |
+| **프로덕션 번들 빌드** | `cd frontend && npm run build` | `index-BRwVhBTH.css` `135.24 kB` (`gzip: 30.33 kB`) · `DemoBar-BUKr_ILd.js` `7.52 kB` · `index-CNQq_UEC.js` `385.24 kB` (`gzip: 126.11 kB`) **CSS·Vite 경고 0건 빌드 성공** |
+| **백엔드 모듈 테스트·패키징** | `./mvnw package` | **`BUILD SUCCESS`**: `matching-engine` **77건 통과 (0 실패)**, `server` **595건 중 활성 462건 통과 / MySQL 프로파일 미활성 133건 스킵 (0 실패)** (`PlaceSearchControllerTest`, `BoardingPointControllerTest` 등교 거점 검증 및 `SpaForwardingTest` 23건 포함) |
 | **Playwright E2E 및 10해상도 감사** | `TAXIMATE_E2E_PORT=18080 npx playwright test --reporter=list` | **8건 통과 (`[pc]` 5건 + `[phone]` 3건), `[phone]` 프로젝트 중복 스킵 2건, 0 실패** (`flow.spec.js` 양 플랫폼 통과 + `ui-quality.spec.js` 10해상도·7경로 통과) |
-| **Docker Compose 기동 및 헬스체크** | `docker compose up --build -d` (`.env` 키 포함) | `campus-taximate-app-1` (`healthy`, `8080`), `campus-taximate-mysql-1` (`healthy`, `3307`) 정상 가동 |
-| **라이브 브라우저 실사 검증** | `http://127.0.0.1:8080` 데스크톱(`1440×900`·`1280×800`)·모바일(`390×844`) | 랜딩·홈(`/`·`/app/find`)·요청(`/request/home`)·대기 화면(`/` 약도 폴백 `860×736`)·일행 상세(`/parties/1` · `분담 계산 기준` 접힘 16px 하단 여백 확보, 잘림 0건)·메시지(`/app/messages/1` `오전 1:09` 2단 워크스페이스)·이용 내역(`/history` 빈 상태·진행 카드)·결제수단(`/app/account/payments`)·관리자(`/admin` `승차 지점 등록` `104.32px`·`지점 수정` `79.23px`·`편집 닫기` `79.23px`·`목록 새로고침` `101.4px`) 전 구간 가로 넘침 `0px` 및 정상 동작 확인 |
+| **Docker Compose 기동 및 라이브 브라우저** | 이전 커밋(`4e0cbc0`) 기준 `http://127.0.0.1:8080` 실측 검증 | `4e0cbc0` 빌드에서 `app`(`8080`)·`mysql`(`3307`) `healthy` 기동 및 `/request/school` `GET /api/places/search` (`HTTP 200`), `주요 장소`, `대진대학교` 도착지 드롭다운 제거 실측 확인(이후 `main` 최종 커밋 시점에는 Docker Desktop Linux 엔진 500 장애로 컨테이너 재빌드 보류) |
 
 ---
 
@@ -204,14 +204,14 @@ v3 확인형 후불 정산 및 프런트엔드 레이아웃 개편이 반영된 
 
 라이브 Docker Compose 및 실브라우저 검증에서 다음 한계가 관찰되었으며, 추후 개선 과제로 기록한다.
 
-1. **카카오 지도 JS SDK 외부 도메인 인증 제약 (`net::ERR_BLOCKED_BY_ORB`)**
-   - 서버 측 `KAKAO_REST_KEY` 기반 경로·요금 미리보기(`POST /api/requests/preview`)는 정상 동작하며, 브라우저에서 `https://dapi.kakao.com/v2/maps/sdk.js` 요청이 차단되더라도 요청(`/request/home`)·매칭 대기(`/` `RequestStatus`)·일행 경로 모두 데스크톱·모바일에서 즉시 `SketchMap` 약도 폴백(`"약도로 경로를 보여 드려요"`)을 렌더링하도록 보완했다. 실제 도로 타일 지도를 띄우려면 배포 도메인에 맞춘 카카오 개발자 콘솔 웹 플랫폼 도메인 등록 확인이 필요하다.
+1. **카카오 지도 타일 SDK 외부 도메인 인증 제약 (`net::ERR_BLOCKED_BY_ORB`)**
+   - 서버 측 `KAKAO_REST_KEY` 기반 경로·요금 미리보기(`POST /api/requests/preview`)와 키워드 장소 검색(`GET /api/places/search`)은 `127.0.0.1:8080`과 `localhost:8080` 양쪽 모두에서 정상 동작한다. 다만 브라우저에서 타일 지도 SDK(`https://dapi.kakao.com/v2/maps/sdk.js`)를 직접 불러오는 구간과 `"지도에서"` 핀 이동 모달은 카카오 콘솔에 `http://localhost:8080`만 등록돼 있어 `127.0.0.1:8080`에서는 `SketchMap` 약도 폴백 및 `localhost:8080` 안내를 표시한다. 실제 지도 타일까지 `127.0.0.1`에서 띄우려면 카카오 개발자 콘솔 웹 플랫폼 도메인 등록을 추가하면 된다.
 2. **빈 상태/특수 경계 사례**
    - 관리자 `미정산` 탭 등 시연 초기화 직후 비어 있는 탭과 무탑승(`0 / 0명`) 정산 진행률 바 생략 경계 사례는 운영 데이터 확충 시 추가 UI 점검 여지가 있다.
 3. **로컬 MySQL E2E 범위 및 직접 진입 경로 안내**
-   - 본 검증 스위트에서 `server`의 MySQL 프로파일 133개 테스트는 Maven 기본 H2 환경에서 조건부 스킵되었으며(실 MySQL 컨테이너 기동 검증과 Playwright JAR E2E로 보완), MySQL 정산 회귀 검증은 MySQL 프로파일 활성화 시 별도 실행해 관리한다. 로그인 후 기본 홈 경로는 `/`이며, 미등록 URL(`/app/home` 등)은 `BAD_REQUEST` JSON 404를 반환한다.
-4. **경미한 빌드·테스트 경고**
-   - `ReviewScreens.jsx`의 정적·동적 중복 import로 인한 Vite 청크 분리 경고, 일부 Vitest 비동기 테스트의 `act(...)` 경고는 기능이나 런타임 동작에 영향이 없으나 후속 코드 정리 대상이다.
+   - 본 검증 스위트에서 `server`의 MySQL 프로파일 133개 테스트는 Maven 기본 H2 환경에서 조건부 스킵되었으며, MySQL 정산 회귀 검증은 MySQL 프로파일 활성화 시 별도 실행해 관리한다. 로그인 후 기본 홈 경로는 `/`이며, 미등록 URL(`/app/home` 등)은 `BAD_REQUEST` JSON 404를 반환한다.
+4. **테스트 경고 정리 여지**
+   - `ReviewScreens.jsx`의 정적·동적 중복 import로 나던 Vite 청크 분리 경고는 제거해 **빌드 경고 0건**을 달성했다. 일부 Vitest 비동기 테스트의 `act(...)` 경고는 테스트 실행이나 런타임 동작에는 영향이 없으나 추후 테스트 정리 시 함께 정비할 수 있다.
 
 ---
 

@@ -24,7 +24,7 @@
 | `FR-A03` | P1 | UC-01 | `/reset-password` | 완료(유지) | `AuthService` | `FlowTest`, `screens.test.jsx` |
 | `FR-A04` | P1 | UC-01 | `/app/account` | 완료(유지) | `LoginTokenService` | `ApiSecurityTest` |
 | `FR-A05` | P2 | UC-01 | `/app/account` | 완료(유지) | `ProfileService` | `PeopleBoardFlowTest`, `people.test.jsx` |
-| `FR-R01` | P0 | UC-02 | `/app/find`, `/app/requests/new` | 완료(유지) | `BoardingPointController`, `TmapWalkClient` | `BoardingPointControllerTest`, `RequestFlow.test.jsx` |
+| `FR-R01` | P0 | UC-02 | `/app/find`, `/app/requests/new` | 완료 *(서버 대리 장소 검색·시연 거점 보강)* | `BoardingPointController`, `PlaceSearchController`, `TmapWalkClient`, `RequestFlow.jsx`, `MapPicker.jsx` | `BoardingPointControllerTest`, `PlaceSearchControllerTest`, `placeSearch.test.js`, `RequestFlow.test.jsx` |
 | `FR-R02` | P0 | UC-02 | `/app/requests/new` | 완료(유지) | `RideRequestService`, `KakaoRouteClient` | `SoloRouteLookupTest`, `TmapWalkClientTest` |
 | `FR-R03` | P0 | UC-02 | `/app/requests/new` | 완료 *(결제수단 등록 검증 적용)* | `RideRequestService`, `PaymentMethodService` | `PostpaidPaymentGuardTest`, `PostpaidMatchingAndJoinTest`, `FlowTest`, `PaymentMethodsAndConversations.test.jsx` |
 | `FR-R04` | P0 | UC-02 | `/app/requests/:id` | 완료(유지) | `RideRequestService` | `FlowTest`, `ConfirmationConcurrencyTest` |
@@ -70,3 +70,13 @@
 - **서버 (`./mvnw test`, JDK 21)**: **총 565개 중 H2 432개 실행 전원 통과 (실패 0 / 오류 0)**, MySQL 전용 133개(`MYSQL_TEST_URL` 미설정 시 스킵) 포함 전체 실행 환경에서 **MySQL 8.4.3 연동 143건(`MigrationSchemaTest` 10건 + `BoardingMigrationMysqlTest` 3건 + `PaymentFlowMysqlTest` 124건 + `AuthConcurrencyMysqlTest` 5건 + `ConfirmationConcurrencyMysqlTest` 1건) 전원 통과 (실패 0 / 오류 0)**
 - **Docker Compose 라이브 스모크 (`docker compose up --build -d`)**: **MySQL 8.4.3 + 앱 빌드·기동 성공**, Flyway V1~V23(`V23__postpaid_v3_foundation.sql`) 적용 및 Hibernate 검증 통과, `/actuator/health` `UP`, `/api/config` `"paymentFlowVersion":3` 및 `/` `200 OK` 확인 후 컨테이너 정리 완료
 - **전환 완료 요약:** 40개 FR 중 32개 핵심 도메인을 보존하고, **3계층 결제·정산 전환 대상 8개 FR(`FR-R03`, `FR-M05`, `FR-S01`, `FR-S02`, `FR-S04`, `FR-S06`, `FR-S07`, `FR-O05`)** 을 v2.0 후불 일시결제 정책(`app.payment.flow-version=3`)으로 전환 완료하였다.
+
+---
+
+## 4. 이후 `main` 반영 보완 및 최신 검증 결과 (2026-11-27)
+
+- **UI/UX·장소 검색·시연 거점 보강:** PR #29(`eaac5b9`, SPA 23경로 포워딩·Deep Green/Mist 3단계 위계·`/history` 개편·서버 대리 장소 검색 `GET /api/places/search`) 머지 후, 시연 등교 경로 외부 거점(`역전 버스 정류장`, `포천시청 앞`) 시드 추가 및 `App.jsx` 중복 import 제거를 완료했다.
+- **최신 전체 검증 결과 (`main` 기준):**
+  - **프런트엔드 (`cd frontend && npm test -- --run && npm run build`)**: **24개 파일 / 207개 테스트 전부 통과**, Vite 프로덕션 빌드 경고 0건(`CSS 135.24 kB`, `JS 385.24 kB`)
+  - **Playwright E2E (`TAXIMATE_E2E_PORT=18080`)**: **`8 passed, 2 skipped` (0 실패)** (`flow.spec.js` `[pc]`/`[phone]` 및 10개 해상도 `ui-quality.spec.js` 통과)
+  - **백엔드 (`./mvnw package`, JDK 21)**: **`BUILD SUCCESS`** — `matching-engine` **77건 통과 (0 실패)**, `server` **595건 중 활성 462건 통과 / MySQL 전용 133건 조건부 스킵 (0 실패)**

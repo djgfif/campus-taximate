@@ -48,6 +48,13 @@ class BoardingPointControllerTest {
         for (var row:rows) { assertThat(row.get("walkSeconds").asInt()).isLessThanOrEqualTo(600); assertThat(row.get("walkEstimated").asBoolean()).isTrue(); }
         assertThat(hubs.count()).isEqualTo(before);
     }
+    @Test void demoSeedsExternalCommuteHubAfterMainGateAndFindsNearbyForPocheonCityHall() throws Exception {
+        var rows = json.readTree(mvc.perform(get("/api/hubs/nearby").session(session).param("lat", "37.8949").param("lon", "127.2003"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertThat(rows).isNotEmpty();
+        assertThat(rows.get(0).get("name").asText()).isEqualTo("포천시청 앞");
+    }
+
     @Test void rejectsInvalidCoordinatesAndRequiresLogin() throws Exception {
         mvc.perform(get("/api/hubs/nearby").param("lat","37").param("lon","127")).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/hubs/nearby").session(session).param("lat","91").param("lon","127")).andExpect(status().isBadRequest());

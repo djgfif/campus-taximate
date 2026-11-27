@@ -270,7 +270,7 @@ export function RequestForm({ initial, config, now, run, onClose, schoolDestinat
       <section className="form-step" aria-labelledby="step-where">
         <h2 id="step-where" className="sr-only">어디서 어디로</h2>
         <div className="route-box">
-          <PlaceField label="출발지" placeholder="출발지 검색" value={origin} center={center} onChange={changeOrigin} samples={config?.demo ? hubs : []} />
+          <PlaceField label="출발지" placeholder="출발지 검색" value={origin} center={center} onChange={changeOrigin} samples={config?.demo ? (schoolDestination && hubs.length > 1 ? hubs.filter((h) => h.name !== school?.gateName) : hubs) : []} />
           <PlaceField label="도착지" placeholder="도착지 검색" value={destination} center={origin.point || center} onChange={setDestination} samples={config?.demo && !schoolDestination ? config.sampleDropoffs || [] : []} />
         </div>
         {!wide && origin.point && <div className="mini-map">

@@ -44,6 +44,7 @@ public class DataSeeder implements ApplicationRunner {
     private final PaymentMethodService paymentMethods;
     private final org.springframework.core.env.Environment environment;
     private final com.campustaximate.server.common.SchoolSeedConfiguration seeds;
+    private final com.campustaximate.server.common.DemoDropoffConfiguration demoConfig;
 
     @Value("${app.demo.enabled}")
     private boolean demo;
@@ -76,10 +77,24 @@ public class DataSeeder implements ApplicationRunner {
     }
 
     private void seedDemo(School school) {
+        seedDemoHubs(school);
         seedAdmin(school);
         for(int i=1;i<=DEMO_MEMBERS_PER_GENDER;i++) {
             seedMember(school,"demo-f"+i,FEMALE_NICKNAMES.get(i-1),Gender.FEMALE,2*(i-1));
             seedMember(school,"demo-m"+i,MALE_NICKNAMES.get(i-1),Gender.MALE,2*(i-1)+1);
+        }
+    }
+
+    private void seedDemoHubs(School school) {
+        Set<String> existing = hubs.findBySchool(school.getId()).stream()
+                .map(Hub::getName)
+                .collect(java.util.stream.Collectors.toSet());
+        for (var hub : demoConfig.getHubs()) {
+            if (!existing.contains(hub.name())) {
+                String meetingPoint = hub.meetingPoint() == null || hub.meetingPoint().isBlank() ? hub.name() : hub.meetingPoint();
+                hubs.save(new Hub(hub.name(), meetingPoint, hub.lat(), hub.lon(), Set.of(school)));
+                existing.add(hub.name());
+            }
         }
     }
 
