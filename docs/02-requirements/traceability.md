@@ -1,7 +1,7 @@
 # 요구사항 추적표 (v2.0)
 
 > **목적:** `v2.0 FR(40개) ↔ UC(14개) ↔ 시퀀스 다이어그램(3종) ↔ 목표 UI 경로 ↔ 백엔드 구현/전환 상태 ↔ 자동 테스트`를 한 표로 연결한다.
-> **구현 상태 표기:** `완료(유지)` = 기존 구현 보존 / `완료` = v2.0(결제수단 등록·확인형 후불 1회 결제) 전환 완료.
+> **구현 상태 표기:** `완료(유지)` = 기존 구현 보존 / `완료` = v2.0(결제수단 등록·운행 뒤 실제 요금 정산) 전환 완료.
 
 ---
 
@@ -10,8 +10,8 @@
 | 시퀀스 다이어그램 | 담당 유스케이스 | 담당 FR | 핵심 백엔드 클래스 |
 |---|---|---|---|
 | **시퀀스 ① 요청과 자동 매칭** | `UC-03`, `UC-04` | `FR-R01~R04`, `FR-M01~M05` | `RideRequestService`, `SlotService`, `MatchingRound`, `RouteGroupVerifier` |
-| **시퀀스 ② 탑승 인증과 운행** | `UC-05`, `UC-11`, `UC-09`(노쇼 소명) | `FR-B01~B06` | `PartyReadinessService`, `BoardingCodeService`, `PartyService`, `NoShowService` |
-| **시퀀스 ③ 실제 요금·확인형 1회 결제·정산** | `UC-07`, `UC-12`, `UC-13`, `UC-09`(요금 이의) | `FR-S01~S08`, `FR-O01~O03` | `SettlementService`, `PaymentService`, `PaymentLifecycleService`, `AdminService` |
+| **시퀀스 ② 탑승 인증과 운행** | `UC-05`, `UC-11`, `UC-09`(노쇼 소명), `UC-13`(노쇼 판정) | `FR-B01~B06` | `PartyReadinessService`, `BoardingCodeService`, `PartyService`, `NoShowService` |
+| **시퀀스 ③ 실제 요금·분담금 결제·정산** | `UC-07`, `UC-12`, `UC-13`, `UC-09`(요금 이의) | `FR-S01~S08`, `FR-O01~O03` | `SettlementService`, `PaymentService`, `PaymentLifecycleService`, `AdminService` |
 
 ---
 
@@ -40,9 +40,9 @@
 | `FR-B05` | P0 | UC-05 | `/app/trips/:partyId` | 완료(유지) | `NoShowService`, `PartyService` | `PaymentFlowTest`, `AuditFixesTest` |
 | `FR-B06` | P0 | UC-09 | `/app/account/cases` | 완료(유지) | `NoShowService`, `NoShowPolicy` | `NoShowCaseVisibilityTest`, `reviews.test.jsx` |
 | `FR-S01` | P0 | UC-02 | `/app/account/payments` | 완료 | `PaymentMethodService`, `PaymentMethodController`, `PaymentMethodsPage.jsx` | `PaymentMethodServiceTest`, `PaymentMethodsAndConversations.test.jsx` |
-| `FR-S02` | P0 | UC-12 | `/app/trips/:partyId` | 완료 *(리비전 증가·확인 무효화 적용)* | `SettlementService`, `PostpaidOrderSyncService`, `MediaFiles` | `PostpaidSettlementCalculationTest`, `PostpaidSettlementConcurrencyTest`, `PostpaidSettlement.test.jsx` |
+| `FR-S02` | P0 | UC-12 | `/app/trips/:partyId` | 완료 *(확인·결제 전에만 수정, 리비전 증가로 옛 금액 결제 거절)* | `SettlementService`, `PostpaidOrderSyncService`, `MediaFiles` | `PostpaidSettlementCalculationTest`, `PostpaidSettlementConcurrencyTest`, `PostpaidSettlement.test.jsx` |
 | `FR-S03` | P0 | UC-07 | `/app/trips/:partyId` | 완료(유지) *(실제 요금 기준 호출)* | `SettlementCalculator` | `SettlementCalculatorTest` |
-| `FR-S04` | P0 | UC-07 | `/app/trips/:partyId` | 완료 *(확인형 후불 1회 결제)* | `SettlementService`, `PaymentService`, `PostpaidOrderSyncService`, `TossPaymentGateway`, `SettlementPage.jsx`, `SettleScreens.jsx` | `PostpaidSettlementConcurrencyTest`, `PostpaidSettlement.test.jsx`, `frontend/e2e/flow.spec.js` |
+| `FR-S04` | P0 | UC-07 | `/app/trips/:partyId` | 완료 *(운행 뒤 실제 요금 정산)* | `SettlementService`, `PaymentService`, `PostpaidOrderSyncService`, `TossPaymentGateway`, `SettlementPage.jsx`, `SettleScreens.jsx` | `PostpaidSettlementConcurrencyTest`, `PostpaidSettlement.test.jsx`, `frontend/e2e/flow.spec.js` |
 | `FR-S05` | P0 | UC-09 | `/app/trips/:partyId` | 완료(유지) | `SettlementService` | `PaymentFlowTest`, `settlement.test.jsx` |
 | `FR-S06` | P0 | UC-07 | `/app/trips/:partyId` | 완료 *(전원 확인 즉시/6시간 확정·수납 정산)* | `SettlementService`, `PaymentLifecycleService`, `PostpaidOrderSyncService`, `PayoutLedger` | `PostpaidSettlementCalculationTest`, `PostpaidSettlementConcurrencyTest`, `FlowTest` |
 | `FR-S07` | P1 | UC-08, UC-12 | `/app/account/payments` | 완료 *(확인·결제/수납/미수납 분리 표시)* | `PaymentService`, `PartyService`, `SettlementPage.jsx`, `SettleScreens.jsx` | `PostpaidSettlementConcurrencyTest`, `PostpaidSettlement.test.jsx`, `settlement.test.jsx` |
