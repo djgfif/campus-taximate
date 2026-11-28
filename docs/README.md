@@ -15,7 +15,7 @@
 | 2 | [functional-requirements.md](02-requirements/functional-requirements.md) | 기능적 요구사항 40개(한 줄·P0/P1/P2·테스트 기준), 실측 기반 비기능적 요구사항 7개, 제약사항 3개 |
 | 3 | [use-cases.md](02-requirements/use-cases.md) | 외부 처리 중심 4액터(`비회원·학생·결제자(상속)·관리자`) UML 다이어그램, 1장 유스케이스 명세표(14개·FR 매핑), 핵심 6종 상세 명세 |
 | 4 | [traceability.md](02-requirements/traceability.md) | `FR 40개 ↔ UC 14개 ↔ 시퀀스 3종 ↔ 구현 클래스 ↔ 테스트` 추적표 및 테스트 기준선 |
-| 5 | [architecture-and-policy.md](03-design/architecture-and-policy.md) | 3계층 독립 아키텍처, 정산 정책 진화 근거(C10·C11·C14 → 후불 1회 결제), 정산 3단계 분리·버전 경합 방어, 노쇼·미납 규칙 |
+| 5 | [architecture-and-policy.md](03-design/architecture-and-policy.md) | 3계층 독립 아키텍처, 정산 정책 진화 근거(C10·C11·C14 → 운행 뒤 실제 요금 정산), 정산 3단계 분리·버전 경합 방어, 노쇼·미납 규칙 |
 | 6 | [legal-scope.md](05-submission/legal-scope.md) · [execution-plan.md](05-submission/execution-plan.md) | 법령별 시연 유효 범위 vs 상용 전환 요건, v2.0 정산·UI 단계별 전환 계획 |
 
 ---
@@ -24,7 +24,7 @@
 
 1. **3계층 독립 구조:** `Matching Engine(순수 Java)` · `Fare Allocation Engine(순수 Java)` · `Payment & Settlement Adapter`를 분리해 결제 방식이 바뀌어도 핵심 도메인이 흔들리지 않게 설계.
 2. **자동 매칭 검증:** 회차별 완전탐색 최적해 대비 손실 `0.00~0.03%p`(C8), 2~3명 마감 대기 우위(C11), 지연 15분·절약 10% 기준 8/9 파레토 경계(C13).
-3. **정산 정책 진화:** `115~125% 선결제`의 잦은 부분환불(77~95%, C10)과 `확정 분담금·적립금`의 초과 납부·공통 충격 적자 위험(C11·C14)을 확인한 뒤, **적립금 폐지 · 실제 요금 비율 · 정산 확인형 후불 1회 결제**로 수렴.
+3. **정산 정책 진화:** `115~125% 선결제`의 잦은 부분환불(77~95%, C10)과 `확정 분담금·적립금`의 초과 납부·공통 충격 적자 위험(C11·C14)을 확인한 뒤, **적립금 폐지 · 실제 요금 비율 · 운행 뒤 실제 요금 정산**으로 수렴.
 4. **테스트 기준선 (2026-11-25 실측):** 자동 테스트 **623건 실행 전원 통과**(엔진 77 · 서버 382 · 프런트 164), API p95 **27~51ms**, 매칭 100건 **최대 0.49초**, 동시 확정 100회 중복 **0건**.
 
 ---

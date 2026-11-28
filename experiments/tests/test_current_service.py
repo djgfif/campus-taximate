@@ -13,12 +13,13 @@ HAS_PYPROJ = importlib.util.find_spec('pyproj') is not None
 
 class C12UnitTests(unittest.TestCase):
     def test_fare_config_uses_sim_bias_and_server_margin(self):
-        # 실험 견적(요금표 공식)의 보정은 C5 값 그대로, 여유분만 앱 설정을 따른다. 앱 보정(카카오 견적)은 C16에 따라 0이다.
+        # 실험 견적(요금표 공식)의 보정은 C5 값 그대로, 실효 여유분은 RouteConfig 규칙상 flow-version >= 3이면 0.0이다.
         bias, margin = c12.fare_config()
         self.assertAlmostEqual(bias, 0.0657)
-        self.assertAlmostEqual(margin, 0.01)
+        self.assertAlmostEqual(margin, 0.0)
         yml = (c12.ROOT / 'server/src/main/resources/application.yml').read_text(encoding='utf-8')
         self.assertIn('quote-bias: ${FARE_QUOTE_BIAS:0}', yml)
+        self.assertIn('flow-version: ${PAYMENT_FLOW_VERSION:3}', yml)
 
     @unittest.skipUnless(HAS_PYPROJ, 'pyproj is not installed in this Python environment')
     def test_campus_grid_and_neighbourhood(self):
@@ -56,6 +57,11 @@ class C12ReportTests(unittest.TestCase):
                 self.assertEqual(m['extra_total'], 0, (lv['requests'], sp))
                 self.assertEqual(m['refund_total'], 0, (lv['requests'], sp))
                 self.assertEqual(m['conservation_total'], 0, (lv['requests'], sp))
+                self.assertEqual(m['normal_payments_per_rider'], 1, (lv['requests'], sp))
+                self.assertEqual(m['operator_reserve'], 0, (lv['requests'], sp))
+                self.assertGreater(m['postpaid_saving_krw']['mean'], 0.0, (lv['requests'], sp))
+                if sp != '2.0':
+                    self.assertGreater(m['postpaid_saving']['mean'], 0.0, (lv['requests'], sp))
 
     def test_more_demand_matches_more_people(self):
         rates = [lv['matching']['match_rate']['mean'] for lv in self.r['levels']]

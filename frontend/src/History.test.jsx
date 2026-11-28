@@ -46,9 +46,12 @@ describe('History 이용 내역 UX 개선', () => {
     render(<History onHome={vi.fn()} onOpenParty={onOpenParty} onOpenMessages={onOpenMessages} />)
     const detail = await screen.findByRole('complementary', { name: '선택한 이용 상세' })
     expect(within(detail).getByText('강남역 → 학교 정문')).toBeTruthy()
-    expect(within(detail).getByText('5,272원')).toBeTruthy()
+    // 일행 정산(api.party)은 비동기로 붙는다. 붙은 뒤에는 내 분담금이 상단 금액과 분담 목록에 함께 나오므로 로드 완료를 기다려 확인한다.
+    await within(detail).findByText('확인·결제 현황')
+    expect(detail.querySelector('.history-money-amount')?.textContent).toBe('5,272원')
+    expect(within(detail).getAllByText('5,272원').length).toBeGreaterThanOrEqual(1)
     expect(within(detail).getByText('실제 택시비 (현장 결제)')).toBeTruthy()
-    expect(within(detail).getByText('10,600원')).toBeTruthy()
+    expect(within(detail).getAllByText('10,600원').length).toBeGreaterThanOrEqual(1)
 
     fireEvent.click(within(detail).getByRole('button', { name: '일행·정산 화면 열기' }))
     fireEvent.click(within(detail).getByRole('button', { name: '메시지 열기' }))
