@@ -16,9 +16,20 @@ public final class C11Finance {
     static List<Long> longs(String s){return Arrays.stream(s.split(";")).map(Long::parseLong).toList();}
     static String join(Collection<?> x){return String.join(";",x.stream().map(Object::toString).toList());}
     static long actual(long quote,double error){return DetailedSimulation.actual(quote,Math.max(-.9999999999999999,error));}
+    /**
+     * Widen or narrow an empirical fare error around its mean, kept inside the observed error range.
+     * The plain additive mean+spread*(error-mean) pushed 16 of 41,391 TIMS residuals below -100%
+     * at spread 2; actual() then clamped those fares to 1 KRW and broke per-rider saving ratios.
+     * Clamping to [min, max] of the observed residuals keeps every fare within what TIMS ever showed.
+     * spread == 1 returns the observed error unchanged, so baseline results are identical.
+     */
+    static double scaled(double error,double mean,double spread,double lo,double hi){
+        if(spread==1)return error;
+        return Math.min(hi,Math.max(lo,mean+spread*(error-mean)));
+    }
     static void export(String[] args)throws Exception {
         double b=Double.parseDouble(args[3]);double[] errors=Files.readAllLines(Path.of(args[2])).stream().filter(x->!x.isBlank()).mapToDouble(Double::parseDouble).toArray();
-        double mean=Arrays.stream(errors).average().orElseThrow();
+        double mean=Arrays.stream(errors).average().orElseThrow(),lo=Arrays.stream(errors).min().orElseThrow(),hi=Arrays.stream(errors).max().orElseThrow();
         try(var out=new PrintWriter(Files.newBufferedWriter(Path.of(args[4])))) {
             out.println("source,n,day,group_id,confirm,finish,margin,spread,raw_quote,fixed_quote,zero_quote,meter,size,exceptional,reserve_delta,objection_delta,min_saving_violations,fixed_harmed_quote,fixed_harmed_actual,fixed_saving_quote_sum,fixed_saving_actual_sum,current_saving_actual_sum,fixed_saving_krw,current_saving_krw,payer_net_transfer,extra,refund,conservation_errors");
             for(String line:Files.readAllLines(Path.of(args[1]))){var p=line.split("	");if(p[0].equals("source"))continue;
@@ -28,10 +39,10 @@ public final class C11Finance {
                     // Expected solo cost carries the same quote bias b; the min-saving baseline and ratio units use it.
                     var expectedSolo=units.stream().map(u->Math.max(1,Math.round(u*(1+b)))).toList();
                     for(double spread:new double[]{.5,1,1.5,2}) {
-                        long meter=actual(raw,mean+spread*(errors[ei]-mean));boolean exceptional=meter>raw*1.5;
+                        long meter=actual(raw,scaled(errors[ei],mean,spread,lo,hi));boolean exceptional=meter>raw*1.5;
                         var f=fixed(quote,meter,expectedSolo,units.size()-1,exceptional);var current=SettlementCalculator.shares(meter,units,units.size()-1);
                         int violations=0,hq=0,ha=0;double sq=0,sa=0,cs=0;long sk=0,ck=0;
-                        for(int i=0;i<units.size();i++) {long solo=actual(units.get(i),mean+spread*(se[i]-mean));long cost=f.shares().get(i);
+                        for(int i=0;i<units.size();i++) {long solo=actual(units.get(i),scaled(se[i],mean,spread,lo,hi));long cost=f.shares().get(i);
                             long es=expectedSolo.get(i);if(cost*10>es*9)violations++;if(cost>es)hq++;if(cost>solo)ha++;
                             sq+=1-cost/(double)es;sa+=1-cost/(double)solo;cs+=1-current.get(i)/(double)solo;
                             sk+=solo-cost;ck+=solo-current.get(i);
@@ -79,6 +90,10 @@ public final class C11Finance {
         if(e.reserveDelta()!=0||e.objectionDelta()!=-13000||e.grossPayerReimbursement()!=35000)throw new AssertionError("objection bridge");
         var low=fixed(22000,5000,List.of(10000L,10000L),1,false);
         if(low.netPayerTransfer()!=-6000||low.reserveDelta()!=17000)throw new AssertionError("negative net transfer");
+        // Error scaling: baseline unchanged, widened errors stay inside the observed range (no 1 KRW clamp).
+        if(scaled(.25,0,1,-.8,47)!=.25)throw new AssertionError("spread 1 must keep the observed error");
+        if(scaled(-.7,.07,2,-.8193,47.27)!=-.8193)throw new AssertionError("widened error must stop at the observed minimum");
+        if(Math.abs(scaled(.4,0,2,-.8,47)-.8)>1e-12||Math.abs(scaled(.4,0,.5,-.8,47)-.2)>1e-12)throw new AssertionError("spread must widen or narrow around the mean");
         System.out.println("C11 fixed shares, exact payer reimbursement and operator conservation passed");
     }
     public static void main(String[] args)throws Exception {switch(args[0]){case "--self-test"->selfTest();case "--fixed"->export(args);case "--surplus"->surplus(args);default->throw new IllegalArgumentException("unknown mode");}}

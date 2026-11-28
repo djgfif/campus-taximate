@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-27T04:05:08.284546+00:00",
+  "generated_at": "2026-11-28T03:34:56.992014+00:00",
   "bias": 0.0657,
   "margin": 0.0,
   "levels": [
@@ -1489,15 +1489,15 @@
             "valid_days": 30
           },
           "postpaid_saving": {
-            "mean": 0.29231252909893457,
-            "ci95_low": 0.2822770748883069,
-            "ci95_high": 0.30196818318475804,
+            "mean": 0.2923125014611603,
+            "ci95_low": 0.28227705223964417,
+            "ci95_high": 0.30196813911774045,
             "valid_days": 30
           },
           "postpaid_saving_krw": {
-            "mean": 7780.549739562475,
-            "ci95_low": 7288.341398434943,
-            "ci95_high": 8411.878036811959,
+            "mean": 7780.54922413959,
+            "ci95_low": 7288.340605549371,
+            "ci95_high": 8411.877763926384,
             "valid_days": 30
           },
           "harmed_vs_solo_meter": {
@@ -1537,11 +1537,11 @@
             "valid_days": 30
           },
           "reserve": {
-            "end_mean": 1154050.5845,
-            "end_p5": 533050.1,
-            "end_p1": 321647.45,
+            "end_mean": 1154045.2135,
+            "end_p5": 533044.1,
+            "end_p1": 321645.45,
             "probability_ever_negative": 0.939,
-            "seed95": 157887,
+            "seed95": 157888,
             "seed99": 237574,
             "probability_never_negative_seed95": 0.95,
             "probability_never_negative_seed99": 0.99
@@ -1631,27 +1631,27 @@
         },
         "2.0": {
           "saving": {
-            "mean": -1.939472142260866,
-            "ci95_low": -6.302174589045176,
-            "ci95_high": 0.24946167776708786,
+            "mean": 0.24129162858822975,
+            "ci95_low": 0.22787582631919337,
+            "ci95_high": 0.2540612838097042,
             "valid_days": 30
           },
           "saving_krw": {
-            "mean": 7934.267897927922,
-            "ci95_low": 7177.496733089928,
-            "ci95_high": 9055.29328589883,
+            "mean": 7935.910794102785,
+            "ci95_low": 7178.711222072563,
+            "ci95_high": 9057.166653693179,
             "valid_days": 30
           },
           "postpaid_saving": {
-            "mean": -1.806581819803996,
-            "ci95_low": -5.925407186895623,
-            "ci95_high": 0.262218799555297,
+            "mean": 0.2512043685242612,
+            "ci95_low": 0.2341679947658437,
+            "ci95_high": 0.2679457747247167,
             "valid_days": 30
           },
           "postpaid_saving_krw": {
-            "mean": 8126.266032330999,
-            "ci95_low": 7317.798480081548,
-            "ci95_high": 9265.13976633066,
+            "mean": 8127.908928505862,
+            "ci95_low": 7319.545161531387,
+            "ci95_high": 9266.511415524079,
             "valid_days": 30
           },
           "harmed_vs_solo_meter": {
@@ -1818,27 +1818,27 @@
         },
         "1.0": {
           "saving": {
-            "mean": 0.31884019708007677,
-            "ci95_low": 0.31268834433011117,
-            "ci95_high": 0.3248835036863793,
+            "mean": 0.318840201471516,
+            "ci95_low": 0.31268835739464296,
+            "ci95_high": 0.3248835080778186,
             "valid_days": 30
           },
           "saving_krw": {
-            "mean": 8398.481383347988,
-            "ci95_low": 8146.117380545676,
+            "mean": 8398.48149520481,
+            "ci95_low": 8146.117492402499,
             "ci95_high": 8676.396075721188,
             "valid_days": 30
           },
           "postpaid_saving": {
-            "mean": 0.320255653754131,
-            "ci95_low": 0.31293101279319174,
-            "ci95_high": 0.3274326829690476,
+            "mean": 0.32025564781887084,
+            "ci95_low": 0.31293100293794085,
+            "ci95_high": 0.3274326765251331,
             "valid_days": 30
           },
           "postpaid_saving_krw": {
-            "mean": 8431.230168969205,
-            "ci95_low": 8154.621434181506,
-            "ci95_high": 8729.000065695258,
+            "mean": 8431.230167060385,
+            "ci95_low": 8154.6214341337845,
+            "ci95_high": 8729.000060942297,
             "valid_days": 30
           },
           "harmed_vs_solo_meter": {
@@ -1878,12 +1878,12 @@
             "valid_days": 30
           },
           "reserve": {
-            "end_mean": 1309146.75,
-            "end_p5": 450632.35,
-            "end_p1": 56370.780000000006,
+            "end_mean": 1309144.064,
+            "end_p5": 450632.3,
+            "end_p1": 56365.810000000005,
             "probability_ever_negative": 0.986,
-            "seed95": 327917,
-            "seed99": 540251,
+            "seed95": 327919,
+            "seed99": 540252,
             "probability_never_negative_seed95": 0.95,
             "probability_never_negative_seed99": 0.99
           },
@@ -1972,27 +1972,27 @@
         },
         "2.0": {
           "saving": {
-            "mean": -0.5594588941851381,
-            "ci95_low": -2.236105294045201,
-            "ci95_high": 0.28388654727664475,
+            "mean": 0.27810537105832867,
+            "ci95_low": 0.26917242467811414,
+            "ci95_high": 0.2867844736403136,
             "valid_days": 30
           },
           "saving_krw": {
-            "mean": 8530.396194919029,
-            "ci95_low": 8155.577501886521,
-            "ci95_high": 9027.126941319408,
+            "mean": 8531.102928747237,
+            "ci95_low": 8156.399452306282,
+            "ci95_high": 9027.768846970672,
             "valid_days": 30
           },
           "postpaid_saving": {
-            "mean": -0.5267832593920326,
-            "ci95_low": -2.147316256007867,
-            "ci95_high": 0.29011512282591095,
+            "mean": 0.2819303053093653,
+            "ci95_low": 0.26984229790997066,
+            "ci95_high": 0.2936321784851521,
             "valid_days": 30
           },
           "postpaid_saving_krw": {
-            "mean": 8603.412700573243,
-            "ci95_low": 8180.377839834614,
-            "ci95_high": 9130.370914388659,
+            "mean": 8603.925355454083,
+            "ci95_low": 8180.600422445945,
+            "ci95_high": 9130.836809359953,
             "valid_days": 30
           },
           "harmed_vs_solo_meter": {
@@ -2032,11 +2032,11 @@
             "valid_days": 30
           },
           "reserve": {
-            "end_mean": 10153885.1675,
-            "end_p5": 8798270.9,
-            "end_p1": 8174753.93,
+            "end_mean": 10149145.9925,
+            "end_p5": 8795387.6,
+            "end_p1": 8169443.93,
             "probability_ever_negative": 0.942,
-            "seed95": 176099,
+            "seed95": 176258,
             "seed99": 291570,
             "probability_never_negative_seed95": 0.95,
             "probability_never_negative_seed99": 0.994
@@ -2084,7 +2084,7 @@
     "meaning": "TIMS 2025 영업건수(승차 기준)의 정문 반경 약 1.5km 격자 9칸 합. 학생만이 아닌 모든 택시 이용이며, 앱 요청 수로 바꾸는 비율은 가정하지 않는다."
   },
   "provenance": {
-    "git_head": "3c4ff3c2a2e7b6b3e428ae239fb645ee9c83075b",
+    "git_head": "f9d7f01f6ad585d0cf8db62f521d1f3ec54a3bbc",
     "production_dirty": false
   },
   "attribution": "출처: 서울특별시·KT, 서울시 통신데이터(생활이동), 한국교통안전공단 택시운행정보(TIMS) 2025, OpenStreetMap 기여자",
@@ -2093,9 +2093,9 @@
     "experiments/.cache/c12/cases.tsv": "d7bde7a69f1987906988d4b1fc16dfac1940808da1d0ec2c7c06696c122dcdb5",
     "experiments/.cache/c12/days.csv": "cb295bc8c5b5570194043bc8c535b17581cadad653313f33f08a1a793a09f14b",
     "experiments/.cache/c12/finance-input.tsv": "b79a4dd448614e7950459d41d57c3e72abe5c5bc4e5c3b9782f655c6de7d4136",
-    "experiments/.cache/c12/fixed.csv": "d16a8a0e75ffd33eeb0e5b5c5093a4be996584092797310a119c58bf249d6325",
+    "experiments/.cache/c12/fixed.csv": "dde13cfbc33995078a52f6286ebf02d3b646b77107f637e24438f2f904a286a2",
     "experiments/.cache/c12/groups.tsv": "5a348c63f8c41015072817842bbb883f586eab6f61e50df7bde903cd349c8643",
-    "experiments/.cache/c12/provenance.json": "18ea31af4f93c9a74d1e22127c84dcbc1caef8ccd26bd4dc99ab355bd6e55cea",
+    "experiments/.cache/c12/provenance.json": "719fe0c8d2eeb1977981def0393d9757a7d8f644510c83a98577d6a0b0e2ed2d",
     "experiments/.cache/c12/semester-paths.json": "120f9a0f36056760411db03606e2f5e440b5c8324422d96dc10aa6cf3baed4e2"
   }
 }
